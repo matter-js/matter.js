@@ -331,6 +331,33 @@ describe("WalStorage", () => {
         });
     });
 
+    describe("head snapshot", () => {
+        it("creates head snapshot at truncation boundary during cleanup", async () => {
+            const storageDir = fs.directory("storage");
+            const storage = new WalStorage(storageDir, {
+                fsync: false,
+                snapshotInterval: Seconds(600),
+                cleanInterval: Seconds(1200),
+                maxSegmentSize: 50,
+                headSnapshot: true,
+            });
+            await storage.initialize();
+
+            // Write data that will span multiple segments due to small maxSegmentSize
+            await storage.set(["ctx"], "key1", "value1");
+            await storage.set(["ctx"], "key2", "value2");
+            await storage.set(["ctx"], "key3", "value3");
+
+            // Close triggers snapshot + clean — segments before the snapshot segment get deleted
+            await storage.close();
+
+            // Head snapshot should exist (compressed by default)
+            const headExists =
+                (await storageDir.file("head.json.gz").exists()) || (await storageDir.file("head.json").exists());
+            expect(headExists).equal(true);
+        });
+    });
+
     describe("blobs", () => {
         it("writes and reads a blob", async () => {
             const storage = await createStorage();

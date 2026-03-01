@@ -17,18 +17,20 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 export class WalSnapshot {
     readonly #storageDir: Directory;
     readonly #compress: boolean;
+    readonly #basename: string;
 
-    constructor(storageDir: Directory, compress = true) {
+    constructor(storageDir: Directory, compress = true, basename = "snapshot") {
         this.#storageDir = storageDir;
         this.#compress = compress;
+        this.#basename = basename;
     }
 
     /**
      * Load an existing snapshot from disk, auto-detecting the format.
      */
     async load(): Promise<{ commitId: WalCommitId; data: StoreData } | undefined> {
-        const gzFile = this.#storageDir.file("snapshot.json.gz");
-        const jsonFile = this.#storageDir.file("snapshot.json");
+        const gzFile = this.#storageDir.file(`${this.#basename}.json.gz`);
+        const jsonFile = this.#storageDir.file(`${this.#basename}.json`);
 
         const gzExists = await gzFile.exists();
         const jsonExists = await jsonFile.exists();
@@ -87,22 +89,22 @@ export class WalSnapshot {
         if (this.#compress) {
             const encoded = new TextEncoder().encode(json);
 
-            const tmpFile = this.#storageDir.file("snapshot.tmp.json.gz");
+            const tmpFile = this.#storageDir.file(`${this.#basename}.tmp.json.gz`);
             await tmpFile.write(Gzip.compress([encoded]));
-            await tmpFile.rename("snapshot.json.gz");
+            await tmpFile.rename(`${this.#basename}.json.gz`);
 
             // Clean up uncompressed file if it exists
-            const jsonFile = this.#storageDir.file("snapshot.json");
+            const jsonFile = this.#storageDir.file(`${this.#basename}.json`);
             if (await jsonFile.exists()) {
                 await jsonFile.delete();
             }
         } else {
-            const tmpFile = this.#storageDir.file("snapshot.tmp.json");
+            const tmpFile = this.#storageDir.file(`${this.#basename}.tmp.json`);
             await tmpFile.write(json);
-            await tmpFile.rename("snapshot.json");
+            await tmpFile.rename(`${this.#basename}.json`);
 
             // Clean up compressed file if it exists
-            const gzFile = this.#storageDir.file("snapshot.json.gz");
+            const gzFile = this.#storageDir.file(`${this.#basename}.json.gz`);
             if (await gzFile.exists()) {
                 await gzFile.delete();
             }

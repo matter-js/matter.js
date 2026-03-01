@@ -5,16 +5,24 @@
  */
 
 import type { Directory } from "../../fs/Directory.js";
+import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { type WalCommitId, parseSegmentFilename } from "./WalCommit.js";
+import type { WalReader } from "./WalReader.js";
+import type { WalSnapshot } from "./WalSnapshot.js";
+import { applyCommit } from "./WalTransaction.js";
+
+type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 
 /**
  * Prunes old WAL segments that have been fully captured in a snapshot.
  */
 export class WalCleaner {
     readonly #walDir: Directory;
+    readonly #options?: WalCleaner.Options;
 
-    constructor(walDir: Directory) {
+    constructor(walDir: Directory, options?: WalCleaner.Options) {
         this.#walDir = walDir;
+        this.#options = options;
     }
 
     /**
@@ -41,10 +49,60 @@ export class WalCleaner {
             }
         }
 
+        if (toDelete.length === 0) {
+            return;
+        }
+
+        // Build head snapshot before deleting segments
+        if (this.#options?.headSnapshot && this.#options.reader) {
+            await this.#buildHeadSnapshot(lastSnapshotCommitId);
+        }
+
         // Delete oldest first
         toDelete.sort((a, b) => a.segment - b.segment);
         for (const { name } of toDelete) {
             await this.#walDir.file(name).delete();
         }
+    }
+
+    /**
+     * Replay commits from the segments about to be deleted and save them as a head snapshot.
+     */
+    async #buildHeadSnapshot(lastSnapshotCommitId: WalCommitId): Promise<void> {
+        const { headSnapshot, reader } = this.#options!;
+
+        // Load previous head snapshot as base state
+        const existing = await headSnapshot!.load();
+        const store: StoreData = existing?.data ?? {};
+        const baseCommitId = existing?.commitId;
+
+        // Replay commits from base through the deletion boundary
+        let lastAppliedId: WalCommitId | undefined = baseCommitId;
+        for await (const { id, commit } of reader!.read(baseCommitId)) {
+            // Stop once we reach the snapshot's segment (those segments are kept)
+            if (id.segment >= lastSnapshotCommitId.segment) {
+                break;
+            }
+            applyCommit(store, commit);
+            lastAppliedId = id;
+        }
+
+        if (lastAppliedId) {
+            await headSnapshot!.run(lastAppliedId, store);
+        }
+    }
+}
+
+export namespace WalCleaner {
+    export interface Options {
+        /**
+         * Snapshot instance (with basename "head") for capturing state at the truncation boundary.
+         */
+        headSnapshot?: WalSnapshot;
+
+        /**
+         * Reader for replaying WAL segments before they are deleted.
+         */
+        reader?: WalReader;
     }
 }
