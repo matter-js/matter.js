@@ -859,6 +859,11 @@ export class MessageExchange {
             await this.#closing.emit(true);
         }
 
+        // A closing handler may have already completed the close (e.g. aborting the exchange)
+        if (this.#closed.value) {
+            return;
+        }
+
         if (this.#receivedMessageToAck !== undefined) {
             this.#receivedMessageAckTimer.stop();
             const messageToAck = this.#receivedMessageToAck;
