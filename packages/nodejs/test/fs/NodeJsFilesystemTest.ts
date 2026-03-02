@@ -5,7 +5,7 @@
  */
 
 import { NodeJsFilesystem } from "#fs/NodeJsFilesystem.js";
-import { FileNotFoundError } from "#general";
+import { FileNotFoundError } from "@matter/general";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -14,7 +14,7 @@ import {
     type FilesystemNode,
     type MaybeAsyncIterable,
     type MaybePromise,
-} from "#general";
+} from "@matter/general";
 import { createReadStream, createWriteStream, type WriteStream } from "node:fs";
 import {
     cp,
