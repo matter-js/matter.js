@@ -524,9 +524,7 @@ export class SoftwareUpdateManager extends Behavior {
                 productId,
                 softwareVersion,
                 file: `ota/${fd.text}`,
-                peers: [...otaEndpoints.values()].map(({ endpoint }) =>
-                    Node.forEndpoint(endpoint).maybeStateOf(CommissioningClient)?.peerAddress?.toString(),
-                ),
+                peers: [...otaEndpoints.values()].map(({ peerAddress }) => peerAddress.toString()),
             }),
         );
 
