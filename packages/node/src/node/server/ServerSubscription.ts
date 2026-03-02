@@ -311,11 +311,13 @@ export class ServerSubscription implements Subscription {
             return;
         }
 
-        // Change received while we are seeding this subscription
+        // Change received while we are seeding this subscription.  If the cluster was already included in the initial
+        // report at the same version, the subscriber already has this data so we skip it.  If the cluster was not
+        // included (seededVersion is undefined), the subscriber may already be up-to-date due to data version filtering,
+        // so we accept the change and queue it for delivery after activation
         if (this.#seededClusterDetails !== undefined) {
             const seededVersion = this.#seededClusterDetails.get(`${endpointId}-${clusterId}`);
-            if (seededVersion === undefined || seededVersion === version) {
-                // We do not seed this cluster, or we seeded with the same version, so no change or yet to come in seed
+            if (seededVersion !== undefined && seededVersion === version) {
                 return;
             }
         }
