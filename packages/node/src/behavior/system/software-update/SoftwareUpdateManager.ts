@@ -5,7 +5,6 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { CommissioningClient } from "#behavior/index.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Endpoint } from "#endpoint/Endpoint.js";
