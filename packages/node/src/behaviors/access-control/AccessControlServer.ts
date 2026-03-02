@@ -6,7 +6,7 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Bytes, deepCopy, InternalError, Logger } from "@matter/general";
+import { Bytes, deepCopy, InternalError, isDeepEqual, Logger, ObservableValue } from "@matter/general";
 import {
     AccessControl,
     AclEndpointContext,

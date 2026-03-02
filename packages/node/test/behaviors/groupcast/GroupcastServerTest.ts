@@ -6,10 +6,10 @@
 
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { GroupcastServer } from "#behaviors/groupcast";
-import { Groupcast } from "#clusters/groupcast";
-import { AccessLevel } from "#model";
-import { FabricManager } from "#protocol";
-import { EndpointNumber, FabricIndex, GroupId, NodeId } from "#types";
+import { AccessLevel } from "@matter/model";
+import { FabricManager } from "@matter/protocol";
+import { EndpointNumber, FabricIndex, GroupId, NodeId } from "@matter/types";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { MockExchange } from "../../node/mock-exchange.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 

@@ -12,7 +12,6 @@ import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TlvGroupId } from "../datatype/GroupId.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
@@ -21,8 +20,9 @@ import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
 import { TlvByteString } from "../tlv/TlvString.js";
 import { Priority } from "../globals/Priority.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
-import { Identity } from "#general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { Identity } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 
 export namespace Groupcast {
     /**

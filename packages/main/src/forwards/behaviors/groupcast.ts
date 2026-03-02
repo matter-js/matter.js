@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/groupcast";
+export * from "@matter/node/behaviors/groupcast";

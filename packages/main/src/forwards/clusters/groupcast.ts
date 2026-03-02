@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/groupcast";
+export * from "@matter/types/clusters/groupcast";

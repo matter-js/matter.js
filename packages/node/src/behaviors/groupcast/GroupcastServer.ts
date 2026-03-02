@@ -6,12 +6,12 @@
 
 import { AccessControlServer } from "#behaviors/access-control";
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
-import { AccessControl as AccessControlTypes } from "#clusters/access-control";
-import { Groupcast } from "#clusters/groupcast";
-import { Bytes, deepCopy, Logger, ObservableValue, Seconds, Time, Timer } from "#general";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { assertRemoteActor, Fabric, FabricManager } from "#protocol";
-import { EndpointNumber, FabricIndex, GroupId, NodeId, StatusCode, StatusResponseError } from "#types";
+import { Bytes, deepCopy, Logger, ObservableValue, Seconds, Time, Timer } from "@matter/general";
+import { assertRemoteActor, Fabric, FabricManager } from "@matter/protocol";
+import { EndpointNumber, FabricIndex, GroupId, NodeId, StatusCode, StatusResponseError } from "@matter/types";
+import { AccessControl as AccessControlTypes } from "@matter/types/clusters/access-control";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { GroupcastBehavior } from "./GroupcastBehavior.js";
 
 const logger = Logger.get("GroupcastServer");

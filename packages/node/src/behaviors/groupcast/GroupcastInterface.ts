@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { Groupcast } from "#clusters/groupcast";
+import { MaybePromise } from "@matter/general";
+import { Groupcast } from "@matter/types/clusters/groupcast";
 
 export namespace GroupcastInterface {
     export interface Base {
