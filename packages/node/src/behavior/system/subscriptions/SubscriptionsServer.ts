@@ -6,9 +6,17 @@
 
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds } from "@matter/general";
+import {
+    deepCopy,
+    isIpNetworkChannel,
+    Logger,
+    MatterAggregateError,
+    MatterError,
+    MaybePromise,
+    Seconds,
+} from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
-import { GroupSession, PeerAddress, PeerAddressSet, PeerSet, Subscription } from "@matter/protocol";
+import { GroupSession, PeerAddress, PeerAddressMap, PeerAddressSet, PeerSet, Subscription } from "@matter/protocol";
 import { StatusCode, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -206,62 +214,85 @@ export class SubscriptionsServer extends Behavior {
         const blockHandler = (peerAddress: PeerAddress) => void peerStopList.add(peerAddress);
         interactionServer.subscriptionEstablishmentStarted.on(blockHandler);
 
-        const successfullReEstablishments = Array<number>();
+        // Group subscriptions by peer address for parallel processing
+        const subscriptionsByPeer = new PeerAddressMap<PeerSubscription[]>();
         for (const subscription of formerSubscriptions) {
-            const { peerAddress: peerAddressDetails, operationalAddress, subscriptionId } = subscription;
-            const peerAddress = PeerAddress(peerAddressDetails);
-            if (peerStopList.has(peerAddress)) {
-                logger.debug(`Skip reestablishing former subscription to ${peerAddress}`);
-                continue;
+            const peerAddress = PeerAddress(subscription.peerAddress);
+            const existing = subscriptionsByPeer.get(peerAddress);
+            if (existing !== undefined) {
+                existing.push(subscription);
+            } else {
+                subscriptionsByPeer.set(peerAddress, [subscription]);
             }
-            logger.debug(
-                `Try to reestablish former subscription ${Subscription.idStrOf(subscription)} to ${peerAddress}`,
-            );
-
-            const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
-            let session;
-            try {
-                session = await peer.connect({ connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT });
-                if (GroupSession.is(session)) {
-                    // Should never happen but add for easier typing
-                    continue;
-                }
-            } catch (error) {
-                peerStopList.add(peerAddress);
-                logger.debug(
-                    `Failed to connect to ${peerAddress}`,
-                    error instanceof MatterError ? error.message : error,
-                );
-                continue;
-            }
-
-            try {
-                if (peerStopList.has(peerAddress)) {
-                    // To prevent concurrency issues, check again if there is a stop reason for this fabric
-                    logger.debug(
-                        `Skip re-establishing former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
-                    );
-                    continue;
-                }
-                await interactionServer.establishFormerSubscription(subscription, session);
-            } catch (error) {
-                const sre = StatusResponseError.of(error);
-                logger.debug(
-                    `Failed to re-establish former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
-                    sre
-                        ? sre.code === StatusCode.InvalidSubscription
-                            ? "Subscription no langer valid for peer"
-                            : sre.message
-                        : error,
-                );
-                continue;
-            }
-            successfullReEstablishments.push(subscriptionId);
         }
-        interactionServer.subscriptionEstablishmentStarted.off(blockHandler);
+
+        const successfulReEstablishments = Array<number>();
+
+        try {
+            await MatterAggregateError.allSettled(
+                [...subscriptionsByPeer.entries()].map(async ([peerAddress, peerSubscriptions]) => {
+                    if (peerStopList.has(peerAddress)) {
+                        logger.debug(`Skip reestablishing former subscriptions to ${peerAddress}`);
+                        return;
+                    }
+
+                    const { operationalAddress } = peerSubscriptions[0];
+                    const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
+                    let session;
+                    try {
+                        session = await peer.connect({ connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT });
+                        if (GroupSession.is(session)) {
+                            // Should never happen but add for easier typing
+                            return;
+                        }
+                    } catch (error) {
+                        peerStopList.add(peerAddress);
+                        logger.debug(
+                            `Failed to connect to ${peerAddress}`,
+                            error instanceof MatterError ? error.message : error,
+                        );
+                        return;
+                    }
+
+                    for (const subscription of peerSubscriptions) {
+                        const { subscriptionId } = subscription;
+                        if (peerStopList.has(peerAddress)) {
+                            logger.debug(
+                                `Skip re-establishing former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
+                            );
+                            continue;
+                        }
+                        logger.debug(
+                            `Try to reestablish former subscription ${Subscription.idStrOf(subscription)} to ${peerAddress}`,
+                        );
+                        try {
+                            await interactionServer.establishFormerSubscription(subscription, session);
+                        } catch (error) {
+                            const sre = StatusResponseError.of(error);
+                            const isInvalidSubscription = sre?.code === StatusCode.InvalidSubscription;
+                            logger.debug(
+                                `Failed to re-establish former subscription ${Subscription.idStrOf(subscriptionId)} to ${peerAddress}`,
+                                sre
+                                    ? isInvalidSubscription
+                                        ? "Subscription no longer valid for peer"
+                                        : sre.message
+                                    : error,
+                            );
+                            if (isInvalidSubscription) {
+                                break;
+                            }
+                            continue;
+                        }
+                        successfulReEstablishments.push(subscriptionId);
+                    }
+                }),
+            );
+        } finally {
+            interactionServer.subscriptionEstablishmentStarted.off(blockHandler);
+        }
 
         logger.info(
-            `Reestablished ${successfullReEstablishments.length}${successfullReEstablishments.length ? ` (${successfullReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,
+            `Reestablished ${successfulReEstablishments.length}${successfulReEstablishments.length ? ` (${successfulReEstablishments.join(",")})` : ""} of ${formerSubscriptions.length} former subscriptions successfully`,
         );
     }
 }
