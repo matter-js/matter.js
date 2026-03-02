@@ -260,6 +260,7 @@ export class PairedNode {
     #decommissioned = false;
     readonly #peerAddress: PeerAddress;
     #closing = false;
+    #peer: Peer;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -323,6 +324,7 @@ export class PairedNode {
         this.#crypto = crypto;
         this.#clientNode = clientNode;
         this.#interactionClient = interactionClient;
+        this.#peer = peer;
 
         // Wire up observers -- these persist for the lifetime of this PairedNode
         this.#observers.on(changes, this.#handleNodeChange.bind(this));
@@ -761,7 +763,9 @@ export class PairedNode {
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
-            this.#setConnectionState(NodeStates.Reconnecting);
+            this.#setConnectionState(
+                this.#peer.service.addresses.size ? NodeStates.Reconnecting : NodeStates.WaitingForDeviceDiscovery,
+            );
         }
     }
 
