@@ -54,7 +54,7 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         }
 
         // Install the exchange provider for the node
-        const { env, lifecycle } = this.owner;
+        const { env } = this.owner;
         const peers = env.get(PeerSet);
         const peer = peers.get(address);
         if (peer === undefined) {
@@ -65,10 +65,6 @@ export class ClientNetworkRuntime extends NetworkRuntime {
         // Monitor sessions to maintain online state.  We consider the node "online" if there is an active session.  If
         // not, we consider the node offline.  This is the only real way we have of determining whether the node is
         // healthy without actively polling
-        if (peer.sessions.size) {
-            this.owner.act(({ context }) => lifecycle.online.emit(context));
-        }
-
         const syncOnlineStatus = this.#syncOnlineStatus.bind(this);
 
         this.#observers.on(peer.sessions.added, syncOnlineStatus);

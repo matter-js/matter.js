@@ -58,7 +58,7 @@ export class NetworkClient extends NetworkBehavior {
 
         await this.#syncAutoSubscribe();
 
-        this.internal.isReady = true;
+        this.internal.runtime!.isReady = true;
     }
 
     async #handleDefaultSubscriptionChange() {
@@ -210,7 +210,6 @@ export class NetworkClient extends NetworkBehavior {
 export namespace NetworkClient {
     export class Internal extends NetworkBehavior.Internal {
         declare runtime?: ClientNetworkRuntime;
-        isReady?: boolean;
 
         /**
          * The active default subscription.
