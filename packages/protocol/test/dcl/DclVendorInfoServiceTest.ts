@@ -415,5 +415,36 @@ describe("DclVendorInfoService", () => {
 
             await service.close();
         });
+
+        it("uses custom dclConfig URL when provided", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.install();
+
+            const customUrl = "https://custom.dcl.example.com";
+            const service = new DclVendorInfoService(environment, {
+                dclConfig: { url: customUrl },
+            });
+            await service.construction;
+
+            const calls = fetchMock.getCallLog();
+            expect(calls.length).to.be.greaterThan(0);
+            expect(calls[0].url).to.include(customUrl);
+
+            await service.close();
+        });
+
+        it("uses default production URL when dclConfig is not provided", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.install();
+
+            const service = new DclVendorInfoService(environment);
+            await service.construction;
+
+            const calls = fetchMock.getCallLog();
+            expect(calls.length).to.be.greaterThan(0);
+            expect(calls[0].url).to.include("https://on.dcl.csa-iot.org");
+
+            await service.close();
+        });
     });
 });
