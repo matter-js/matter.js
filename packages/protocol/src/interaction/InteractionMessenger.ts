@@ -886,8 +886,11 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                         multipleMessageInteraction: true,
                         logContext: this.#logContextOf(report),
                     }).catch(error =>
-                    logger.info("Error sending success after final data report chunk", Diagnostic.errorMessage(error)),
-                );
+                        logger.info(
+                            "Error sending success after final data report chunk",
+                            Diagnostic.errorMessage(error),
+                        ),
+                    );
                 } catch (e) {
                     // This error is non-fatal
                     logger.info(this.exchange.via, `Error reading successful datareport read to peer:`, e);
