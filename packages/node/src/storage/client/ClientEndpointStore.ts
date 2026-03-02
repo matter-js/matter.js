@@ -8,6 +8,7 @@ import { StorageContext, Transaction } from "#general";
 import { EndpointStore } from "#storage/EndpointStore.js";
 import { DatasourceStore } from "#storage/server/DatasourceStore.js";
 import type { EndpointNumber } from "#types";
+import { PeerAddress } from "@matter/protocol";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 import { DatasourceCache } from "./DatasourceCache.js";
 import { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
@@ -20,6 +21,14 @@ export class ClientEndpointStore extends EndpointStore {
         super(storage);
         this.#owner = owner;
         this.#number = number;
+
+        // Upgrade peerAddress to a PeerAddress
+        if (!this.#number) {
+            const commissioning = this.initialValues.get("commissioning");
+            if (commissioning?.peerAddress) {
+                commissioning.peerAddress = PeerAddress(commissioning.peerAddress as PeerAddress);
+            }
+        }
     }
 
     get number() {

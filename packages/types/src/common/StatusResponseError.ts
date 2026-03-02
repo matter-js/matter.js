@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MatterError, capitalize, decamelize } from "#general";
 import { Status } from "#globals/Status.js";
-import { MatterError, capitalize, decamelize } from "@matter/general";
 
 const specializationIndex = {} as Record<Status, new (message?: string, statusCode?: number) => StatusResponseError>;
 
@@ -25,8 +25,9 @@ export class StatusResponseError extends MatterError {
         return this.message.replace(/ \(code .+\)$/, "");
     }
 
-    static is(error: unknown, ...codes: Status[]): error is StatusResponseError {
-        return error instanceof StatusResponseError && (!codes.length || codes.includes(error.code));
+    static is(error: unknown, ...codes: Status[]) {
+        const sre = StatusResponseError.of(error);
+        return !!sre && (!codes.length || codes.includes(sre.code));
     }
 
     override get id() {

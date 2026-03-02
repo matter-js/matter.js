@@ -347,7 +347,7 @@ describe("EventReadResponse", () => {
             MockTime.init();
 
             // Required for crypto to succeed
-            MockTime.macrotasks = true;
+            MockTime.forceMacrotasks = true;
         });
 
         it("Reads startup event via remote read", async () => {
@@ -380,11 +380,17 @@ describe("EventReadResponse", () => {
             );
 
             let asExpected = false;
-            for await (const chunks of read) {
-                expect(chunks).deep.equals([]);
-                expect(asExpected).equals(false);
-                asExpected = true;
-            }
+
+            await MockTime.resolve(
+                (async () => {
+                    for await (const chunks of read) {
+                        expect(chunks).deep.equals([]);
+                        expect(asExpected).equals(false);
+                        asExpected = true;
+                    }
+                })(),
+            );
+
             expect(asExpected).equals(true);
         });
     });

@@ -17,6 +17,7 @@ import {
     Timer,
 } from "#general";
 import { DclClient } from "./DclClient.js";
+import { DclConfig } from "./DclConfig.js";
 import { DclVendorInfo } from "./DclRestApiTypes.js";
 
 const logger = Logger.get("DclVendorInfoService");
@@ -131,7 +132,7 @@ export class DclVendorInfoService {
     async #fetchVendorsFromDcl(storage: StorageContext) {
         logger.info("Fetching vendor information from DCL...");
 
-        const dclClient = new DclClient(true); // Production only
+        const dclClient = new DclClient(DclConfig.production);
         const vendors = await dclClient.fetchAllVendors(this.#options);
 
         logger.info(`Fetched ${vendors.length} vendors from DCL`);

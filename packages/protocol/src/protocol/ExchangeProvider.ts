@@ -3,46 +3,54 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Diagnostic, Duration, Observable, Timestamp } from "#general";
+import { InteractionSettings } from "#action/InteractionSettings.js";
+import { ChannelType, Duration } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
-import { ProtocolHandler } from "#protocol/ProtocolHandler.js";
+import { NodeSession } from "#session/NodeSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { Session } from "#session/Session.js";
-import { SessionManager } from "#session/SessionManager.js";
 import { INTERACTION_PROTOCOL_ID } from "#types";
-import { SessionClosedError } from "./errors.js";
 import { MRP } from "./MRP.js";
 
 /**
- * Interface for obtaining an exchange with a specific peer.
+ * Message exchange configuration options.
+ */
+export interface NewExchangeOptions extends Omit<InteractionSettings, "transaction"> {
+    /**
+     * The protocol for the message exchange.
+     *
+     * Defaults to {@link INTERACTION_PROTOCOL_ID}.
+     */
+    protocol?: number;
+
+    /**
+     * The name of the logical {@link PeerNetwork}.
+     *
+     * By default matter.js selects a network based on the node's physical properties.  Use "unlimited" to disable
+     * rate limiting.
+     */
+    network?: string;
+}
+
+/**
+ * Interface for obtaining a message exchange with a specific peer.
  */
 export abstract class ExchangeProvider {
-    abstract readonly supportsReconnect: boolean;
-
     constructor(protected readonly exchangeManager: ExchangeManager) {}
 
-    hasProtocolHandler(protocolId: number) {
-        return this.exchangeManager.hasProtocolHandler(protocolId);
-    }
-
-    getProtocolHandler(protocolId: number) {
-        return this.exchangeManager.getProtocolHandler(protocolId);
-    }
-
-    addProtocolHandler(handler: ProtocolHandler) {
-        this.exchangeManager.addProtocolHandler(handler);
-    }
-
     abstract maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime?: boolean): Duration;
-    abstract initiateExchange(protocol?: number): Promise<MessageExchange>;
-    abstract reconnectChannel(options: { asOf?: Timestamp; resetInitialState?: boolean }): Promise<boolean>;
-    abstract session: Session;
+    abstract initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange>;
+    abstract readonly channelType: ChannelType;
+    abstract readonly peerAddress?: PeerAddress;
+    abstract readonly maxPathsPerInvoke?: number;
 
-    get channelType() {
-        return this.session.channel.type;
-    }
+    /**
+     * Ensure the peer is reachable without creating an exchange.
+     *
+     * The default implementation is a no-op (already connected).
+     */
+    async connect(_options?: NewExchangeOptions): Promise<void> {}
 }
 
 /**
@@ -50,19 +58,22 @@ export abstract class ExchangeProvider {
  */
 export class DedicatedChannelExchangeProvider extends ExchangeProvider {
     #session: SecureSession;
-    readonly supportsReconnect = false;
 
     constructor(exchangeManager: ExchangeManager, session: SecureSession) {
         super(exchangeManager);
         this.#session = session;
     }
 
+    get maxPathsPerInvoke() {
+        return this.#session.parameters.maxPathsPerInvoke;
+    }
+
     async initiateExchange(): Promise<MessageExchange> {
         return this.exchangeManager.initiateExchangeForSession(this.#session, INTERACTION_PROTOCOL_ID);
     }
 
-    async reconnectChannel() {
-        return false;
+    get channelType() {
+        return this.#session.channel.channel.type;
     }
 
     get session() {
@@ -79,72 +90,10 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
             includeMaximumSendingTime,
         );
     }
-}
 
-/**
- * Manages peer exchange that will reestablish automatically in the case of communication failure.
- */
-export class ReconnectableExchangeProvider extends ExchangeProvider {
-    readonly supportsReconnect = true;
-    readonly #address: PeerAddress;
-    readonly #reconnectChannelFunc: (options?: { asOf?: Timestamp; resetInitialState?: boolean }) => Promise<void>;
-    readonly #channelUpdated = Observable<[void]>();
-
-    constructor(
-        exchangeManager: ExchangeManager,
-        protected readonly sessions: SessionManager,
-        address: PeerAddress,
-        reconnectChannelFunc: (options?: { asOf?: Timestamp; resetInitialState?: boolean }) => Promise<void>,
-    ) {
-        super(exchangeManager);
-        this.#address = address;
-        this.#reconnectChannelFunc = reconnectChannelFunc;
-        sessions.sessions.added.on(session => {
-            if (session.peerAddress === this.#address) {
-                this.#channelUpdated.emit();
-            }
-        });
-    }
-
-    get channelUpdated() {
-        return this.#channelUpdated;
-    }
-
-    async initiateExchange(protocol = INTERACTION_PROTOCOL_ID): Promise<MessageExchange> {
-        if (!this.sessions.maybeSessionFor(this.#address)) {
-            using _connecting = this.sessions.construction.join(
-                "connecting to",
-                Diagnostic.strong(this.#address.toString()),
-            );
-
-            await this.reconnectChannel();
+    get peerAddress() {
+        if (NodeSession.is(this.#session)) {
+            return this.#session.peerAddress;
         }
-        if (!this.sessions.maybeSessionFor(this.#address)) {
-            throw new SessionClosedError("Channel not connected");
-        }
-        return this.exchangeManager.initiateExchange(this.#address, protocol);
-    }
-
-    async reconnectChannel(options: { asOf?: Timestamp; resetInitialState?: boolean } = {}) {
-        if (this.#reconnectChannelFunc === undefined) {
-            return false;
-        }
-        await this.#reconnectChannelFunc(options);
-        return true;
-    }
-
-    get session() {
-        return this.sessions.sessionFor(this.#address);
-    }
-
-    maximumPeerResponseTime(
-        expectedProcessingTime = MRP.DEFAULT_EXPECTED_PROCESSING_TIME,
-        includeMaximumSendingTime?: boolean,
-    ) {
-        return this.exchangeManager.calculateMaximumPeerResponseTimeMsFor(
-            this.sessions.sessionFor(this.#address),
-            expectedProcessingTime,
-            includeMaximumSendingTime,
-        );
     }
 }

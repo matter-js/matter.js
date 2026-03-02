@@ -25,7 +25,7 @@ import {
 } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
-import { ReadScope, type Read, type ReadResult } from "#protocol";
+import { ReadScope, Val, type Read, type ReadResult } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
 import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
@@ -287,18 +287,16 @@ export class ClientStructure {
             currentUpdates = {
                 endpointId,
                 clusterId,
-                values: {
-                    [attributeId]: change.value,
-                },
+                values: new Map([[attributeId, change.value]]),
             };
 
             // Update version but only if this was a wildcard read
             if (scope.isWildcard(endpointId, clusterId)) {
-                currentUpdates.values[DatasourceCache.VERSION_KEY] = change.version;
+                currentUpdates.values.set(DatasourceCache.VERSION_KEY, change.version);
             }
         } else {
             // Add value to change set for current endpoint/cluster
-            currentUpdates.values[attributeId] = change.value;
+            currentUpdates.values.set(attributeId, change.value);
         }
 
         return currentUpdates;
@@ -347,14 +345,14 @@ export class ClientStructure {
         const endpoint = this.#endpointFor(attrs.endpointId);
         const cluster = this.#clusterFor(endpoint, attrs.clusterId);
 
-        if (cluster.behavior && FeatureMap.id in attrs.values) {
-            if (!isDeepEqual(cluster.features, attrs.values[FeatureMap.id])) {
+        if (cluster.behavior && attrs.values.has(FeatureMap.id)) {
+            if (!isDeepEqual(cluster.features, attrs.values.get(FeatureMap.id))) {
                 cluster.behavior = undefined;
             }
         }
 
-        if (cluster.behavior && AttributeList.id in attrs.values) {
-            const attributeList = attrs.values[AttributeList.id];
+        if (cluster.behavior && attrs.values.has(AttributeList.id)) {
+            const attributeList = attrs.values.get(AttributeList.id);
             if (
                 Array.isArray(attributeList) &&
                 !isDeepEqual(
@@ -366,8 +364,8 @@ export class ClientStructure {
             }
         }
 
-        if (cluster.behavior && AcceptedCommandList.id in attrs.values) {
-            const acceptedCommands = attrs.values[AcceptedCommandList.id];
+        if (cluster.behavior && attrs.values.has(AcceptedCommandList.id)) {
+            const acceptedCommands = attrs.values.get(AcceptedCommandList.id);
             if (
                 Array.isArray(acceptedCommands) &&
                 !isDeepEqual(
@@ -838,9 +836,7 @@ export class ClientStructure {
 interface AttributeUpdates {
     endpointId: EndpointNumber;
     clusterId: ClusterId;
-    values: {
-        [K in number | typeof DatasourceCache.VERSION_KEY]?: unknown;
-    };
+    values: Val.StructMap;
 }
 
 interface EndpointStructure {

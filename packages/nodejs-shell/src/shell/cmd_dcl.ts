@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic } from "#general";
-import { DclClient } from "@matter/protocol";
+import { DclClient, DclConfig } from "@matter/protocol";
 import type { Argv } from "yargs";
 
 /**
@@ -75,7 +75,7 @@ export default function commands() {
                     yargs => yargs,
                     async argv => {
                         const { test } = argv;
-                        const client = new DclClient(!test);
+                        const client = new DclClient(test ? DclConfig.test : DclConfig.production);
 
                         try {
                             console.log(`Fetching root certificate list from ${getDclEnv(test)} DCL...`);
@@ -105,7 +105,7 @@ export default function commands() {
                     },
                     async argv => {
                         const { subject, subjectKeyId, test } = argv;
-                        const client = new DclClient(!test);
+                        const client = new DclClient(test ? DclConfig.test : DclConfig.production);
 
                         try {
                             console.log(`Fetching certificate details from ${getDclEnv(test)} DCL...`);
@@ -134,7 +134,7 @@ export default function commands() {
                         if (vid === undefined || pid === undefined) {
                             throw new Error("VID and PID are required");
                         }
-                        const client = new DclClient(!test);
+                        const client = new DclClient(test ? DclConfig.test : DclConfig.production);
 
                         try {
                             console.log(`Fetching model information from ${getDclEnv(test)} DCL...`);
@@ -160,7 +160,7 @@ export default function commands() {
                         if (vid === undefined || pid === undefined) {
                             throw new Error("VID and PID are required");
                         }
-                        const client = new DclClient(!test);
+                        const client = new DclClient(test ? DclConfig.test : DclConfig.production);
 
                         try {
                             console.log(`Fetching available versions from ${getDclEnv(test)} DCL...`);
@@ -193,7 +193,7 @@ export default function commands() {
                         if (vid === undefined || pid === undefined || softwareVersion === undefined) {
                             throw new Error("VID, PID, and software version are required");
                         }
-                        const client = new DclClient(!test);
+                        const client = new DclClient(test ? DclConfig.test : DclConfig.production);
 
                         try {
                             console.log(`Fetching version details from ${getDclEnv(test)} DCL...`);

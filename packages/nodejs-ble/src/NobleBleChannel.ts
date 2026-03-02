@@ -30,6 +30,7 @@ import {
     BTP_MAXIMUM_WINDOW_SIZE,
     BTP_SUPPORTED_VERSIONS,
     BleChannel,
+    BleDisconnectedError,
     BleError,
     BtpCodec,
     BtpFlowError,
@@ -494,9 +495,17 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
         const btpSession = await BtpSessionHandler.createAsCentral(
             new Uint8Array(handshakeResponse),
-            // callback to write data to characteristic C1
+            // callback to write data to characteristic C1; translates noble's generic disconnect
+            // error into BleDisconnectedError so BtpSessionHandler can handle it specifically
             async (data: Bytes) => {
-                return await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(data)), false);
+                try {
+                    return await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(data)), false);
+                } catch (error) {
+                    if (error instanceof Error && error.message.startsWith("Disconnected")) {
+                        throw new BleDisconnectedError(error.message, { cause: error });
+                    }
+                    throw error;
+                }
             },
             // callback to disconnect the BLE connection
             async () => {

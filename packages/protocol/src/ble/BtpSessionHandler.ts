@@ -6,6 +6,7 @@
 
 import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Time } from "#general";
 import { BtpCodec } from "../codec/BtpCodec.js";
+import { BleDisconnectedError } from "./Ble.js";
 import {
     BLE_MAXIMUM_BTP_MTU,
     BLE_MINIMUM_ATT_MTU,
@@ -344,7 +345,6 @@ export class BtpSessionHandler {
             //checks if last ack number sent < ack number to be sent
             const hasAckNumber = this.prevIncomingSequenceNumber !== this.prevAckedSequenceNumber;
             if (hasAckNumber) {
-                this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
                 this.sendAckTimer.stop();
             }
 
@@ -386,7 +386,22 @@ export class BtpSessionHandler {
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
             logger.debug(`Sending BTP packet raw: ${Bytes.toHex(packet)}`);
 
-            await this.writeBleCallback(packet);
+            try {
+                await this.writeBleCallback(packet);
+            } catch (error) {
+                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
+                // Clear the queue to avoid malformed state from partially-consumed DataReaders.
+                // Any other error is unexpected and is rethrown so the session can handle it.
+                BleDisconnectedError.accept(error);
+                logger.debug("BTP packet send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                this.queuedOutgoingMatterMessages.length = 0;
+                this.sendInProgress = false;
+                return;
+            }
+            // Update ACK bookkeeping only after the packet was sent successfully
+            if (hasAckNumber) {
+                this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
+            }
 
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
@@ -431,6 +446,7 @@ export class BtpSessionHandler {
      * acknowledgement
      */
     private async btpSendAckTimeoutTriggered() {
+        if (!this.isActive) return;
         if (this.prevIncomingSequenceNumber > this.prevAckedSequenceNumber) {
             logger.debug(`Sending BTP ACK for sequence number ${this.prevIncomingSequenceNumber}`);
             const btpPacket = {
@@ -447,9 +463,17 @@ export class BtpSessionHandler {
                     sequenceNumber: this.getNextSequenceNumber(),
                 },
             };
-            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             const packet = BtpCodec.encodeBtpPacket(btpPacket);
-            await this.writeBleCallback(packet);
+            try {
+                await this.writeBleCallback(packet);
+            } catch (error) {
+                // Only silently absorb BleDisconnectedError (expected during peripheral disconnect).
+                // Any other error is unexpected and is rethrown so the session can handle it.
+                BleDisconnectedError.accept(error);
+                logger.debug("BTP ACK send failed because BLE is disconnected", Diagnostic.errorMessage(error));
+                return;
+            }
+            this.prevAckedSequenceNumber = this.prevIncomingSequenceNumber;
             if (!this.ackReceiveTimer.isRunning) {
                 this.ackReceiveTimer.start(); // starts the timer
             }

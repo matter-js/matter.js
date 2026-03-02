@@ -26,9 +26,6 @@ describe("Ota", () => {
 
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.macrotasks = true;
     });
 
     beforeEach(() => {
@@ -57,7 +54,7 @@ describe("Ota", () => {
         fetchMock.uninstall();
     });
 
-    it("Successfully process a software update", async () => {
+    it("Successfully processes a software update", async () => {
         // *** COMMISSIONING ***
 
         // Shared variable to hold expected OTA image for verification
@@ -143,7 +140,7 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Shutdown node because our test node does not restart automatically and simulate update applied
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: 1 });
 
         await MockTime.resolve(device.start());
@@ -308,8 +305,12 @@ describe("Ota", () => {
 
         await MockTime.resolve(announceOtaProviderPromise);
 
+        // Messages may still be in flight; ensure they find a home before continuing
+        await MockTime.macrotasks;
+
         // After announcement, verify queue shows in-progress
         const queue2 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+
         expect(queue2).length(1);
         expect(queue2[0].status).equals("in-progress");
 
@@ -319,7 +320,7 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Simulate device restart with new version
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
 

@@ -62,6 +62,10 @@ export class CertificateAuthority {
         return this.#construction;
     }
 
+    close() {
+        return this.#construction.close();
+    }
+
     /**
      * Creates a new CertificateAuthority instance and use the provided storage to store and retrieve the values.
      * A new certificate is only created when the storage does not contain any credentials.

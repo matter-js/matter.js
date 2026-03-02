@@ -69,8 +69,15 @@ Object.defineProperties(InternedAddressPrototoype, {
     },
 });
 
-export function InternedAddress(address: PeerAddress): PeerAddress {
-    return Object.create(InternedAddressPrototoype, Object.getOwnPropertyDescriptors(address));
+function InternedAddress(address: PeerAddress): PeerAddress {
+    const interned = Object.create(InternedAddressPrototoype, {
+        fabricIndex: { value: address.fabricIndex, enumerable: true },
+        nodeId: { value: address.nodeId, enumerable: true },
+    });
+
+    Object.freeze(interned);
+
+    return interned;
 }
 
 export namespace PeerAddress {

@@ -9,8 +9,6 @@ import {
     Crypto,
     Entropy,
     Environment,
-    hex,
-    Logger,
     MatterAggregateError,
     MockCrypto,
     Network,
@@ -24,8 +22,6 @@ import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { FabricId } from "#types";
 import { MockServerNode } from "./mock-server-node.js";
-
-const logger = Logger.get("MockSite");
 
 /**
  * Manages a mock network with nodes on it.
@@ -55,7 +51,7 @@ export class MockSite {
         );
 
         const index = (config.index ??= this.#nextNetworkIndex++);
-        const id = (config.id ??= `node${hex.byte(index)}`);
+        const id = (config.id ??= `device${index}`);
         const env = (config.environment ??= new Environment(id));
         if (!env.has(Crypto)) {
             const crypto = MockCrypto(index);
@@ -81,7 +77,11 @@ export class MockSite {
             await node.add(config.device);
         }
 
-        await node.start();
+        if (options?.online !== false) {
+            await node.start();
+        } else {
+            await node.construction;
+        }
 
         node.lifecycle.destroyed.once(() => {
             this.#nodes.delete(node);
@@ -92,24 +92,34 @@ export class MockSite {
 
     async addController(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
         options ??= {};
+        const index = (options.index ??= this.#nextNetworkIndex++);
+        const id = (options.id ??= `controller${index}`);
+
         if (options.controller?.adminFabricId === undefined) {
             options.controller ??= {};
             options.controller.adminFabricId = FabricId(1);
         }
+
         return await this.addNode(undefined, {
             online: false,
+            id,
+            index,
             ...options,
             commissioning: { enabled: false, ...options.commissioning },
+        });
+    }
+
+    async addDevice(options?: MockServerNode.Options<MockServerNode.RootEndpoint>) {
+        return await this.addNode(undefined, {
+            device: OnOffLightDevice,
+            ...options,
         });
     }
 
     async addUncommissionedPair(options?: MockSite.PairOptions) {
         options ??= {};
         const controller = await this.addController(options.controller);
-        const device = await this.addNode(undefined, {
-            device: OnOffLightDevice,
-            ...options.device,
-        });
+        const device = await this.addDevice(options.device);
 
         return { controller, device };
     }
@@ -134,20 +144,16 @@ export class MockSite {
     }
 
     async close() {
-        try {
-            await MockTime.resolve(
-                MatterAggregateError.allSettled(
-                    [...this.#nodes].map(async node => {
-                        await node.close();
-                    }),
-                ),
+        await MockTime.resolve(
+            MatterAggregateError.allSettled(
+                [...this.#nodes].map(async node => {
+                    await node.close();
+                }),
+            ),
 
-                // Not sure why macrotasks are necessary; something hangs with microtasks but haven't tracked down
-                { macrotasks: true },
-            );
-        } catch (e) {
-            logger.error("Error closing mock site", e);
-        }
+            // Not sure why macrotasks are necessary; something hangs with microtasks but haven't tracked down
+            { macrotasks: true },
+        );
     }
 
     storageFor(id: string | { id: string }) {

@@ -54,25 +54,22 @@ export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selecto
         [Diagnostic.value]: () =>
             Diagnostic.dict({
                 attributes: attributeRequests?.length
-                    ? selectors
-                          .filter(({ kind }) => kind === "attribute")
-                          .map(path => resolvePathForSpecifier(path))
-                          .join(", ")
+                    ? selectors.length
+                        ? selectors
+                              .filter(({ kind }) => kind === "attribute")
+                              .map(path => resolvePathForSpecifier(path))
+                              .join(", ")
+                        : attributeRequests.length
                     : undefined,
                 events: eventRequests?.length
-                    ? selectors
-                          .filter(({ kind }) => kind === "event")
-                          .map(path => resolvePathForSpecifier(path))
-                          .join(", ")
+                    ? selectors.length
+                        ? selectors
+                              .filter(({ kind }) => kind === "event")
+                              .map(path => resolvePathForSpecifier(path))
+                              .join(", ")
+                        : eventRequests.length
                     : undefined,
-                dataVersionFilters: versionFilters?.length
-                    ? versionFilters
-                          .map(
-                              ({ path: { endpointId, clusterId }, dataVersion }) =>
-                                  `${endpointId}/${clusterId}=${dataVersion}`,
-                          )
-                          .join(", ")
-                    : undefined,
+                dataVersionFilters: versionFilters?.length ?? result.dataVersionFilters?.length,
                 eventFilters: eventFilters?.length
                     ? eventFilters.map(({ nodeId, eventMin }) => `${nodeId}=${eventMin}`).join(", ")
                     : undefined,
@@ -81,10 +78,6 @@ export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selecto
 
     for (const selector of selectors) {
         reifySelector(selector);
-    }
-
-    if (!attributeRequests?.length && !eventRequests?.length) {
-        throw new MalformedRequestError(`Read action designates no attributes or events`);
     }
 
     if (attributeRequests) {
@@ -183,7 +176,7 @@ export function Read(optionsOrSelector: Read.Options | Read.Selector, ...selecto
         const cluster = Specifier.clusterOf(selector);
         const { endpoint } = selector;
 
-        // Install event minimum if the endpoint reports ingested events
+        // Install the event minimum if the endpoint reports ingested events
         if (typeof endpoint === "object" && endpoint.minEvent !== undefined) {
             if (eventFilters === undefined) {
                 eventFilters = [{ eventMin: endpoint.minEvent }];

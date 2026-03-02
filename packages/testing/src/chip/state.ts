@@ -47,6 +47,7 @@ const Values = {
     testMap: new Map<TestDescriptor, Test>(),
     pullBeforeTesting: true,
     commandPipe: undefined as ContainerCommandPipe | undefined,
+    localControllerPort: undefined as number | undefined,
 };
 
 /**
@@ -114,6 +115,10 @@ export const State = {
         }
 
         return Values.test;
+    },
+
+    get localControllerPort() {
+        return Values.localControllerPort;
     },
 
     get isInitialized() {
@@ -381,6 +386,10 @@ async function initialize() {
     await configureTests();
     await configureNetwork();
 
+    if (Constants.useLocalController) {
+        await configureLocalController();
+    }
+
     Values.isInitialized = true;
 }
 
@@ -519,6 +528,23 @@ async function configureNetwork() {
 }
 
 /**
+ * Install a dummy WebSocket server script in the container and configure the local controller port.
+ *
+ * The dummy script satisfies chiptool.py's `--server_path` validation (click.Path(exists=True)) and its
+ * WebSocketRunner startup protocol (expects "== WebSocket Server Ready" on stdout).  The actual WebSocket server runs
+ * on the host in the matter.js controller process.
+ */
+async function configureLocalController() {
+    const dummyScript = '#!/bin/bash\necho "== WebSocket Server Ready"\nexec sleep infinity\n';
+    await State.container.exec([
+        "bash",
+        "-c",
+        `echo '${dummyScript}' > /bin/mjs-ws-dummy && chmod +x /bin/mjs-ws-dummy`,
+    ]);
+    Values.localControllerPort = Constants.controllerPort;
+}
+
+/**
  * Obtain a subject.  Subjects are qualified by factory and test domain.
  */
 function loadSubject(factory: Subject.Factory, kind: TestDescriptor["kind"]) {
@@ -568,7 +594,7 @@ function createTest(descriptor: TestDescriptor) {
 
     switch (descriptor.kind) {
         case "yaml":
-            return new YamlTest(descriptor as TestFileDescriptor, State.container);
+            return new YamlTest(descriptor as TestFileDescriptor, State.container, Values.localControllerPort);
 
         case "py":
             return new PythonTest(descriptor as TestFileDescriptor, State.container);

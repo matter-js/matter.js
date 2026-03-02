@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import "#clusters/window-covering";
 import { Bytes } from "#general";
 import {
     decodeUnknownAttributeValue,
@@ -22,6 +23,7 @@ import {
     TlvField,
     TlvNullable,
     TlvObject,
+    TlvUInt16,
     TlvUInt8,
     TypeFromSchema,
     VendorId,
@@ -947,6 +949,62 @@ describe("AttributeDataDecoder", () => {
                 nodeId: undefined,
             });
             expect(attributeData[0].value).deep.equal(false);
+        });
+
+        it("preserves insertion order and deduplicates when same attribute appears twice with another attribute in between", () => {
+            // Reproduces the scenario from a real DataReport where Window Covering cluster (0x102)
+            // sends attr=0xe, attr=0xa, attr=0xe (duplicate). The Map insertion order must be
+            // preserved so attr=0xe stays first and attr=0xa stays second, with only 2 results.
+            const dataVersion = 0xa6818547;
+            const data: TypeFromSchema<typeof TlvAttributeReport>[] = [
+                {
+                    attributeData: {
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x102),
+                            attributeId: AttributeId(0xe),
+                        },
+                        data: TlvNullable(TlvUInt16).encodeTlv(10000),
+                        dataVersion,
+                    },
+                },
+                {
+                    attributeData: {
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x102),
+                            attributeId: AttributeId(0xa),
+                        },
+                        data: TlvUInt8.encodeTlv(0),
+                        dataVersion,
+                    },
+                },
+                {
+                    attributeData: {
+                        path: {
+                            endpointId: EndpointNumber(1),
+                            clusterId: ClusterId(0x102),
+                            attributeId: AttributeId(0xe),
+                        },
+                        data: TlvNullable(TlvUInt16).encodeTlv(10000),
+                        dataVersion,
+                    },
+                },
+            ];
+            const { attributeData } = normalizeAndDecodeReadAttributeReport(data);
+
+            // Must produce exactly 2 decoded attributes (duplicate is collapsed)
+            expect(attributeData.length).equal(2);
+
+            // attr=0xe (currentPositionLiftPercent100ths) must appear first — Map insertion order preserved
+            expect(attributeData[0].path.attributeId).equal(AttributeId(0xe));
+            expect(attributeData[0].path.attributeName).equal("currentPositionLiftPercent100ths");
+            expect(attributeData[0].value).equal(10000);
+
+            // attr=0xa (operationalStatus) must appear second
+            expect(attributeData[1].path.attributeId).equal(AttributeId(0xa));
+            expect(attributeData[1].path.attributeName).equal("operationalStatus");
+            expect(attributeData[1].value).deep.equal({ global: 0, lift: 0, tilt: 0 });
         });
     });
 

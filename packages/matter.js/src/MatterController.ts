@@ -12,7 +12,11 @@
 
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
-import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
+import {
+    InteractionClientProvider,
+    NodeDiscoveryType,
+    PeerConnectionOptions,
+} from "#cluster/client/InteractionClient.js";
 import { BasicInformation, GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
@@ -44,9 +48,9 @@ import {
     SupportedStorageTypes,
     Time,
 } from "#general";
-import type { ClientNodeInteraction } from "#node";
 import {
     ClientNode,
+    ClientNodePhysicalProperties,
     ClusterState,
     CommissioningClient,
     ControllerBehavior,
@@ -68,10 +72,6 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
-    NodeDiscoveryType,
-    PeerAddress,
-    PeerAddressStore,
-    PeerConnectionOptions,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -620,9 +620,9 @@ export class MatterController {
         }
         if (
             options.caseAuthenticatedTags !== undefined &&
-            !isDeepEqual(options.caseAuthenticatedTags, node.state.network.caseAuthenticatedTags)
+            !isDeepEqual(options.caseAuthenticatedTags, node.state.commissioning.caseAuthenticatedTags)
         ) {
-            await node.setStateOf(NetworkClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
+            await node.setStateOf(CommissioningClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
         }
         await node.enable();
         return this.#clients!.connect(this.fabric.addressOf(peerNodeId), options);
@@ -647,6 +647,7 @@ export class MatterController {
         await this.#legacyPeerStore?.close();
         await this.#node?.close();
         this.#clients = undefined;
+        await this.#construction.close();
     }
 
     getActiveSessionInformation() {
@@ -670,8 +671,7 @@ export class MatterController {
         // Note that we're assuming this is invoked prior to the node initializing peers
         const baseNodeStorage = baseStorage.createContext("nodes");
 
-        // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
-        // Data migration needed
+        // Initialize component to manage commissioned nodes storage in legacy storage format data migration needed
         const controllerStore = new ControllerStore(server.id, baseStorage);
         if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
             logger.debug("No former commissioned nodes to migrate.");
@@ -792,14 +792,13 @@ export namespace MatterController {
 /**
  * Only used for Node data migration
  */
-class CommissionedNodeStore extends PeerAddressStore {
+class CommissionedNodeStore {
     #peers: Peers;
     #controllerStore: ControllerStoreInterface;
     #fabric: Fabric;
     #saves = new BasicMultiplex();
 
     constructor(controllerStore: ControllerStoreInterface, fabric: Fabric, peers: Peers) {
-        super();
         this.#controllerStore = controllerStore;
         this.#fabric = fabric;
         this.#peers = peers;
@@ -828,17 +827,6 @@ class CommissionedNodeStore extends PeerAddressStore {
         return nodes;
     }
 
-    async updatePeer() {
-        this.save();
-        return this.#saves;
-    }
-
-    async deletePeer(address: PeerAddress) {
-        await (await this.#controllerStore.clientNodeStore(address.nodeId.toString())).clearAll();
-        this.save();
-        return this.#saves;
-    }
-
     save(ignorePeer?: string) {
         this.#saves.add(
             this.#controllerStore.nodesStorage.set(
@@ -856,7 +844,7 @@ class CommissionedNodeStore extends PeerAddressStore {
                                 ? RemoteDescriptor.fromLongForm(commissioningState)
                                 : undefined;
                         const deviceData = {
-                            meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
+                            meta: ClientNodePhysicalProperties(peer),
                             basicInformation: peer.maybeStateOf(BasicInformationClient),
                         };
 

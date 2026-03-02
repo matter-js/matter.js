@@ -173,7 +173,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
     const { access, manage, validate } = supervisor.get(schema);
 
-    const fabricScopedList =
+    const isFabricScopedList =
         schema.effectiveAccess.fabric === Access.Fabric.Scoped && schema.effectiveMetatype === Metatype.array;
 
     // We generally do not deal with default values.  If the schema defines a default it is assigned before the manager
@@ -236,7 +236,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
 
                 // Modify the value
-                if (fabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
+                if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
                     const proxy = self[name] as Val.List;

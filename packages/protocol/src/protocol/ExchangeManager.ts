@@ -7,9 +7,12 @@
 import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import {
+    asError,
     BasicMultiplex,
     Bytes,
+    causedBy,
     Channel,
+    ChannelType,
     ConnectionlessTransport,
     ConnectionlessTransportSet,
     Diagnostic,
@@ -20,9 +23,9 @@ import {
     ImplementationError,
     Lifetime,
     Logger,
-    MatterError,
     MatterFlowError,
     ObserverGroup,
+    Time,
     UdpInterface,
     UnexpectedDataError,
 } from "#general";
@@ -30,9 +33,9 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { Session } from "#session/Session.js";
-import { SessionManager } from "#session/SessionManager.js";
+import { SessionManager, ShutdownError } from "#session/SessionManager.js";
 import { UNICAST_UNSECURE_SESSION_ID, UnsecuredSession } from "#session/UnsecuredSession.js";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
+import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { MRP } from "./MRP.js";
@@ -54,11 +57,11 @@ const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
 export interface ExchangeManagerContext {
     lifetime: Lifetime.Owner;
     entropy: Entropy;
-    netInterface: ConnectionlessTransportSet;
+    transports: ConnectionlessTransportSet;
     sessions: SessionManager;
 }
 
-export class ExchangeManager {
+export class ExchangeManager implements ConnectionlessTransport.Provider {
     readonly #lifetime: Lifetime;
     readonly #transports: ConnectionlessTransportSet;
     readonly #sessions: SessionManager;
@@ -74,7 +77,7 @@ export class ExchangeManager {
     constructor(context: ExchangeManagerContext) {
         this.#lifetime = context.lifetime.join("exchanges");
         this.#workers = new BasicMultiplex();
-        this.#transports = context.netInterface;
+        this.#transports = context.transports;
         this.#sessions = context.sessions;
         this.#exchangeCounter = new ExchangeCounter(context.entropy);
 
@@ -92,7 +95,7 @@ export class ExchangeManager {
         const instance = new ExchangeManager({
             lifetime: env,
             entropy: env.get(Entropy),
-            netInterface: env.get(ConnectionlessTransportSet),
+            transports: env.get(ConnectionlessTransportSet),
             sessions: env.get(SessionManager),
         });
         env.set(ExchangeManager, instance);
@@ -114,14 +117,27 @@ export class ExchangeManager {
         this.#protocols.set(protocol.id, protocol);
     }
 
+    interfaceFor(type: ChannelType, address?: string): ConnectionlessTransport | undefined {
+        return this.#transports.interfaceFor(type, address);
+    }
+
+    hasInterfaceFor(type: ChannelType, address?: string): boolean {
+        return this.#transports.hasInterfaceFor(type, address);
+    }
+
     initiateExchange(address: PeerAddress, protocolId: number) {
         return this.initiateExchangeForSession(this.#sessions.sessionFor(address), protocolId);
     }
 
-    initiateExchangeForSession(session: Session, protocolId: number) {
+    initiateExchangeForSession(session: Session, protocolId: number, options?: MessageExchange.Options) {
         const exchangeId = this.#exchangeCounter.getIncrementedCounter();
         const exchangeIndex = exchangeId | 0x10000; // Ensure initiated and received exchange index are different, since the exchangeID can be the same
-        const exchange = MessageExchange.initiate(this.#messageExchangeContextFor(session), exchangeId, protocolId);
+        const exchange = MessageExchange.initiate(
+            this.#messageExchangeContextFor(session),
+            exchangeId,
+            protocolId,
+            options,
+        );
         this.#addExchange(exchangeIndex, exchange);
         return exchange;
     }
@@ -138,7 +154,7 @@ export class ExchangeManager {
         const exchangesClosed = new BasicMultiplex();
 
         for (const exchange of this.#exchanges.values()) {
-            exchangesClosed.add(exchange.close(true));
+            exchangesClosed.add(exchange.close(new ShutdownError("Exchange closed by node shutdown")));
         }
 
         {
@@ -195,11 +211,10 @@ export class ExchangeManager {
 
             if (session === undefined) {
                 logger.warn(
-                    `Ignoring message for unknown session ${Session.idStrOf(packet)}${
-                        packet.header.sourceNodeId !== undefined
-                            ? ` from node ${hex.fixed(packet.header.sourceNodeId, 16)}`
-                            : ""
-                    }`,
+                    Diagnostic.via(
+                        `@${packet.header.sourceNodeId === undefined ? "?" : hex(packet.header.sourceNodeId)}:?${Mark.SESSION}${Session.idStrOf(packet)}`,
+                    ),
+                    "Ignoring message for unknown session",
                 );
                 return;
             }
@@ -272,10 +287,7 @@ export class ExchangeManager {
                     );
 
                     try {
-                        await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                            includeAcknowledgeMessageId: message.packetHeader.messageId,
-                            protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                        });
+                        await exchange.sendStandaloneAckForMessage(message);
                     } finally {
                         // Ensure we close the exchange even if sending the ack failed
                         await exchange.close();
@@ -285,8 +297,7 @@ export class ExchangeManager {
 
                 await exchange.onMessageReceived(message, isDuplicate);
             } catch (error) {
-                MatterError.accept(error);
-                logger.error(`${Message.via(exchange, message)} Error:`, error);
+                this.#handleIncomingMessageError("message", error, exchange, message);
             }
         } else {
             if (this.#isClosing) return;
@@ -338,8 +349,7 @@ export class ExchangeManager {
                     await exchange.onMessageReceived(message);
                     await protocolHandler.onNewExchange(exchange, message);
                 } catch (error) {
-                    MatterError.accept(error);
-                    logger.error(`${Message.via(exchange, message)} Error:`, error);
+                    this.#handleIncomingMessageError("initial message", error, exchange, message);
                 }
             } else if (message.payloadHeader.requiresAck) {
                 const exchange = MessageExchange.fromInitialMessage(this.#messageExchangeContextFor(session), message);
@@ -347,15 +357,11 @@ export class ExchangeManager {
                 this.#addExchange(exchangeIndex, exchange);
 
                 try {
-                    await exchange.send(SecureMessageType.StandaloneAck, new Uint8Array(0), {
-                        includeAcknowledgeMessageId: message.packetHeader.messageId,
-                        protocolId: SECURE_CHANNEL_PROTOCOL_ID,
-                    });
+                    await exchange.sendStandaloneAckForMessage(message);
                     await exchange.close();
                     logger.debug("Ignore", Mark.INBOUND, "unsolicited message", messageDiagnostics);
                 } catch (error) {
-                    MatterError.accept(error);
-                    logger.error(`${Message.via(exchange, message)} Error:`, error);
+                    this.#handleIncomingMessageError("unsolicited message", error, exchange, message);
                 }
             } else {
                 if (protocolHandler === undefined) {
@@ -381,7 +387,20 @@ export class ExchangeManager {
         }
     }
 
-    async deleteExchange(exchangeIndex: number) {
+    #handleIncomingMessageError(what: string, error: unknown, exchange: MessageExchange, message: Message) {
+        if (causedBy(error, ShutdownError)) {
+            logger.info(
+                Message.via(exchange, message),
+                `Rejected incoming ${what}:`,
+                Diagnostic.errorMessage(asError(error)),
+            );
+            return;
+        }
+
+        logger.error(Message.via(exchange, message), "Unhandled error handling incoming message:", error);
+    }
+
+    deleteExchange(exchangeIndex: number) {
         this.#exchanges.delete(exchangeIndex);
     }
 
@@ -431,9 +450,32 @@ export class ExchangeManager {
     }
 
     #messageExchangeContextFor(session: Session): MessageExchangeContext {
+        const createdAt = Time.nowMs;
         return {
             session,
             localSessionParameters: this.#sessions.sessionParameters,
+
+            peerLost: async (exchange: MessageExchange, cause: Error) => {
+                if (!(session instanceof NodeSession)) {
+                    return;
+                }
+
+                // If not connected to a commissioned peer, report peer loss to the session only
+                if (
+                    session.peerAddress.fabricIndex === FabricIndex.NO_FABRIC ||
+                    session.peerAddress.nodeId === NodeId.UNSPECIFIED_NODE_ID
+                ) {
+                    await session.handlePeerLoss({
+                        cause,
+                        currentExchange: exchange,
+                    });
+                    return;
+                }
+
+                // Report peer loss to the session manager; this notifies all (relevant) sessions for the peer
+                await this.#sessions.handlePeerLoss(session.peerAddress, cause, createdAt);
+            },
+
             retry: number => this.#sessions.retry.emit(session, number),
         };
     }

@@ -72,7 +72,7 @@ describe("DnssdNames", () => {
                 recordClass: 1,
                 recordType: 28,
                 ttl: 3600000,
-                value: "1111:2222:3333:4444:5555:6666:7777:8891",
+                value: "abcd::91",
             },
         ]);
     });

@@ -15,11 +15,10 @@ import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } 
 import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";
-import { MdnsService } from "@matter/protocol";
+import { MdnsService, Val } from "@matter/protocol";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ErrorEvent, WebSocket } from "ws";
-import { Val } from "../../protocol/src/action/Val.js";
 
 let tempFileNum = 0;
 
@@ -102,8 +101,8 @@ describe("WebSocket", () => {
 
         await cx.receiveValue(
             {
-                acceptedCommandList: [0, 64, 65, 66, 1, 2],
-                attributeList: [0, 65533, 65532, 65531, 65529, 65528, 16384, 16385, 16386, 16387],
+                acceptedCommandList: [0, 1, 2, 64, 65, 66],
+                attributeList: [0, 16384, 16385, 16386, 16387, 65528, 65529, 65531, 65532, 65533],
                 clusterRevision: 6,
                 featureMap: {
                     deadFrontBehavior: false,

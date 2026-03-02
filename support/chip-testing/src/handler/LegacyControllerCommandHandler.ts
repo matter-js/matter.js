@@ -10,9 +10,13 @@ import { GeneralCommissioning, GroupKeyManagement } from "@matter/main/clusters"
 import {
     Certificate,
     CertificateAuthority,
+    ChannelStatusResponseError,
+    ExchangeManager,
     IPK_DEFAULT_EPOCH_START_TIME,
-    NodeDiscoveryType,
+    PeerAddress,
+    PeerSet,
     SecureSession,
+    SessionManager,
     SupportedTransportsSchema,
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
@@ -23,6 +27,7 @@ import {
     GroupId,
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
+    SecureChannelStatusCode,
     TlvAny,
     TlvBoolean,
     TlvByteString,
@@ -36,7 +41,7 @@ import {
     VendorId,
 } from "@matter/main/types";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
-import { InteractionClient } from "@project-chip/matter.js/cluster";
+import { InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
 import {
     CommandHandler,
@@ -86,6 +91,13 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         try {
             await this.#controllerInstance.start();
             logger.info(`-----> Controller ${this.#identity} started`);
+
+            this.#controllerInstance.node.env.get(PeerSet).handleError = error => {
+                const csre = ChannelStatusResponseError.of(error);
+                if (csre?.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots) {
+                    throw error;
+                }
+            };
 
             // Add Default Group configuration as also used in Chip:
             // https://github.com/project-chip/connectedhomeip/blob/master/src/lib/support/TestGroupData.h
@@ -345,6 +357,14 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                     forcedConnection: true,
                 },
             );
+        } else if (GroupId.isGroupNodeId(nodeId)) {
+            const env = this.#controllerInstance.node.env;
+            const fabric = this.#controllerInstance.fabric;
+            const address = PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId });
+            const groupSession = await env
+                .get(SessionManager)
+                .groupSessionForAddress(address, env.get(ExchangeManager));
+            client = await this.#controllerInstance.createInteractionClient(groupSession);
         } else {
             const node = await this.#controllerInstance.getNode(nodeId, true);
             client = node.isConnected

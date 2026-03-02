@@ -148,7 +148,7 @@ export function expandPathsInAttributeData(
 }
 
 /**
- * Normalizes (e.g. prepare data for array un-chinking and resolve Tag compression if used) the attribute details from
+ * Normalizes (e.g. prepare data for array un-chunking and resolve Tag compression if used) the attribute details from
  * a received DataReport.
  */
 export function normalizeAttributeData(

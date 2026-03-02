@@ -6,6 +6,7 @@
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { OnOffCluster } from "#clusters/on-off";
+import { Minutes } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
 import { ClientInteraction, Invoke } from "#protocol";
 import { EndpointNumber } from "#types";
@@ -16,7 +17,7 @@ describe("ClientInvoke", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("executes commands via the batcher", async () => {
@@ -122,7 +123,7 @@ describe("ClientInvoke", () => {
         await MockTime.resolve(cmds.toggle());
 
         // Take the device offline
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         // Bring it back online with different maxPathsPerInvoke
         await device.act(agent => {
@@ -132,7 +133,7 @@ describe("ClientInvoke", () => {
 
         // The peer should have reconnected and the cache should be cleared
         // Next command should see the new maxPathsPerInvoke=1
-        await MockTime.resolve(cmds.toggle());
+        await MockTime.resolve(cmds.toggle(undefined, { connectionTimeout: Minutes(5) }));
     });
 
     it("executes multiple commands sequentially", async () => {
@@ -187,7 +188,7 @@ describe("ClientInvoke", () => {
         const promise2 = cmds.toggle().catch(e => e);
 
         // Close the ClientInteraction directly - this should reject pending commands
-        await peer1.env.get(ClientInteraction).close();
+        await (peer1.interaction as ClientInteraction).close();
 
         // Both promises should have resolved to errors
         const error1 = await MockTime.resolve(promise1);
@@ -211,8 +212,6 @@ describe("ClientInvoke", () => {
         const peer1 = controller.peers.get("peer1")!;
         expect(peer1).not.undefined;
 
-        const interaction = peer1.env.get(ClientInteraction);
-
         // Create a timed invoke request for a non-root endpoint command
         const request = Invoke({
             commands: [
@@ -228,7 +227,7 @@ describe("ClientInvoke", () => {
         // Timed commands bypass batching and execute directly via #invokeSingle
         await MockTime.resolve(
             (async () => {
-                for await (const _chunk of interaction.invoke(request)) {
+                for await (const _chunk of peer1.interaction.invoke(request)) {
                     // consume
                 }
             })(),

@@ -62,7 +62,9 @@ const writeStatus = (() => {
             }
 
             if (needsClear) {
-                actualWrite.call(stream, screen.erase.toEol);
+                if (stdout.isTTY) {
+                    actualWrite.call(stream, screen.erase.toEol);
+                }
                 needsClear = false;
             }
 
@@ -74,7 +76,11 @@ const writeStatus = (() => {
     intercept(stderr);
 
     return function writeStatus(text: string, willOverwrite = false) {
-        text += willOverwrite ? `${screen.erase.toEol}\r` : `${screen.erase.toEol}\n`;
+        const eol = stdout.isTTY ? screen.erase.toEol : "";
+        if (!stdout.isTTY) {
+            willOverwrite = false;
+        }
+        text += willOverwrite ? `${eol}\r` : `${eol}\n`;
         if (text === lastStatus) {
             return;
         }

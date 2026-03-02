@@ -30,10 +30,15 @@ export interface WorkSlot extends Disposable {
  *
  * Instead of queueing promises or iterators directly, callers get a "work slot"
  * which they hold while doing work. The slot must be released when work is complete.
+ *
+ * An additional parameter "timeout" allows automatically releasing the slot after a defined time.
+ *
+ * If a delay is defined, then this delay time is enforced as a cooldown between consecutive slot grants.
  */
 export class Semaphore {
     readonly #scope: string;
     readonly #delay: Duration;
+    readonly #timeout?: Duration;
     readonly #queue = new Array<{
         resolve: (slot: WorkSlot) => void;
     }>();
@@ -43,10 +48,11 @@ export class Semaphore {
     #abort = new Abort();
     #closed = false;
 
-    constructor(scope: string, concurrency = 1, delay = Instant) {
+    constructor(scope: string, concurrency = 1, delay = Instant, timeout?: Duration) {
         this.#scope = scope;
         this.#concurrency = concurrency;
         this.#delay = delay;
+        this.#timeout = timeout;
         this.#delayTimer = Time.getTimer("Queue delay", this.#delay, () => this.#processNextInQueue());
     }
 
@@ -149,15 +155,31 @@ export class Semaphore {
         }
 
         let released = false;
+        let timeoutTimer: Timer | undefined;
+
+        const release = () => {
+            if (released) {
+                return;
+            }
+            released = true;
+            timeoutTimer?.stop();
+            this.#releaseSlot();
+        };
+
+        // Auto-release after timeout if configured
+        if (this.#timeout !== undefined) {
+            timeoutTimer = Time.getTimer(`Slot ${this.#scope} timeout`, this.#timeout, () => {
+                if (!released) {
+                    logger.debug(
+                        `[${this.#scope}] Slot timed out after ${Duration.format(this.#timeout)}, auto-releasing`,
+                    );
+                    release();
+                }
+            }).start();
+        }
 
         return {
-            close: () => {
-                if (released) {
-                    return;
-                }
-                released = true;
-                this.#releaseSlot();
-            },
+            close: release,
 
             [Symbol.dispose]() {
                 this.close();

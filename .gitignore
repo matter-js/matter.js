@@ -10,4 +10,5 @@ dist/
 isolated-*.log
 *.log
 .matter-test.json
+/.caude/
 .claude/

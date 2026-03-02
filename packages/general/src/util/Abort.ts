@@ -78,6 +78,12 @@ export class Abort
                     continue;
                 }
 
+                // If the dependency is already aborted, propagate immediately
+                if (dependency.aborted) {
+                    this.abort(asError(dependency.reason));
+                    continue;
+                }
+
                 const listener = () => this.abort(asError(dependency.reason));
                 dependency.addEventListener("abort", listener);
                 const unregisterPrev = this.#unregisterDependencies;
@@ -103,9 +109,16 @@ export class Abort
             }
 
             if (timeout <= 0) {
-                timeoutHandler.call(this);
+                // Defer to the next microtask so any already-pending promise has a chance to resolve
+                Promise.resolve()
+                    .then(() => {
+                        if (!this.aborted) {
+                            timeoutHandler!.call(this);
+                        }
+                    })
+                    .catch(_e => {}); //catch case handled in timeoutHandler
             } else {
-                this.#timeout = Time.getPeriodicTimer("subtask timeout", timeout, () => {
+                this.#timeout = Time.getTimer("subtask timeout", timeout, () => {
                     if (this.aborted) {
                         return;
                     }
@@ -199,8 +212,13 @@ export class Abort
         onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
     ): Promise<TResult1 | TResult2> {
         if (!this.#aborted) {
+            if (this.#controller.signal.aborted) {
+                return Promise.resolve(asError(this.#controller.signal.reason)).then(onfulfilled, onrejected);
+            }
             this.#aborted = new Promise(resolve => (this.#resolve = resolve));
-            this.addEventListener("abort", () => this.#resolve!(asError(this.signal.reason)));
+            this.addEventListener("abort", () => {
+                this.#resolve!(asError(this.signal.reason));
+            });
         }
         return await this.#aborted.then(onfulfilled, onrejected);
     }
@@ -350,7 +368,7 @@ export namespace Abort {
     export function sleep(description: string, abort: Signal | undefined, duration: Duration) {
         let timer!: Timer;
         const rested = new Promise<void>(resolve => {
-            timer = Time.getTimer(description, duration, () => resolve());
+            timer = Time.getTimer(description, duration, () => resolve()).start();
         });
         return race(abort, rested).finally(timer.stop.bind(timer));
     }

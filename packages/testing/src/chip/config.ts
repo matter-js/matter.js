@@ -21,6 +21,7 @@ export namespace ContainerPaths {
     export const chipPics = "/src/app/tests/suites/certification/ci-pics-values";
     export const accessoryClient =
         "/usr/local/lib/python3.12/dist-packages/matter/yamltests/pseudo_clusters/clusters/accessory_server_bridge.py";
+    export const dummyWsServer = "/bin/mjs-ws-dummy";
 }
 
 export type ContainerPathsType = typeof ContainerPaths;
@@ -53,6 +54,9 @@ export namespace Constants {
      */
     export const imageName = env.MATTER_CHIP_IMAGE || "ghcr.io/matter-js/chip:latest";
     export const mdnsVolumeName = env.MATTER_MDNS_VOLUME || "matter.js-mdns";
+
+    export const useLocalController = !!env.MATTER_LOCAL_CONTROLLER;
+    export const controllerPort = env.MATTER_CONTROLLER_PORT ? parseInt(env.MATTER_CONTROLLER_PORT, 10) : 9002;
 
     export const initTimeout = 60_000;
     export const defaultTimeoutMs = 60_000;

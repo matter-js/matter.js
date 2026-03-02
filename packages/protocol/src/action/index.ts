@@ -7,6 +7,7 @@
 export * from "./client/index.js";
 export * from "./errors.js";
 export * from "./Interactable.js";
+export * from "./InteractionSettings.js";
 export * from "./protocols.js";
 export * from "./request/index.js";
 export * from "./response/index.js";
