@@ -932,9 +932,7 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.consents = consents;
 
         if (otaEndpoint === undefined) {
-            logger.info(
-                `Node ${peerAddress.toString()} has no OTA requestor and is currently not applicable for OTA updates, update delayed`,
-            );
+            logger.info(`Node ${peerAddress.toString()} is currently not applicable for OTA updates, try again later`);
             return false;
         }
 

@@ -229,14 +229,22 @@ export class OtaAnnouncements {
             peer.behaviors.internalsOf(NetworkClient).activeSubscription === undefined
         ) {
             // Node is disabled or not connected via an active subscription
-            logger.debug(`Node`, (peerAddress ?? peer.id).toString(), ` is currently not applicable for OTA updates`);
+            logger.info(
+                `Node`,
+                (peerAddress ?? peer.id).toString(),
+                `is currently not in a state where it is applicable for OTA updates (not subscribed)`,
+            );
             return;
         }
 
         const otaEndpoint = this.#findOtaRequestorEndpointOn(peer);
         if (otaEndpoint === undefined) {
             // Node has no OtaSoftwareUpdateRequestor cluster, so we cannot notify it about updates
-            logger.debug(`Node`, (peerAddress ?? peer.id).toString(), ` does not support OTA updates`);
+            logger.debug(
+                `Node`,
+                (peerAddress ?? peer.id).toString(),
+                ` does not support OTA updates (no OTA requestor cluster found)`,
+            );
             return;
         }
 
