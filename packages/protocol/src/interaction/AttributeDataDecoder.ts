@@ -255,7 +255,7 @@ export function normalizeAndDecodeAttributeData(
                 value,
             });
         } catch (error: any) {
-            logger.error(
+            logger.warn(
                 `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${
                     error.message
                 }`,

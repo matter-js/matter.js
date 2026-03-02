@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { CommissioningClient } from "#behavior/index.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
@@ -523,7 +524,9 @@ export class SoftwareUpdateManager extends Behavior {
                 productId,
                 softwareVersion,
                 file: `ota/${fd.text}`,
-                peers: [...otaEndpoints.values()].map(({ endpoint }) => Node.forEndpoint(endpoint).id),
+                peers: [...otaEndpoints.values()].map(({ endpoint }) =>
+                    Node.forEndpoint(endpoint).maybeStateOf(CommissioningClient)?.peerAddress?.toString(),
+                ),
             }),
         );
 

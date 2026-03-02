@@ -11,9 +11,12 @@ import {
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
 import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
+import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { Bytes, createPromise, MockFetch } from "#general";
+import { ServerNode } from "#node/ServerNode.js";
 import { FabricAuthority, PeerAddress } from "#protocol";
 import { FabricIndex, VendorId } from "#types";
+import { MockSite } from "../../node/mock-site.js";
 import {
     addTestOtaImage,
     initOtaSite,
@@ -331,6 +334,62 @@ describe("Ota", () => {
         expect(queue3).length(0);
 
         await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("Does not report updates for nodes without OTA requestor", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+        });
+
+        const site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: {
+                type: ServerNode.RootEndpoint,
+                parts: [{ id: "ota-provider", type: OtaProviderEndpoint.with(TestOtaProviderServer) }],
+            },
+        });
+        await using _localSite = site;
+
+        const otaProvider = controller.parts.get("ota-provider")!;
+        await otaProvider.act(agent => {
+            const su = agent.get(SoftwareUpdateManager);
+            su.state.allowTestOtaImages = true;
+        });
+
+        const { otaImage } = await addTestOtaImage(device, controller);
+        let checkForUpdateCalls = 0;
+        let downloadUpdateCalls = 0;
+
+        const updatesAvailable = await otaProvider.act(async agent => {
+            const su = agent.get(SoftwareUpdateManager);
+            const otaService = su.internal.otaService;
+
+            const originalCheckForUpdate = otaService.checkForUpdate.bind(otaService);
+            const originalDownloadUpdate = otaService.downloadUpdate.bind(otaService);
+
+            otaService.checkForUpdate = async () => {
+                checkForUpdateCalls++;
+                // Simulate DCL returning an available update.
+                return {
+                    ...otaImage.updateInfo,
+                    source: "dcl-test",
+                };
+            };
+            otaService.downloadUpdate = async () => {
+                downloadUpdateCalls++;
+                return { text: "mocked-ota-file" } as any;
+            };
+
+            try {
+                return await su.queryUpdates({ includeStoredUpdates: false });
+            } finally {
+                otaService.checkForUpdate = originalCheckForUpdate;
+                otaService.downloadUpdate = originalDownloadUpdate;
+            }
+        });
+        expect(updatesAvailable).deep.equals([]);
+        expect(checkForUpdateCalls).equals(0);
+        expect(downloadUpdateCalls).equals(0);
     }).timeout(10_000);
 
     // TODO Add more test cases for edge cases and error cases, also split out setup into helpers
