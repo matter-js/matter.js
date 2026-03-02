@@ -618,7 +618,7 @@ export class BasicObservableValue<T extends [any, ...any[]] = [boolean], R exten
     }
 
     set value(value: T[0] | undefined) {
-        this.#maybeResolve([value]);
+        this.#maybeResolve(value);
     }
 
     get error() {

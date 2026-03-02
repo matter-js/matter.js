@@ -357,11 +357,9 @@ export class PairedNode {
             await this.#initializeFromStoredData();
 
             let state: NodeStates = NodeStates.Reconnecting;
-            if (this.#clientNode.behaviors.internalsOf(NetworkClient).isReady) {
-                const subscription = this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription;
-                if (subscription instanceof SustainedSubscription && subscription.active.value) {
-                    state = NodeStates.Connected;
-                }
+            const subscription = this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription;
+            if (subscription instanceof SustainedSubscription && subscription.active.value) {
+                state = NodeStates.Connected;
             }
             this.#setConnectionState(state);
 
