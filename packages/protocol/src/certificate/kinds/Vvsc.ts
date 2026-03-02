@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Crypto, Diagnostic } from "#general";
+import { Bytes, CertificateError, Crypto, Diagnostic } from "@matter/general";
 import { OperationalCertificate } from "./definitions/operational.js";
 import { OperationalBase } from "./OperationalBase.js";
 

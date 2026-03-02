@@ -5,9 +5,9 @@
  */
 
 import { Mark } from "#common/Mark.js";
-import { Bytes, Crypto, Diagnostic, MatterFlowError } from "#general";
 import { NoAssociatedFabricError } from "#protocol/errors.js";
-import { NodeId } from "#types";
+import { Bytes, Crypto, Diagnostic, MatterFlowError } from "@matter/general";
+import { NodeId } from "@matter/types";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "../codec/MessageCodec.js";
 import type { Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";

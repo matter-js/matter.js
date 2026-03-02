@@ -23,8 +23,8 @@ import {
     Observer,
     StorageContext,
     StorageManager,
-} from "#general";
-import { FabricId, FabricIndex, GlobalFabricId, NodeId } from "#types";
+} from "@matter/general";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { Fabric } from "./Fabric.js";
 
 const logger = Logger.get("FabricManager");

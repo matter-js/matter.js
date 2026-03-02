@@ -8,10 +8,10 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { MaybePromise, MockCrypto } from "#general";
-import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } from "#model";
-import { ConstraintError, Val } from "#protocol";
-import { EndpointNumber, FabricIndex, NodeId } from "#types";
+import { MaybePromise, MockCrypto } from "@matter/general";
+import { ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement } from "@matter/model";
+import { ConstraintError, Val } from "@matter/protocol";
+import { EndpointNumber, FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "../../../../node/mock-exchange.js";
 import { aclEndpoint, TestStruct } from "./value-utils.js";
 

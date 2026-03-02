@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/user-label";
+export * from "@matter/types/clusters/user-label";

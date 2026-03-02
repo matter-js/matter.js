@@ -5,9 +5,9 @@
  */
 
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
-import { Bytes, Construction, Crypto, ImplementationError, InternalError, PrivateKey } from "#general";
 import { NodeSession } from "#session/NodeSession.js";
-import { ProductDescription } from "#types";
+import { Bytes, Construction, Crypto, ImplementationError, InternalError, PrivateKey } from "@matter/general";
+import { ProductDescription } from "@matter/types";
 import { AttestationCertificateManager } from "./AttestationCertificateManager.js";
 
 /**

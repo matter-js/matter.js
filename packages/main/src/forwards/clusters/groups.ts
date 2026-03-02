@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/groups";
+export * from "@matter/types/clusters/groups";

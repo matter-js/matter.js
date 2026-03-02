@@ -14,8 +14,8 @@ import {
     Millis,
     ServerAddress,
     ServerAddressUdp,
-} from "#general";
-import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema, VendorId } from "#types";
+} from "@matter/general";
+import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema, VendorId } from "@matter/types";
 import { Fabric } from "../fabric/Fabric.js";
 
 /**

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { AudioOutput } from "#clusters/audio-output";
+import { MaybePromise } from "@matter/general";
+import { AudioOutput } from "@matter/types/clusters/audio-output";
 
 export namespace AudioOutputInterface {
     export interface Base {

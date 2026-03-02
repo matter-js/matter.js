@@ -5,8 +5,8 @@
  */
 
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
-import { ImplementationError, MockCrypto } from "#general";
-import { FabricId, FabricIndex, VendorId } from "#types";
+import { ImplementationError, MockCrypto } from "@matter/general";
+import { FabricId, FabricIndex, VendorId } from "@matter/types";
 import { FabricAuthority } from "./FabricAuthority.js";
 import { FabricManager } from "./FabricManager.js";
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
+import { Bytes } from "@matter/general";
 
 // from CHIPAttCert_test_vectors.h ...
 

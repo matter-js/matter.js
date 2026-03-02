@@ -5,10 +5,10 @@
  */
 
 import { ElementTag } from "#common/ElementTag.js";
-import { camelize } from "#general";
 import type { FieldModel } from "#models/FieldModel.js";
 import { ValueModel } from "#models/ValueModel.js";
 import { FeatureMap } from "#standard/elements/feature-map.element.js";
+import { camelize } from "@matter/general";
 import { DecodedBitmap } from "./DecodedBitmap.js";
 
 export function EncodedBitmap(model: ValueModel, value: number | bigint | DecodedBitmap): number | bigint {

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThreadNetworkDiagnostics } from "#clusters/thread-network-diagnostics";
+import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ThreadNetworkDiagnosticsInterface } from "./ThreadNetworkDiagnosticsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ThreadNetworkDiagnosticsBehavior is the base class for objects that support interaction with

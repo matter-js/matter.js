@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, Duration, MatterFlowError, Millis, Seconds } from "#general";
 import { SessionParameters } from "#session/SessionParameters.js";
+import { ChannelType, Duration, MatterFlowError, Millis, Seconds } from "@matter/general";
 
 export namespace MRP {
     /**

@@ -10,11 +10,11 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, TlvNoResponse, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvUInt64, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace EthernetNetworkDiagnostics {

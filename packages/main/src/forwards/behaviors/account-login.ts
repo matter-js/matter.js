@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/account-login";
+export * from "@matter/node/behaviors/account-login";

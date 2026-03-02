@@ -36,11 +36,6 @@
         "embed-examples": "embedme **/README.md"
     },
     "imports": {
-        "#general": "@matter/general",
-        "#types": "@matter/types",
-        "#clusters/*": "@matter/types/clusters/*",
-        "#node": "@matter/node",
-        "#protocol": "@matter/protocol",
         "#*": "./src/*"
     },
     "dependencies": {

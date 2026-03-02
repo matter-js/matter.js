@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, ImplementationError } from "#general";
+import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, ImplementationError } from "@matter/general";
 import { BlePeripheralInterface } from "@matter/protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
 

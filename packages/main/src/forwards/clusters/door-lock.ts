@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/door-lock";
+export * from "@matter/types/clusters/door-lock";

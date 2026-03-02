@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/battery-storage";
+export * from "@matter/node/devices/battery-storage";

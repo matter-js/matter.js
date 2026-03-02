@@ -5,7 +5,7 @@
  */
 
 import { SupportedTransportsBitmap, SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
-import { Specification } from "#model";
+import { Specification } from "@matter/model";
 import { SessionIntervals } from "./SessionIntervals.js";
 
 export interface SessionParameters extends SessionIntervals {

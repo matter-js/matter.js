@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { ModeBase } from "#clusters/mode-base";
-import { WaterHeaterMode } from "#clusters/water-heater-mode";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { ModeBase } from "@matter/types/clusters/mode-base";
+import { WaterHeaterMode } from "@matter/types/clusters/water-heater-mode";
 import { WaterHeaterModeBehavior } from "./WaterHeaterModeBehavior.js";
 
 /**

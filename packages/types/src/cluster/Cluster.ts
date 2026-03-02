@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError, Merge } from "#general";
 import { Priority } from "#globals/Priority.js";
-import { AccessLevel } from "#model";
+import { MatterError, Merge } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 import { AttributeId, TlvAttributeId } from "../datatype/AttributeId.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 import { CommandId, TlvCommandId } from "../datatype/CommandId.js";

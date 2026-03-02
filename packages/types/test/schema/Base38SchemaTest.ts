@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import { Base38 } from "#schema/Base38Schema.js";
+import { Bytes } from "@matter/general";
 
 const ENCODED = "-MOA57ZU02IT2L2BJ00";
 const DECODED = Bytes.fromHex("88ffa7915040004751dd02");

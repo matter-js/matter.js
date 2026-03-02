@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { fromJson, Seconds, StorageBackendMemory, StorageError, SupportedStorageTypes, Time, toJson } from "#general";
+import {
+    fromJson,
+    Seconds,
+    StorageBackendMemory,
+    StorageError,
+    SupportedStorageTypes,
+    Time,
+    toJson,
+} from "@matter/general";
 import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 

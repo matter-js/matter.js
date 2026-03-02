@@ -9,6 +9,9 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { ContextAgents } from "#behavior/context/server/ContextAgents.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { ProtocolService } from "#node/integration/ProtocolService.js";
+import type { Node } from "#node/Node.js";
+import { IdentityService } from "#node/server/IdentityService.js";
 import {
     Construction,
     Diagnostic,
@@ -22,13 +25,10 @@ import {
     Observable,
     toHex,
     UninitializedDependencyError,
-} from "#general";
-import { DataModelPath } from "#model";
-import { ProtocolService } from "#node/integration/ProtocolService.js";
-import type { Node } from "#node/Node.js";
-import { IdentityService } from "#node/server/IdentityService.js";
-import { Val } from "#protocol";
-import { EndpointNumber } from "#types";
+} from "@matter/general";
+import { DataModelPath } from "@matter/model";
+import { Val } from "@matter/protocol";
+import { EndpointNumber } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
 import { Agent } from "./Agent.js";
 import { Behaviors } from "./properties/Behaviors.js";

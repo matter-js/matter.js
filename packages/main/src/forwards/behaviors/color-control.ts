@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/color-control";
+export * from "@matter/node/behaviors/color-control";

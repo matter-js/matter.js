@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/extractor-hood";
+export * from "@matter/node/devices/extractor-hood";

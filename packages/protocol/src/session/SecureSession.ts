@@ -7,8 +7,8 @@
 import type { Subject } from "#action/server/Subject.js";
 import type { Message } from "#codec/MessageCodec.js";
 import type { Fabric } from "#fabric/Fabric.js";
-import { MatterFlowError } from "#general";
 import type { PeerAddress } from "#peer/PeerAddress.js";
+import { MatterFlowError } from "@matter/general";
 import { Session } from "./Session.js";
 
 export abstract class SecureSession extends Session {

@@ -19,7 +19,7 @@ import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/Iden
 import { FanControlServer as BaseFanControlServer } from "../behaviors/fan-control/FanControlServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This defines conformance to the Microwave Oven device type.

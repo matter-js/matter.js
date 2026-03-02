@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/microwave-oven-control";
+export * from "@matter/node/behaviors/microwave-oven-control";

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ModeSelect } from "#clusters/mode-select";
+import { ModeSelect } from "@matter/types/clusters/mode-select";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ModeSelectInterface } from "./ModeSelectInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ModeSelectBehavior is the base class for objects that support interaction with {@link ModeSelect.Cluster}.

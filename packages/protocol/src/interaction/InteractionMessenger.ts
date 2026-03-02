@@ -6,6 +6,8 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import { Mark } from "#common/Mark.js";
+import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
+import { UnexpectedMessageError } from "#protocol/errors.js";
 import {
     Bytes,
     causedBy,
@@ -17,10 +19,8 @@ import {
     Millis,
     NoResponseTimeoutError,
     UnexpectedDataError,
-} from "#general";
-import { Specification } from "#model";
-import { PeerUnresponsiveError } from "#peer/PeerCommunicationError.js";
-import { UnexpectedMessageError } from "#protocol/errors.js";
+} from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     ReceivedStatusResponseError,
     Status,
@@ -42,7 +42,7 @@ import {
     TlvWriteRequest,
     TlvWriteResponse,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 import { Message, SessionType } from "../codec/MessageCodec.js";
 import { ExchangeProvider, NewExchangeOptions } from "../protocol/ExchangeProvider.js";
 import { ExchangeReceiveOptions, ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";

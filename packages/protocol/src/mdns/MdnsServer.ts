@@ -25,7 +25,7 @@ import {
     Time,
     Timer,
     Timestamp,
-} from "#general";
+} from "@matter/general";
 
 const logger = Logger.get("MdnsServer");
 

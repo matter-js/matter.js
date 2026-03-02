@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Time } from "#general";
+import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Time } from "@matter/general";
 import { BtpCodec } from "../codec/BtpCodec.js";
 import { BleDisconnectedError } from "./Ble.js";
 import {

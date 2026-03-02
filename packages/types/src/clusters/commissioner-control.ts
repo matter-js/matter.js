@@ -10,7 +10,7 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, TlvNoResponse, Event } from "../cluster/Cluster.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvUInt32, TlvBitmap, TlvUInt64, TlvUInt16, TlvEnum } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
@@ -19,7 +19,7 @@ import { Priority } from "../globals/Priority.js";
 import { TlvNodeId } from "../datatype/NodeId.js";
 import { Status } from "../globals/Status.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace CommissionerControl {

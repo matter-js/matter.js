@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/thermostat";
+export * from "@matter/node/devices/thermostat";

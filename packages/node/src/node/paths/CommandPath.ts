@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CommandId } from "#types";
+import { CommandId } from "@matter/types";
 import { BasePath } from "./BasePath.js";
 
 export namespace CommandPath {

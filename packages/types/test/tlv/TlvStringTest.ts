@@ -5,9 +5,9 @@
  */
 
 import { ValidationError } from "#common/ValidationError.js";
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvByteString, TlvString } from "#tlv/TlvString.js";
+import { Bytes } from "@matter/general";
 
 type TestVector<I, E> = { [testName: string]: { input: I; out: E } };
 

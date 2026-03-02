@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { EndpointNumber, GroupId, NodeId } from "#types";
+import { EndpointNumber, GroupId, NodeId } from "@matter/types";
 
 export type Subject = Subject.Node | Subject.Group;
 

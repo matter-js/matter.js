@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi, Package, Progress, std } from "#tools";
+import { ansi, Package, Progress, std } from "@matter/tools";
 import debug from "debug";
 import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";

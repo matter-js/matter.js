@@ -7,7 +7,7 @@
 import type { Behavior } from "#behavior/Behavior.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import type { Agent } from "#endpoint/Agent.js";
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
 import type { Endpoint } from "../Endpoint.js";
 
 /**

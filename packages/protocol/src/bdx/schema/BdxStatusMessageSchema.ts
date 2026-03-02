@@ -5,7 +5,7 @@
  */
 
 import { ProtocolStatusMessage, ProtocolStatusMessageSchema } from "#protocol/ProtocolStatusMessage.js";
-import { BDX_PROTOCOL_ID, BdxStatusCode } from "#types";
+import { BDX_PROTOCOL_ID, BdxStatusCode } from "@matter/types";
 
 export type BdxStatus = Omit<ProtocolStatusMessage<BdxStatusCode>, "protocolData">;
 

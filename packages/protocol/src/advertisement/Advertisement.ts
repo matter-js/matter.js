@@ -15,8 +15,8 @@ import {
     MatterAggregateError,
     Time,
     Timespan,
-} from "#general";
-import { STANDARD_COMMISSIONING_TIMEOUT } from "#types";
+} from "@matter/general";
+import { STANDARD_COMMISSIONING_TIMEOUT } from "@matter/types";
 import type { Advertiser } from "./Advertiser.js";
 import { ServiceDescription } from "./ServiceDescription.js";
 

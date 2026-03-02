@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WindowCovering } from "#clusters/window-covering";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const WindowCoveringClientConstructor = ClientBehavior(WindowCovering.Complete);
 export interface WindowCoveringClient extends InstanceType<typeof WindowCoveringClientConstructor> {}

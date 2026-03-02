@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isObject } from "#general";
 import { StateStream } from "#node/integration/StateStream.js";
-import { StatusResponse } from "#types";
+import { isObject } from "@matter/general";
+import { StatusResponse } from "@matter/types";
 
 /**
  * An RPC request.

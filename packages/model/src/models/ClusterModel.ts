@@ -5,9 +5,9 @@
  */
 
 import type { Conformance } from "#aspects/Conformance.js";
-import { camelize, describeList } from "#general";
 import { ModelIndex } from "#logic/ModelIndex.js";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
+import { camelize, describeList } from "@matter/general";
 import { Access } from "../aspects/Access.js";
 import { Quality } from "../aspects/Quality.js";
 import { SchemaImplementationError } from "../common/errors.js";

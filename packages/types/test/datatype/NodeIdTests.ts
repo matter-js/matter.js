@@ -6,7 +6,7 @@
 
 import { CaseAuthenticatedTag } from "#datatype/CaseAuthenticatedTag.js";
 import { NodeId } from "#datatype/NodeId.js";
-import { StandardCrypto, UnexpectedDataError } from "#general";
+import { StandardCrypto, UnexpectedDataError } from "@matter/general";
 
 describe("NodeId", () => {
     it("should create a valid NodeId as BigInt", () => {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Hours, ImplementationError, Millis, Seconds } from "#general";
+import { Duration, Hours, ImplementationError, Millis, Seconds } from "@matter/general";
 
 export interface SessionIntervals {
     /**

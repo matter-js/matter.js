@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/occupancy-sensing";
+export * from "@matter/types/clusters/occupancy-sensing";

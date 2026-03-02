@@ -6,8 +6,8 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { camelize, decamelize, ImplementationError, NotImplementedError } from "#general";
-import { CommandModel } from "#model";
+import { camelize, decamelize, ImplementationError, NotImplementedError } from "@matter/general";
+import { CommandModel } from "@matter/model";
 import { ApiResource } from "../ApiResource.js";
 import { Envelope } from "../Envelope.js";
 

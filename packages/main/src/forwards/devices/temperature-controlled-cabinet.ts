@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/temperature-controlled-cabinet";
+export * from "@matter/node/devices/temperature-controlled-cabinet";

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Binding } from "#clusters/binding";
+import { Binding } from "@matter/types/clusters/binding";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const BindingClientConstructor = ClientBehavior(Binding.Complete);
 export interface BindingClient extends InstanceType<typeof BindingClientConstructor> {}

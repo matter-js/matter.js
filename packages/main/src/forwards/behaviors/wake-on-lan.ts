@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/wake-on-lan";
+export * from "@matter/node/behaviors/wake-on-lan";

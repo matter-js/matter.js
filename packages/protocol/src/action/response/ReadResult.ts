@@ -17,7 +17,7 @@ import type {
     Status,
     StatusCode,
     TlvSchema,
-} from "#types";
+} from "@matter/types";
 
 /**
  * Streaming result for a Matter protocol-level read.

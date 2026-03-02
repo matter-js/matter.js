@@ -21,8 +21,8 @@ import {
     UINT32_MAX,
     UINT64_MAX,
     UINT8_MAX,
-} from "#general";
-import { Constraint, FieldValue, ValueModel } from "#model";
+} from "@matter/general";
+import { Constraint, FieldValue, ValueModel } from "@matter/model";
 
 /**
  * Helpers for generation of TLV schema from models.

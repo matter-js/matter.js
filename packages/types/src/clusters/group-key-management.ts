@@ -19,7 +19,7 @@ import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvGroupId } from "../datatype/GroupId.js";
 import { TlvUInt16, TlvEnum, TlvEpochUs } from "../tlv/TlvNumber.js";
@@ -27,7 +27,7 @@ import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace GroupKeyManagement {

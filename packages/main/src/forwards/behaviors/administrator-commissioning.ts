@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/administrator-commissioning";
+export * from "@matter/node/behaviors/administrator-commissioning";

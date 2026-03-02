@@ -6,6 +6,12 @@
 
 import { Message, PacketHeader, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
+import { NetworkProfile } from "#peer/NetworkProfile.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { GroupSession } from "#session/GroupSession.js";
+import type { NodeSession } from "#session/NodeSession.js";
+import { Session } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Abort,
     AbortedError,
@@ -32,13 +38,7 @@ import {
     TimeoutError,
     Timer,
     Timestamp,
-} from "#general";
-import { NetworkProfile } from "#peer/NetworkProfile.js";
-import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { GroupSession } from "#session/GroupSession.js";
-import type { NodeSession } from "#session/NodeSession.js";
-import { Session } from "#session/Session.js";
-import { SessionParameters } from "#session/SessionParameters.js";
+} from "@matter/general";
 import {
     GroupId,
     NodeId,
@@ -46,7 +46,7 @@ import {
     SecureMessageType,
     StatusCode,
     StatusResponseError,
-} from "#types";
+} from "@matter/types";
 import { SessionClosedError, UnexpectedMessageError } from "./errors.js";
 import { MessageChannel } from "./MessageChannel.js";
 import { MRP } from "./MRP.js";

@@ -107,4 +107,15 @@ describe("DclBehavior", () => {
             });
         });
     });
+
+    describe("vendorInfoService getter", () => {
+        it("passes custom productionUrl to vendorInfoService config", async () => {
+            const customUrl = "https://custom.dcl.example.com";
+            const CustomDcl = DclBehavior.set({ productionUrl: customUrl });
+            await using endpoint = await MockEndpoint.createWith(CustomDcl);
+            await endpoint.act(agent => {
+                expect(agent.dcl.productionConfig.url).to.equal(customUrl);
+            });
+        });
+    });
 });

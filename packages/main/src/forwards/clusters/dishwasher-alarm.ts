@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/dishwasher-alarm";
+export * from "@matter/types/clusters/dishwasher-alarm";

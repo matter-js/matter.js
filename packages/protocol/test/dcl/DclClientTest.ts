@@ -6,7 +6,7 @@
 
 import { DclClient, MatterDclError, MatterDclResponseError } from "#dcl/DclClient.js";
 import { DclConfig } from "#dcl/DclConfig.js";
-import { MockFetch } from "#general";
+import { MockFetch } from "@matter/general";
 
 describe("DclClient", () => {
     let fetchMock: MockFetch;

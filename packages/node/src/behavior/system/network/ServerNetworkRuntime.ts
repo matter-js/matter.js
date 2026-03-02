@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ServerNode } from "#node/ServerNode.js";
+import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     ConnectionlessTransport,
     ConnectionlessTransportSet,
@@ -16,9 +18,7 @@ import {
     NoAddressAvailableError,
     ObserverGroup,
     UdpInterface,
-} from "#general";
-import type { ServerNode } from "#node/ServerNode.js";
-import { InteractionServer } from "#node/server/InteractionServer.js";
+} from "@matter/general";
 import {
     Advertiser,
     Ble,
@@ -32,7 +32,7 @@ import {
     ScannerSet,
     SecureChannelProtocol,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";

@@ -9,6 +9,7 @@ import { Read } from "#action/request/Read.js";
 import { Subscribe } from "#action/request/Subscribe.js";
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     AbortedError,
     asError,
@@ -22,10 +23,9 @@ import {
     RetrySchedule,
     Seconds,
     Time,
-} from "#general";
-import { Specification } from "#model";
-import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
-import { SubscribeResponse } from "#types";
+} from "@matter/general";
+import { Specification } from "@matter/model";
+import { SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
 import { PeerSubscription } from "./PeerSubscription.js";
 

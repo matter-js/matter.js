@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppAddress, asError, HttpEndpoint, HttpEndpointFactory, Logger, NetworkError } from "#general";
+import { AppAddress, asError, HttpEndpoint, HttpEndpointFactory, Logger, NetworkError } from "@matter/general";
 import { existsSync, ReadStream, rmSync, statSync } from "node:fs";
 import type { Server, ServerResponse } from "node:http";
 import { createServer as createHttpServer, IncomingMessage } from "node:http";

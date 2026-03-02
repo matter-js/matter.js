@@ -5,7 +5,7 @@
  */
 
 import type { ReadResult } from "#action/response/ReadResult.js";
-import { Duration, Seconds, UINT16_MAX } from "#general";
+import { Duration, Seconds, UINT16_MAX } from "@matter/general";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { Read } from "./Read.js";
 

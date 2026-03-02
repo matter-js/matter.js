@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, Bytes, hex, InternalError, MatterFlowError, StorageContext } from "#general";
 import { GroupKeySet, KeySets, OperationalKeySet } from "#groups/KeySets.js";
 import { MessagingState } from "#groups/MessagingState.js";
-import { GroupId, MATTER_EPOCH_OFFSET_US } from "#types";
+import { BasicMap, Bytes, hex, InternalError, MatterFlowError, StorageContext } from "@matter/general";
+import { GroupId, MATTER_EPOCH_OFFSET_US } from "@matter/types";
 import { GroupMulticastPolicy, Groups } from "./Groups.js";
 
 export const GROUP_SECURITY_INFO = Bytes.fromString("GroupKey v1.0");

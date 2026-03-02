@@ -9,8 +9,8 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, OptionalWritableAttribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "#model";
-import { Identity } from "#general";
+import { AccessLevel } from "@matter/model";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ThermostatUserInterfaceConfiguration {

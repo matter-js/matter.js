@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WindowCovering } from "#clusters/window-covering";
-import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "#general";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "#types";
+import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "@matter/general";
+import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { WindowCoveringBehavior } from "./WindowCoveringBehavior.js";
 
 const logger = Logger.get("WindowCoveringServer");

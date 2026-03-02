@@ -5,9 +5,17 @@
  */
 
 import { ClientRequest } from "#action/client/ClientRequest.js";
-import { Diagnostic, Duration, isObject } from "#general";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { ClusterType, CommandData, FabricIndex, InvokeRequest, ObjectSchema, TlvSchema, TypeFromSchema } from "#types";
+import { Diagnostic, Duration, isObject } from "@matter/general";
+import {
+    ClusterType,
+    CommandData,
+    FabricIndex,
+    InvokeRequest,
+    ObjectSchema,
+    TlvSchema,
+    TypeFromSchema,
+} from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 

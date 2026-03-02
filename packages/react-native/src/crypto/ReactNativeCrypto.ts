@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto, Entropy, Environment, StandardCrypto, WebCrypto } from "#general";
 import { Buffer } from "@craftzdog/react-native-buffer";
+import { Crypto, Entropy, Environment, StandardCrypto, WebCrypto } from "@matter/general";
 import QuickCrypto from "react-native-quick-crypto";
 
 // The default export from QuickCrypto should be compatible with the standard `crypto` object but the type system

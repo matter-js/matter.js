@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { FabricChangedError, FailsafeExpiredError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
+import type { NodeSession } from "#session/NodeSession.js";
 import {
     AsyncObservable,
     Bytes,
@@ -13,12 +17,8 @@ import {
     MatterFlowError,
     UnexpectedDataError,
     UninitializedDependencyError,
-} from "#general";
-import { FabricChangedError, FailsafeExpiredError } from "#peer/PeerCommunicationError.js";
-import { PeerLossContext } from "#peer/PeerLossContext.js";
-import type { MessageExchange } from "#protocol/MessageExchange.js";
-import type { NodeSession } from "#session/NodeSession.js";
-import { CaseAuthenticatedTag, NodeId, ValidationError, VendorId } from "#types";
+} from "@matter/general";
+import { CaseAuthenticatedTag, NodeId, ValidationError, VendorId } from "@matter/types";
 import { Fabric, FabricBuilder } from "../fabric/Fabric.js";
 import { FabricManager } from "../fabric/FabricManager.js";
 import { SessionManager } from "../session/SessionManager.js";

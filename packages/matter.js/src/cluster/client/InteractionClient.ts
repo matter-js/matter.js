@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AccessControl } from "#clusters";
 import {
     deepCopy,
     Diagnostic,
@@ -17,10 +16,10 @@ import {
     Semaphore,
     ServerAddressUdp,
     UnexpectedDataError,
-} from "#general";
-import { Specification } from "#model";
-import type { ServerNode } from "#node";
-import { ClientNodeInteraction } from "#node";
+} from "@matter/general";
+import { Specification } from "@matter/model";
+import type { ServerNode } from "@matter/node";
+import { ClientNodeInteraction } from "@matter/node";
 import {
     ClientInteraction,
     DecodedAttributeReportStatus,
@@ -43,7 +42,7 @@ import {
     SecureSession,
     Subscribe,
     Write,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     ArraySchema,
     Attribute,
@@ -68,7 +67,8 @@ import {
     StatusResponseError,
     TlvEventFilter,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
+import { AccessControl } from "@matter/types/clusters";
 
 const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);

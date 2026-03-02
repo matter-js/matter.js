@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { TargetNavigator } from "#clusters/target-navigator";
+import { TargetNavigator } from "@matter/types/clusters/target-navigator";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { TargetNavigatorInterface } from "./TargetNavigatorInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * TargetNavigatorBehavior is the base class for objects that support interaction with {@link TargetNavigator.Cluster}.

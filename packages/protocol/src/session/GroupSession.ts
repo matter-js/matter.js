@@ -8,6 +8,8 @@ import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionTy
 import { Mark } from "#common/Mark.js";
 import type { Fabric } from "#fabric/Fabric.js";
 import type { FabricManager } from "#fabric/FabricManager.js";
+import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     Bytes,
     ChannelType,
@@ -21,10 +23,8 @@ import {
     MatterFlowError,
     STANDARD_MATTER_PORT,
     UnexpectedDataError,
-} from "#general";
-import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { FabricIndex, GroupId, NodeId } from "#types";
+} from "@matter/general";
+import { FabricIndex, GroupId, NodeId } from "@matter/types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionManager } from "./SessionManager.js";

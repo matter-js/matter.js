@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const OtaSoftwareUpdateProviderClientConstructor = ClientBehavior(OtaSoftwareUpdateProvider.Complete);
 export interface OtaSoftwareUpdateProviderClient extends InstanceType<typeof OtaSoftwareUpdateProviderClientConstructor> {}

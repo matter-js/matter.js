@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/air-purifier";
+export * from "@matter/node/devices/air-purifier";

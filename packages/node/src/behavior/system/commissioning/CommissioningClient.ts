@@ -9,7 +9,9 @@ import { Events as BaseEvents } from "#behavior/Events.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
-import { OperationalCredentials } from "#clusters/operational-credentials";
+import type { ClientNode } from "#node/ClientNode.js";
+import { IdentityService } from "#node/server/IdentityService.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     ClassExtends,
     Diagnostic,
@@ -22,7 +24,7 @@ import {
     ServerAddress,
     Time,
     Timestamp,
-} from "#general";
+} from "@matter/general";
 import {
     bool,
     datatype,
@@ -40,11 +42,8 @@ import {
     uint32,
     uint8,
     vendorId,
-} from "#model";
-import type { ClientNode } from "#node/ClientNode.js";
-import { IdentityService } from "#node/server/IdentityService.js";
-import type { ServerNode } from "#node/ServerNode.js";
-import type { ClientInteraction, PeerDescriptor, SupportedTransportsBitmap } from "#protocol";
+} from "@matter/model";
+import type { ClientInteraction, PeerDescriptor, SupportedTransportsBitmap } from "@matter/protocol";
 import {
     CommissioningMode,
     ControllerCommissioner,
@@ -60,7 +59,7 @@ import {
     PeerAddress as ProtocolPeerAddress,
     SessionParameters as ProtocolSessionParameters,
     Subscribe,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
     DeviceTypeId,
@@ -70,7 +69,8 @@ import {
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { ControllerBehavior } from "../controller/ControllerBehavior.js";
 import { NetworkClient } from "../network/NetworkClient.js";
 import { RemoteDescriptor } from "./RemoteDescriptor.js";

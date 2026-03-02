@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/flow-measurement";
+export * from "@matter/node/behaviors/flow-measurement";

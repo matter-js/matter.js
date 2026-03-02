@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { TemperatureMeasurement } from "#clusters/temperature-measurement";
+import { TemperatureMeasurement } from "@matter/types/clusters/temperature-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const TemperatureMeasurementClientConstructor = ClientBehavior(TemperatureMeasurement.Complete);
 export interface TemperatureMeasurementClient extends InstanceType<typeof TemperatureMeasurementClientConstructor> {}

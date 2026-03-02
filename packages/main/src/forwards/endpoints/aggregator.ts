@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/aggregator";
+export * from "@matter/node/endpoints/aggregator";

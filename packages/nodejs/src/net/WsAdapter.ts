@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { HttpEndpoint } from "#general";
+import { HttpEndpoint } from "@matter/general";
 
 import { IncomingMessage } from "node:http";
 import { Duplex } from "node:stream";

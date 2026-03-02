@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/alarm-base";
+export * from "@matter/node/behaviors/alarm-base";

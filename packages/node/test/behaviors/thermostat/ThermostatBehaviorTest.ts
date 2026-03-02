@@ -5,7 +5,7 @@
  */
 
 import { ThermostatBehavior } from "#behaviors/thermostat";
-import { AttributeModel } from "#model";
+import { AttributeModel } from "@matter/model";
 
 const AutoThermo = ThermostatBehavior.with("Heating", "Cooling", "AutoMode");
 

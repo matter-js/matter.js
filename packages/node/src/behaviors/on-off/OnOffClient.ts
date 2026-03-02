@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OnOff } from "#clusters/on-off";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const OnOffClientConstructor = ClientBehavior(OnOff.Complete);
 export interface OnOffClient extends InstanceType<typeof OnOffClientConstructor> {}

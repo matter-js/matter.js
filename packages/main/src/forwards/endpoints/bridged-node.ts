@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/bridged-node";
+export * from "@matter/node/endpoints/bridged-node";

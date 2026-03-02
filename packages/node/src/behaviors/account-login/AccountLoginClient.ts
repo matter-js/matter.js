@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AccountLogin } from "#clusters/account-login";
+import { AccountLogin } from "@matter/types/clusters/account-login";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const AccountLoginClientConstructor = ClientBehavior(AccountLogin.Complete);
 export interface AccountLoginClient extends InstanceType<typeof AccountLoginClientConstructor> {}

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { IlluminanceMeasurement } from "#clusters/illuminance-measurement";
+import { IlluminanceMeasurement } from "@matter/types/clusters/illuminance-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const IlluminanceMeasurementClientConstructor = ClientBehavior(IlluminanceMeasurement.Complete);
 export interface IlluminanceMeasurementClient extends InstanceType<typeof IlluminanceMeasurementClientConstructor> {}

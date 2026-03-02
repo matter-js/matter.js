@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Bytes, ImplementationError } from "#general";
+import { Bytes, ImplementationError } from "@matter/general";
 
 /**
  * Matter specific Certificate Sizes

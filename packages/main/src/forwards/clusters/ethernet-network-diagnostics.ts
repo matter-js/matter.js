@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/ethernet-network-diagnostics";
+export * from "@matter/types/clusters/ethernet-network-diagnostics";

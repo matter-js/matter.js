@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Pm1ConcentrationMeasurement } from "#clusters/pm1-concentration-measurement";
+import { Pm1ConcentrationMeasurement } from "@matter/types/clusters/pm1-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const Pm1ConcentrationMeasurementClientConstructor = ClientBehavior(Pm1ConcentrationMeasurement.Complete);
 export interface Pm1ConcentrationMeasurementClient extends InstanceType<typeof Pm1ConcentrationMeasurementClientConstructor> {}

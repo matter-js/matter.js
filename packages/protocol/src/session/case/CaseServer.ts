@@ -6,6 +6,10 @@
 
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Mark } from "#common/Mark.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { NodeSession } from "#session/NodeSession.js";
+import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
+import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
 import {
     asError,
     Bytes,
@@ -18,12 +22,8 @@ import {
     Logger,
     PublicKey,
     UnexpectedDataError,
-} from "#general";
-import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { NodeSession } from "#session/NodeSession.js";
-import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
-import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
-import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+} from "@matter/general";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { FabricManager, FabricNotFoundError } from "../../fabric/FabricManager.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";

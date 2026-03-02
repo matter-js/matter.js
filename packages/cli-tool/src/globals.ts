@@ -5,7 +5,7 @@
  */
 
 import type { Domain } from "#domain.js";
-import { Matter as matter } from "#model";
+import { Matter as matter } from "@matter/model";
 
 export interface DomainCommand {
     (domain: Domain, ...args: unknown[]): unknown;

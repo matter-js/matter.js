@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/wake-on-lan";
+export * from "@matter/types/clusters/wake-on-lan";

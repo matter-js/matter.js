@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, MatterError } from "#general";
+import { Duration, MatterError } from "@matter/general";
 
 /**
  * Thrown when there is an error communicating with a peer.

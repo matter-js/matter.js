@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, MatterAggregateError, MaybePromise, StorageContext } from "#general";
-import { EventNumber } from "#types";
+import { Logger, MatterAggregateError, MaybePromise, StorageContext } from "@matter/general";
+import { EventNumber } from "@matter/types";
 import { BaseEventStore } from "./BaseEventStore.js";
 import { OccurrenceSummary } from "./EventStore.js";
 import { Occurrence } from "./Occurrence.js";

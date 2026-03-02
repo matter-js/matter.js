@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/fixed-label";
+export * from "@matter/types/clusters/fixed-label";

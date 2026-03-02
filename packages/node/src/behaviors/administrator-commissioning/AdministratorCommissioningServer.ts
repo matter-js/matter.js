@@ -5,9 +5,8 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
-import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "#general";
-import { AccessLevel } from "#model";
+import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 import {
     assertRemoteActor,
     DeviceCommissioner,
@@ -15,7 +14,7 @@ import {
     hasRemoteActor,
     PaseServer,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     Command,
     MINIMUM_COMMISSIONING_TIMEOUT,
@@ -29,7 +28,8 @@ import {
     TlvObject,
     TlvUInt16,
     TlvUInt32,
-} from "#types";
+} from "@matter/types";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { AdministratorCommissioningBehavior } from "./AdministratorCommissioningBehavior.js";
 
 /**

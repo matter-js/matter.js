@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/energy-preference";
+export * from "@matter/node/behaviors/energy-preference";

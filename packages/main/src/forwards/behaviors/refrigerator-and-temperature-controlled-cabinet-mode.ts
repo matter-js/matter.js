@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/refrigerator-and-temperature-controlled-cabinet-mode";
+export * from "@matter/node/behaviors/refrigerator-and-temperature-controlled-cabinet-mode";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/radon-concentration-measurement";
+export * from "@matter/node/behaviors/radon-concentration-measurement";

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, ImplementationError } from "#general";
-import { NodeId } from "#types";
+import { Bytes, Diagnostic, ImplementationError } from "@matter/general";
+import { NodeId } from "@matter/types";
 
 /**
  * Class to represent a File designator from Matter.

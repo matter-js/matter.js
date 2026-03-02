@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { TargetNavigator } from "#clusters/target-navigator";
+import { MaybePromise } from "@matter/general";
+import { TargetNavigator } from "@matter/types/clusters/target-navigator";
 
 export namespace TargetNavigatorInterface {
     export interface Base {

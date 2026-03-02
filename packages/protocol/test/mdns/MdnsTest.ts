@@ -6,6 +6,15 @@
 
 import { Fabric } from "#fabric/Fabric.js";
 import {
+    Advertisement,
+    CommissioningMode,
+    MdnsAdvertiser,
+    MdnsClient,
+    MdnsScannerTargetCriteria,
+    MdnsServer,
+    ServiceDescription,
+} from "#index.js";
+import {
     Bytes,
     ConnectionlessTransport,
     DnsCodec,
@@ -27,17 +36,8 @@ import {
     Time,
     TxtRecord,
     UdpChannel,
-} from "#general";
-import {
-    Advertisement,
-    CommissioningMode,
-    MdnsAdvertiser,
-    MdnsClient,
-    MdnsScannerTargetCriteria,
-    MdnsServer,
-    ServiceDescription,
-} from "#index.js";
-import { GlobalFabricId, NodeId, VendorId } from "#types";
+} from "@matter/general";
+import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const SERVER_IPv4 = "192.168.200.1";
 const SERVER_IPv6 = "fe80::e777:4f5e:c61e:7314";

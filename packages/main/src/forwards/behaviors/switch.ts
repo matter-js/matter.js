@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/switch";
+export * from "@matter/node/behaviors/switch";

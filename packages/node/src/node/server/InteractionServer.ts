@@ -20,8 +20,8 @@ import {
     Observable,
     Seconds,
     ServerAddressUdp,
-} from "#general";
-import { GLOBAL_IDS, Specification } from "#model";
+} from "@matter/general";
+import { GLOBAL_IDS, Specification } from "@matter/model";
 import {
     DataReport,
     DataReportPayloadIterator,
@@ -47,7 +47,7 @@ import {
     WriteRequest,
     WriteResponse,
     WriteResult,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeData,
     DEFAULT_MAX_PATHS_PER_INVOKE,
@@ -65,7 +65,7 @@ import {
     TlvInvokeResponseForSend,
     TlvSubscribeResponse,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 import { ServerNode } from "../ServerNode.js";
 import { OnlineServerInteraction } from "./OnlineServerInteraction.js";
 import { ServerSubscription, ServerSubscriptionConfig, ServerSubscriptionContext } from "./ServerSubscription.js";

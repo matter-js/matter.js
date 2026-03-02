@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, decamelize, ImplementationError, NodeJsStyleInspectable } from "#general";
+import { camelize, decamelize, ImplementationError, NodeJsStyleInspectable } from "@matter/general";
 import { DefinitionError, ElementTag, Metatype, Specification } from "../common/index.js";
 import { AnyElement, BaseElement } from "../elements/index.js";
 import { ModelTraversal } from "../logic/ModelTraversal.js";

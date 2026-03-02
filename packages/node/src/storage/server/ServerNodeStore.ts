@@ -5,6 +5,7 @@
  */
 
 import { Endpoint } from "#endpoint/Endpoint.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     asyncNew,
     Destructable,
@@ -14,8 +15,7 @@ import {
     Logger,
     StorageManager,
     StorageService,
-} from "#general";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
 import { NodeStore } from "../NodeStore.js";
 import { ClientNodeStores } from "../client/ClientNodeStores.js";
 import { ServerEndpointStores } from "./ServerEndpointStores.js";

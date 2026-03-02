@@ -11,13 +11,6 @@ import { Invoke } from "#action/request/Invoke.js";
 import { Read } from "#action/request/Read.js";
 import { Write } from "#action/request/Write.js";
 import { Certificate } from "#certificate/kinds/Certificate.js";
-import { BasicInformation } from "#clusters/basic-information";
-import { Descriptor } from "#clusters/descriptor";
-import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { NetworkCommissioning } from "#clusters/network-commissioning";
-import { OperationalCredentials } from "#clusters/operational-credentials";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
-import { TimeSynchronizationCluster } from "#clusters/time-synchronization";
 import {
     asError,
     Bytes,
@@ -36,7 +29,7 @@ import {
     Timespan,
     Timestamp,
     UnexpectedDataError,
-} from "#general";
+} from "@matter/general";
 import {
     ClusterId,
     ClusterType,
@@ -48,7 +41,14 @@ import {
     TypeFromPartialBitSchema,
     TypeFromSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { Descriptor } from "@matter/types/clusters/descriptor";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
+import { TimeSynchronizationCluster } from "@matter/types/clusters/time-synchronization";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";

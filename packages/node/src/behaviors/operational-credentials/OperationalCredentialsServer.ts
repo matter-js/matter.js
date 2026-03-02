@@ -8,8 +8,8 @@ import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { CommissioningServer } from "#behavior/system/commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "#behavior/system/product-description/ProductDescriptionServer.js";
 import { AccessControlServer } from "#behaviors/access-control";
-import { OperationalCredentials } from "#clusters/operational-credentials";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import type { Node } from "#node/Node.js";
 import {
     CertificateError,
     Crypto,
@@ -18,9 +18,8 @@ import {
     MatterFlowError,
     MaybePromise,
     UnexpectedDataError,
-} from "#general";
-import { AccessLevel } from "#model";
-import type { Node } from "#node/Node.js";
+} from "@matter/general";
+import { AccessLevel } from "@matter/model";
 import {
     assertRemoteActor,
     DeviceCertification,
@@ -35,7 +34,7 @@ import {
     TlvAttestation,
     TlvCertSigningRequest,
     Val,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     Command,
     FabricIndex,
@@ -50,7 +49,8 @@ import {
     TlvOptionalField,
     ValidationError,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OperationalCredentialsBehavior } from "./OperationalCredentialsBehavior.js";
 import { VendorIdVerification } from "./VendorIdVerification.js";
 

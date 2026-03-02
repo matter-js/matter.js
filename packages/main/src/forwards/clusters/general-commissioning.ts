@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/general-commissioning";
+export * from "@matter/types/clusters/general-commissioning";

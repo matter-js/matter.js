@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/device-energy-management";
+export * from "@matter/node/endpoints/device-energy-management";

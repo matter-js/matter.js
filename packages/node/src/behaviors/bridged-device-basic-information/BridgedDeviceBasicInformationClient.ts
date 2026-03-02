@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { BridgedDeviceBasicInformation } from "#clusters/bridged-device-basic-information";
+import { BridgedDeviceBasicInformation } from "@matter/types/clusters/bridged-device-basic-information";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const BridgedDeviceBasicInformationClientConstructor = ClientBehavior(BridgedDeviceBasicInformation.Complete);
 export interface BridgedDeviceBasicInformationClient extends InstanceType<typeof BridgedDeviceBasicInformationClientConstructor> {}

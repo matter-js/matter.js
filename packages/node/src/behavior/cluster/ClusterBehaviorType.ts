@@ -5,7 +5,14 @@
  */
 
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError, Observable } from "#general";
+import {
+    AsyncObservable,
+    camelize,
+    EventEmitter,
+    GeneratedClass,
+    ImplementationError,
+    Observable,
+} from "@matter/general";
 import {
     ClassSemantics,
     ClusterModel,
@@ -19,9 +26,9 @@ import {
     Schema,
     Scope,
     ValueModel,
-} from "#model";
-import { Val } from "#protocol";
-import { ClusterType } from "#types";
+} from "@matter/model";
+import { Val } from "@matter/protocol";
+import { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { DerivedState } from "../state/StateType.js";
 import type { ClusterBehavior } from "./ClusterBehavior.js";

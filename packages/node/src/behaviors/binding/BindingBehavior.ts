@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Binding } from "#clusters/binding";
+import { Binding } from "@matter/types/clusters/binding";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * BindingBehavior is the base class for objects that support interaction with {@link Binding.Cluster}.

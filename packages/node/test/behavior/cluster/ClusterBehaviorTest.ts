@@ -22,8 +22,8 @@ import {
     MatterAggregateError,
     MaybePromise,
     Observable,
-} from "#general";
-import { AttributeElement, ClusterModel } from "#model";
+} from "@matter/general";
+import { AttributeElement, ClusterModel } from "@matter/model";
 import {
     Attribute,
     ClusterId,
@@ -33,7 +33,7 @@ import {
     TlvInt32,
     TlvNullable,
     TlvString,
-} from "#types";
+} from "@matter/types";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 import { MockEndpointType } from "../mock-behavior.js";
 import { My, MyBehavior, MyCluster } from "./cluster-behavior-test-util.js";

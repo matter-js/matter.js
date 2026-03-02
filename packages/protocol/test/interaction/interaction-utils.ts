@@ -5,11 +5,11 @@
  */
 import { Message, SessionType } from "#codec/MessageCodec.js";
 import { Fabric } from "#fabric/Fabric.js";
-import { Bytes, DataReadQueue, MAX_UDP_MESSAGE_SIZE, PrivateKey, Seconds, StandardCrypto } from "#general";
 import { ExchangeSendOptions, MATTER_MESSAGE_OVERHEAD, MessageExchange } from "#protocol/MessageExchange.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "#types";
+import { Bytes, DataReadQueue, MAX_UDP_MESSAGE_SIZE, PrivateKey, Seconds, StandardCrypto } from "@matter/general";
+import { FabricId, FabricIndex, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const PRIVATE_KEY = new Uint8Array(32);
 PRIVATE_KEY[31] = 1; // EC doesn't like all-zero private key

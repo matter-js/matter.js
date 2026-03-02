@@ -8,9 +8,9 @@
 
 import {
     TotalVolatileOrganicCompoundsConcentrationMeasurement
-} from "#clusters/total-volatile-organic-compounds-concentration-measurement";
+} from "@matter/types/clusters/total-volatile-organic-compounds-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementClientConstructor = ClientBehavior(
     TotalVolatileOrganicCompoundsConcentrationMeasurement.Complete

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/dishwasher-mode";
+export * from "@matter/types/clusters/dishwasher-mode";

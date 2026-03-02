@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { JointFabricDatastore } from "#clusters/joint-fabric-datastore";
+import { MaybePromise } from "@matter/general";
+import { JointFabricDatastore } from "@matter/types/clusters/joint-fabric-datastore";
 
 export namespace JointFabricDatastoreInterface {
     export interface Base {

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/oven-mode";
+export * from "@matter/types/clusters/oven-mode";

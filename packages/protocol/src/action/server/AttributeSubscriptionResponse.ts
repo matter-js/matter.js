@@ -7,8 +7,8 @@
 import { InteractionSession } from "#action/Interactable.js";
 import { AttributeTypeProtocol, ClusterProtocol, EndpointProtocol, NodeProtocol } from "#action/protocols.js";
 import { ReadResult } from "#action/response/ReadResult.js";
-import { InternalError } from "#general";
-import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "#types";
+import { InternalError } from "@matter/general";
+import { AttributeId, AttributePath, ClusterId, EndpointNumber } from "@matter/types";
 import { AttributeReadResponse } from "./AttributeReadResponse.js";
 
 export namespace DirtyState {

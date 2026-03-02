@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RefrigeratorAlarm } from "#clusters/refrigerator-alarm";
+import { RefrigeratorAlarm } from "@matter/types/clusters/refrigerator-alarm";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const RefrigeratorAlarmClientConstructor = ClientBehavior(RefrigeratorAlarm.Complete);
 export interface RefrigeratorAlarmClient extends InstanceType<typeof RefrigeratorAlarmClientConstructor> {}

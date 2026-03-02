@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/pump-configuration-and-control";
+export * from "@matter/node/behaviors/pump-configuration-and-control";

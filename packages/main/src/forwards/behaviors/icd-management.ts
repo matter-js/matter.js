@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/icd-management";
+export * from "@matter/node/behaviors/icd-management";

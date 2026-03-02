@@ -5,10 +5,9 @@
  */
 
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { Bytes, Crypto, InternalError } from "#general";
 import { CommissioningServer, InteractionServer, NetworkClient, ServerNode } from "#index.js";
-import { Specification } from "#model";
+import { Bytes, Crypto, InternalError } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     Certificate,
     Fabric,
@@ -22,7 +21,7 @@ import {
     TestFabric,
     TlvCertSigningRequest,
     WriteResponse,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeReport,
     EventReport,
@@ -38,7 +37,8 @@ import {
     TlvWriteRequest,
     TypeFromSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { MockServerNode } from "./mock-server-node.js";
 
 export const FAILSAFE_LENGTH_S = 60;

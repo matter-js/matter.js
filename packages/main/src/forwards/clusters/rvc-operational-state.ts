@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/rvc-operational-state";
+export * from "@matter/types/clusters/rvc-operational-state";

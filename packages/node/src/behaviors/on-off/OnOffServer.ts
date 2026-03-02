@@ -6,12 +6,12 @@
 
 import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
-import { OnOff } from "#clusters/on-off";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { BasicMultiplex, MaybePromise, Millis, Time, Timer } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { hasRemoteActor, Val } from "#protocol";
+import { BasicMultiplex, MaybePromise, Millis, Time, Timer } from "@matter/general";
+import { hasRemoteActor, Val } from "@matter/protocol";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { OnOffBehavior } from "./OnOffBehavior.js";
 
 const OnOffLogicBase = OnOffBehavior.with(OnOff.Feature.Lighting);

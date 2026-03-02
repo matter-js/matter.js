@@ -15,9 +15,9 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace NetworkCommissioning {

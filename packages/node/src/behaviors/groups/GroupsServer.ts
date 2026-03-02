@@ -7,12 +7,11 @@
 import { GroupKeyManagementServer } from "#behaviors/group-key-management";
 import { IdentifyBehavior } from "#behaviors/identify";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
-import { Groups } from "#clusters/groups";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
-import { InternalError, Logger } from "#general";
-import { AccessLevel } from "#model";
-import { assertRemoteActor, Fabric } from "#protocol";
+import { InternalError, Logger } from "@matter/general";
+import { AccessLevel } from "@matter/model";
+import { assertRemoteActor, Fabric } from "@matter/protocol";
 import {
     Command,
     FabricIndex,
@@ -23,7 +22,8 @@ import {
     TlvNoResponse,
     TlvObject,
     TlvString,
-} from "#types";
+} from "@matter/types";
+import { Groups } from "@matter/types/clusters/groups";
 import { GroupsBehavior } from "./GroupsBehavior.js";
 
 const logger = Logger.get("GroupsServer");

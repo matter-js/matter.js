@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AirQuality } from "#clusters/air-quality";
+import { AirQuality } from "@matter/types/clusters/air-quality";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * AirQualityBehavior is the base class for objects that support interaction with {@link AirQuality.Cluster}.

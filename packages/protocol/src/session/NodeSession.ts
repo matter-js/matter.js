@@ -8,6 +8,15 @@ import { Subject } from "#action/server/Subject.js";
 import { DecodedMessage, DecodedPacket, Message, MessageCodec, Packet, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
 import { Fabric } from "#fabric/Fabric.js";
+import { Subscription } from "#interaction/Subscription.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { PeerInitiatedCloseError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
+import { NoAssociatedFabricError } from "#protocol/errors.js";
+import { MessageCounter } from "#protocol/MessageCounter.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
+import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
+import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
 import {
     AsyncObservableValue,
     BasicSet,
@@ -20,17 +29,8 @@ import {
     Logger,
     MatterFlowError,
     hex,
-} from "#general";
-import { Subscription } from "#interaction/Subscription.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { PeerInitiatedCloseError } from "#peer/PeerCommunicationError.js";
-import { PeerLossContext } from "#peer/PeerLossContext.js";
-import { NoAssociatedFabricError } from "#protocol/errors.js";
-import { MessageCounter } from "#protocol/MessageCounter.js";
-import { MessageExchange } from "#protocol/MessageExchange.js";
-import { MessageReceptionStateEncryptedWithoutRollover } from "#protocol/MessageReceptionState.js";
-import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "#types";
+} from "@matter/general";
+import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { SecureSession } from "./SecureSession.js";
 import { Session } from "./Session.js";
 import { SessionParameters } from "./SessionParameters.js";

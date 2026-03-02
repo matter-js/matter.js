@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RefrigeratorAlarm } from "#clusters/refrigerator-alarm";
+import { RefrigeratorAlarm } from "@matter/types/clusters/refrigerator-alarm";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { RefrigeratorAlarmInterface } from "./RefrigeratorAlarmInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * RefrigeratorAlarmBehavior is the base class for objects that support interaction with

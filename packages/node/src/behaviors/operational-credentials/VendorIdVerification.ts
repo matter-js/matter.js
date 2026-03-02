@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { OperationalCredentials } from "#clusters/operational-credentials";
+import type { ClientNode } from "#node/ClientNode.js";
 import {
     Bytes,
     Crypto,
@@ -18,10 +18,10 @@ import {
     MATTER_CRYPTO_PRIMITIVES_VERSION,
     PublicKey,
     UnexpectedDataError,
-} from "#general";
-import type { ClientNode } from "#node/ClientNode.js";
-import { Icac, Noc, PeerSet, Rcac, Vvsc } from "#protocol";
-import { FabricId, FabricIndex, ReceivedStatusResponseError, StatusResponse, VendorId } from "#types";
+} from "@matter/general";
+import { Icac, Noc, PeerSet, Rcac, Vvsc } from "@matter/protocol";
+import { FabricId, FabricIndex, ReceivedStatusResponseError, StatusResponse, VendorId } from "@matter/types";
+import type { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OperationalCredentialsClient } from "../operational-credentials/OperationalCredentialsClient.js";
 
 const logger = Logger.get("VendorIdVerification");

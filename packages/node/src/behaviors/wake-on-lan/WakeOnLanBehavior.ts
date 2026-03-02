@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WakeOnLan } from "#clusters/wake-on-lan";
+import { WakeOnLan } from "@matter/types/clusters/wake-on-lan";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * WakeOnLanBehavior is the base class for objects that support interaction with {@link WakeOnLan.Cluster}.

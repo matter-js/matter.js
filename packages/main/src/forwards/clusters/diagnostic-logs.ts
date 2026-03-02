@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/diagnostic-logs";
+export * from "@matter/types/clusters/diagnostic-logs";

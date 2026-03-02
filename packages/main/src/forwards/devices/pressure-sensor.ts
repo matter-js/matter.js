@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/pressure-sensor";
+export * from "@matter/node/devices/pressure-sensor";

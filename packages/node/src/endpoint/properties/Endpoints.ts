@@ -7,9 +7,9 @@
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import type { ImmutableSet } from "#general";
 import type { Node } from "#node/Node.js";
-import { StatusResponse } from "#types";
+import type { ImmutableSet } from "@matter/general";
+import { StatusResponse } from "@matter/types";
 
 /**
  * Access to all endpoints on a node, including the root endpoint.

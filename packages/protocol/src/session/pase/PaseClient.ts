@@ -5,10 +5,10 @@
  */
 
 import { Mark } from "#common/Mark.js";
-import { Bytes, Channel, Crypto, ec, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "#general";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "#types";
+import { Bytes, Channel, Crypto, ec, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "@matter/general";
+import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "@matter/types";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { DEFAULT_PASSCODE_ID, PaseClientMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
 

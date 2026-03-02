@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EnergyEvse } from "#clusters/energy-evse";
+import { EnergyEvse } from "@matter/types/clusters/energy-evse";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { EnergyEvseInterface } from "./EnergyEvseInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * EnergyEvseBehavior is the base class for objects that support interaction with {@link EnergyEvse.Cluster}.

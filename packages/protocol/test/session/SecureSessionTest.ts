@@ -5,9 +5,9 @@
  */
 
 import { Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
-import { b$, Bytes, StandardCrypto } from "#general";
 import { NodeSession } from "#session/NodeSession.js";
-import { NodeId } from "#types";
+import { b$, Bytes, StandardCrypto } from "@matter/general";
+import { NodeId } from "@matter/types";
 
 const ENCRYPT_KEY = b$`66951379d0a6d151cf5472cccf13f360`;
 const DECRYPT_KEY = b$`bacb178b2588443d5d5b1e4559e7accc`;

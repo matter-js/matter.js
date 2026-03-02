@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageContext } from "#general";
+import { StorageContext } from "@matter/general";
 
 /**
  * Storage Scopes allow flagging a context for a specific usage.

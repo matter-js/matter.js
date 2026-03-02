@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/refrigerator-alarm";
+export * from "@matter/node/behaviors/refrigerator-alarm";

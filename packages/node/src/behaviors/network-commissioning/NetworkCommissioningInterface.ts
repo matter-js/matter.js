@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { NetworkCommissioning } from "#clusters/network-commissioning";
+import { MaybePromise } from "@matter/general";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 
 export namespace NetworkCommissioningInterface {
     export interface WiFiNetworkInterfaceOrThreadNetworkInterface {

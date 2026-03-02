@@ -9,8 +9,8 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { DescriptorClient } from "#behaviors/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import { Environment, Environmental, Logger, Observable } from "#general";
-import { DeviceTypeId } from "#types";
+import { Environment, Environmental, Logger, Observable } from "@matter/general";
+import { DeviceTypeId } from "@matter/types";
 
 const logger = Logger.get("ClientStructureEvents");
 

@@ -15,7 +15,7 @@ import {
     StorageBackendMemory,
     StorageManager,
     StorageService,
-} from "#general";
+} from "@matter/general";
 
 // Mock DCL responses - using colon format as returned by real DCL API
 const mockDclRootCertificateList = {

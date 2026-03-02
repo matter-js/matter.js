@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/time-format-localization";
+export * from "@matter/types/clusters/time-format-localization";

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, isObject } from "#general";
 import { Lexer } from "#parser/Lexer.js";
 import { BasicToken } from "#parser/Token.js";
 import { TokenStream } from "#parser/TokenStream.js";
+import { camelize, isObject } from "@matter/general";
 import { FieldValue } from "../common/index.js";
 import { Aspect } from "./Aspect.js";
 

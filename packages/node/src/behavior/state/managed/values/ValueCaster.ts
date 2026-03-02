@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
-import type { Schema } from "#model";
-import { ClusterModel, DataModelPath, Metatype, UnsupportedCastError, ValueModel } from "#model";
-import { SchemaImplementationError, Val } from "#protocol";
+import { camelize } from "@matter/general";
+import type { Schema } from "@matter/model";
+import { ClusterModel, DataModelPath, Metatype, UnsupportedCastError, ValueModel } from "@matter/model";
+import { SchemaImplementationError, Val } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 

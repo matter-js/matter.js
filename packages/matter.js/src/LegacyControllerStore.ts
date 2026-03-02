@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageContext } from "#general";
+import { StorageContext } from "@matter/general";
 import { ControllerStoreInterface } from "./ControllerStore.js";
 
 /**

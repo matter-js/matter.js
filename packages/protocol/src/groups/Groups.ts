@@ -6,8 +6,8 @@
 
 import { Subject } from "#action/server/Subject.js";
 import type { Fabric } from "#fabric/Fabric.js";
-import { BasicMap, DataWriter, ImplementationError, ipv6BytesToString } from "#general";
-import { EndpointNumber, GroupId } from "#types";
+import { BasicMap, DataWriter, ImplementationError, ipv6BytesToString } from "@matter/general";
+import { EndpointNumber, GroupId } from "@matter/types";
 import { KeySets, OperationalKeySet } from "./KeySets.js";
 
 /** Multicast address policy for a group. IanaAddr uses the shared FF05::FA address; PerGroupId derives from GroupId. */

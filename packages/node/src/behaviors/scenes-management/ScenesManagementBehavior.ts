@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ScenesManagement } from "#clusters/scenes-management";
+import { ScenesManagement } from "@matter/types/clusters/scenes-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ScenesManagementInterface } from "./ScenesManagementInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ScenesManagementBehavior is the base class for objects that support interaction with

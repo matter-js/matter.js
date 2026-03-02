@@ -5,8 +5,8 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import type { Observable, Observer, Transaction } from "#general";
-import { MaybePromise } from "#general";
+import type { Observable, Observer, Transaction } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import type { Behavior } from "./Behavior.js";
 
 /**

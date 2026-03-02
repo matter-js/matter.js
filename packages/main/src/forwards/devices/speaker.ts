@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/speaker";
+export * from "@matter/node/devices/speaker";

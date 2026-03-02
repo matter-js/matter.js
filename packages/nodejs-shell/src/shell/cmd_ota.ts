@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, Diagnostic, Environment } from "#general";
-import { OtaImageReader, PersistedFileDesignator } from "#protocol";
-import { VendorId } from "#types";
+import { Bytes, Crypto, Diagnostic, Environment } from "@matter/general";
+import { OtaImageReader, PersistedFileDesignator } from "@matter/protocol";
+import { VendorId } from "@matter/types";
 import { createReadStream, createWriteStream, statSync, WriteStream } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { Readable } from "node:stream";

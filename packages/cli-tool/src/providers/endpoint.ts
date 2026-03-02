@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Peers, ServerNode } from "#node";
-import { Endpoint } from "#node";
 import { Directory, Stat } from "#stat.js";
+import type { Peers, ServerNode } from "@matter/node";
+import { Endpoint } from "@matter/node";
 
 const STATIC = new Set(["act", "start", "factoryReset", "run", "set", "visit", "nodes", "parts", "behaviors"]);
 

@@ -7,9 +7,9 @@
 import { DescriptorServer } from "#behaviors/descriptor";
 import { ElectricalEnergyMeasurementBehavior } from "#behaviors/electrical-energy-measurement";
 import { ElectricalPowerMeasurementBehavior } from "#behaviors/electrical-power-measurement";
-import { PowerTopology } from "#clusters/power-topology";
-import { ImplementationError } from "#general";
-import { ClusterType, EndpointNumber } from "#types";
+import { ImplementationError } from "@matter/general";
+import { ClusterType, EndpointNumber } from "@matter/types";
+import { PowerTopology } from "@matter/types/clusters/power-topology";
 import { PowerTopologyBehavior } from "./PowerTopologyBehavior.js";
 
 const PowerTopologyBase = PowerTopologyBehavior.with(

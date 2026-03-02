@@ -5,11 +5,11 @@
  */
 
 import { RvcOperationalStateServer } from "#behaviors/rvc-operational-state";
-import { RvcOperationalState } from "#clusters/rvc-operational-state";
-import { RvcRunMode } from "#clusters/rvc-run-mode";
 import { RoboticVacuumCleanerDevice } from "#devices/robotic-vacuum-cleaner";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { NotImplementedError } from "#general";
+import { NotImplementedError } from "@matter/general";
+import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
+import { RvcRunMode } from "@matter/types/clusters/rvc-run-mode";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 const DeviceType = RoboticVacuumCleanerDevice;

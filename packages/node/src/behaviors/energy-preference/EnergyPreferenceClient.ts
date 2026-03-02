@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EnergyPreference } from "#clusters/energy-preference";
+import { EnergyPreference } from "@matter/types/clusters/energy-preference";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const EnergyPreferenceClientConstructor = ClientBehavior(EnergyPreference.Complete);
 export interface EnergyPreferenceClient extends InstanceType<typeof EnergyPreferenceClientConstructor> {}

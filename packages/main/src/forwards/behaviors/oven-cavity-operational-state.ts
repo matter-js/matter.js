@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/oven-cavity-operational-state";
+export * from "@matter/node/behaviors/oven-cavity-operational-state";

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PumpConfigurationAndControl } from "#clusters/pump-configuration-and-control";
+import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * PumpConfigurationAndControlBehavior is the base class for objects that support interaction with

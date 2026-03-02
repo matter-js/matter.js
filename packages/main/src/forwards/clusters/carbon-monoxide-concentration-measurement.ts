@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/carbon-monoxide-concentration-measurement";
+export * from "@matter/types/clusters/carbon-monoxide-concentration-measurement";

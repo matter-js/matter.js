@@ -5,10 +5,10 @@
  */
 
 import { FabricManager } from "#fabric/FabricManager.js";
-import { StandardCrypto, StorageBackendMemory, StorageContext } from "#general";
 import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { NodeId } from "#types";
+import { StandardCrypto, StorageBackendMemory, StorageContext } from "@matter/general";
+import { NodeId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 

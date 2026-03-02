@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/radon-concentration-measurement";
+export * from "@matter/types/clusters/radon-concentration-measurement";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/low-power";
+export * from "@matter/node/behaviors/low-power";

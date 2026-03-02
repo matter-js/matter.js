@@ -9,8 +9,8 @@ import {
     CRYPTO_GROUP_SIZE_BYTES,
     CRYPTO_HASH_LEN_BYTES,
     CRYPTO_PUBLIC_KEY_SIZE_BYTES,
-} from "#general";
-import { TlvByteString, TlvField, TlvObject, TlvOptionalField, TlvUInt16, TypeFromSchema } from "#types";
+} from "@matter/general";
+import { TlvByteString, TlvField, TlvObject, TlvOptionalField, TlvUInt16, TypeFromSchema } from "@matter/types";
 import { TlvSessionParameters, WithDurationSessionParameters } from "../pase/PaseMessages.js";
 
 const CASE_SIGNATURE_LENGTH = CRYPTO_GROUP_SIZE_BYTES * 2;

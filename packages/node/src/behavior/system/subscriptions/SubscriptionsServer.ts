@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
-import { GroupSession, PeerAddress, PeerAddressSet, PeerSet, Subscription } from "#protocol";
-import { StatusCode, StatusResponseError } from "#types";
+import { deepCopy, isIpNetworkChannel, Logger, MatterError, MaybePromise, Seconds } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
+import { GroupSession, PeerAddress, PeerAddressSet, PeerSet, Subscription } from "@matter/protocol";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { Behavior } from "../../Behavior.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
 const logger = Logger.get("SubscriptionsBehavior");

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { JointFabricDatastore } from "#clusters/joint-fabric-datastore";
+import { JointFabricDatastore } from "@matter/types/clusters/joint-fabric-datastore";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const JointFabricDatastoreClientConstructor = ClientBehavior(JointFabricDatastore.Complete);
 export interface JointFabricDatastoreClient extends InstanceType<typeof JointFabricDatastoreClientConstructor> {}

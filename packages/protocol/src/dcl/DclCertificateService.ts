@@ -20,7 +20,7 @@ import {
     StorageService,
     Time,
     Timer,
-} from "#general";
+} from "@matter/general";
 import { Paa } from "../certificate/kinds/AttestationCertificates.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";

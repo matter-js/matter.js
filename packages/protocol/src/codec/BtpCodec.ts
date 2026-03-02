@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, DataWriter, Endian } from "#general";
+import { Bytes, DataReader, DataWriter, Endian } from "@matter/general";
 import { BleError } from "../ble/Ble.js";
 import { BtpProtocolError } from "../ble/BtpSessionHandler.js";
 

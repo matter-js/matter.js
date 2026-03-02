@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, InternalError } from "#general";
-import type { Schema } from "#model";
-import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "#model";
-import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "#protocol";
-import { Status } from "#types";
+import { camelize, InternalError } from "@matter/general";
+import type { Schema } from "@matter/model";
+import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, Metatype, ValueModel } from "@matter/model";
+import { ConformanceError, DatatypeError, SchemaImplementationError, Val } from "@matter/protocol";
+import { Status } from "@matter/types";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { Internal } from "../managed/Internal.js";

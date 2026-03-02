@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, UnexpectedDataError } from "#general";
-import { SecureMessageType, TlvSchema } from "#types";
+import { Bytes, UnexpectedDataError } from "@matter/general";
+import { SecureMessageType, TlvSchema } from "@matter/types";
 import { ExchangeSendOptions } from "../../protocol/MessageExchange.js";
 import { DEFAULT_NORMAL_PROCESSING_TIME, SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
 import {

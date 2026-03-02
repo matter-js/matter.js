@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/mode-base";
+export * from "@matter/node/behaviors/mode-base";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/electrical-energy-measurement";
+export * from "@matter/node/behaviors/electrical-energy-measurement";

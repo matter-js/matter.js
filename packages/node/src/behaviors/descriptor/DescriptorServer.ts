@@ -5,12 +5,12 @@
  */
 
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
-import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { ImplementationError, isDeepEqual } from "#general";
-import { DeviceTypeModel, MatterModel } from "#model";
-import { ClusterId, DeviceTypeId, EndpointNumber, Semtag, TypeFromSchema } from "#types";
+import { ImplementationError, isDeepEqual } from "@matter/general";
+import { DeviceTypeModel, MatterModel } from "@matter/model";
+import { ClusterId, DeviceTypeId, EndpointNumber, Semtag, TypeFromSchema } from "@matter/types";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { DescriptorBehavior } from "./DescriptorBehavior.js";
 
 /**

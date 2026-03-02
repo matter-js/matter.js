@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { CommissionerControl } from "#clusters/commissioner-control";
+import { CommissionerControl } from "@matter/types/clusters/commissioner-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const CommissionerControlClientConstructor = ClientBehavior(CommissionerControl.Complete);
 export interface CommissionerControlClient extends InstanceType<typeof CommissionerControlClientConstructor> {}

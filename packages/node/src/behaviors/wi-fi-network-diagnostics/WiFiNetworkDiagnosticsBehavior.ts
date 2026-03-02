@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WiFiNetworkDiagnostics } from "#clusters/wi-fi-network-diagnostics";
+import { WiFiNetworkDiagnostics } from "@matter/types/clusters/wi-fi-network-diagnostics";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { WiFiNetworkDiagnosticsInterface } from "./WiFiNetworkDiagnosticsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * WiFiNetworkDiagnosticsBehavior is the base class for objects that support interaction with

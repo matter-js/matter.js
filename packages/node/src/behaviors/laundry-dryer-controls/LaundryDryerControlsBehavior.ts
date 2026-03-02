@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { LaundryDryerControls } from "#clusters/laundry-dryer-controls";
+import { LaundryDryerControls } from "@matter/types/clusters/laundry-dryer-controls";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * LaundryDryerControlsBehavior is the base class for objects that support interaction with

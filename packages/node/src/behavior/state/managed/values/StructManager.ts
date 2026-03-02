@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, GeneratedClass, ImplementationError, isObject } from "#general";
-import type { Schema } from "#model";
-import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "#model";
-import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "#protocol";
-import { FabricIndex } from "#types";
+import { camelize, GeneratedClass, ImplementationError, isObject } from "@matter/general";
+import type { Schema } from "@matter/model";
+import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
+import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";

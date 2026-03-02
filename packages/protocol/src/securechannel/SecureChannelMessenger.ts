@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, Diagnostic, Duration, Endian, Millis, Seconds, UnexpectedDataError } from "#general";
 import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema, VendorId } from "#types";
+import { Bytes, DataReader, Diagnostic, Duration, Endian, Millis, Seconds, UnexpectedDataError } from "@matter/general";
+import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema, VendorId } from "@matter/types";
 import { Message } from "../codec/MessageCodec.js";
 import { ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";
 import { SecureChannelStatusMessage } from "./SecureChannelStatusMessageSchema.js";

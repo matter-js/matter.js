@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { camelize, ImplementationError } from "#general";
+import { camelize, ImplementationError } from "@matter/general";
 import { DescriptorBehavior } from "../../behaviors/descriptor/DescriptorBehavior.js";
 
 /**

@@ -6,12 +6,12 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
-import { BasicInformation } from "#clusters/basic-information";
-import { Diagnostic, ImplementationError, Logger } from "#general";
-import { AttributeModel, EventModel, Schema, Specification } from "#model";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { Fabric, FabricManager } from "#protocol";
-import { DEFAULT_MAX_PATHS_PER_INVOKE, VendorId } from "#types";
+import { Diagnostic, ImplementationError, Logger } from "@matter/general";
+import { AttributeModel, EventModel, Schema, Specification } from "@matter/model";
+import { Fabric, FabricManager } from "@matter/protocol";
+import { DEFAULT_MAX_PATHS_PER_INVOKE, VendorId } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { BasicInformationBehavior } from "./BasicInformationBehavior.js";
 
 const logger = Logger.get("BasicInformationServer");

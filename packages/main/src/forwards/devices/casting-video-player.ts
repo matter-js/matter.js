@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/casting-video-player";
+export * from "@matter/node/devices/casting-video-player";

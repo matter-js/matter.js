@@ -6,9 +6,15 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { ConnectionlessTransportSet, Crypto, ImplementationError, Logger, SharedEnvironmentServices } from "#general";
 import { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
+import {
+    ConnectionlessTransportSet,
+    Crypto,
+    ImplementationError,
+    Logger,
+    SharedEnvironmentServices,
+} from "@matter/general";
 import {
     Ble,
     ClientSubscriptions,
@@ -23,8 +29,8 @@ import {
     PeerSet,
     Scanner,
     ScannerSet,
-} from "#protocol";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "#types";
+} from "@matter/protocol";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
 import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";

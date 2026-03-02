@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { isDeepEqual } from "#general";
+import { isDeepEqual } from "@matter/general";
 import type { ValueModel } from "../models/index.js";
 
 /**

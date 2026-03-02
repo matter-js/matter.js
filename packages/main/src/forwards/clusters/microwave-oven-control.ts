@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/microwave-oven-control";
+export * from "@matter/types/clusters/microwave-oven-control";

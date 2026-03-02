@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Logger, MatterFlowError, Time, Timer } from "#general";
 import { MessageExchange } from "#protocol/MessageExchange.js";
+import { Duration, Logger, MatterFlowError, Time, Timer } from "@matter/general";
 import { Fabric } from "../fabric/Fabric.js";
 import type { FailsafeContext } from "./FailsafeContext.js";
 

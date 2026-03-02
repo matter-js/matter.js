@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
+import { Bytes } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     EndpointNumber,
     ReadRequest,
@@ -17,8 +18,7 @@ import {
     TlvStatusResponse,
     TlvSubscribeRequest,
     TlvSubscribeResponse,
-} from "#types";
-import { Specification } from "@matter/model";
+} from "@matter/types";
 import { createDummyMessageExchange } from "./interaction-utils.js";
 
 function handleReadRequest(exchange: MessageExchange, messageType: number, payload: Bytes) {

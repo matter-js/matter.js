@@ -7,8 +7,8 @@
 import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { ImplementationError, Lifecycle, Logger, MatterAggregateError, ObserverGroup } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
+import { ImplementationError, Lifecycle, Logger, MatterAggregateError, ObserverGroup } from "@matter/general";
 import {
     ClientBdxRequest,
     ClientBdxResponse,
@@ -27,8 +27,8 @@ import {
     ShutdownError,
     Val,
     WriteResult,
-} from "#protocol";
-import { EndpointNumber } from "#types";
+} from "@matter/protocol";
+import { EndpointNumber } from "@matter/types";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
 import { ClientNodePhysicalProperties } from "./ClientNodePhysicalProperties.js";
 

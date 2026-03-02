@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/level-control";
+export * from "@matter/node/behaviors/level-control";

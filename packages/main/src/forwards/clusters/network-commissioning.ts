@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/network-commissioning";
+export * from "@matter/types/clusters/network-commissioning";

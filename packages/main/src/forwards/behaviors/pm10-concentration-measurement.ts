@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/pm10-concentration-measurement";
+export * from "@matter/node/behaviors/pm10-concentration-measurement";

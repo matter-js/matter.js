@@ -6,10 +6,10 @@
 
 import { CarbonDioxideConcentrationMeasurementServer } from "#behaviors/carbon-dioxide-concentration-measurement";
 import { CarbonMonoxideConcentrationMeasurementServer } from "#behaviors/carbon-monoxide-concentration-measurement";
-import { ConcentrationMeasurement } from "#clusters/concentration-measurement";
-import { FanControl } from "#clusters/fan-control";
 import { AirPurifierDevice } from "#devices/air-purifier";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { ConcentrationMeasurement } from "@matter/types/clusters/concentration-measurement";
+import { FanControl } from "@matter/types/clusters/fan-control";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 const fanControl = {

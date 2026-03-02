@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Transaction } from "#general";
-import { Val } from "#protocol";
-import { EndpointNumber } from "#types";
+import { Transaction } from "@matter/general";
+import { Val } from "@matter/protocol";
+import { EndpointNumber } from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
 

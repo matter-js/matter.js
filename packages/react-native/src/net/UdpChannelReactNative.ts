@@ -19,7 +19,7 @@ import {
     UdpChannel,
     UdpChannelOptions,
     UdpSocketType,
-} from "#general";
+} from "@matter/general";
 import { Platform } from "react-native";
 import { NetworkReactNative } from "./NetworkReactNative.js";
 

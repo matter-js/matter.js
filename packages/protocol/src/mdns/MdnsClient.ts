@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     AddressLifespan,
     BasicMultiplex,
@@ -35,9 +36,8 @@ import {
     Timespan,
     createPromise,
     isIPv6,
-} from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { GlobalFabricId, NodeId, VendorId } from "#types";
+} from "@matter/general";
+import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
 import {
     CommissionableDevice,
     CommissionableDeviceIdentifiers,

@@ -9,10 +9,9 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterState } from "#behavior/cluster/ClusterState.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { Thermostat } from "#clusters/thermostat";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "#general";
-import { DataModelPath } from "#model";
+import { BasicSet, Environment, Environmental, InternalError, Logger, ObserverGroup, serialize } from "@matter/general";
+import { DataModelPath } from "@matter/model";
 import {
     AccessControl,
     assertRemoteActor,
@@ -22,8 +21,9 @@ import {
     PeerAddress,
     Subject,
     Val,
-} from "#protocol";
-import { AttributeId, NodeId, Status, StatusResponse, StatusResponseError } from "#types";
+} from "@matter/protocol";
+import { AttributeId, NodeId, Status, StatusResponse, StatusResponseError } from "@matter/types";
+import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteState } from "./AtomicWriteState.js";
 
 const logger = Logger.get("AtomicWriteHandler");

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { TemperatureMeasurement } from "#clusters/temperature-measurement";
+import { TemperatureMeasurement } from "@matter/types/clusters/temperature-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * TemperatureMeasurementBehavior is the base class for objects that support interaction with

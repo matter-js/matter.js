@@ -6,8 +6,8 @@
 
 import type { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import { GeneratedClass, MaybePromise } from "#general";
-import { hasRemoteActor, Val } from "#protocol";
+import { GeneratedClass, MaybePromise } from "@matter/general";
+import { hasRemoteActor, Val } from "@matter/protocol";
 import { DescriptorBehavior } from "../behaviors/descriptor/DescriptorBehavior.js";
 import type { Endpoint } from "./Endpoint.js";
 import type { SupportedBehaviors } from "./properties/SupportedBehaviors.js";

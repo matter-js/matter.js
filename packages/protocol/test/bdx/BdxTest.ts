@@ -10,8 +10,8 @@ import {
     Flow,
 } from "#bdx/index.js";
 import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
-import { Bytes, StandardCrypto } from "#general";
-import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
+import { Bytes, StandardCrypto } from "@matter/general";
+import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
 import { bdxTransfer } from "./bdx-helpers.js";
 
 describe("BdxTest", () => {

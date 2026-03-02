@@ -6,8 +6,8 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { Abort, MaybePromise, NotImplementedError } from "#general";
-import { any, DataModelPath, Schema } from "#model";
+import { Abort, MaybePromise, NotImplementedError } from "@matter/general";
+import { any, DataModelPath, Schema } from "@matter/model";
 import { Envelope } from "./Envelope.js";
 import { LocalResponse } from "./LocalResponse.js";
 

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ColorControl } from "#clusters/color-control";
+import { ColorControl } from "@matter/types/clusters/color-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ColorControlInterface } from "./ColorControlInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ColorControlBehavior is the base class for objects that support interaction with {@link ColorControl.Cluster}.

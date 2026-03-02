@@ -6,8 +6,8 @@
 import { InteractionSession } from "#action/Interactable.js";
 import { NodeProtocol } from "#action/protocols.js";
 import { AccessControl } from "#action/server/AccessControl.js";
-import { AccessLevel } from "#model";
-import { BitmapSchema, NodeId, WildcardPathFlagsBitmap } from "#types";
+import { AccessLevel } from "@matter/model";
+import { BitmapSchema, NodeId, WildcardPathFlagsBitmap } from "@matter/types";
 
 export const WildcardPathFlagsCodec = BitmapSchema(WildcardPathFlagsBitmap);
 export const FallbackLimits: AccessControl.Limits = {

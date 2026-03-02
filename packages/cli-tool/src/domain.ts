@@ -5,6 +5,10 @@
  */
 
 import { BadCommandError, IncompleteError, NotACommandError, NotADirectoryError, NotFoundError } from "#errors.js";
+import { bin, globals as defaultGlobals } from "#globals.js";
+import { Location, undefinedValue } from "#location.js";
+import { Input, parseInput } from "#parser.js";
+import { Directory } from "#stat.js";
 import {
     CancelablePromise,
     Diagnostic,
@@ -14,12 +18,8 @@ import {
     MaybePromise,
     Observable,
     SafePromise,
-} from "#general";
-import { bin, globals as defaultGlobals } from "#globals.js";
-import { Location, undefinedValue } from "#location.js";
-import { ServerNode } from "#node";
-import { Input, parseInput } from "#parser.js";
-import { Directory } from "#stat.js";
+} from "@matter/general";
+import { ServerNode } from "@matter/node";
 import colors from "ansi-colors";
 import { inspect } from "node:util";
 import { createContext, runInContext, RunningCodeOptions } from "node:vm";

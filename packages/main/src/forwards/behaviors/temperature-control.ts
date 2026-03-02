@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/temperature-control";
+export * from "@matter/node/behaviors/temperature-control";

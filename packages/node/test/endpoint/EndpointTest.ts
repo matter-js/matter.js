@@ -9,9 +9,6 @@ import { BasicInformationServer } from "#behaviors/basic-information";
 import { OnOffBehavior, OnOffServer } from "#behaviors/on-off";
 import { PowerSourceServer } from "#behaviors/power-source";
 import { WindowCoveringServer } from "#behaviors/window-covering";
-import { AccessControl } from "#clusters/access-control";
-import { BasicInformation } from "#clusters/basic-information";
-import { WindowCoveringCluster } from "#clusters/window-covering";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { TemperatureSensorDevice } from "#devices/temperature-sensor";
 import { WindowCoveringDevice } from "#devices/window-covering";
@@ -19,7 +16,10 @@ import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { RootEndpoint } from "#endpoints/root";
-import { FabricIndex } from "#types";
+import { FabricIndex } from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { WindowCoveringCluster } from "@matter/types/clusters/window-covering";
 import { MockServerNode } from "../node/mock-server-node.js";
 
 const WindowCoveringLiftDevice = WindowCoveringDevice.with(

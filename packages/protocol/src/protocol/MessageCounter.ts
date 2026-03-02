@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, Crypto, InternalError, StorageContext, asyncNew } from "#general";
+import { Construction, Crypto, InternalError, StorageContext, asyncNew } from "@matter/general";
 
 /** Maximum 32 bit counter value. */
 export const MAX_COUNTER_VALUE_32BIT = 0xfffffffe;

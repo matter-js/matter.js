@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Channel } from "#clusters/channel";
+import { Channel } from "@matter/types/clusters/channel";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ChannelInterface } from "./ChannelInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ChannelBehavior is the base class for objects that support interaction with {@link Channel.Cluster}.

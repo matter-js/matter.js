@@ -13,10 +13,10 @@ import {
     StorageContext,
     StorageManager,
     StorageService,
-} from "#general";
-import { ServerNode, SoftwareUpdateManager } from "#node";
-import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
-import { NodeId } from "#types";
+} from "@matter/general";
+import { ServerNode, SoftwareUpdateManager } from "@matter/node";
+import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
+import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
 import { join } from "node:path";

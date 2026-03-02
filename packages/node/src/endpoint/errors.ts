@@ -5,7 +5,7 @@
  */
 
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
-import { describeList, MatterAggregateError, MatterError } from "#general";
+import { describeList, MatterAggregateError, MatterError } from "@matter/general";
 import type { Endpoint } from "./Endpoint.js";
 
 /**

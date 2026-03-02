@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/device-energy-management-mode";
+export * from "@matter/node/behaviors/device-energy-management-mode";

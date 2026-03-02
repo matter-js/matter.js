@@ -5,10 +5,10 @@
  */
 
 import { Endpoint } from "#device/Endpoint.js";
-import { Diagnostic, Logger } from "#general";
-import { AccessLevel, FabricIndex } from "#model";
-import { Message, SecureSession, Session } from "#protocol";
-import { CommandId, StatusCode, TlvSchema, TlvStream } from "#types";
+import { Diagnostic, Logger } from "@matter/general";
+import { AccessLevel, FabricIndex } from "@matter/model";
+import { Message, SecureSession, Session } from "@matter/protocol";
+import { CommandId, StatusCode, TlvSchema, TlvStream } from "@matter/types";
 
 const logger = Logger.get("CommandServer");
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EventId, TlvEventPath, TypeFromSchema } from "#types";
+import { EventId, TlvEventPath, TypeFromSchema } from "@matter/types";
 import { BasePath } from "./BasePath.js";
 
 export namespace EventPath {

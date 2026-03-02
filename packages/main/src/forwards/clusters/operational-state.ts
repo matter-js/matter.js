@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/operational-state";
+export * from "@matter/types/clusters/operational-state";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/service-area";
+export * from "@matter/node/behaviors/service-area";

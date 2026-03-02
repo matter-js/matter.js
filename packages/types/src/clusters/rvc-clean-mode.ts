@@ -16,7 +16,7 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace RvcCleanMode {

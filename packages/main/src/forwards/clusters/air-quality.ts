@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/air-quality";
+export * from "@matter/types/clusters/air-quality";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/energy-evse-mode";
+export * from "@matter/node/behaviors/energy-evse-mode";

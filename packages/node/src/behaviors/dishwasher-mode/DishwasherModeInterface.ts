@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ModeBase } from "#clusters/mode-base";
+import { MaybePromise } from "@matter/general";
+import { ModeBase } from "@matter/types/clusters/mode-base";
 
 export namespace DishwasherModeInterface {
     export interface Base {
