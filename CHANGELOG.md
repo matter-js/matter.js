@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
+    - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
 
 - @matter/protocol
     - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient and offers more knobs for tuning
