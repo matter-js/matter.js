@@ -42,6 +42,7 @@ import {
     DecodedAttributeReportValue,
     DecodedEventReportValue,
     PaseClient,
+    Peer,
     PeerAddress,
     Read,
     SustainedSubscription,
@@ -288,6 +289,7 @@ export class PairedNode {
         options: CommissioningControllerNodeOptions = {},
         clientNode: ClientNode,
         interactionClient: InteractionClient,
+        peer: Peer,
         crypto: Crypto,
         changes: Observable<[changes: ChangeNotificationService.Change]>,
     ): Promise<PairedNode> {
@@ -297,6 +299,7 @@ export class PairedNode {
             options,
             clientNode,
             interactionClient,
+            peer,
             crypto,
             changes,
         );
@@ -310,6 +313,7 @@ export class PairedNode {
         options: CommissioningControllerNodeOptions = {},
         clientNode: ClientNode,
         interactionClient: InteractionClient,
+        peer: Peer,
         crypto: Crypto,
         changes: Observable<[changes: ChangeNotificationService.Change]>,
     ) {
@@ -342,9 +346,9 @@ export class PairedNode {
             this.#clientNode.eventsOf(NetworkClient).subscriptionAlive,
             this.#handleSubscriptionAlive.bind(this),
         );
-        this.#observers.on(this.#clientNode.lifecycle.offline, () => {
-            // When all sessions are gone, transition to WaitingForDeviceDiscovery
-            if (this.#connectionState === NodeStates.Reconnecting || this.#connectionState === NodeStates.Connected) {
+
+        this.#observers.on(peer.service.changed, () => {
+            if (!peer.service.addresses.size && this.#connectionState === NodeStates.Reconnecting) {
                 this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
             }
         });
@@ -361,6 +365,8 @@ export class PairedNode {
                 const subscription = this.#clientNode.behaviors.internalsOf(NetworkClient).activeSubscription;
                 if (subscription instanceof SustainedSubscription && subscription.active.value) {
                     state = NodeStates.Connected;
+                } else if (!peer.service.addresses.size) {
+                    state = NodeStates.WaitingForDeviceDiscovery;
                 }
             }
             this.#setConnectionState(state);

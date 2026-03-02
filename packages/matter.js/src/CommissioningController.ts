@@ -567,6 +567,7 @@ export class CommissioningController {
                 forcedConnection: false,
                 caseAuthenticatedTags,
             }), // First, connect without discovery to the last known address
+            controller.peers.for(peerAddress),
             this.#crypto,
             changeObserver,
         );
