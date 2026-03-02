@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { DclCertificateService, DclConfig, DclOtaUpdateService } from "#protocol";
+import { DclCertificateService, DclConfig, DclOtaUpdateService, DclVendorInfoService } from "#protocol";
 
 /**
  * DCL (Distributed Compliance Ledger) configuration behavior.
@@ -68,6 +68,16 @@ export class DclBehavior extends Behavior {
             });
         }
         return this.env.get(DclCertificateService);
+    }
+
+    /** Get or create the DclVendorInfoService with current configuration. */
+    get vendorInfoService(): DclVendorInfoService {
+        if (!this.env.has(DclVendorInfoService)) {
+            new DclVendorInfoService(this.env, {
+                dclConfig: this.productionConfig,
+            });
+        }
+        return this.env.get(DclVendorInfoService);
     }
 
     /** Get or create the DclOtaUpdateService with current configuration. */
