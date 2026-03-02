@@ -313,6 +313,33 @@ describe("ClientConnectivityTest", () => {
         expect(ip === "abcd::3" || ip === "10.10.10.3").true;
     });
 
+    it("tracks peer online status with session lifecycle", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair();
+        const peer1 = await subscribedPeer(controller, "peer1");
+
+        // Track lifecycle events
+        const events: string[] = [];
+        peer1.lifecycle.online.on(() => void events.push("online"));
+        peer1.lifecycle.offline.on(() => void events.push("offline"));
+
+        // After subscription established, peer should be online (session exists)
+        expect(peer1.lifecycle.isOnline).true;
+
+        // Stop device — sessions close, peer should go offline
+        await MockTime.resolve(device.stop());
+        expect(peer1.lifecycle.isOnline).false;
+        expect(events).deep.equals(["offline"]);
+
+        // Restart device and reconnect — peer should come back online
+        (peer1.parts.get("ep1")!.env.get(Crypto) as MockCrypto).entropic = true;
+        await MockTime.resolve(device.start());
+        const ep1 = peer1.parts.get("ep1")!;
+        await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle(undefined, { connectionTimeout: Minutes(5) }));
+        expect(peer1.lifecycle.isOnline).true;
+        expect(events).deep.equals(["offline", "online"]);
+    });
+
     it("resubscribes on timeout", async () => {
         // *** SETUP ***
 
