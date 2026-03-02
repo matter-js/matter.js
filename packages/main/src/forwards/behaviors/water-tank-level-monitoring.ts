@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/water-tank-level-monitoring";
+export * from "@matter/node/behaviors/water-tank-level-monitoring";

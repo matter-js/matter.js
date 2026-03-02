@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/secondary-network-interface";
+export * from "@matter/node/endpoints/secondary-network-interface";

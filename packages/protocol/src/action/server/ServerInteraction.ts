@@ -16,7 +16,7 @@ import { SubscribeResult } from "#action/response/SubscribeResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
 import { CommandInvokeResponse } from "#action/server/CommandInvokeResponse.js";
 import { EventReadResponse } from "#action/server/EventReadResponse.js";
-import { Logger, NotImplementedError } from "#general";
+import { Logger, NotImplementedError } from "@matter/general";
 import { AttributeReadResponse } from "./AttributeReadResponse.js";
 import { AttributeWriteResponse } from "./AttributeWriteResponse.js";
 

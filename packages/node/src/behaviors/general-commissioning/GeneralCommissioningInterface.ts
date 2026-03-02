@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { GeneralCommissioning } from "#clusters/general-commissioning";
+import { MaybePromise } from "@matter/general";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export namespace GeneralCommissioningInterface {
     export interface Base {

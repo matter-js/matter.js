@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DataModelPath } from "#model";
-import { Val } from "#protocol";
+import { DataModelPath } from "@matter/model";
+import { Val } from "@matter/protocol";
 
 /**
  * Contextual information tracked during validation.

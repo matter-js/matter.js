@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MdnsServer, QUESTION_SUPPRESSION_WINDOW } from "#mdns/MdnsServer.js";
 import {
     ARecord,
     Bytes,
@@ -22,8 +23,7 @@ import {
     SrvRecord,
     TxtRecord,
     UdpMulticastServer,
-} from "#general";
-import { MdnsServer, QUESTION_SUPPRESSION_WINDOW } from "#mdns/MdnsServer.js";
+} from "@matter/general";
 
 const CLIENT_IPv4 = "192.168.200.2";
 const CLIENT_MAC = "CA:FE:00:00:BE:EF";

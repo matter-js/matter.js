@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { JointFabricAdministrator } from "#clusters/joint-fabric-administrator";
+import { JointFabricAdministrator } from "@matter/types/clusters/joint-fabric-administrator";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { JointFabricAdministratorInterface } from "./JointFabricAdministratorInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * JointFabricAdministratorBehavior is the base class for objects that support interaction with

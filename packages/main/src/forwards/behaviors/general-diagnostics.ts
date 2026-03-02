@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/general-diagnostics";
+export * from "@matter/node/behaviors/general-diagnostics";

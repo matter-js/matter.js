@@ -6,7 +6,7 @@
 
 import { RequestContext } from "#action/client/ClientInteraction.js";
 import { BdxMessenger } from "#bdx/BdxMessenger.js";
-import { Duration, WorkSlot } from "#general";
+import { Duration, WorkSlot } from "@matter/general";
 
 export interface ClientBdxRequest {
     messageTimeout?: Duration;

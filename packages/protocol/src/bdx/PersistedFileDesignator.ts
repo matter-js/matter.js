@@ -5,7 +5,7 @@
  */
 
 import { ScopedStorage } from "#bdx/ScopedStorage.js";
-import { Bytes, ImplementationError, Logger, StorageContext } from "#general";
+import { Bytes, ImplementationError, Logger, StorageContext } from "@matter/general";
 import { FileDesignator } from "./FileDesignator.js";
 
 const logger = Logger.get("PersistedFileDesignator");

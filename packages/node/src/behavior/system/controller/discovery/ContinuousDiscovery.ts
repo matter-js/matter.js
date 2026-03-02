@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Observable } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
+import { Observable } from "@matter/general";
 import { Discovery } from "./Discovery.js";
 
 /**

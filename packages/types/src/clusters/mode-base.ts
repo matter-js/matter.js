@@ -22,7 +22,7 @@ import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export namespace ModeBase {
     /**

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { decamelize } from "#general";
-import { ClusterModel, Matter, MatterModel } from "#model";
-import { ClusterId, Status } from "#types";
+import { decamelize } from "@matter/general";
+import { ClusterModel, Matter, MatterModel } from "@matter/model";
+import { ClusterId, Status } from "@matter/types";
 
 /**
  * Detailed status information expanded from status codes.

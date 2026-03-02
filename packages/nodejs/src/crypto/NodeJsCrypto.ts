@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NodeJsStyleCrypto } from "#general";
+import { NodeJsStyleCrypto } from "@matter/general";
 import * as crypto from "node:crypto";
 
 /**

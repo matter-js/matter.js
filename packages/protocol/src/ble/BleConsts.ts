@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MAX_UDP_MESSAGE_SIZE, Millis, Seconds } from "#general";
+import { MAX_UDP_MESSAGE_SIZE, Millis, Seconds } from "@matter/general";
 
 /** @see {@link MatterSpecification.v11.Core} § 4.17.3.2 */
 export const BLE_MATTER_SERVICE_UUID_SHORT = "fff6";

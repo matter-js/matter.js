@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/thermostat";
+export * from "@matter/types/clusters/thermostat";

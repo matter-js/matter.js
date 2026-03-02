@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/microwave-oven";
+export * from "@matter/node/devices/microwave-oven";

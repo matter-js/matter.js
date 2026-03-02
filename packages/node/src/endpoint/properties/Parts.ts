@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, ImplementationError, Lifecycle, Logger, MutableSet } from "#general";
 import { IdentityConflictError, IdentityService } from "#node/server/IdentityService.js";
+import { Construction, ImplementationError, Lifecycle, Logger, MutableSet } from "@matter/general";
 import { Agent } from "../Agent.js";
 import { Endpoint } from "../Endpoint.js";
 import { EndpointPartsError, PartNotFoundError } from "../errors.js";

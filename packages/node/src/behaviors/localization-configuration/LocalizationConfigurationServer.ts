@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
 import { LocalizationConfigurationBehavior } from "./LocalizationConfigurationBehavior.js";
 
 /**

@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#general";
 import { ServerSubscriptionConfig } from "#node/server/ServerSubscription.js";
-import { Ble, FabricManager } from "#protocol";
-import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "#types";
+import { Logger } from "@matter/general";
+import { Ble, FabricManager } from "@matter/protocol";
+import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema } from "@matter/types";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 import type { ServerNetworkRuntime } from "./ServerNetworkRuntime.js";

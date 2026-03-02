@@ -10,6 +10,8 @@ import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { BehaviorInitializationError } from "#endpoint/errors.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
+import { ProtocolService } from "#node/integration/ProtocolService.js";
 import {
     Construction,
     Entropy,
@@ -21,10 +23,8 @@ import {
     Logger,
     MaybePromise,
     Observable,
-} from "#general";
-import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { ProtocolService } from "#node/integration/ProtocolService.js";
-import type { ClusterId } from "#types";
+} from "@matter/general";
+import type { ClusterId } from "@matter/types";
 import type { Behavior } from "../Behavior.js";
 import { Reactor } from "../Reactor.js";
 import { Datasource } from "../state/managed/Datasource.js";

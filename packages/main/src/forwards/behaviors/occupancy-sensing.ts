@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/occupancy-sensing";
+export * from "@matter/node/behaviors/occupancy-sensing";

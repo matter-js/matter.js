@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/network-infrastructure-manager";
+export * from "@matter/node/devices/network-infrastructure-manager";

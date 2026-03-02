@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/rvc-clean-mode";
+export * from "@matter/types/clusters/rvc-clean-mode";

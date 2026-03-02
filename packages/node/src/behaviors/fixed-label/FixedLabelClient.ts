@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { FixedLabel } from "#clusters/fixed-label";
+import { FixedLabel } from "@matter/types/clusters/fixed-label";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const FixedLabelClientConstructor = ClientBehavior(FixedLabel.Complete);
 export interface FixedLabelClient extends InstanceType<typeof FixedLabelClientConstructor> {}

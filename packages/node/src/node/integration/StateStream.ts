@@ -6,12 +6,12 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { Abort, deepCopy, Duration, Gate, Millis, Timer } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Val } from "#protocol";
-import { EndpointNumber } from "#types";
+import { Abort, deepCopy, Duration, Gate, Millis, Timer } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
+import { Val } from "@matter/protocol";
+import { EndpointNumber } from "@matter/types";
 import { ChangeNotificationService } from "./ChangeNotificationService.js";
 
 /**

@@ -16,8 +16,8 @@ import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
-import { Identity } from "#general";
+import { AccessLevel } from "@matter/model";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Binding {

@@ -5,8 +5,8 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { MaybePromise } from "#general";
-import { AttributeElement, ClusterModel, CommandElement, EventElement, FieldElement } from "#model";
+import { MaybePromise } from "@matter/general";
+import { AttributeElement, ClusterModel, CommandElement, EventElement, FieldElement } from "@matter/model";
 import {
     Attribute,
     BitFlag,
@@ -23,7 +23,7 @@ import {
     TlvNoResponse,
     TlvString,
     TlvUInt8,
-} from "#types";
+} from "@matter/types";
 
 export namespace My {
     export enum Feature {

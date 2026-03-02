@@ -6,7 +6,7 @@
 
 import { BtpProtocolError } from "#ble/BtpSessionHandler.js";
 import { BtpCodec } from "#codec/BtpCodec.js";
-import { Bytes } from "#general";
+import { Bytes } from "@matter/general";
 
 const DECODED_HANDSHAKE_REQUEST = {
     versions: [4], // 00000040

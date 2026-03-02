@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import {
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
@@ -16,6 +15,7 @@ import {
 } from "#schema/PairingCodeSchema.js";
 import { TlvField, TlvObject } from "#tlv/TlvObject.js";
 import { TlvString } from "#tlv/TlvString.js";
+import { Bytes } from "@matter/general";
 
 const QR_CODE = "MT:YNJV7VSC00CMVH7SR00";
 const QR_CODE_DATA: QrCodeData = {

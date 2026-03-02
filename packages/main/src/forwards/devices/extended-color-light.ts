@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/extended-color-light";
+export * from "@matter/node/devices/extended-color-light";

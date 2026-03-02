@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageContext, Transaction } from "#general";
 import { EndpointStore } from "#storage/EndpointStore.js";
 import { DatasourceStore } from "#storage/server/DatasourceStore.js";
-import type { EndpointNumber } from "#types";
+import { StorageContext, Transaction } from "@matter/general";
 import { PeerAddress } from "@matter/protocol";
+import type { EndpointNumber } from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 import { DatasourceCache } from "./DatasourceCache.js";
 import { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";

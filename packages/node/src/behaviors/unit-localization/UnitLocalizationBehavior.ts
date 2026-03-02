@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { UnitLocalization } from "#clusters/unit-localization";
+import { UnitLocalization } from "@matter/types/clusters/unit-localization";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * UnitLocalizationBehavior is the base class for objects that support interaction with

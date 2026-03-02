@@ -11,8 +11,8 @@ import {
 } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { AccessControlServer } from "#behaviors/access-control";
 import { DescriptorServer } from "#behaviors/descriptor";
-import { AccessControl } from "#clusters/access-control";
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
+import { Node } from "#node/Node.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     Crypto,
@@ -24,9 +24,7 @@ import {
     Seconds,
     Time,
     Timestamp,
-} from "#general";
-import { Node } from "#node/Node.js";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
 import {
     assertRemoteActor,
     BdxProtocol,
@@ -36,8 +34,10 @@ import {
     NodeSession,
     PeerAddress,
     ScopedStorage,
-} from "#protocol";
-import { FabricIndex, NodeId } from "#types";
+} from "@matter/protocol";
+import { FabricIndex, NodeId } from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateProviderBehavior } from "./OtaSoftwareUpdateProviderBehavior.js";
 
 const logger = Logger.get("OtaSoftwareUpdateProviderServer");

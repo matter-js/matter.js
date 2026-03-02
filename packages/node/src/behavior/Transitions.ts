@@ -21,7 +21,7 @@ import {
     Timer,
     Timespan,
     Timestamp,
-} from "#general";
+} from "@matter/general";
 import { Behavior } from "./Behavior.js";
 import { ClusterEvents } from "./cluster/ClusterEvents.js";
 import { Events } from "./Events.js";

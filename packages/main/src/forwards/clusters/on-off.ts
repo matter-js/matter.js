@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/on-off";
+export * from "@matter/types/clusters/on-off";

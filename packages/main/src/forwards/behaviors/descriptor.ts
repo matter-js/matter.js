@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/descriptor";
+export * from "@matter/node/behaviors/descriptor";

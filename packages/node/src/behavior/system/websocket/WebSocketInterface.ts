@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Abort, AppAddress, asJson, Bytes, HttpEndpoint, HttpService, Mutex, Stream } from "#general";
-import { StatusResponse, StatusResponseError } from "#types";
+import { Abort, AppAddress, asJson, Bytes, HttpEndpoint, HttpService, Mutex, Stream } from "@matter/general";
+import { StatusResponse, StatusResponseError } from "@matter/types";
 import { Api } from "../remote/api/Api.js";
 import { ApiPath } from "../remote/api/ApiPath.js";
 import { LocalResponse } from "../remote/api/LocalResponse.js";

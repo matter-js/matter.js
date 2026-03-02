@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/keypad-input";
+export * from "@matter/types/clusters/keypad-input";

@@ -19,9 +19,9 @@ import {
     ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
 } from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
-import { DeviceClassification } from "#model";
+import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Secondary Network Interface device provides an additional network interface supported by the Node, supplementing

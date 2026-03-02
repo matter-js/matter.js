@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Namespace, Semtag, VendorId } from "#types";
+import { Namespace, Semtag, VendorId } from "@matter/types";
 
 /**
  * A Matter "semantic namespace" is a discrete set of {@link Semtag} definitions.

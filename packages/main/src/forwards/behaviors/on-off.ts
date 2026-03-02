@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/on-off";
+export * from "@matter/node/behaviors/on-off";

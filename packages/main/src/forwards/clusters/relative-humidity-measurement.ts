@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/relative-humidity-measurement";
+export * from "@matter/types/clusters/relative-humidity-measurement";

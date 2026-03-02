@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/energy-evse-mode";
+export * from "@matter/types/clusters/energy-evse-mode";

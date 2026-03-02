@@ -9,8 +9,8 @@ import { NetworkRuntime } from "#behavior/system/network/NetworkRuntime.js";
 import type { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { TimeSynchronizationBehavior } from "#behaviors/time-synchronization";
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import type { NodeLifecycle } from "#node/NodeLifecycle.js";
 import {
     Bytes,
     Duration,
@@ -26,11 +26,11 @@ import {
     Time,
     Timer,
     Timespan,
-} from "#general";
-import { FieldElement, Specification } from "#model";
-import type { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { assertRemoteActor, MdnsService, Val } from "#protocol";
-import { CommandId, StatusCode, StatusResponseError, TlvInvokeResponse } from "#types";
+} from "@matter/general";
+import { FieldElement, Specification } from "@matter/model";
+import { assertRemoteActor, MdnsService, Val } from "@matter/protocol";
+import { CommandId, StatusCode, StatusResponseError, TlvInvokeResponse } from "@matter/types";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
 const logger = Logger.get("GeneralDiagnosticsServer");

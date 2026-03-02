@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/network-commissioning";
+export * from "@matter/node/behaviors/network-commissioning";

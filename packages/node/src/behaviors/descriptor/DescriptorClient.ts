@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Descriptor } from "#clusters/descriptor";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const DescriptorClientConstructor = ClientBehavior(Descriptor.Complete);
 export interface DescriptorClient extends InstanceType<typeof DescriptorClientConstructor> {}

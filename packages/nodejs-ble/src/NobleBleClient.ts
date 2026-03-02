@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger } from "#general";
-import { BLE_MATTER_SERVICE_UUID_SHORT } from "#protocol";
+import { Bytes, Diagnostic, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
+import { BLE_MATTER_SERVICE_UUID_SHORT } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { platform } from "node:process";
 import { BleOptions } from "./NodeJsBle.js";

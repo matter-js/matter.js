@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "#general";
+import { Diagnostic } from "@matter/general";
 import { DclClient, DclConfig } from "@matter/protocol";
 import type { Argv } from "yargs";
 

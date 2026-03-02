@@ -82,8 +82,6 @@
         }
     },
     "imports": {
-        "#general": "@matter/general",
-        "#model": "@matter/model",
         "#*": "./src/*"
     },
     "types": "dist/esm/index.d.ts",

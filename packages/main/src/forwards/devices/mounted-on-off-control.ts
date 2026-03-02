@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/mounted-on-off-control";
+export * from "@matter/node/devices/mounted-on-off-control";

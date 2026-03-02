@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/power-topology";
+export * from "@matter/node/behaviors/power-topology";

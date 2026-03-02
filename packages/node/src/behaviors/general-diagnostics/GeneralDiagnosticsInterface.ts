@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
+import { MaybePromise } from "@matter/general";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 
 export namespace GeneralDiagnosticsInterface {
     export interface Base {

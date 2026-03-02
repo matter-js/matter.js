@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Specification } from "#model";
 import { SpecificationVersion } from "#schema/SpecificationVersionSchema.js";
+import { Specification } from "@matter/model";
 
 describe("SpecificationVersionSchema", () => {
     it("encodes and decodes a specification version", () => {

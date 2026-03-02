@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/refrigerator-alarm";
+export * from "@matter/types/clusters/refrigerator-alarm";

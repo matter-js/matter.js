@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FieldElement } from "#model";
-import { ConformanceError } from "#protocol";
-import { EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
+import { FieldElement } from "@matter/model";
+import { ConformanceError, EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
 import { Features, Fields, Tests, testValidation } from "./validation-test-utils.js";
 
 function missing(conformance: string, fieldName = "test") {

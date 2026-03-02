@@ -6,8 +6,8 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { type ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { InternalError, NotImplementedError } from "#general";
-import { DataModelPath, Metatype, Schema } from "#model";
+import { InternalError, NotImplementedError } from "@matter/general";
+import { DataModelPath, Metatype, Schema } from "@matter/model";
 import { Val } from "@matter/protocol";
 import { StatusResponse } from "@matter/types";
 import { ApiResource } from "../ApiResource.js";

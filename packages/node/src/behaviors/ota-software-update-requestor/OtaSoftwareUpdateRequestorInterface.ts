@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
+import { MaybePromise } from "@matter/general";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 
 export namespace OtaSoftwareUpdateRequestorInterface {
     export interface Base {

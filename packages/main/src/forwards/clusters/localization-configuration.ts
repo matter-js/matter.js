@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/localization-configuration";
+export * from "@matter/types/clusters/localization-configuration";

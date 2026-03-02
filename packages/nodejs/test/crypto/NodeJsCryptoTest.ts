@@ -14,7 +14,7 @@ import {
     Key,
     PrivateKey,
     PublicKey,
-} from "#general";
+} from "@matter/general";
 import * as assert from "node:assert";
 import * as crypto from "node:crypto";
 

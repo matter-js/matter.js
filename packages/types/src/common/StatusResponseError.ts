@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError, capitalize, decamelize } from "#general";
 import { Status } from "#globals/Status.js";
+import { MatterError, capitalize, decamelize } from "@matter/general";
 
 const specializationIndex = {} as Record<Status, new (message?: string, statusCode?: number) => StatusResponseError>;
 

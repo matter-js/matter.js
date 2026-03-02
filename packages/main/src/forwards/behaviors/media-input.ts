@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/media-input";
+export * from "@matter/node/behaviors/media-input";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/robotic-vacuum-cleaner";
+export * from "@matter/node/devices/robotic-vacuum-cleaner";

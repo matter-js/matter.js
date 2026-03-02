@@ -5,8 +5,8 @@
  */
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { InternalError, MaybePromise, Transaction } from "#general";
-import { Val } from "#protocol";
+import { InternalError, MaybePromise, Transaction } from "@matter/general";
+import { Val } from "@matter/protocol";
 import type { ClientEndpointStore } from "./ClientEndpointStore.js";
 import type { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
 

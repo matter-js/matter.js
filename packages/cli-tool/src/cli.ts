@@ -5,9 +5,9 @@
  */
 
 import { Domain, DomainContext } from "#domain.js";
-import { Environment, LogFormat, MatterError } from "#general";
 import { CommandInput } from "#parser.js";
 import { repl } from "#repl.js";
+import { Environment, LogFormat, MatterError } from "@matter/general";
 import "@matter/nodejs";
 import colors from "ansi-colors";
 import { stdout } from "node:process";

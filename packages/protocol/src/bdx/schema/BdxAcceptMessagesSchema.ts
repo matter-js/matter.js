@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, DataWriter, Endian } from "#general";
-import { BdxStatusCode, Schema, TypeFromPartialBitSchema } from "#types";
+import { Bytes, DataReader, DataWriter, Endian } from "@matter/general";
+import { BdxStatusCode, Schema, TypeFromPartialBitSchema } from "@matter/types";
 import { BdxError } from "../BdxError.js";
 import {
     BDX_VERSION,

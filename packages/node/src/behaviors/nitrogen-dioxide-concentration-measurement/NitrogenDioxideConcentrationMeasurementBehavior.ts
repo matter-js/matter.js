@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { NitrogenDioxideConcentrationMeasurement } from "#clusters/nitrogen-dioxide-concentration-measurement";
+import { NitrogenDioxideConcentrationMeasurement } from "@matter/types/clusters/nitrogen-dioxide-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * NitrogenDioxideConcentrationMeasurementBehavior is the base class for objects that support interaction with

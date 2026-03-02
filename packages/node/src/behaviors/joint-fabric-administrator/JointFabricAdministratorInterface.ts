@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { JointFabricAdministrator } from "#clusters/joint-fabric-administrator";
+import { MaybePromise } from "@matter/general";
+import { JointFabricAdministrator } from "@matter/types/clusters/joint-fabric-administrator";
 
 export namespace JointFabricAdministratorInterface {
     export interface Base {

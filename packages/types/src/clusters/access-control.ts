@@ -19,7 +19,7 @@ import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { Priority } from "../globals/Priority.js";
 import { TlvNodeId } from "../datatype/NodeId.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
@@ -29,7 +29,7 @@ import { TlvClusterId } from "../datatype/ClusterId.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvSubjectId } from "../datatype/SubjectId.js";
 import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace AccessControl {

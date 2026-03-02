@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RvcCleanMode } from "#clusters/rvc-clean-mode";
+import { RvcCleanMode } from "@matter/types/clusters/rvc-clean-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { RvcCleanModeInterface } from "./RvcCleanModeInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * RvcCleanModeBehavior is the base class for objects that support interaction with {@link RvcCleanMode.Cluster}.

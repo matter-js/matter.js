@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Timestamp } from "#general";
-import { ClusterId, EndpointNumber, EventId, EventNumber, Priority } from "#types";
+import { Timestamp } from "@matter/general";
+import { ClusterId, EndpointNumber, EventId, EventNumber, Priority } from "@matter/types";
 
 /**
  * Description of a single event occurrence.

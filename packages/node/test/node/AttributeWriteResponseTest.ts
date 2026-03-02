@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BasicInformationCluster } from "#clusters/basic-information";
-import { AttributeWriteResponse, Write } from "#protocol";
-import { EndpointNumber, StatusCode, TlvString, WriteRequest } from "#types";
+import { AttributeWriteResponse, Write } from "@matter/protocol";
+import { EndpointNumber, StatusCode, TlvString, WriteRequest } from "@matter/types";
+import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 
 describe("AttributeWriteRequest", () => {

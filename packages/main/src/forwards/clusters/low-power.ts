@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/low-power";
+export * from "@matter/types/clusters/low-power";

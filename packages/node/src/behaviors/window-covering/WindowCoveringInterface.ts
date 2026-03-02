@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { WindowCovering } from "#clusters/window-covering";
+import { MaybePromise } from "@matter/general";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 
 export namespace WindowCoveringInterface {
     export interface Base {

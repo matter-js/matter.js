@@ -5,7 +5,7 @@
  */
 
 import { Specification } from "#common/Specification.js";
-import { NodeJsStyleInspectable } from "#general";
+import { NodeJsStyleInspectable } from "@matter/general";
 
 export class CrossReference implements Specification.CrossReference {
     document: Specification;

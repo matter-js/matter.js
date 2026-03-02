@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, Environmental } from "#general";
-import { MdnsClient, MdnsScannerTargetCriteria, Scanner, ScannerSet } from "#protocol";
+import { Environment, Environmental } from "@matter/general";
+import { MdnsClient, MdnsScannerTargetCriteria, Scanner, ScannerSet } from "@matter/protocol";
 import type { Discovery } from "./Discovery.js";
 
 /**

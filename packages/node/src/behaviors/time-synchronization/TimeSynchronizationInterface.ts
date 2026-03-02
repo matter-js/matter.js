@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { TimeSynchronization } from "#clusters/time-synchronization";
+import { MaybePromise } from "@matter/general";
+import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 
 export namespace TimeSynchronizationInterface {
     export interface Base {

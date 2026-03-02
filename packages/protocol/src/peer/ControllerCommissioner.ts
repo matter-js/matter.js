@@ -6,9 +6,22 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
-import { GeneralCommissioning } from "#clusters/general-commissioning";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, ScannerSet } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
+import { MdnsClient } from "#mdns/MdnsClient.js";
+import { CommissioningError } from "#peer/CommissioningError.js";
+import {
+    ControllerCommissioningFlow,
+    ControllerCommissioningFlowOptions,
+    NodeIdConflictError,
+} from "#peer/ControllerCommissioningFlow.js";
+import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { ExchangeManager } from "#protocol/ExchangeManager.js";
+import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
+import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
+import { NodeSession } from "#session/NodeSession.js";
+import { PaseClient } from "#session/pase/PaseClient.js";
+import { SessionManager } from "#session/SessionManager.js";
 import {
     asError,
     Bytes,
@@ -30,22 +43,14 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
-} from "#general";
-import { MdnsClient } from "#mdns/MdnsClient.js";
-import { CommissioningError } from "#peer/CommissioningError.js";
+} from "@matter/general";
 import {
-    ControllerCommissioningFlow,
-    ControllerCommissioningFlowOptions,
-    NodeIdConflictError,
-} from "#peer/ControllerCommissioningFlow.js";
-import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
-import { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
-import { NodeSession } from "#session/NodeSession.js";
-import { PaseClient } from "#session/pase/PaseClient.js";
-import { SessionManager } from "#session/SessionManager.js";
-import { DiscoveryCapabilitiesBitmap, NodeId, SECURE_CHANNEL_PROTOCOL_ID, TypeFromPartialBitSchema } from "#types";
+    DiscoveryCapabilitiesBitmap,
+    NodeId,
+    SECURE_CHANNEL_PROTOCOL_ID,
+    TypeFromPartialBitSchema,
+} from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { PeerAddress } from "./PeerAddress.js";
 import {
     CommissioningTransitionError,

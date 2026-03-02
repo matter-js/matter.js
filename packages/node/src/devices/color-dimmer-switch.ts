@@ -17,7 +17,7 @@ import {
 } from "../behaviors/scenes-management/ScenesManagementBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Color Dimmer Switch is a controller device that, when bound to a lighting device such as an Extended Color Light,

@@ -5,11 +5,11 @@
  */
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
-import { OnOffCluster } from "#clusters/on-off";
-import { Minutes } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientInteraction, Invoke } from "#protocol";
-import { EndpointNumber } from "#types";
+import { Minutes } from "@matter/general";
+import { ClientInteraction, Invoke } from "@matter/protocol";
+import { EndpointNumber } from "@matter/types";
+import { OnOffCluster } from "@matter/types/clusters/on-off";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientInvoke", () => {

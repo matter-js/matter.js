@@ -5,10 +5,10 @@
  */
 
 import { FabricManager } from "#fabric/FabricManager.js";
-import { AsyncObservable, Environment, Environmental, Logger, MatterFlowError } from "#general";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
+import { AsyncObservable, Environment, Environmental, Logger, MatterFlowError } from "@matter/general";
 import {
     GeneralStatusCode,
     SECURE_CHANNEL_PROTOCOL_ID,
@@ -16,7 +16,7 @@ import {
     SecureMessageType,
     StatusCode,
     StatusResponseError,
-} from "#types";
+} from "@matter/types";
 import { Message } from "../codec/MessageCodec.js";
 import { MessageExchange } from "../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../protocol/ProtocolHandler.js";

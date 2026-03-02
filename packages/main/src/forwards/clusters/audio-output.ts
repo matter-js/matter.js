@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/audio-output";
+export * from "@matter/types/clusters/audio-output";

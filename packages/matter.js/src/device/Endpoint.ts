@@ -5,10 +5,9 @@
  */
 
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
-import { BasicInformationCluster, BridgedDeviceBasicInformationCluster } from "#clusters";
-import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "#general";
-import { Behavior, Endpoint as ClientEndpoint } from "#node";
-import { ClusterClientObj } from "#protocol";
+import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
+import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
+import { ClusterClientObj } from "@matter/protocol";
 import {
     Attributes,
     BitSchema,
@@ -21,7 +20,8 @@ import {
     Events,
     TypeFromPartialBitSchema,
     getClusterNameById,
-} from "#types";
+} from "@matter/types";
+import { BasicInformationCluster, BridgedDeviceBasicInformationCluster } from "@matter/types/clusters";
 import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 

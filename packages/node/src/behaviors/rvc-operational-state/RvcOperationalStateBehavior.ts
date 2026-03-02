@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RvcOperationalState } from "#clusters/rvc-operational-state";
+import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { RvcOperationalStateInterface } from "./RvcOperationalStateInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * RvcOperationalStateBehavior is the base class for objects that support interaction with

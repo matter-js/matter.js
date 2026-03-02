@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Environment, Environmental, MatterError, Millis, Seconds, Semaphore } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { Duration, Environment, Environmental, MatterError, Millis, Seconds, Semaphore } from "@matter/general";
 import { Peer } from "./Peer.js";
 
 /**

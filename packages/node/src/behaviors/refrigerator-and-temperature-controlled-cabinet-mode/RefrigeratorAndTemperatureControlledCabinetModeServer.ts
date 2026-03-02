@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { ModeBase } from "#clusters/mode-base";
-import { RefrigeratorAndTemperatureControlledCabinetMode } from "#clusters/refrigerator-and-temperature-controlled-cabinet-mode";
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
+import { ModeBase } from "@matter/types/clusters/mode-base";
+import { RefrigeratorAndTemperatureControlledCabinetMode } from "@matter/types/clusters/refrigerator-and-temperature-controlled-cabinet-mode";
 import { RefrigeratorAndTemperatureControlledCabinetModeBehavior } from "./RefrigeratorAndTemperatureControlledCabinetModeBehavior.js";
 
 /**

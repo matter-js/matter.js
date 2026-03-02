@@ -8,8 +8,8 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
-import { INTERACTION_PROTOCOL_ID } from "#types";
 import { ChannelType, Duration } from "@matter/general";
+import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
 

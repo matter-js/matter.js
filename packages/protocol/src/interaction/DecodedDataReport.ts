@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DataReport, TlvAttributeReport, TypeFromSchema } from "#types";
+import { DataReport, TlvAttributeReport, TypeFromSchema } from "@matter/types";
 import {
     DecodedAttributeReportStatus,
     DecodedAttributeReportValue,

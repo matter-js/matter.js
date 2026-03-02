@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Abort, Gate, MqttEndpoint, Mutex } from "#general";
+import { Abort, Gate, MqttEndpoint, Mutex } from "@matter/general";
 import { IPublishPacket, ISubscriptionGrant, MqttClient, OnMessageCallback } from "mqtt";
 import { MqttJsMessage } from "./MqttJsMessage.js";
 

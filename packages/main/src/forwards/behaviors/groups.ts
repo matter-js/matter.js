@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/groups";
+export * from "@matter/node/behaviors/groups";

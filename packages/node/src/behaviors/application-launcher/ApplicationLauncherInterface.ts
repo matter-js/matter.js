@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ApplicationLauncher } from "#clusters/application-launcher";
+import { MaybePromise } from "@matter/general";
+import { ApplicationLauncher } from "@matter/types/clusters/application-launcher";
 
 export namespace ApplicationLauncherInterface {
     export interface Base {

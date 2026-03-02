@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/water-heater-mode";
+export * from "@matter/types/clusters/water-heater-mode";

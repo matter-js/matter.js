@@ -6,11 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { NetworkCommissioning } from "#clusters/network-commissioning";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { NetworkCommissioningInterface } from "./NetworkCommissioningInterface.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * NetworkCommissioningBehavior is the base class for objects that support interaction with

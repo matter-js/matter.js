@@ -5,6 +5,11 @@
  */
 
 import type { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
+import { SessionClosedError } from "#protocol/errors.js";
+import { MessageChannel } from "#protocol/MessageChannel.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     AsyncObservable,
     Bytes,
@@ -21,13 +26,8 @@ import {
     Time,
     Timespan,
     Timestamp,
-} from "#general";
-import { PeerLossContext } from "#peer/PeerLossContext.js";
-import { SessionClosedError } from "#protocol/errors.js";
-import { MessageChannel } from "#protocol/MessageChannel.js";
-import type { MessageExchange } from "#protocol/MessageExchange.js";
-import { SessionIntervals } from "#session/SessionIntervals.js";
-import type { NodeId, TypeFromPartialBitSchema } from "#types";
+} from "@matter/general";
+import type { NodeId, TypeFromPartialBitSchema } from "@matter/types";
 import type {
     DecodedMessage,
     DecodedPacket,

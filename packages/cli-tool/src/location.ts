@@ -5,8 +5,8 @@
  */
 
 import { NotADirectoryError, NotFoundError } from "#errors.js";
-import { Bytes, decamelize, MaybePromise } from "#general";
 import { Stat } from "#stat.js";
+import { Bytes, decamelize, MaybePromise } from "@matter/general";
 
 /**
  * Returned during location search to indicate "yes this exists but value is undefined".

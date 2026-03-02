@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/contact-sensor";
+export * from "@matter/node/devices/contact-sensor";

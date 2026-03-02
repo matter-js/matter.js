@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PowerSourceConfiguration } from "#clusters/power-source-configuration";
+import { PowerSourceConfiguration } from "@matter/types/clusters/power-source-configuration";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * PowerSourceConfigurationBehavior is the base class for objects that support interaction with

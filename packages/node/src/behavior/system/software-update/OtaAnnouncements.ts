@@ -8,14 +8,25 @@ import { CommissioningClient } from "#behavior/system/commissioning/Commissionin
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OtaSoftwareUpdateRequestorClient } from "#behaviors/ota-software-update-requestor";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { Duration, Hours, isDeepEqual, Logger, MatterError, Millis, Minutes, Seconds, Time, Timer } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Fabric, PeerAddress, Write, WriteResult } from "#protocol";
-import { EndpointNumber, FabricIndex, NodeId, VendorId } from "#types";
+import {
+    Duration,
+    Hours,
+    isDeepEqual,
+    Logger,
+    MatterError,
+    Millis,
+    Minutes,
+    Seconds,
+    Time,
+    Timer,
+} from "@matter/general";
+import { Fabric, PeerAddress, Write, WriteResult } from "@matter/protocol";
+import { EndpointNumber, FabricIndex, NodeId, VendorId } from "@matter/types";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 
 const logger = new Logger("OTAAnnouncements");
 

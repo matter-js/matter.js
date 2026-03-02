@@ -31,9 +31,9 @@ import { TlvString } from "../tlv/TlvString.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
 import { TlvAttributeId } from "../datatype/AttributeId.js";
 import { Status } from "../globals/Status.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ScenesManagement {

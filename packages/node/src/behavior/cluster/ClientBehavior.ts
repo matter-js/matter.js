@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClusterType } from "#types";
+import type { ClusterType } from "@matter/types";
 import { ClusterBehavior } from "./ClusterBehavior.js";
 import { markClientBehavior } from "./cluster-behavior-utils.js";
 

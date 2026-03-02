@@ -6,14 +6,9 @@
 
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
-import { AccessControl } from "#clusters/access-control";
-import { BasicInformation } from "#clusters/basic-information";
-import { NetworkCommissioning } from "#clusters/network-commissioning";
-import { OnOff } from "#clusters/on-off";
-import { OperationalCredentials } from "#clusters/operational-credentials";
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { AcceptedCommandList, FeatureMap, GeneratedCommandList, Specification } from "#model";
-import { Fabric } from "#protocol";
+import { AcceptedCommandList, FeatureMap, GeneratedCommandList, Specification } from "@matter/model";
+import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -28,7 +23,12 @@ import {
     TlvObject,
     TlvSubjectId,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
+import { OnOff } from "@matter/types/clusters/on-off";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
 

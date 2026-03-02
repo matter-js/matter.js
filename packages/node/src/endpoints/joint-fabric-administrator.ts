@@ -13,9 +13,9 @@ import {
     JointFabricAdministratorServer as BaseJointFabricAdministratorServer
 } from "../behaviors/joint-fabric-administrator/JointFabricAdministratorServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
-import { DeviceClassification } from "#model";
+import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Joint Fabric Administrator device provides capabilities to manage the Joint Fabric Datastore and issue an ICAC

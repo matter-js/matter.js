@@ -13,7 +13,7 @@ import {
 } from "../behaviors/boolean-state-configuration/BooleanStateConfigurationServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This defines conformance to the Contact Sensor device type.

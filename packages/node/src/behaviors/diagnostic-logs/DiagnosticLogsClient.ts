@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DiagnosticLogs } from "#clusters/diagnostic-logs";
+import { DiagnosticLogs } from "@matter/types/clusters/diagnostic-logs";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const DiagnosticLogsClientConstructor = ClientBehavior(DiagnosticLogs.Complete);
 export interface DiagnosticLogsClient extends InstanceType<typeof DiagnosticLogsClientConstructor> {}

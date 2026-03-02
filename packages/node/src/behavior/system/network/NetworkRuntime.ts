@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Abort, Construction, ImplementationError } from "#general";
 import type { Node } from "#node/Node.js";
+import { Abort, Construction, ImplementationError } from "@matter/general";
 import { NodeActivity } from "../../context/NodeActivity.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 

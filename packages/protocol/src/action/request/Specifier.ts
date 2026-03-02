@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterType, EndpointNumber, GlobalAttributeNames, GlobalAttributes } from "#types";
+import { ClusterType, EndpointNumber, GlobalAttributeNames, GlobalAttributes } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 
 const GlobalAttrMap = GlobalAttributes({}) as Record<string, ClusterType.Attribute>;

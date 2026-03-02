@@ -5,8 +5,8 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { InternalError } from "#general";
-import { Val } from "#protocol";
+import { InternalError } from "@matter/general";
+import { Val } from "@matter/protocol";
 
 const migrations = new Map<string, Migration.Migrator>();
 

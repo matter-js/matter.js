@@ -5,8 +5,8 @@
  */
 
 import { FileDesignator } from "#bdx/FileDesignator.js";
-import { ImplementationError, InternalError, Logger } from "#general";
-import { BdxStatusCode, TypeFromPartialBitSchema } from "#types";
+import { ImplementationError, InternalError, Logger } from "@matter/general";
+import { BdxStatusCode, TypeFromPartialBitSchema } from "@matter/types";
 import { BdxError } from "./BdxError.js";
 import { BdxMessenger } from "./BdxMessenger.js";
 import { BdxSessionConfiguration } from "./BdxSessionConfiguration.js";

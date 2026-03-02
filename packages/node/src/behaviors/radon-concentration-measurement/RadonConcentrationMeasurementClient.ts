@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RadonConcentrationMeasurement } from "#clusters/radon-concentration-measurement";
+import { RadonConcentrationMeasurement } from "@matter/types/clusters/radon-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const RadonConcentrationMeasurementClientConstructor = ClientBehavior(RadonConcentrationMeasurement.Complete);
 export interface RadonConcentrationMeasurementClient extends InstanceType<typeof RadonConcentrationMeasurementClientConstructor> {}

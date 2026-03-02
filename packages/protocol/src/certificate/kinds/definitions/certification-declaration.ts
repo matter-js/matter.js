@@ -14,7 +14,7 @@ import {
     TlvUInt32,
     TlvUInt8,
     TlvVendorId,
-} from "#types";
+} from "@matter/types";
 
 /** Definitions for Matter Certification Declaration */
 export namespace CertificationDeclaration {

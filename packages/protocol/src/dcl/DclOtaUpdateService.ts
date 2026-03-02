@@ -22,8 +22,8 @@ import {
     StorageContext,
     StorageManager,
     StorageService,
-} from "#general";
-import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
+} from "@matter/general";
+import { DeviceSoftwareVersionModelDclSchema, VendorId } from "@matter/types";
 import { OtaImageReader } from "../ota/OtaImageReader.js";
 import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig } from "./DclConfig.js";

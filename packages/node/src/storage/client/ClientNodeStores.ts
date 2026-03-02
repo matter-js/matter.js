@@ -4,10 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Construction, MatterAggregateError, StorageBackendMemory, StorageContext, StorageManager } from "#general";
 import type { ClientGroup } from "#node/ClientGroup.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
+import {
+    Construction,
+    MatterAggregateError,
+    StorageBackendMemory,
+    StorageContext,
+    StorageManager,
+} from "@matter/general";
 import { ClientNodeStore } from "./ClientNodeStore.js";
 
 /**

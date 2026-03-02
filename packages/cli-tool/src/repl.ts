@@ -6,8 +6,8 @@
 
 import { Domain } from "#domain.js";
 import { IncompleteError } from "#errors.js";
-import { Environment, InternalError, Millis, Observable, RuntimeService, StorageService, Time } from "#general";
 import { isCommand } from "#parser.js";
+import { Environment, InternalError, Millis, Observable, RuntimeService, StorageService, Time } from "@matter/general";
 import colors from "ansi-colors";
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";

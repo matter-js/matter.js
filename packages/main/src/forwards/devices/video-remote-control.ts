@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/video-remote-control";
+export * from "@matter/node/devices/video-remote-control";

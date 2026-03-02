@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/mode-select";
+export * from "@matter/node/devices/mode-select";

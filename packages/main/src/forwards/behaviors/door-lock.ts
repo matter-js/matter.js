@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/door-lock";
+export * from "@matter/node/behaviors/door-lock";

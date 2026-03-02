@@ -7,6 +7,11 @@
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Fabric } from "#fabric/Fabric.js";
+import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { ExchangeSendOptions, MessageExchange } from "#protocol/MessageExchange.js";
+import { RetransmissionLimitReachedError } from "#protocol/errors.js";
+import { NodeSession } from "#session/NodeSession.js";
+import { SessionManager } from "#session/SessionManager.js";
 import {
     Abort,
     Bytes,
@@ -18,13 +23,8 @@ import {
     NetworkError,
     PublicKey,
     UnexpectedDataError,
-} from "#general";
-import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { ExchangeSendOptions, MessageExchange } from "#protocol/MessageExchange.js";
-import { RetransmissionLimitReachedError } from "#protocol/errors.js";
-import { NodeSession } from "#session/NodeSession.js";
-import { SessionManager } from "#session/SessionManager.js";
-import { CaseAuthenticatedTag, NodeId, SecureChannelStatusCode } from "#types";
+} from "@matter/general";
+import { CaseAuthenticatedTag, NodeId, SecureChannelStatusCode } from "@matter/types";
 import {
     KDFSR1_KEY_INFO,
     KDFSR2_INFO,

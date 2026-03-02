@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/laundry-dryer-controls";
+export * from "@matter/types/clusters/laundry-dryer-controls";

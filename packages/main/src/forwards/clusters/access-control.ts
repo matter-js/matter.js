@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/access-control";
+export * from "@matter/types/clusters/access-control";

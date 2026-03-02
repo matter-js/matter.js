@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import type { ActionContext } from "#behavior/context/ActionContext.js";
-import { Interactable } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { Interactable } from "@matter/protocol";
 import { ClientNode } from "./ClientNode.js";
 import { ClientGroupInteraction } from "./client/ClientGroupInteraction.js";
 

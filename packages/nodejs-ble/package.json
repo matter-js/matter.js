@@ -48,11 +48,6 @@
         "require/**/*",
         "LICENSE"
     ],
-    "imports": {
-        "#general": "@matter/general",
-        "#protocol": "@matter/protocol",
-        "#types": "@matter/types"
-    },
     "type": "module",
     "main": "dist/cjs/index.js",
     "types": "dist/cjs/index.d.ts",

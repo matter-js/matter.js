@@ -6,6 +6,7 @@
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
     Diagnostic,
@@ -25,10 +26,9 @@ import {
     Time,
     Timer,
     Timestamp,
-} from "#general";
-import { Specification } from "#model";
-import type { ServerNode } from "#node/ServerNode.js";
-import type { DirtyState, MessageExchange, NodeSession, Session, SubscriptionId } from "#protocol";
+} from "@matter/general";
+import { Specification } from "@matter/model";
+import type { DirtyState, MessageExchange, NodeSession, Session, SubscriptionId } from "@matter/protocol";
 import {
     AttributeReadResponse,
     AttributeSubscriptionResponse,
@@ -40,7 +40,7 @@ import {
     ReadResult,
     SessionClosedError,
     Subscription,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -50,7 +50,7 @@ import {
     StatusCode,
     StatusResponseError,
     SubscribeRequest,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("ServerSubscription");
 

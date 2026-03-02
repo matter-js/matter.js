@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/scenes-management";
+export * from "@matter/types/clusters/scenes-management";

@@ -9,7 +9,7 @@ import "./util/node-shims.js";
 
 import "./global-definitions.js";
 
-import { ansi, Graph, JsonNotFoundError, Package, Project, ProjectBuilder } from "#tools";
+import { ansi, Graph, JsonNotFoundError, Package, Project, ProjectBuilder } from "@matter/tools";
 import { clear } from "node:console";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";

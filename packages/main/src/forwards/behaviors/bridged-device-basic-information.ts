@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/bridged-device-basic-information";
+export * from "@matter/node/behaviors/bridged-device-basic-information";

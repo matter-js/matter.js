@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi, Printer, STATUS_ICON_FAILURE } from "#tools";
+import { ansi, Printer, STATUS_ICON_FAILURE } from "@matter/tools";
 import { FailureDetail } from "./failure-detail.js";
 import { TextDiff } from "./text-diff.js";
 

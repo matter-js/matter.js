@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, MatterError, serialize } from "#general";
-import { FeatureSet } from "#model";
+import { camelize, MatterError, serialize } from "@matter/general";
+import { FeatureSet } from "@matter/model";
 import { BitFlags } from "../../schema/BitmapSchema.js";
 import { ClusterType } from "../ClusterType.js";
 

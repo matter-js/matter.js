@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { AccountLogin } from "#clusters/account-login";
+import { MaybePromise } from "@matter/general";
+import { AccountLogin } from "@matter/types/clusters/account-login";
 
 export namespace AccountLoginInterface {
     export interface Base {

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/temperature-control";
+export * from "@matter/types/clusters/temperature-control";

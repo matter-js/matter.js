@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/valve-configuration-and-control";
+export * from "@matter/types/clusters/valve-configuration-and-control";

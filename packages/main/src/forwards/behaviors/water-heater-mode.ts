@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/water-heater-mode";
+export * from "@matter/node/behaviors/water-heater-mode";

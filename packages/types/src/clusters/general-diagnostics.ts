@@ -12,14 +12,14 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TlvUInt8, TlvUInt16, TlvEnum, TlvUInt64, TlvUInt32, TlvSysTimeMS, TlvPosixMs } from "../tlv/TlvNumber.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace GeneralDiagnostics {

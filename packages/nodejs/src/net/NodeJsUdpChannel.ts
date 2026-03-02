@@ -28,7 +28,7 @@ import {
     UdpChannel,
     UdpChannelOptions,
     UdpSocketType,
-} from "#general";
+} from "@matter/general";
 import * as dgram from "node:dgram";
 import { NodeJsNetwork } from "./NodeJsNetwork.js";
 

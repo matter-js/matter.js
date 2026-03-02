@@ -24,8 +24,8 @@ import {
     PublicKey,
     StandardCrypto,
     X962,
-} from "#general";
-import { CaseAuthenticatedTag, FabricId, NodeId, ValidationOutOfBoundsError } from "#types";
+} from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, NodeId, ValidationOutOfBoundsError } from "@matter/types";
 import {
     CERTIFICATE_SETS,
     EXTERNAL_TEST_CERTIFICATES,

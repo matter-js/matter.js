@@ -5,7 +5,7 @@
  */
 
 import { OnOffServer } from "#behaviors/on-off";
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("OnOffServer", () => {

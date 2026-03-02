@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/room-air-conditioner";
+export * from "@matter/node/devices/room-air-conditioner";

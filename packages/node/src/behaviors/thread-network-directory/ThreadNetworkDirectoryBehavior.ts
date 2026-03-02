@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThreadNetworkDirectory } from "#clusters/thread-network-directory";
+import { ThreadNetworkDirectory } from "@matter/types/clusters/thread-network-directory";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ThreadNetworkDirectoryInterface } from "./ThreadNetworkDirectoryInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ThreadNetworkDirectoryBehavior is the base class for objects that support interaction with

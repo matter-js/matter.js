@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/electrical-energy-measurement";
+export * from "@matter/types/clusters/electrical-energy-measurement";

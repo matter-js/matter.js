@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/media-playback";
+export * from "@matter/types/clusters/media-playback";

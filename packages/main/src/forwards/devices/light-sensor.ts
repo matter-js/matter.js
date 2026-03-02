@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/light-sensor";
+export * from "@matter/node/devices/light-sensor";

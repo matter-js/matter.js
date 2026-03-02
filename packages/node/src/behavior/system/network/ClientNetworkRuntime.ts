@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError, ObserverGroup } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
-import { ExchangeProvider, Peer, PeerAddress, PeerSet } from "#protocol";
+import { InternalError, MatterError, ObserverGroup } from "@matter/general";
+import { ExchangeProvider, Peer, PeerAddress, PeerSet } from "@matter/protocol";
 import { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
 

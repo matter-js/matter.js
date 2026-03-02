@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/power-source";
+export * from "@matter/node/endpoints/power-source";

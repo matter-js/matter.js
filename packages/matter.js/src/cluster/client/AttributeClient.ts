@@ -4,10 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#general";
-import { FabricIndex as FabricIndexElement } from "#model";
-import { NoAssociatedFabricError } from "#protocol";
-import { Attribute, AttributeError, AttributeId, ClusterId, EndpointNumber, FabricIndex, TlvSchema } from "#types";
+import { ImplementationError } from "@matter/general";
+import { FabricIndex as FabricIndexElement } from "@matter/model";
+import { NoAssociatedFabricError } from "@matter/protocol";
+import {
+    Attribute,
+    AttributeError,
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    FabricIndex,
+    TlvSchema,
+} from "@matter/types";
 import { InteractionClient } from "./InteractionClient.js";
 
 /**

@@ -9,7 +9,7 @@ import {
     chunkAttributePayload,
     compressAttributeDataReportTags,
 } from "#interaction/AttributeDataEncoder.js";
-import { AttributeId, ClusterId, EndpointNumber, TlvArray, TlvClusterId, TlvString, TlvUInt8 } from "#types";
+import { AttributeId, ClusterId, EndpointNumber, TlvArray, TlvClusterId, TlvString, TlvUInt8 } from "@matter/types";
 
 describe("AttributeDataEncoder", () => {
     describe("tag compression for attribute DataReport payloads", () => {

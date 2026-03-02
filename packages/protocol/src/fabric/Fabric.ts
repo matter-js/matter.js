@@ -8,6 +8,12 @@ import { Certificate } from "#certificate/kinds/Certificate.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
+import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
+import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { FabricChangedError, FabricRemovedError } from "#peer/PeerCommunicationError.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
+import { SecureSession } from "#session/SecureSession.js";
 import {
     AsyncObservable,
     BinaryKeyPair,
@@ -25,13 +31,7 @@ import {
     MaybePromise,
     PrivateKey,
     StorageContext,
-} from "#general";
-import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
-import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { FabricChangedError, FabricRemovedError } from "#peer/PeerCommunicationError.js";
-import { MessageExchange } from "#protocol/MessageExchange.js";
-import { SecureSession } from "#session/SecureSession.js";
+} from "@matter/general";
 import {
     CaseAuthenticatedTag,
     FabricId,
@@ -41,7 +41,7 @@ import {
     NodeId,
     StatusResponse,
     VendorId,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("Fabric");
 

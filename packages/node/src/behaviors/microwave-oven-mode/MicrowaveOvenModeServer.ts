@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { ModeUtils } from "#behaviors/mode-base";
-import { MicrowaveOvenMode } from "#clusters/microwave-oven-mode";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { MicrowaveOvenMode } from "@matter/types/clusters/microwave-oven-mode";
 import { MicrowaveOvenModeBehavior } from "./MicrowaveOvenModeBehavior.js";
 
 /**

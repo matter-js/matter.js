@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ValveConfigurationAndControl } from "#clusters/valve-configuration-and-control";
+import { MaybePromise } from "@matter/general";
+import { ValveConfigurationAndControl } from "@matter/types/clusters/valve-configuration-and-control";
 
 export namespace ValveConfigurationAndControlInterface {
     export interface Base {

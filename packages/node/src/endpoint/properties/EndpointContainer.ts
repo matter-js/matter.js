@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BasicSet, decamelize, Diagnostic, ImmutableSet, MutableSet, ObservableSet } from "#general";
 import { IdentityConflictError } from "#node/server/IdentityService.js";
+import { BasicSet, decamelize, Diagnostic, ImmutableSet, MutableSet, ObservableSet } from "@matter/general";
 import { Endpoint } from "../Endpoint.js";
 
 /**

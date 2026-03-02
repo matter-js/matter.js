@@ -29,15 +29,7 @@
         "embed-examples": "embedme **/README.md"
     },
     "imports": {
-        "#general": "@matter/general",
         "#platform": "@matter/main/platform",
-        "#model": "@matter/model",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
-        "#clusters/*": "@matter/types/clusters/*",
-        "#behaviors/*": "@matter/node/behaviors/*",
-        "#endpoints/*": "@matter/node/endpoints/*",
-        "#devices/*": "@matter/node/devices/*",
         "#*": "./src/*"
     },
     "dependencies": {

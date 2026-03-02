@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, ClassExtends, Diagnostic, Logger, Observable } from "#general";
 import { SecureSession } from "#session/SecureSession.js";
-import { BdxMessageType, BdxStatusCode } from "#types";
+import { AsyncObservable, ClassExtends, Diagnostic, Logger, Observable } from "@matter/general";
+import { BdxMessageType, BdxStatusCode } from "@matter/types";
 import { bdxSessionInitiator } from "./bdx-session-initiator.js";
 import { BdxError } from "./BdxError.js";
 import { BdxMessenger } from "./BdxMessenger.js";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/dimmable-light";
+export * from "@matter/node/devices/dimmable-light";

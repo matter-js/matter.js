@@ -6,8 +6,8 @@
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { DataModelPath, FieldModel } from "#model";
-import { DatatypeError, IntegerRangeError } from "#protocol";
+import { DataModelPath, FieldModel } from "@matter/model";
+import { DatatypeError, IntegerRangeError } from "@matter/protocol";
 
 describe("ValueValidator", () => {
     implementInt("uint8", 0, 0xff);

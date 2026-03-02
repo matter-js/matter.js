@@ -5,7 +5,7 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import type { Observable, Observer, Transaction } from "#general";
+import type { Observable, Observer, Transaction } from "@matter/general";
 import {
     asError,
     ImplementationError,
@@ -14,8 +14,8 @@ import {
     MatterAggregateError,
     MatterError,
     MaybePromise,
-} from "#general";
-import { hasRemoteActor } from "#protocol";
+} from "@matter/general";
+import { hasRemoteActor } from "@matter/protocol";
 import type { Reactor } from "../Reactor.js";
 import { ActionContext } from "../context/ActionContext.js";
 import { Contextual } from "../context/Contextual.js";

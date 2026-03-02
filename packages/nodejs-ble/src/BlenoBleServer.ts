@@ -4,7 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, DiagnosticPresentation, InternalError, Logger, Millis, Time, createPromise } from "#general";
+import {
+    Bytes,
+    Channel,
+    DiagnosticPresentation,
+    InternalError,
+    Logger,
+    Millis,
+    Time,
+    createPromise,
+} from "@matter/general";
+import { require } from "@matter/nodejs-ble/require";
 import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
@@ -16,8 +26,7 @@ import {
     BtpFlowError,
     BtpSessionHandler,
     SessionClosedError,
-} from "#protocol";
-import { require } from "@matter/nodejs-ble/require";
+} from "@matter/protocol";
 import type { Bleno as BlenoType } from "@stoprocent/bleno";
 import { BleOptions } from "./NodeJsBle.js";
 

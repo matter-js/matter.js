@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { Actions } from "#clusters/actions";
+import { MaybePromise } from "@matter/general";
+import { Actions } from "@matter/types/clusters/actions";
 
 export namespace ActionsInterface {
     export interface Base {

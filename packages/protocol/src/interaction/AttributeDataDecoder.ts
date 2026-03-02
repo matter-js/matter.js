@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Logger, UnexpectedDataError } from "#general";
+import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
 import {
     ArraySchema,
     Attribute,
@@ -24,7 +24,7 @@ import {
     TlvSchema,
     TlvType,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("AttributeDataDecoder");
 

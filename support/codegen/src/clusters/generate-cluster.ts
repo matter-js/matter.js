@@ -454,7 +454,7 @@ function generateComplete(file: ClusterFile, variance: ClusterVariance) {
     ["attribute", "command", "event"].forEach(addElements);
 
     // Generate an interface for Complete
-    file.addImport("#general", "Identity");
+    file.addImport("@matter/general", "Identity");
     const definition = generateExportableTypeAndObject(file.ns, "Complete");
     documentComplete(file.cluster.name, definition);
 }
@@ -504,7 +504,7 @@ function generateAlias(file: ClusterFile) {
  * If TS were to fix this at some point then we can stop doing this.
  */
 export function generateExportableTypeAndObject(target: Block, name: string): Entry {
-    target.file.addImport("#general", "Identity");
+    target.file.addImport("@matter/general", "Identity");
     const definition = target.atom(`export interface ${name} extends Identity<typeof ${name}Instance> {}`);
     target.undefine(name);
     target.atom(`export const ${name}: ${name} = ${name}Instance`);

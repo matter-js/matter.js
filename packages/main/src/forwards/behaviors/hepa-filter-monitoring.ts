@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/hepa-filter-monitoring";
+export * from "@matter/node/behaviors/hepa-filter-monitoring";

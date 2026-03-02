@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/thread-network-directory";
+export * from "@matter/node/behaviors/thread-network-directory";

@@ -8,6 +8,8 @@ import { Advertisement } from "#advertisement/Advertisement.js";
 import type { Advertiser } from "#advertisement/Advertiser.js";
 import type { ServiceDescription } from "#advertisement/ServiceDescription.js";
 import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
+import type { MdnsServer } from "#mdns/MdnsServer.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     AAAARecord,
     ARecord,
@@ -19,9 +21,7 @@ import {
     Time,
     Timestamp,
     TxtRecord,
-} from "#general";
-import type { MdnsServer } from "#mdns/MdnsServer.js";
-import { SessionIntervals } from "#session/SessionIntervals.js";
+} from "@matter/general";
 import type { MdnsAdvertiser } from "./MdnsAdvertiser.js";
 
 const logger = Logger.get("MdnsAdvertisement");

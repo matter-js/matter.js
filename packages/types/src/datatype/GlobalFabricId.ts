@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Crypto } from "#general";
-import { Branded, Bytes, DataWriter, hex } from "#general";
+import type { Crypto } from "@matter/general";
+import { Branded, Bytes, DataWriter, hex } from "@matter/general";
 import type { FabricId } from "./FabricId.js";
 
 const COMPRESSED_FABRIC_ID_INFO = Bytes.fromString("CompressedFabric");

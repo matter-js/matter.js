@@ -5,6 +5,7 @@
  */
 
 import { Mark } from "#common/Mark.js";
+import { SessionManager } from "#session/SessionManager.js";
 import {
     Bytes,
     causedBy,
@@ -20,9 +21,8 @@ import {
     Time,
     Timer,
     UnexpectedDataError,
-} from "#general";
-import { SessionManager } from "#session/SessionManager.js";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+} from "@matter/general";
+import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
 import { ChannelStatusResponseError } from "../../securechannel/SecureChannelMessenger.js";

@@ -11,9 +11,9 @@ import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
-import { BasicInformation } from "#clusters/basic-information";
-import { AsyncObservable, EventEmitter, MaybePromise, Observable } from "#general";
-import { ClusterType } from "#types";
+import { AsyncObservable, EventEmitter, MaybePromise, Observable } from "@matter/general";
+import { ClusterType } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MyCluster, MySchema } from "./cluster-behavior-test-util.js";
 
 const MyClusterWithOptEvent = MyCluster.enable({ events: { optEv: true } });

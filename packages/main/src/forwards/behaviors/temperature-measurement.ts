@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/temperature-measurement";
+export * from "@matter/node/behaviors/temperature-measurement";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic } from "#general";
+import { Diagnostic } from "@matter/general";
 
 /**
  * Utility for tracking location in the Matter data model.  This location is used for diagnostics.

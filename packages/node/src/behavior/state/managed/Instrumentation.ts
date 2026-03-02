@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Val } from "#protocol";
+import type { Val } from "@matter/protocol";
 import type { Behavior } from "../../Behavior.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 

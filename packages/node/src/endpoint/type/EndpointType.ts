@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DeviceClassification } from "#model";
-import { DeviceTypeId } from "#types";
+import { DeviceClassification } from "@matter/model";
+import { DeviceTypeId } from "@matter/types";
 import { SupportedBehaviors } from "../properties/SupportedBehaviors.js";
 
 /**

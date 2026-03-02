@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Minutes, Seconds } from "#general";
+import { Duration, Minutes, Seconds } from "@matter/general";
 
 /**
  * Parameters that control network timing for Matter sessions controlled by matter.js.

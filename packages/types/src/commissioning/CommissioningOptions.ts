@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
-import { Duration } from "@matter/general";
+import { Bytes, Duration } from "@matter/general";
 import { ProductDescription } from "../common/ProductDescription.js";
 import { CommissioningFlowType } from "../schema/PairingCodeSchema.js";
 

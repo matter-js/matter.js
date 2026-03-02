@@ -10,19 +10,19 @@ import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
-import { Bytes, createPromise, MockFetch } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { FabricAuthority, PeerAddress } from "#protocol";
-import { FabricIndex, VendorId } from "#types";
-import { MockSite } from "../../node/mock-site.js";
+import { Bytes, createPromise, MockFetch } from "@matter/general";
+import { FabricAuthority, PeerAddress } from "@matter/protocol";
+import { FabricIndex, VendorId } from "@matter/types";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import {
     addTestOtaImage,
     initOtaSite,
     InstrumentedOtaProviderServer,
     InstrumentedOtaRequestorServer,
 } from "./ota-utils.js";
+import { MockSite } from "../../node/mock-site.js";
 
 describe("Ota", () => {
     let fetchMock: MockFetch;

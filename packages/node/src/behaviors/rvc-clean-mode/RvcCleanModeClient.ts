@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RvcCleanMode } from "#clusters/rvc-clean-mode";
+import { RvcCleanMode } from "@matter/types/clusters/rvc-clean-mode";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const RvcCleanModeClientConstructor = ClientBehavior(RvcCleanMode.Complete);
 export interface RvcCleanModeClient extends InstanceType<typeof RvcCleanModeClientConstructor> {}

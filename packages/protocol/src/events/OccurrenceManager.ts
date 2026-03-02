@@ -15,7 +15,7 @@ import {
     MatterAggregateError,
     MaybePromise,
     Observable,
-} from "#general";
+} from "@matter/general";
 import {
     EventNumber,
     FabricIndex,
@@ -24,7 +24,7 @@ import {
     TlvEventFilter,
     TlvEventPath,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 import { EventStore, OccurrenceSummary } from "./EventStore.js";
 import { NumberedOccurrence, Occurrence } from "./Occurrence.js";
 

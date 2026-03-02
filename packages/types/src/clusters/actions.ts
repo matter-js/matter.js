@@ -16,7 +16,7 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Actions {

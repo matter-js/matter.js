@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/temperature-measurement";
+export * from "@matter/types/clusters/temperature-measurement";

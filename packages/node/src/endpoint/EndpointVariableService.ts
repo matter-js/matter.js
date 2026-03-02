@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { Environment, Environmental, isObject, VariableService } from "#general";
+import { Environment, Environmental, isObject, VariableService } from "@matter/general";
 import { Endpoint } from "./Endpoint.js";
 
 /**

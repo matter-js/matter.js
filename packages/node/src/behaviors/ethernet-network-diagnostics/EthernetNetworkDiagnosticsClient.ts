@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EthernetNetworkDiagnostics } from "#clusters/ethernet-network-diagnostics";
+import { EthernetNetworkDiagnostics } from "@matter/types/clusters/ethernet-network-diagnostics";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const EthernetNetworkDiagnosticsClientConstructor = ClientBehavior(EthernetNetworkDiagnostics.Complete);
 export interface EthernetNetworkDiagnosticsClient extends InstanceType<typeof EthernetNetworkDiagnosticsClientConstructor> {}

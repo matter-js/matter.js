@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/time-format-localization";
+export * from "@matter/node/behaviors/time-format-localization";

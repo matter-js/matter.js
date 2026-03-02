@@ -6,6 +6,7 @@
 
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { OnOffClient } from "#behaviors/on-off";
+import { NetworkClient, ServerNode } from "#index.js";
 import {
     causedBy,
     Crypto,
@@ -19,9 +20,8 @@ import {
     Network,
     Seconds,
     Time,
-} from "#general";
-import { NetworkClient, ServerNode } from "#index.js";
-import { ClientSubscription, Peer, PeerUnreachableError, SustainedSubscription } from "#protocol";
+} from "@matter/general";
+import { ClientSubscription, Peer, PeerUnreachableError, SustainedSubscription } from "@matter/protocol";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";

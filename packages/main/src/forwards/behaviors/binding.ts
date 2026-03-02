@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/binding";
+export * from "@matter/node/behaviors/binding";

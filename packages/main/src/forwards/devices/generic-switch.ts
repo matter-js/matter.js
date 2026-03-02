@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/generic-switch";
+export * from "@matter/node/devices/generic-switch";

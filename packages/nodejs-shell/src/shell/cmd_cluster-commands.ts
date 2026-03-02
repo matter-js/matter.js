@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Diagnostic } from "#general";
-import { ClusterModel, CommandModel, MatterModel } from "#model";
-import { ClusterId, ValidationError } from "#types";
+import { camelize, Diagnostic } from "@matter/general";
+import { ClusterModel, CommandModel, MatterModel } from "@matter/model";
+import { ClusterId, ValidationError } from "@matter/types";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";
 import { convertJsonDataWithModel } from "../util/Json.js";

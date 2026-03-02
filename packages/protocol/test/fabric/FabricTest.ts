@@ -7,11 +7,11 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
 import { TestFabric } from "#fabric/TestFabric.js";
-import { b$, Bytes, MockCrypto, StorageBackendMemory, StorageManager } from "#general";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { FabricId, GlobalFabricId, NodeId, VendorId } from "#types";
+import { b$, Bytes, MockCrypto, StorageBackendMemory, StorageManager } from "@matter/general";
+import { FabricId, GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 const GLOBAL_ID = GlobalFabricId(0x6cf78388a7e78e3dn);
 

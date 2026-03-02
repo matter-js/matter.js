@@ -7,7 +7,6 @@
 import { ValidationError } from "#common/ValidationError.js";
 import { FabricId, TlvFabricId } from "#datatype/FabricId.js";
 import { FabricIndex, TlvFabricIndex } from "#datatype/FabricIndex.js";
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvBoolean } from "#tlv/TlvBoolean.js";
@@ -16,6 +15,7 @@ import { TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "#tlv/TlvObject.js";
 import { TypeFromSchema } from "#tlv/TlvSchema.js";
 import { TlvByteString, TlvString } from "#tlv/TlvString.js";
+import { Bytes } from "@matter/general";
 
 const schema = TlvObject({
     /** Mandatory field jsdoc */

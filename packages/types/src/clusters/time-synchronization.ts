@@ -14,7 +14,7 @@ import { TlvNodeId } from "../datatype/NodeId.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { Priority } from "../globals/Priority.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvString } from "../tlv/TlvString.js";
@@ -24,7 +24,7 @@ import { TlvInt32, TlvEpochUs, TlvEnum, TlvUInt8 } from "../tlv/TlvNumber.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status } from "../globals/Status.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace TimeSynchronization {

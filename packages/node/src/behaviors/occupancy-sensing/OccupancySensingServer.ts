@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OccupancySensing } from "#clusters/occupancy-sensing";
-import { Logger, MaybePromise } from "#general";
-import { Val } from "#protocol";
+import { Logger, MaybePromise } from "@matter/general";
+import { Val } from "@matter/protocol";
+import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { OccupancySensingBehavior } from "./OccupancySensingBehavior.js";
 
 const logger = Logger.get("OccupancySensingServer");

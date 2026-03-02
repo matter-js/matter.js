@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/target-navigator";
+export * from "@matter/node/behaviors/target-navigator";

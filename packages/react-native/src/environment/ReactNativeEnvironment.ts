@@ -5,8 +5,8 @@
  */
 
 import { ReactNativeBle } from "#ble/ReactNativeBle.js";
-import { Environment, Network, StorageService, VariableService } from "#general";
-import { Ble } from "#protocol";
+import { Environment, Network, StorageService, VariableService } from "@matter/general";
+import { Ble } from "@matter/protocol";
 import { NetworkReactNative } from "../net/NetworkReactNative.js";
 import { StorageBackendAsyncStorage } from "../storage/StorageBackendAsyncStorage.js";
 

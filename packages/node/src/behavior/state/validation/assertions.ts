@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, isObject, UINT32_MAX, UINT64_MAX } from "#general";
-import { SchemaErrorPath } from "#model";
-import { DatatypeError, IntegerRangeError, Val } from "#protocol";
+import { Bytes, isObject, UINT32_MAX, UINT64_MAX } from "@matter/general";
+import { SchemaErrorPath } from "@matter/model";
+import { DatatypeError, IntegerRangeError, Val } from "@matter/protocol";
 import { MATTER_EPOCH_OFFSET_S, MATTER_EPOCH_OFFSET_US } from "@matter/types";
 
 export function assertNumber(value: Val, path: SchemaErrorPath): asserts value is number {

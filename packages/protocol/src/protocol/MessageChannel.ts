@@ -6,6 +6,9 @@
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
+import type { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
+import type { Session } from "#session/Session.js";
+import type { SessionParameters } from "#session/SessionParameters.js";
 import {
     Bytes,
     Channel,
@@ -19,10 +22,7 @@ import {
     sameIpNetworkChannel,
     ServerAddress,
     ServerAddressUdp,
-} from "#general";
-import type { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
-import type { Session } from "#session/Session.js";
-import type { SessionParameters } from "#session/SessionParameters.js";
+} from "@matter/general";
 import { MRP } from "./MRP.js";
 
 const logger = new Logger("MessageChannel");

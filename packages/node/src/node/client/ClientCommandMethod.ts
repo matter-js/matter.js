@@ -8,8 +8,8 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ClientInteraction, Invoke } from "#protocol";
-import { Status, StatusResponseError } from "#types";
+import { ClientInteraction, Invoke } from "@matter/protocol";
+import { Status, StatusResponseError } from "@matter/types";
 
 /**
  * Create the command method for a client behavior.

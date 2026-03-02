@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/channel";
+export * from "@matter/types/clusters/channel";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/mode-select";
+export * from "@matter/node/behaviors/mode-select";

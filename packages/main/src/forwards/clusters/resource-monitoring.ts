@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/resource-monitoring";
+export * from "@matter/types/clusters/resource-monitoring";

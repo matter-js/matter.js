@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, CertificateError, Logger, Time } from "#general";
+import { Bytes, CertificateError, Logger, Time } from "@matter/general";
 import { Certificate } from "./Certificate.js";
 import { Unsigned } from "./common.js";
 import { MatterCertificate } from "./definitions/base.js";

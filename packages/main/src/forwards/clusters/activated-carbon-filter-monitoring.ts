@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/activated-carbon-filter-monitoring";
+export * from "@matter/types/clusters/activated-carbon-filter-monitoring";

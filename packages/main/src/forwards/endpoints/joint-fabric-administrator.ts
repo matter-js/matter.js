@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/joint-fabric-administrator";
+export * from "@matter/node/endpoints/joint-fabric-administrator";

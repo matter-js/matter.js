@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "#general";
 import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { Write, WriteResult, type Val } from "#protocol";
-import type { ClusterId, ClusterType, EndpointNumber } from "#types";
+import { InternalError } from "@matter/general";
+import { Write, WriteResult, type Val } from "@matter/protocol";
+import type { ClusterId, ClusterType, EndpointNumber } from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 
 /**

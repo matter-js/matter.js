@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PowerTopology } from "#clusters/power-topology";
+import { PowerTopology } from "@matter/types/clusters/power-topology";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * PowerTopologyBehavior is the base class for objects that support interaction with {@link PowerTopology.Cluster}.

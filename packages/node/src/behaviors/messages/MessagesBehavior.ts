@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Messages } from "#clusters/messages";
+import { Messages } from "@matter/types/clusters/messages";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { MessagesInterface } from "./MessagesInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * MessagesBehavior is the base class for objects that support interaction with {@link Messages.Cluster}.

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "#general";
+import { MatterError } from "@matter/general";
 
 export class CliError extends MatterError {
     // Error class won't be the same across vm contexts so make detection easier

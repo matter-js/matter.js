@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/binding";
+export * from "@matter/types/clusters/binding";

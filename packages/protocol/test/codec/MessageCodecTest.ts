@@ -5,8 +5,8 @@
  */
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
-import { Bytes } from "#general";
-import { NodeId } from "#types";
+import { Bytes } from "@matter/general";
+import { NodeId } from "@matter/types";
 
 const ENCODED = Bytes.fromHex(
     "040000000a4ff2177ea0c8a7cb6a63520520d3640000153001204715a406c6b0496ad52039e347db8528cb69a1cb2fce6f2318552ae65e103aca250233dc240300280435052501881325022c011818",
