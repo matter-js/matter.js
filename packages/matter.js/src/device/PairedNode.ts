@@ -6,7 +6,6 @@
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
 import { InteractionClient, UnknownNodeError } from "#cluster/client/InteractionClient.js";
-import { AdministratorCommissioning, BasicInformation, Descriptor } from "#clusters";
 import {
     AsyncObservable,
     AtLeastOne,
@@ -24,8 +23,8 @@ import {
     ObserverGroup,
     Seconds,
     Time,
-} from "#general";
-import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "#model";
+} from "@matter/general";
+import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "@matter/model";
 import {
     Behavior,
     ChangeNotificationService,
@@ -36,7 +35,8 @@ import {
     CommissioningClient,
     EndpointLifecycle,
     NetworkClient,
-} from "#node";
+} from "@matter/node";
+import { DescriptorClient } from "@matter/node/behaviors/descriptor";
 import {
     ClusterClientObj,
     DecodedAttributeReportValue,
@@ -44,8 +44,9 @@ import {
     PaseClient,
     PeerAddress,
     Read,
+    SustainedSubscription,
     Val,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeId,
     Attributes,
@@ -63,9 +64,8 @@ import {
     QrPairingCodeCodec,
     StatusCode,
     StatusResponseError,
-} from "#types";
-import { DescriptorClient } from "@matter/node/behaviors/descriptor";
-import { SustainedSubscription } from "@matter/protocol";
+} from "@matter/types";
+import { AdministratorCommissioning, BasicInformation, Descriptor } from "@matter/types/clusters";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { AttributeInitialValues, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
 import { CommissioningController } from "../CommissioningController.js";

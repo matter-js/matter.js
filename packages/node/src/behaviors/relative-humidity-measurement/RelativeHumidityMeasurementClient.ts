@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RelativeHumidityMeasurement } from "#clusters/relative-humidity-measurement";
+import { RelativeHumidityMeasurement } from "@matter/types/clusters/relative-humidity-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const RelativeHumidityMeasurementClientConstructor = ClientBehavior(RelativeHumidityMeasurement.Complete);
 export interface RelativeHumidityMeasurementClient extends InstanceType<typeof RelativeHumidityMeasurementClientConstructor> {}

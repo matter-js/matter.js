@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/fan-control";
+export * from "@matter/node/behaviors/fan-control";

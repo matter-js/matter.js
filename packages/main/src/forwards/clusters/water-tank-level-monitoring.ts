@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/water-tank-level-monitoring";
+export * from "@matter/types/clusters/water-tank-level-monitoring";

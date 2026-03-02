@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/air-quality";
+export * from "@matter/node/behaviors/air-quality";

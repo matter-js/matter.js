@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/identify";
+export * from "@matter/types/clusters/identify";

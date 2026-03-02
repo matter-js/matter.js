@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/control-bridge";
+export * from "@matter/node/devices/control-bridge";

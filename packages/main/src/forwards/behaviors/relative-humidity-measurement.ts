@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/relative-humidity-measurement";
+export * from "@matter/node/behaviors/relative-humidity-measurement";

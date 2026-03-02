@@ -5,6 +5,8 @@
  */
 
 import { Message } from "#codec/MessageCodec.js";
+import { ExchangeProvider } from "#protocol/index.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
 import {
     Diagnostic,
     Duration,
@@ -13,10 +15,8 @@ import {
     Logger,
     Minutes,
     UnexpectedDataError,
-} from "#general";
-import { ExchangeProvider } from "#protocol/index.js";
-import { MessageExchange } from "#protocol/MessageExchange.js";
-import { BDX_PROTOCOL_ID, BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
+} from "@matter/general";
+import { BDX_PROTOCOL_ID, BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
 import { BdxError, BdxStatusResponseError } from "./BdxError.js";
 import { BdxReceiveAccept, BdxSendAccept } from "./schema/BdxAcceptMessagesSchema.js";
 import {

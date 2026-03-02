@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Switch } from "#clusters/switch";
+import { Switch } from "@matter/types/clusters/switch";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const SwitchClientConstructor = ClientBehavior(Switch.Complete);
 export interface SwitchClient extends InstanceType<typeof SwitchClientConstructor> {}

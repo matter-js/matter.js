@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { DoorLock } from "#clusters/door-lock";
+import { MaybePromise } from "@matter/general";
+import { DoorLock } from "@matter/types/clusters/door-lock";
 
 export namespace DoorLockInterface {
     export interface Base {

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Thermostat } from "#clusters/thermostat";
+import { Thermostat } from "@matter/types/clusters/thermostat";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ThermostatClientConstructor = ClientBehavior(Thermostat.Complete);
 export interface ThermostatClient extends InstanceType<typeof ThermostatClientConstructor> {}

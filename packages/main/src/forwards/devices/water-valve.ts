@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/water-valve";
+export * from "@matter/node/devices/water-valve";

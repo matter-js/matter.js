@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/keypad-input";
+export * from "@matter/node/behaviors/keypad-input";

@@ -5,6 +5,12 @@
  */
 
 import type { Message } from "#codec/MessageCodec.js";
+import type { ExchangeManager } from "#protocol/ExchangeManager.js";
+import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
+import { CaseClient } from "#session/case/CaseClient.js";
+import type { NodeSession } from "#session/NodeSession.js";
+import type { Session } from "#session/Session.js";
+import type { SessionManager } from "#session/SessionManager.js";
 import {
     Abort,
     AbortedError,
@@ -25,14 +31,8 @@ import {
     ServerAddressUdp,
     Time,
     Timestamp,
-} from "#general";
-import type { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
-import { CaseClient } from "#session/case/CaseClient.js";
-import type { NodeSession } from "#session/NodeSession.js";
-import type { Session } from "#session/Session.js";
-import type { SessionManager } from "#session/SessionManager.js";
-import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+} from "@matter/general";
+import { GeneralStatusCode, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { NetworkProfile, NetworkProfiles } from "./NetworkProfile.js";
 import type { Peer } from "./Peer.js";
 import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";

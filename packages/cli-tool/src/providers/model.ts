@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Model } from "#model";
 import { Directory, Stat } from "#stat.js";
+import { Model } from "@matter/model";
 
 Stat.provide(model => {
     if (!isModel(model)) {

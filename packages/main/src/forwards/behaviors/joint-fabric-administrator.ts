@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/joint-fabric-administrator";
+export * from "@matter/node/behaviors/joint-fabric-administrator";

@@ -11,9 +11,9 @@ import { ServerBehaviorBacking } from "#behavior/internal/ServerBehaviorBacking.
 import type { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { Environment, InternalError, Logger, MaybePromise } from "#general";
-import { FabricManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { Environment, InternalError, Logger, MaybePromise } from "@matter/general";
+import { FabricManager } from "@matter/protocol";
 import { DescriptorServer } from "../../behaviors/descriptor/DescriptorServer.js";
 
 const logger = Logger.get("BehaviorInit");

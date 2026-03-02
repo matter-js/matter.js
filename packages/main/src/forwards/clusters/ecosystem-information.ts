@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/ecosystem-information";
+export * from "@matter/types/clusters/ecosystem-information";

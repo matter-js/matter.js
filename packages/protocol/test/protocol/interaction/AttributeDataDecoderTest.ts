@@ -4,13 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import "#clusters/window-covering";
-import { Bytes } from "#general";
 import {
     decodeUnknownAttributeValue,
     normalizeAndDecodeReadAttributeReport,
     normalizeAttributeData,
 } from "#interaction/AttributeDataDecoder.js";
+import { Bytes } from "@matter/general";
 import {
     AttributeId,
     ClusterId,
@@ -27,7 +26,8 @@ import {
     TlvUInt8,
     TypeFromSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import "@matter/types/clusters/window-covering";
 
 const TlvAclTestSchema = TlvObject({
     privilege: TlvField(1, TlvUInt8),

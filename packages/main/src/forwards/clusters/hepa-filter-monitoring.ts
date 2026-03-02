@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/hepa-filter-monitoring";
+export * from "@matter/types/clusters/hepa-filter-monitoring";

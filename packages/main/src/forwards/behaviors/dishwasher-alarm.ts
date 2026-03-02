@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/dishwasher-alarm";
+export * from "@matter/node/behaviors/dishwasher-alarm";

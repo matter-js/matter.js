@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/ethernet-network-diagnostics";
+export * from "@matter/node/behaviors/ethernet-network-diagnostics";

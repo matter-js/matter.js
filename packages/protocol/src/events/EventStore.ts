@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MaybePromise } from "#general";
-import { ClusterId, EndpointNumber, EventId, EventNumber, Priority } from "#types";
+import { MaybePromise } from "@matter/general";
+import { ClusterId, EndpointNumber, EventId, EventNumber, Priority } from "@matter/types";
 import { Occurrence } from "./Occurrence.js";
 import type { OccurrenceManager } from "./OccurrenceManager.js";
 

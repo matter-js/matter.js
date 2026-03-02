@@ -8,10 +8,10 @@ import { InvalidMetadataError, MetadataConflictError } from "#decoration/errors.
 import type { ClassSemantics } from "#decoration/semantics/ClassSemantics.js";
 import { FieldSemantics } from "#decoration/semantics/FieldSemantics.js";
 import { Semantics } from "#decoration/semantics/Semantics.js";
-import { Decorator } from "#general";
 import { CommandModel } from "#models/CommandModel.js";
 import { Model } from "#models/Model.js";
 import { Schema } from "#models/Schema.js";
+import { Decorator } from "@matter/general";
 
 /**
  * Decorate a class or field as a specific Matter element type.

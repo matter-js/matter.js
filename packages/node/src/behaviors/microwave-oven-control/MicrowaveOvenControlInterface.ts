@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { MicrowaveOvenControl } from "#clusters/microwave-oven-control";
+import { MaybePromise } from "@matter/general";
+import { MicrowaveOvenControl } from "@matter/types/clusters/microwave-oven-control";
 
 export namespace MicrowaveOvenControlInterface {
     export interface Base {

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/thermostat-user-interface-configuration";
+export * from "@matter/node/behaviors/thermostat-user-interface-configuration";

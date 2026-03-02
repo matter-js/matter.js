@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { FanControl } from "#clusters/fan-control";
+import { MaybePromise } from "@matter/general";
+import { FanControl } from "@matter/types/clusters/fan-control";
 
 export namespace FanControlInterface {
     export interface Step {

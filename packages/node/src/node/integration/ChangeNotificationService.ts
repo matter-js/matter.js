@@ -9,12 +9,12 @@ import type { Events } from "#behavior/Events.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { InternalError, Observable, ObserverGroup, Timestamp } from "#general";
-import { EventModel } from "#model";
 import type { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { Val } from "#protocol";
-import { EventNumber, Priority } from "#types";
+import { InternalError, Observable, ObserverGroup, Timestamp } from "@matter/general";
+import { EventModel } from "@matter/model";
+import { Val } from "@matter/protocol";
+import { EventNumber, Priority } from "@matter/types";
 
 /**
  * High-level change notification service.

@@ -7,9 +7,10 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import type { ClientNode } from "#node/ClientNode.js";
+import { Node } from "#node/Node.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     Diagnostic,
@@ -29,10 +30,7 @@ import {
     Time,
     Timer,
     Timestamp,
-} from "#general";
-import type { ClientNode } from "#node/ClientNode.js";
-import { Node } from "#node/Node.js";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
 import {
     BdxProtocol,
     DclOtaUpdateService,
@@ -41,8 +39,10 @@ import {
     OtaUpdateError,
     OtaUpdateSource,
     PeerAddress,
-} from "#protocol";
-import { VendorId } from "#types";
+} from "@matter/protocol";
+import { VendorId } from "@matter/types";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 
 const logger = Logger.get("SoftwareUpdateManager");
 

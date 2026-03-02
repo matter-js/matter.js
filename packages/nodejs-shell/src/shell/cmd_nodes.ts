@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, decamelize, Diagnostic } from "#general";
-import { ClientNode, SoftwareUpdateManager } from "#node";
-import { PeerAddress } from "#protocol";
-import { FabricIndex, NodeId, VendorId } from "#types";
+import { capitalize, decamelize, Diagnostic } from "@matter/general";
+import { ClientNode, SoftwareUpdateManager } from "@matter/node";
+import { PeerAddress } from "@matter/protocol";
+import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
 import type { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Channel } from "#clusters/channel";
+import { Channel } from "@matter/types/clusters/channel";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ChannelClientConstructor = ClientBehavior(Channel.Complete);
 export interface ChannelClient extends InstanceType<typeof ChannelClientConstructor> {}

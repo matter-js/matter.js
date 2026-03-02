@@ -22,9 +22,9 @@ import {
     AdministratorCommissioningServer as BaseAdministratorCommissioningServer
 } from "../behaviors/administrator-commissioning/AdministratorCommissioningServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
-import { DeviceClassification } from "#model";
+import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This defines conformance for a Bridged Node root endpoint. This endpoint is akin to a "read me first" endpoint that

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/thermostat-user-interface-configuration";
+export * from "@matter/types/clusters/thermostat-user-interface-configuration";

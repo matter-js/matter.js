@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DiagnosticLogs } from "#clusters/diagnostic-logs";
+import { DiagnosticLogs } from "@matter/types/clusters/diagnostic-logs";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { DiagnosticLogsInterface } from "./DiagnosticLogsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * DiagnosticLogsBehavior is the base class for objects that support interaction with {@link DiagnosticLogs.Cluster}.

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PowerSource } from "#clusters/power-source";
+import { PowerSource } from "@matter/types/clusters/power-source";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const PowerSourceClientConstructor = ClientBehavior(PowerSource.Complete);
 export interface PowerSourceClient extends InstanceType<typeof PowerSourceClientConstructor> {}

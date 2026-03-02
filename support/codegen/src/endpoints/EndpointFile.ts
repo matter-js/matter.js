@@ -122,7 +122,7 @@ export class EndpointFile extends TsFile {
             }
         }
 
-        this.addImport("#general", "Identity");
+        this.addImport("@matter/general", "Identity");
         const intf = this.interfaceLocation.atom(
             `export interface ${this.definitionName} extends Identity<typeof ${this.definitionName}Definition> {}`,
         );
@@ -170,7 +170,7 @@ export class EndpointFile extends TsFile {
                 return;
         }
 
-        this.addImport("#model", "DeviceClassification");
+        this.addImport("@matter/model", "DeviceClassification");
         definition.atom("deviceClass", `DeviceClassification.${deviceClass}`);
     }
 }

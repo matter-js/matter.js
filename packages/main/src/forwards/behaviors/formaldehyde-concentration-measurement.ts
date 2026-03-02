@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/formaldehyde-concentration-measurement";
+export * from "@matter/node/behaviors/formaldehyde-concentration-measurement";

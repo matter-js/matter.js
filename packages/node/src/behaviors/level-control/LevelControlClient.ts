@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { LevelControl } from "#clusters/level-control";
+import { LevelControl } from "@matter/types/clusters/level-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const LevelControlClientConstructor = ClientBehavior(LevelControl.Complete);
 export interface LevelControlClient extends InstanceType<typeof LevelControlClientConstructor> {}

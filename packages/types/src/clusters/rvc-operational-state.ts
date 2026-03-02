@@ -17,7 +17,7 @@ import { OperationalState as OperationalStateNamespace } from "./operational-sta
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace RvcOperationalState {

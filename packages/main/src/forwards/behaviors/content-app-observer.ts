@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/content-app-observer";
+export * from "@matter/node/behaviors/content-app-observer";

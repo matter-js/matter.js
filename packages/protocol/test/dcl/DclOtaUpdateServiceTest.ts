@@ -9,6 +9,7 @@ import {
     DeviceSoftwareVersionModelDclSchemaWithSource,
     OtaUpdateError,
 } from "#dcl/DclOtaUpdateService.js";
+import { OtaImageWriter } from "#ota/OtaImageWriter.js";
 import {
     Crypto,
     DataWriter,
@@ -19,9 +20,8 @@ import {
     StandardCrypto,
     StorageBackendMemory,
     StorageService,
-} from "#general";
-import { OtaImageWriter } from "#ota/OtaImageWriter.js";
-import { VendorId } from "#types";
+} from "@matter/general";
+import { VendorId } from "@matter/types";
 import { createOtaImage, createVersionMetadata, mockVersionsList } from "./dcl-ota-test-helpers.js";
 
 describe("DclOtaUpdateService", () => {

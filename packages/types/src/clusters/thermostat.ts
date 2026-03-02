@@ -19,7 +19,7 @@ import {
 } from "../cluster/Cluster.js";
 import { BitFlag, BitsFromPartial, BitField } from "../schema/BitmapSchema.js";
 import { TlvUInt8, TlvBitmap, TlvInt16, TlvInt8, TlvEnum, TlvUInt16, TlvEpochS, TlvUInt32 } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
@@ -29,7 +29,7 @@ import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvAttributeId } from "../datatype/AttributeId.js";
 import { Status } from "../globals/Status.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Thermostat {

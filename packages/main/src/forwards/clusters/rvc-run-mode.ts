@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/rvc-run-mode";
+export * from "@matter/types/clusters/rvc-run-mode";

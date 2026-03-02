@@ -5,7 +5,7 @@
  */
 
 import { BtpCodec } from "#codec/BtpCodec.js";
-import { Days, Duration, Millis, Minutes, Seconds } from "#general";
+import { Days, Duration, Millis, Minutes, Seconds } from "@matter/general";
 import { Advertisement } from "../Advertisement.js";
 import { ServiceDescription } from "../ServiceDescription.js";
 import type { BleAdvertiser } from "./BleAdvertiser.js";

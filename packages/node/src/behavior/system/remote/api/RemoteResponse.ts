@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError } from "#general";
 import type { StateStream } from "#node/integration/StateStream.js";
-import { StatusResponseError } from "#types";
+import { InternalError, MatterError } from "@matter/general";
+import { StatusResponseError } from "@matter/types";
 import type { LocalResponse } from "./LocalResponse.js";
 
 /**

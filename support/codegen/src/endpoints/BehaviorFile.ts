@@ -31,7 +31,7 @@ export class BehaviorFile extends TsFile {
     private generate() {
         logger.info(`${this.cluster.name} → ${this.name}.ts`);
 
-        this.addImport(`#clusters/${decamelize(this.cluster.name)}`, this.cluster.name);
+        this.addImport(`@matter/types/clusters/${decamelize(this.cluster.name)}`, this.cluster.name);
         this.addImport("!node/behavior/cluster/ClusterBehavior.js", "ClusterBehavior");
 
         const constructorName = `${this.definitionName}Constructor`;
@@ -57,7 +57,7 @@ export class BehaviorFile extends TsFile {
         // Inject the cluster and appropriate documentation
         let extraDocs;
         if (this.#variance.requiresFeatures) {
-            this.addImport(`#types`, "ClusterType");
+            this.addImport(`@matter/types`, "ClusterType");
             builder.atom(`for(ClusterType(${this.cluster.name}.Base))`);
             extraDocs =
                 `${this.cluster.name}.Cluster requires you to enable one or more optional features.  ` +
@@ -77,7 +77,7 @@ export class BehaviorFile extends TsFile {
         );
 
         // Export the constructor
-        this.file.addImport("#general", "Identity");
+        this.file.addImport("@matter/general", "Identity");
         this.undefine(constructorName);
         this.atom(`export interface ${constructorName} extends Identity<typeof ${constructorName}> {}`);
         this.atom(`export const ${this.definitionName}: ${constructorName} = ${constructorName}`);

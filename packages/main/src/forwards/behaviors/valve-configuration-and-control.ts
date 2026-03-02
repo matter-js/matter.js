@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/valve-configuration-and-control";
+export * from "@matter/node/behaviors/valve-configuration-and-control";

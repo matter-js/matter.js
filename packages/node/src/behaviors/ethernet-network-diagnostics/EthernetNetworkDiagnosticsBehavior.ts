@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EthernetNetworkDiagnostics } from "#clusters/ethernet-network-diagnostics";
+import { EthernetNetworkDiagnostics } from "@matter/types/clusters/ethernet-network-diagnostics";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { EthernetNetworkDiagnosticsInterface } from "./EthernetNetworkDiagnosticsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * EthernetNetworkDiagnosticsBehavior is the base class for objects that support interaction with

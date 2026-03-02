@@ -6,11 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { SmokeCoAlarm } from "#clusters/smoke-co-alarm";
+import { SmokeCoAlarm } from "@matter/types/clusters/smoke-co-alarm";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { SmokeCoAlarmInterface } from "./SmokeCoAlarmInterface.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * SmokeCoAlarmBehavior is the base class for objects that support interaction with {@link SmokeCoAlarm.Cluster}.

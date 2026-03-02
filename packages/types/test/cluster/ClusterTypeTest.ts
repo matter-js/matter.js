@@ -6,10 +6,10 @@
 
 import { Attribute, Cluster, OptionalAttribute, OptionalCommand, OptionalEvent } from "#cluster/Cluster.js";
 import { ClusterType } from "#cluster/ClusterType.js";
-import { Branded } from "#general";
 import { Priority } from "#globals/Priority.js";
 import { TlvNumberSchema, TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvSchema } from "#tlv/TlvSchema.js";
+import { Branded } from "@matter/general";
 import { stripFunctions } from "./mutation/util.js";
 
 const BaseFoo = {

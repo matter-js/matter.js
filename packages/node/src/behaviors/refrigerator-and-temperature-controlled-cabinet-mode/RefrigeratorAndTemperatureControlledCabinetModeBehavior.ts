@@ -8,12 +8,12 @@
 
 import {
     RefrigeratorAndTemperatureControlledCabinetMode
-} from "#clusters/refrigerator-and-temperature-controlled-cabinet-mode";
+} from "@matter/types/clusters/refrigerator-and-temperature-controlled-cabinet-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import {
     RefrigeratorAndTemperatureControlledCabinetModeInterface
 } from "./RefrigeratorAndTemperatureControlledCabinetModeInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * RefrigeratorAndTemperatureControlledCabinetModeBehavior is the base class for objects that support interaction with

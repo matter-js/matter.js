@@ -20,8 +20,8 @@ import {
     Time,
     asyncNew,
     toHex,
-} from "#general";
-import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
+} from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 import { jsToMatterDate } from "./kinds/definitions/asn.js";
 import { Icac } from "./kinds/Icac.js";
 import { Noc } from "./kinds/Noc.js";

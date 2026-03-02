@@ -6,7 +6,7 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import { DecodedDataReport } from "#interaction/DecodedDataReport.js";
-import { DataReport, Status, TlvAny, TlvAttributeReport, TypeFromSchema } from "#types";
+import { DataReport, Status, TlvAny, TlvAttributeReport, TypeFromSchema } from "@matter/types";
 
 /**
  * Converts a {@link DataReport} into a {@link ReadResult.Chunk}.

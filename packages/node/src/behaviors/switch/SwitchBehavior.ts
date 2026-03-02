@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Switch } from "#clusters/switch";
+import { Switch } from "@matter/types/clusters/switch";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * SwitchBehavior is the base class for objects that support interaction with {@link Switch.Cluster}.

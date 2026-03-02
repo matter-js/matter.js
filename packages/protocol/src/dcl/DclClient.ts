@@ -14,7 +14,7 @@ import {
     DclPkiRootCertificateSubjectReference,
     DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
-import { Duration, Logger, MatterError, Seconds } from "#general";
+import { Duration, Logger, MatterError, Seconds } from "@matter/general";
 
 const logger = new Logger("DclClient");
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Logger } from "#general";
+import { InternalError, Logger } from "@matter/general";
 import { Conformance } from "../aspects/Conformance.js";
 import { ElementTag, Specification } from "../common/index.js";
 import { AnyElement } from "../elements/index.js";

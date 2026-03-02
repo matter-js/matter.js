@@ -4,10 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
-import { BasicInformation } from "#clusters";
-import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     ClassExtends,
     Crypto,
@@ -22,7 +19,7 @@ import {
     Seconds,
     Time,
     UnexpectedDataError,
-} from "#general";
+} from "@matter/general";
 import {
     ChangeNotificationService,
     ClusterState,
@@ -32,7 +29,9 @@ import {
     Node,
     ServerNode,
     SoftwareUpdateManager,
-} from "#node";
+} from "@matter/node";
+import { OperationalCredentialsClient } from "@matter/node/behaviors/operational-credentials";
+import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
 import {
     ActiveSessionInformation,
     Ble,
@@ -50,7 +49,7 @@ import {
     SecureSession,
     Session,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
     DiscoveryCapabilitiesBitmap,
@@ -59,7 +58,8 @@ import {
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 

@@ -3,9 +3,9 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpInterface } from "#general";
-import { Fabric, FabricManager } from "#protocol";
-import { FabricIndex, GroupId } from "#types";
+import { Construction, Environment, InternalError, Logger, ObserverGroup, UdpInterface } from "@matter/general";
+import { Fabric, FabricManager } from "@matter/protocol";
+import { FabricIndex, GroupId } from "@matter/types";
 
 const logger = Logger.get("ServerGroupNetworking");
 

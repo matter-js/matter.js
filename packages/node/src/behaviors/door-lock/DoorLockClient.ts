@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DoorLock } from "#clusters/door-lock";
+import { DoorLock } from "@matter/types/clusters/door-lock";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const DoorLockClientConstructor = ClientBehavior(DoorLock.Complete);
 export interface DoorLockClient extends InstanceType<typeof DoorLockClientConstructor> {}

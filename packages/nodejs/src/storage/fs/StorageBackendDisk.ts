@@ -14,7 +14,7 @@ import {
     StorageError,
     SupportedStorageTypes,
     toJson,
-} from "#general";
+} from "@matter/general";
 import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";

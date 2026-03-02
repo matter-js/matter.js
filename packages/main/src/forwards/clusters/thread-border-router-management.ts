@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/thread-border-router-management";
+export * from "@matter/types/clusters/thread-border-router-management";

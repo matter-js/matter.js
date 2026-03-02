@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { OperationalCredentials } from "#clusters/operational-credentials";
+import { MaybePromise } from "@matter/general";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 
 export namespace OperationalCredentialsInterface {
     export interface Base {

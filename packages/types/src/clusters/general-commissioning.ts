@@ -9,7 +9,7 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvUInt16, TlvUInt32, TlvEnum, TlvUInt64 } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
@@ -17,7 +17,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace GeneralCommissioning {

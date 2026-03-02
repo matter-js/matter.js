@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { RelativeHumidityMeasurement } from "#clusters/relative-humidity-measurement";
+import { RelativeHumidityMeasurement } from "@matter/types/clusters/relative-humidity-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * RelativeHumidityMeasurementBehavior is the base class for objects that support interaction with

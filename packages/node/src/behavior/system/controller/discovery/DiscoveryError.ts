@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError, MatterError } from "#general";
+import { MatterAggregateError, MatterError } from "@matter/general";
 
 export class DiscoveryError extends MatterError {
     static override [Symbol.hasInstance](instance: unknown) {

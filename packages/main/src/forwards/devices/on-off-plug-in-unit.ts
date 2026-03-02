@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/on-off-plug-in-unit";
+export * from "@matter/node/devices/on-off-plug-in-unit";

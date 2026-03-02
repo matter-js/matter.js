@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/total-volatile-organic-compounds-concentration-measurement";
+export * from "@matter/types/clusters/total-volatile-organic-compounds-concentration-measurement";

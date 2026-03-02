@@ -7,7 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
-import { camelize, capitalize, InternalError } from "#general";
+import { camelize, capitalize, InternalError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
@@ -18,7 +18,7 @@ import {
     FeatureBitmap,
     Matter,
     type ValueModel,
-} from "#model";
+} from "@matter/model";
 import {
     AttributeId,
     ClusterComposer,
@@ -31,7 +31,7 @@ import {
     TlvNoResponse,
     UnknownAttribute,
     UnknownCommand,
-} from "#types";
+} from "@matter/types";
 import { ClientCommandMethod } from "./ClientCommandMethod.js";
 
 const BIT_BLOCK_SIZE = Math.log2(Number.MAX_SAFE_INTEGER);

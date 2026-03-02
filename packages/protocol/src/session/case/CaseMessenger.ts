@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterFlowError } from "#general";
 import { ExchangeSendOptions } from "#protocol/MessageExchange.js";
-import { SecureMessageType, TypeFromSchema } from "#types";
+import { MatterFlowError } from "@matter/general";
+import { SecureMessageType, TypeFromSchema } from "@matter/types";
 import { SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
 import {
     CaseSigma1,

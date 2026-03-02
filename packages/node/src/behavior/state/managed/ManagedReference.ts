@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AccessControl, ExpiredReferenceError, Val } from "#protocol";
+import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
 
 type Container = Record<string | number, Val>;
 

@@ -10,10 +10,10 @@ import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
-import { Bytes, createPromise, MockFetch } from "#general";
-import { FabricAuthority, PeerAddress } from "#protocol";
-import { FabricIndex, VendorId } from "#types";
+import { Bytes, createPromise, MockFetch } from "@matter/general";
+import { FabricAuthority, PeerAddress } from "@matter/protocol";
+import { FabricIndex, VendorId } from "@matter/types";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import {
     addTestOtaImage,
     initOtaSite,

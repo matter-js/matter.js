@@ -1,5 +1,5 @@
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import { NotImplementedError } from "#general";
+import { NotImplementedError } from "@matter/general";
 import {
     Interactable,
     Invoke,
@@ -12,7 +12,7 @@ import {
     SubscribeResult,
     Write,
     WriteResult,
-} from "#protocol";
+} from "@matter/protocol";
 
 export class OnlineServerInteraction implements Interactable<RemoteActorContext.Options> {
     readonly #interaction: ServerInteraction;

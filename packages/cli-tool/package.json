@@ -31,12 +31,6 @@
         "matter": "bin/matter.js"
     },
     "imports": {
-        "#tools": "@matter/tools",
-        "#general": "@matter/general",
-        "#model": "@matter/model",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
-        "#node": "@matter/node",
         "#package": "./package.json",
         "#*": "./src/*"
     },

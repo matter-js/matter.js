@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, capitalize, Merge, UnexpectedDataError } from "#general";
+import { Bytes, capitalize, Merge, UnexpectedDataError } from "@matter/general";
 import { Schema } from "./Schema.js";
 
 const enum BitRangeType {

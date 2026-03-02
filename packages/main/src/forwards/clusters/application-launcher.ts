@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/application-launcher";
+export * from "@matter/types/clusters/application-launcher";

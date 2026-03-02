@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OnOff } from "#clusters/on-off";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { OnOffInterface } from "./OnOffInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * OnOffBehavior is the base class for objects that support interaction with {@link OnOff.Cluster}.

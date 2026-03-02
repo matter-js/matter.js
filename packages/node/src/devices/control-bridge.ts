@@ -23,7 +23,7 @@ import {
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Control Bridge is a controller device that, when bound to a lighting device such as an Extended Color Light, is

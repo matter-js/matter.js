@@ -6,9 +6,9 @@
 
 import { Events } from "#behavior/Events.js";
 import type { Agent } from "#endpoint/Agent.js";
-import { ImplementationError, MaybePromise } from "#general";
-import { ClusterModifier, type Schema } from "#model";
-import { ClusterComposer, ClusterType, ClusterTypeModifier, TypeFromBitSchema } from "#types";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { ClusterModifier, type Schema } from "@matter/model";
+import { ClusterComposer, ClusterType, ClusterTypeModifier, TypeFromBitSchema } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import type { BehaviorBacking } from "../internal/BehaviorBacking.js";
 import type { RootSupervisor } from "../supervision/RootSupervisor.js";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/general-diagnostics";
+export * from "@matter/types/clusters/general-diagnostics";

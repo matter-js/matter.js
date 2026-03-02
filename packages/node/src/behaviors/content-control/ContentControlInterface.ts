@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ContentControl } from "#clusters/content-control";
+import { MaybePromise } from "@matter/general";
+import { ContentControl } from "@matter/types/clusters/content-control";
 
 export namespace ContentControlInterface {
     export interface Base {

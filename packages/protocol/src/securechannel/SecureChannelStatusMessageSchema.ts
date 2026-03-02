@@ -5,7 +5,7 @@
  */
 
 import { ProtocolStatusMessage, ProtocolStatusMessageSchema } from "#protocol/ProtocolStatusMessage.js";
-import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 
 export type SecureChannelStatus = ProtocolStatusMessage<SecureChannelStatusCode>;
 

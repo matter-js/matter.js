@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/laundry-dryer-controls";
+export * from "@matter/node/behaviors/laundry-dryer-controls";

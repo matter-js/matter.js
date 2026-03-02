@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/media-input";
+export * from "@matter/types/clusters/media-input";

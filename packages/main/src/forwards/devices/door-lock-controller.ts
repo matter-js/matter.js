@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/door-lock-controller";
+export * from "@matter/node/devices/door-lock-controller";

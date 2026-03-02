@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
+import { camelize } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
@@ -14,8 +14,8 @@ import {
     Matter,
     MatterModel,
     Model,
-} from "#model";
-import { AttributePath, CommandPath, EventPath } from "#types";
+} from "@matter/model";
+import { AttributePath, CommandPath, EventPath } from "@matter/types";
 
 /**
  * Creates a {@link DataModelPath} from a Matter wire-format {@link AttributePath}, {@link EventPath}, or

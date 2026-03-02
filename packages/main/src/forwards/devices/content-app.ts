@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/content-app";
+export * from "@matter/node/devices/content-app";

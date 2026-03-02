@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, DataWriter, Endian, HashAlgorithm, HashFipsAlgorithmId } from "#general";
+import { Bytes, Crypto, DataWriter, Endian, HashAlgorithm, HashFipsAlgorithmId } from "@matter/general";
 import { TlvOtaImageHeader } from "./OtaImageHeader.js";
 
 /**

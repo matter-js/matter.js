@@ -9,9 +9,9 @@ import { Advertiser } from "#advertisement/Advertiser.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { FabricManager } from "#fabric/FabricManager.js";
-import { Environment, Environmental, Logger, MatterAggregateError, ObserverGroup } from "#general";
 import { SecureSession } from "#session/SecureSession.js";
 import { SessionManager } from "#session/SessionManager.js";
+import { Environment, Environmental, Logger, MatterAggregateError, ObserverGroup } from "@matter/general";
 
 const logger = Logger.get("DeviceAdvertiser");
 

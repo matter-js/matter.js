@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PressureMeasurement } from "#clusters/pressure-measurement";
+import { PressureMeasurement } from "@matter/types/clusters/pressure-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * PressureMeasurementBehavior is the base class for objects that support interaction with

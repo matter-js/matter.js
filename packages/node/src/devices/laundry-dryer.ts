@@ -22,7 +22,7 @@ import {
 } from "../behaviors/temperature-control/TemperatureControlServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Laundry Dryer represents a device that is capable of drying laundry items.

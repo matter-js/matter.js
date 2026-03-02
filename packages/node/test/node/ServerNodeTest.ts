@@ -6,8 +6,6 @@
 
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
-import { BasicInformationCluster } from "#clusters/basic-information";
-import { PumpConfigurationAndControl } from "#clusters/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { LightSensorDevice } from "#devices/light-sensor";
@@ -16,6 +14,9 @@ import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { LocalActorContext } from "#index.js";
+import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     CrashedDependenciesError,
@@ -32,14 +33,19 @@ import {
     StorageBackendMemory,
     StorageManager,
     StorageService,
-} from "#general";
-import { LocalActorContext } from "#index.js";
-import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "#model";
-import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
-import { ServerNode } from "#node/ServerNode.js";
-import { AttestationCertificateManager, CertificationDeclaration, NodeSession, ProtocolMocks, Val } from "#protocol";
-import { FabricIndex, VendorId } from "#types";
-import { OccurrenceManager } from "@matter/protocol";
+} from "@matter/general";
+import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
+import {
+    AttestationCertificateManager,
+    CertificationDeclaration,
+    NodeSession,
+    OccurrenceManager,
+    ProtocolMocks,
+    Val,
+} from "@matter/protocol";
+import { FabricIndex, VendorId } from "@matter/types";
+import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 

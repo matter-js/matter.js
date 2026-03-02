@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
+import { Bytes } from "@matter/general";
 
 /** Define a schema to encode / decode convert type T to type E. */
 export abstract class Schema<T, E = Bytes> {

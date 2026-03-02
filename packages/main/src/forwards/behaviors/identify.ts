@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/identify";
+export * from "@matter/node/behaviors/identify";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MqttEndpointFactory, ServiceBundle } from "#general";
+import { MqttEndpointFactory, ServiceBundle } from "@matter/general";
 import { MqttJsEndpointFactory } from "./MqttJsEndpointFactory.js";
 
 ServiceBundle.default.add(env => env.set(MqttEndpointFactory, new MqttJsEndpointFactory()));

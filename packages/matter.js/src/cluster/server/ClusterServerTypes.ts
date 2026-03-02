@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Merge } from "#general";
-import { ClusterClientObj, Fabric, Message, Session } from "#protocol";
+import { Merge } from "@matter/general";
+import { ClusterClientObj, Fabric, Message, Session } from "@matter/protocol";
 import {
     Attribute,
     AttributeId,
@@ -36,7 +36,7 @@ import {
     ResponseType,
     WritableAttribute,
     WritableFabricScopedAttribute,
-} from "#types";
+} from "@matter/types";
 import { Endpoint } from "../../device/Endpoint.js";
 import { AttributeServer, FabricScopedAttributeServer, FixedAttributeServer } from "./AttributeServer.js";
 import { type ClusterServer } from "./ClusterServer.js";

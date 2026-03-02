@@ -5,8 +5,8 @@
  */
 
 import type { Datasource } from "#behavior/state/managed/Datasource.js";
-import { StorageContext, SupportedStorageTypes } from "#general";
-import { Val } from "#protocol";
+import { StorageContext, SupportedStorageTypes } from "@matter/general";
+import { Val } from "@matter/protocol";
 
 /**
  * Persistence for state values associated with a specific endpoint.

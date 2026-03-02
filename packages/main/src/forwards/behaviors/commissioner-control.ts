@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/commissioner-control";
+export * from "@matter/node/behaviors/commissioner-control";

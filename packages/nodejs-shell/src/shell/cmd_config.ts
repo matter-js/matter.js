@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#general";
+import { Logger } from "@matter/general";
 import { DclCertificateService } from "@matter/protocol";
 import { Argv } from "yargs";
 import { MatterNode } from "../MatterNode.js";

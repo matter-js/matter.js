@@ -5,8 +5,8 @@
  */
 import { FabricManager, FabricTableFullError } from "#fabric/FabricManager.js";
 import { TestFabric } from "#fabric/TestFabric.js";
-import { MatterFlowError, StandardCrypto, StorageBackendMemory, StorageManager } from "#general";
-import { FabricIndex } from "#types";
+import { MatterFlowError, StandardCrypto, StorageBackendMemory, StorageManager } from "@matter/general";
+import { FabricIndex } from "@matter/types";
 
 describe("FabricManager", () => {
     const crypto = new StandardCrypto();

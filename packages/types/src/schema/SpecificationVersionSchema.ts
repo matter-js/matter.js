@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, toHex } from "#general";
+import { Bytes, toHex } from "@matter/general";
 import { BitField, ByteArrayBitmapSchema } from "./BitmapSchema.js";
 
 export type SpecificationVersion = {

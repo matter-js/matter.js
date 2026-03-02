@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EnergyEvse } from "#clusters/energy-evse";
+import { EnergyEvse } from "@matter/types/clusters/energy-evse";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const EnergyEvseClientConstructor = ClientBehavior(EnergyEvse.Complete);
 export interface EnergyEvseClient extends InstanceType<typeof EnergyEvseClientConstructor> {}

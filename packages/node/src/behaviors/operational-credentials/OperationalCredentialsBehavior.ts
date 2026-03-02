@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OperationalCredentials } from "#clusters/operational-credentials";
+import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { OperationalCredentialsInterface } from "./OperationalCredentialsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * OperationalCredentialsBehavior is the base class for objects that support interaction with

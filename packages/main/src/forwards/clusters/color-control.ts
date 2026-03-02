@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/color-control";
+export * from "@matter/types/clusters/color-control";

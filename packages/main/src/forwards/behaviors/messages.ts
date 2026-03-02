@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/messages";
+export * from "@matter/node/behaviors/messages";

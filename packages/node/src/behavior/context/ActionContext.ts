@@ -6,7 +6,7 @@
 
 import type { Agent } from "#endpoint/Agent.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import type { AccessLevel } from "#model";
+import type { AccessLevel } from "@matter/model";
 import type { LocalActorContext } from "./server/LocalActorContext.js";
 import type { RemoteActorContext } from "./server/RemoteActorContext.js";
 

@@ -6,9 +6,9 @@
 
 import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { Immutable, Lifecycle, UnsupportedDependencyError } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricManager, FailsafeContext, MessageExchange } from "#protocol";
+import { Immutable, Lifecycle, UnsupportedDependencyError } from "@matter/general";
+import { FabricManager, FailsafeContext, MessageExchange } from "@matter/protocol";
 
 /**
  * {@link FailsafeContext} for {@link ServerNode} API.

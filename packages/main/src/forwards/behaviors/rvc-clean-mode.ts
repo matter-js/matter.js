@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/rvc-clean-mode";
+export * from "@matter/node/behaviors/rvc-clean-mode";

@@ -7,6 +7,12 @@
 import type { DecodedPacket } from "#codec/MessageCodec.js";
 import { SupportedTransportsSchema } from "#common/SupportedTransportsBitmap.js";
 import { FabricManager } from "#fabric/FabricManager.js";
+import type { Subscription } from "#interaction/Subscription.js";
+import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
+import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
+import { SessionClosedError } from "#protocol/errors.js";
+import { GroupSession } from "#session/GroupSession.js";
 import {
     BasicSet,
     Bytes,
@@ -31,15 +37,9 @@ import {
     Time,
     Timestamp,
     toHex,
-} from "#general";
-import type { Subscription } from "#interaction/Subscription.js";
-import { PeerAddress, PeerAddressMap } from "#peer/PeerAddress.js";
-import { PeerShutdownError } from "#peer/PeerCommunicationError.js";
-import { PeerLossContext } from "#peer/PeerLossContext.js";
-import { SessionClosedError } from "#protocol/errors.js";
-import { GroupSession } from "#session/GroupSession.js";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "#types";
-import { UnexpectedDataError } from "@matter/general";
+    UnexpectedDataError,
+} from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";
 import type { ExposedFabricInformation, Fabric } from "../fabric/Fabric.js";
 import { MessageCounter } from "../protocol/MessageCounter.js";
 import { NodeSession } from "./NodeSession.js";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { cropValueRange } from "#general";
+import { cropValueRange } from "@matter/general";
 import { kelvinToXyLookup } from "./kelvinToXy.js";
 
 /**

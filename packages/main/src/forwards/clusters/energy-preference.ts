@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/energy-preference";
+export * from "@matter/types/clusters/energy-preference";

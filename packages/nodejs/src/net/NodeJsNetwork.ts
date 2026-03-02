@@ -17,7 +17,7 @@ import {
     onSameNetwork,
     UdpChannel,
     UdpChannelOptions,
-} from "#general";
+} from "@matter/general";
 import { NetworkInterfaceInfo, networkInterfaces } from "node:os";
 import { NodeJsUdpChannel } from "./NodeJsUdpChannel.js";
 

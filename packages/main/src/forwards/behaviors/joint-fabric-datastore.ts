@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/joint-fabric-datastore";
+export * from "@matter/node/behaviors/joint-fabric-datastore";

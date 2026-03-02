@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/carbon-dioxide-concentration-measurement";
+export * from "@matter/node/behaviors/carbon-dioxide-concentration-measurement";

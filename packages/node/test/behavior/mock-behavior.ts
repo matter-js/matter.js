@@ -6,7 +6,7 @@
 
 import { DescriptorServer } from "#behaviors/descriptor";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import type { Fabric } from "#protocol";
+import type { Fabric } from "@matter/protocol";
 
 class MockFabricImplementation {
     fabricIndex;

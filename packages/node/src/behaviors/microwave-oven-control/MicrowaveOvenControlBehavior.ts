@@ -6,11 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MicrowaveOvenControl } from "#clusters/microwave-oven-control";
+import { MicrowaveOvenControl } from "@matter/types/clusters/microwave-oven-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { MicrowaveOvenControlInterface } from "./MicrowaveOvenControlInterface.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * MicrowaveOvenControlBehavior is the base class for objects that support interaction with

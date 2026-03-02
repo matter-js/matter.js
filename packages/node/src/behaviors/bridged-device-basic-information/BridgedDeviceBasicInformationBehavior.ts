@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { BridgedDeviceBasicInformation } from "#clusters/bridged-device-basic-information";
+import { BridgedDeviceBasicInformation } from "@matter/types/clusters/bridged-device-basic-information";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { BridgedDeviceBasicInformationInterface } from "./BridgedDeviceBasicInformationInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * BridgedDeviceBasicInformationBehavior is the base class for objects that support interaction with

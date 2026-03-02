@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#general";
+import { ImplementationError } from "@matter/general";
 
 export class MetadataError extends ImplementationError {}
 

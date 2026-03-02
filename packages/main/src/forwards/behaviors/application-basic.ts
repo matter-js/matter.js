@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/application-basic";
+export * from "@matter/node/behaviors/application-basic";

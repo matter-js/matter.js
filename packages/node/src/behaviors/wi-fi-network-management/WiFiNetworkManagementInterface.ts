@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { WiFiNetworkManagement } from "#clusters/wi-fi-network-management";
+import { MaybePromise } from "@matter/general";
+import { WiFiNetworkManagement } from "@matter/types/clusters/wi-fi-network-management";
 
 export namespace WiFiNetworkManagementInterface {
     export interface Base {

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi } from "#tools";
+import { ansi } from "@matter/tools";
 import { BackchannelCommand } from "../device/backchannel.js";
 import { Subject } from "../device/subject.js";
 import { Test } from "../device/test.js";

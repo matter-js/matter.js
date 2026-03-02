@@ -7,8 +7,16 @@
 import { Events } from "#behavior/Events.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
-import { ScenesManagement } from "#clusters/scenes-management";
-import { BasicSet, camelize, deepCopy, InternalError, Logger, ObserverGroup, serialize } from "#general";
+import {
+    BasicSet,
+    camelize,
+    deepCopy,
+    InternalError,
+    Logger,
+    MaybePromise,
+    ObserverGroup,
+    serialize,
+} from "@matter/general";
 import {
     AccessLevel,
     any,
@@ -39,8 +47,8 @@ import {
     uint56,
     uint64,
     uint8,
-} from "#model";
-import { assertRemoteActor, Fabric, FabricManager, GroupSession, Val } from "#protocol";
+} from "@matter/model";
+import { assertRemoteActor, Fabric, FabricManager, GroupSession, Val } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -62,8 +70,8 @@ import {
     TlvUInt32,
     TlvUInt8,
     ValidationOutOfBoundsError,
-} from "#types";
-import { MaybePromise } from "@matter/general";
+} from "@matter/types";
+import { ScenesManagement } from "@matter/types/clusters/scenes-management";
 import { ScenesManagementBehavior } from "./ScenesManagementBehavior.js";
 
 const logger = Logger.get("ScenesManagementServer");

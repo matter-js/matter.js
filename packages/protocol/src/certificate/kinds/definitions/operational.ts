@@ -23,7 +23,7 @@ import {
     TlvUInt64,
     TlvUInt8,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 import { ExtensionKeyUsageBitmap } from "./base.js";
 
 /**

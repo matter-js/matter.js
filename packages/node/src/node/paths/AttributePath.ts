@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AttributeId, EntryIndex, FieldId } from "#types";
+import { AttributeId, EntryIndex, FieldId } from "@matter/types";
 import { BasePath } from "./BasePath.js";
 
 export namespace AttributePath {

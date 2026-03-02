@@ -5,9 +5,9 @@
  */
 
 import { ValidationDatatypeMismatchError } from "#common/ValidationError.js";
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvType } from "#tlv/TlvCodec.js";
+import { Bytes } from "@matter/general";
 
 type CodecVector<I, E> = { [valueDescription: string]: { encoded: I; decoded: E } };
 

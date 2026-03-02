@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, GeneratedClass, isObject } from "#general";
-import type { FieldModel, Schema } from "#model";
-import { DataModelPath, FeatureMap, ValueModel } from "#model";
-import { ConstraintError, PhantomReferenceError, SchemaImplementationError, Val } from "#protocol";
+import { camelize, GeneratedClass, isObject } from "@matter/general";
+import type { FieldModel, Schema } from "@matter/model";
+import { DataModelPath, FeatureMap, ValueModel } from "@matter/model";
+import { ConstraintError, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { assertBoolean, assertNumber } from "../../validation/assertions.js";

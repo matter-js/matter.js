@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/level-control";
+export * from "@matter/types/clusters/level-control";

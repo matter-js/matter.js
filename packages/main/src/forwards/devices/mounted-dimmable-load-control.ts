@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/mounted-dimmable-load-control";
+export * from "@matter/node/devices/mounted-dimmable-load-control";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/fan";
+export * from "@matter/node/devices/fan";

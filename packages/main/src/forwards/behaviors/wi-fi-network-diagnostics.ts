@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/wi-fi-network-diagnostics";
+export * from "@matter/node/behaviors/wi-fi-network-diagnostics";

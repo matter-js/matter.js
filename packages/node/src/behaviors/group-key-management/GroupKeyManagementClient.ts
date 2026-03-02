@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { GroupKeyManagement } from "#clusters/group-key-management";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const GroupKeyManagementClientConstructor = ClientBehavior(GroupKeyManagement.Complete);
 export interface GroupKeyManagementClient extends InstanceType<typeof GroupKeyManagementClientConstructor> {}

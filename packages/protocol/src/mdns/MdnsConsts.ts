@@ -5,7 +5,7 @@
  */
 
 import { PairingHintBitmap } from "#advertisement/PairingHintBitmap.js";
-import { GlobalFabricId, NodeId, VendorId } from "#types";
+import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
 export const SERVICE_DISCOVERY_QNAME = "_services._dns-sd._udp.local";
 export const MATTER_COMMISSION_SERVICE_QNAME = "_matterc._udp.local";

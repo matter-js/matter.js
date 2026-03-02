@@ -6,6 +6,12 @@
 
 import { DecodedMessage, Message, MessageCodec, SessionType } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
+import { NodeSession } from "#session/NodeSession.js";
+import { Session } from "#session/Session.js";
+import { SessionManager, ShutdownError } from "#session/SessionManager.js";
+import { UNICAST_UNSECURE_SESSION_ID, UnsecuredSession } from "#session/UnsecuredSession.js";
 import {
     asError,
     BasicMultiplex,
@@ -28,14 +34,8 @@ import {
     Time,
     UdpInterface,
     UnexpectedDataError,
-} from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { SecureChannelMessenger } from "#securechannel/SecureChannelMessenger.js";
-import { NodeSession } from "#session/NodeSession.js";
-import { Session } from "#session/Session.js";
-import { SessionManager, ShutdownError } from "#session/SessionManager.js";
-import { UNICAST_UNSECURE_SESSION_ID, UnsecuredSession } from "#session/UnsecuredSession.js";
-import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
+} from "@matter/general";
+import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 import { DuplicateMessageError } from "./MessageReceptionState.js";
 import { MRP } from "./MRP.js";

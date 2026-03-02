@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/unit-localization";
+export * from "@matter/types/clusters/unit-localization";

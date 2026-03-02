@@ -6,7 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterState } from "#behavior/cluster/ClusterState.js";
-import { ClusterType } from "#types";
+import { ClusterType } from "@matter/types";
 import { MyCluster } from "./cluster-behavior-test-util.js";
 
 describe("ClusterState", () => {

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/power-source-configuration";
+export * from "@matter/node/behaviors/power-source-configuration";

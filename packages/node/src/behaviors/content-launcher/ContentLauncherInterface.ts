@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ContentLauncher } from "#clusters/content-launcher";
+import { MaybePromise } from "@matter/general";
+import { ContentLauncher } from "@matter/types/clusters/content-launcher";
 
 export namespace ContentLauncherInterface {
     export interface UrlPlayback {

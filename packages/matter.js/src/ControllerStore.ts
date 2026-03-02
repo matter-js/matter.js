@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError, MaybePromise, StorageContext, StorageManager } from "#general";
+import { ImplementationError, MaybePromise, StorageContext, StorageManager } from "@matter/general";
 
 /**
  * Non-volatile state management for a {@link ControllerNode}.

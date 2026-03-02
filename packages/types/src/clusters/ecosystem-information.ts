@@ -16,9 +16,9 @@ import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvLocationdesc } from "../globals/Locationdesc.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace EcosystemInformation {

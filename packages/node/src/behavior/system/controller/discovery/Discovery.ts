@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CancelablePromise, Diagnostic, Duration, Logger, MaybePromise, withTimeout } from "#general";
 import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { CommissionableDeviceIdentifiers, ScannerSet } from "#protocol";
+import { CancelablePromise, Diagnostic, Duration, Logger, MaybePromise, withTimeout } from "@matter/general";
+import { CommissionableDeviceIdentifiers, ScannerSet } from "@matter/protocol";
 import { ControllerBehavior } from "../ControllerBehavior.js";
 import { ActiveDiscoveries } from "./ActiveDiscoveries.js";
 import { DiscoveryAggregateError } from "./DiscoveryError.js";

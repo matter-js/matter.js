@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, InternalError, MaybePromise } from "#general";
-import { BdxMessageType, BdxStatusCode } from "#types";
+import { Bytes, InternalError, MaybePromise } from "@matter/general";
+import { BdxMessageType, BdxStatusCode } from "@matter/types";
 import { BdxError } from "../BdxError.js";
 import { Flow } from "./Flow.js";
 

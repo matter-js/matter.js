@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Pm25ConcentrationMeasurement } from "#clusters/pm25-concentration-measurement";
+import { Pm25ConcentrationMeasurement } from "@matter/types/clusters/pm25-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const Pm25ConcentrationMeasurementClientConstructor = ClientBehavior(Pm25ConcentrationMeasurement.Complete);
 export interface Pm25ConcentrationMeasurementClient extends InstanceType<typeof Pm25ConcentrationMeasurementClientConstructor> {}

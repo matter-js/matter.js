@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/window-covering";
+export * from "@matter/node/behaviors/window-covering";

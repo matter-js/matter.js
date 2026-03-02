@@ -5,6 +5,8 @@
  */
 
 import { OnOffLightDevice } from "#devices/on-off-light";
+import { Node } from "#node/Node.js";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     Crypto,
     Entropy,
@@ -17,10 +19,8 @@ import {
     Storage,
     StorageBackendMemory,
     StorageService,
-} from "#general";
-import { Node } from "#node/Node.js";
-import { ServerNode } from "#node/ServerNode.js";
-import { FabricId } from "#types";
+} from "@matter/general";
+import { FabricId } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
 
 /**

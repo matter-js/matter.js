@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/dimmable-plug-in-unit";
+export * from "@matter/node/devices/dimmable-plug-in-unit";

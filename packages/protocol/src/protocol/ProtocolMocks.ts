@@ -6,6 +6,10 @@
 
 import { Message } from "#codec/MessageCodec.js";
 import { Fabric as RealFabric } from "#fabric/Fabric.js";
+import { MessageType } from "#interaction/InteractionMessenger.js";
+import { NodeSession as RealNodeSession } from "#session/NodeSession.js";
+import { Session } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     AsyncObservable,
     b$,
@@ -23,11 +27,8 @@ import {
     Observable,
     ServerAddress,
     ServerAddressUdp,
-} from "#general";
-import { MessageType } from "#interaction/InteractionMessenger.js";
-import { NodeSession as RealNodeSession } from "#session/NodeSession.js";
-import { Session } from "#session/Session.js";
-import { SessionParameters } from "#session/SessionParameters.js";
+} from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     FabricId,
     FabricIndex,
@@ -37,8 +38,7 @@ import {
     Status,
     TlvStatusResponse,
     VendorId,
-} from "#types";
-import { Specification } from "@matter/model";
+} from "@matter/types";
 import { MessageChannel as RealMessageChannel } from "./MessageChannel.js";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 

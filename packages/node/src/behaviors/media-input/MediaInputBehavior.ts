@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MediaInput } from "#clusters/media-input";
+import { MediaInput } from "@matter/types/clusters/media-input";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { MediaInputInterface } from "./MediaInputInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * MediaInputBehavior is the base class for objects that support interaction with {@link MediaInput.Cluster}.

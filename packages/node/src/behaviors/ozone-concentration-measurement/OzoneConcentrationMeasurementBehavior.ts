@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OzoneConcentrationMeasurement } from "#clusters/ozone-concentration-measurement";
+import { OzoneConcentrationMeasurement } from "@matter/types/clusters/ozone-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * OzoneConcentrationMeasurementBehavior is the base class for objects that support interaction with

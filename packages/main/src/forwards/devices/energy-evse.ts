@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/energy-evse";
+export * from "@matter/node/devices/energy-evse";

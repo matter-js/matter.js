@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PumpConfigurationAndControl } from "#clusters/pump-configuration-and-control";
+import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const PumpConfigurationAndControlClientConstructor = ClientBehavior(PumpConfigurationAndControl.Complete);
 export interface PumpConfigurationAndControlClient extends InstanceType<typeof PumpConfigurationAndControlClientConstructor> {}

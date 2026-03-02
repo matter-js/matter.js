@@ -6,12 +6,12 @@
 
 import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { OnOffServer } from "#behaviors/on-off";
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
-import { ModeSelect } from "#clusters/mode-select";
-import { OnOff } from "#clusters/on-off";
-import { Logger, MaybePromise } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClusterType, StatusCode, StatusResponseError } from "#types";
+import { Logger, MaybePromise } from "@matter/general";
+import { ClusterType, StatusCode, StatusResponseError } from "@matter/types";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
+import { ModeSelect } from "@matter/types/clusters/mode-select";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { ModeSelectBehavior } from "./ModeSelectBehavior.js";
 
 const logger = Logger.get("ModeSelectServer");

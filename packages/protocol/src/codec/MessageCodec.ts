@@ -5,6 +5,7 @@
  */
 
 import { Mark } from "#common/Mark.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Bytes,
     DataReader,
@@ -15,8 +16,7 @@ import {
     InternalError,
     NotImplementedError,
     UnexpectedDataError,
-} from "#general";
-import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
+} from "@matter/general";
 import {
     BDX_PROTOCOL_ID,
     BdxMessageType,
@@ -25,7 +25,7 @@ import {
     NodeId,
     SECURE_CHANNEL_PROTOCOL_ID,
     SecureMessageType,
-} from "#types";
+} from "@matter/types";
 import { MessageType } from "../interaction/InteractionMessenger.js";
 
 export interface PacketHeader {

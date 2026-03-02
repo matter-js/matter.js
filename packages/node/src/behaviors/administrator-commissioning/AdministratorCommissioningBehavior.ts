@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { AdministratorCommissioningInterface } from "./AdministratorCommissioningInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * AdministratorCommissioningBehavior is the base class for objects that support interaction with

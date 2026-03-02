@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/channel";
+export * from "@matter/node/behaviors/channel";

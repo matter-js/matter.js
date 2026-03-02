@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DoorLock } from "#clusters/door-lock";
+import { DoorLock } from "@matter/types/clusters/door-lock";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { DoorLockInterface } from "./DoorLockInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * DoorLockBehavior is the base class for objects that support interaction with {@link DoorLock.Cluster}.

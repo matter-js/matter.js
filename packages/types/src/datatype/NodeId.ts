@@ -5,7 +5,7 @@
  */
 
 import { GroupId } from "#datatype/GroupId.js";
-import { Branded, Crypto, hex, UnexpectedDataError } from "#general";
+import { Branded, Crypto, hex, UnexpectedDataError } from "@matter/general";
 import { TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
 import { CaseAuthenticatedTag } from "./CaseAuthenticatedTag.js";

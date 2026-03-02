@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Package } from "#tools";
+import { Package } from "@matter/tools";
 import { existsSync } from "node:fs";
 
 export function listSupportFiles(format = "cjs") {

@@ -5,7 +5,7 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { ValueModel } from "#model";
+import { ValueModel } from "@matter/model";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { astToFunction } from "./conformance-compiler.js";
 

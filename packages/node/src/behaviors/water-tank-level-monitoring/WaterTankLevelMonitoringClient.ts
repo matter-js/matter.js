@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WaterTankLevelMonitoring } from "#clusters/water-tank-level-monitoring";
+import { WaterTankLevelMonitoring } from "@matter/types/clusters/water-tank-level-monitoring";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const WaterTankLevelMonitoringClientConstructor = ClientBehavior(WaterTankLevelMonitoring.Complete);
 export interface WaterTankLevelMonitoringClient extends InstanceType<typeof WaterTankLevelMonitoringClientConstructor> {}

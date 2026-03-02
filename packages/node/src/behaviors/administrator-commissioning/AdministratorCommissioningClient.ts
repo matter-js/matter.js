@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const AdministratorCommissioningClientConstructor = ClientBehavior(AdministratorCommissioning.Complete);
 export interface AdministratorCommissioningClient extends InstanceType<typeof AdministratorCommissioningClientConstructor> {}

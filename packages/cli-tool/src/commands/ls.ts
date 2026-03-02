@@ -5,8 +5,8 @@
  */
 
 import { Domain } from "#domain.js";
-import { MaybePromise } from "#general";
 import { Location } from "#location.js";
+import { MaybePromise } from "@matter/general";
 import colors from "ansi-colors";
 import { Command } from "./command.js";
 

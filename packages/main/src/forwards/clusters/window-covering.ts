@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/window-covering";
+export * from "@matter/types/clusters/window-covering";

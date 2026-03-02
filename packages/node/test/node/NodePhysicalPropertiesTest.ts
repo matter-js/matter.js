@@ -9,18 +9,18 @@ import { IcdManagementServer } from "#behaviors/icd-management";
 import { PowerSourceServer } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsServer } from "#behaviors/thread-network-diagnostics";
 import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnostics";
-import { PowerSource } from "#clusters/power-source";
-import { ThreadNetworkDiagnostics } from "#clusters/thread-network-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { PowerSourceEndpoint } from "#endpoints/power-source";
 import { SecondaryNetworkInterfaceEndpoint } from "#endpoints/secondary-network-interface";
-import { Minutes, Seconds } from "#general";
 import { Node } from "#node/Node.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { PhysicalDeviceProperties, Subscribe } from "#protocol";
+import { Minutes, Seconds } from "@matter/general";
+import { PhysicalDeviceProperties, Subscribe } from "@matter/protocol";
+import { PowerSource } from "@matter/types/clusters/power-source";
+import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { MockServerNode } from "./mock-server-node.js";
 
 describe("NodePhysicalProperties", () => {

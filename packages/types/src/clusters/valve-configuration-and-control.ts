@@ -26,7 +26,7 @@ import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status } from "../globals/Status.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ValveConfigurationAndControl {

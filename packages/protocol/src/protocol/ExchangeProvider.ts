@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { InteractionSettings } from "#action/InteractionSettings.js";
-import { ChannelType, Duration } from "#general";
 import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { NodeSession } from "#session/NodeSession.js";
 import { SecureSession } from "#session/SecureSession.js";
-import { INTERACTION_PROTOCOL_ID } from "#types";
+import { ChannelType, Duration } from "@matter/general";
+import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { MRP } from "./MRP.js";
 
 /**

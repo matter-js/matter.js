@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { VendorId } from "#types";
+import { VendorId } from "@matter/types";
 import { MatterCertificate } from "./base.js";
 
 /** Definitions for Matter Attestation certificates (PAA, PAI, DAC) */

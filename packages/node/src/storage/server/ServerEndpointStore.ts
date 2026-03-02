@@ -5,8 +5,8 @@
  */
 
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { ImplementationError, StorageContext } from "#general";
 import { EndpointStore } from "#storage/EndpointStore.js";
+import { ImplementationError, StorageContext } from "@matter/general";
 import { DatasourceStore } from "./DatasourceStore.js";
 
 const NUMBER_KEY = "__number__";

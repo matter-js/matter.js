@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppAddress, ImplementationError, MqttEndpoint, MqttEndpointFactory, StorageService } from "#general";
+import { AppAddress, ImplementationError, MqttEndpoint, MqttEndpointFactory, StorageService } from "@matter/general";
 import { connectAsync, IClientOptions } from "mqtt";
 import { MqttJsEndpoint } from "./MqttJsEndpoint.js";
 import { MqttJsMessage } from "./MqttJsMessage.js";

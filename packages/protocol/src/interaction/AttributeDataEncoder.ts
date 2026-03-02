@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Diagnostic, MatterFlowError } from "#general";
+import { Diagnostic, MatterFlowError } from "@matter/general";
 import {
     ArraySchema,
     AttributeId,
@@ -20,7 +20,7 @@ import {
     TlvSchema,
     TlvStream,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 
 type FullAttributePath = {
     nodeId?: NodeId;

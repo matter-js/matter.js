@@ -5,7 +5,6 @@
  */
 
 import { ValidationError } from "#common/ValidationError.js";
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import {
     MATTER_EPOCH_OFFSET_S,
@@ -20,6 +19,7 @@ import {
     TlvUInt32,
     TlvUInt64,
 } from "#tlv/TlvNumber.js";
+import { Bytes } from "@matter/general";
 
 type CodecVectorNumber<I, E> = {
     [valueDescription: string]: { schema: TlvNumberSchema; encoded: I; decoded: E };

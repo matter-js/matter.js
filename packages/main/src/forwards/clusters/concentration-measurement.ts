@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/concentration-measurement";
+export * from "@matter/types/clusters/concentration-measurement";

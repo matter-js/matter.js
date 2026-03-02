@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ElectricalEnergyMeasurement } from "#clusters/electrical-energy-measurement";
+import { ElectricalEnergyMeasurement } from "@matter/types/clusters/electrical-energy-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ElectricalEnergyMeasurementClientConstructor = ClientBehavior(ElectricalEnergyMeasurement.Complete);
 export interface ElectricalEnergyMeasurementClient extends InstanceType<typeof ElectricalEnergyMeasurementClientConstructor> {}

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "#general";
+import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export class StorageBackendAsyncStorage extends Storage {

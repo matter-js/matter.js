@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/rvc-operational-state";
+export * from "@matter/node/behaviors/rvc-operational-state";

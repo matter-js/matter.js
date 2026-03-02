@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ScenesManagement } from "#clusters/scenes-management";
+import { ScenesManagement } from "@matter/types/clusters/scenes-management";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ScenesManagementClientConstructor = ClientBehavior(ScenesManagement.Complete);
 export interface ScenesManagementClient extends InstanceType<typeof ScenesManagementClientConstructor> {}

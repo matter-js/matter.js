@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/formaldehyde-concentration-measurement";
+export * from "@matter/types/clusters/formaldehyde-concentration-measurement";

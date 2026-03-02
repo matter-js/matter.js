@@ -20,7 +20,7 @@ import {
 } from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Network Infrastructure Manager provides interfaces that allow for the management of the Wi-Fi, Thread, and Ethernet

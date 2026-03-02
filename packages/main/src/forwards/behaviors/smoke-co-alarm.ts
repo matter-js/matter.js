@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/smoke-co-alarm";
+export * from "@matter/node/behaviors/smoke-co-alarm";

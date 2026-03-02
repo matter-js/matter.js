@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/account-login";
+export * from "@matter/types/clusters/account-login";

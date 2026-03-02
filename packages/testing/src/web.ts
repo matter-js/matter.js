@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Package } from "#tools";
+import { Package } from "@matter/tools";
 import { build } from "esbuild";
 import express from "express";
 import { writeFile } from "node:fs/promises";

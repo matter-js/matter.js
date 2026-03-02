@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import {
     anyPromise,
     ClassExtends,
@@ -13,9 +14,8 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
-} from "#general";
-import { RetransmissionLimitReachedError } from "#protocol/errors.js";
-import { NodeId } from "#types";
+} from "@matter/general";
+import { NodeId } from "@matter/types";
 import {
     AddressTypeFromDevice,
     CommissionableDevice,

@@ -3,8 +3,8 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { OperationalState } from "#clusters/operational-state";
-import { RvcOperationalState } from "#clusters/rvc-operational-state";
+import { OperationalState } from "@matter/types/clusters/operational-state";
+import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 
 export namespace OperationalStateUtils {
     export function assertPause(currentState: number): OperationalState.OperationalCommandResponse {

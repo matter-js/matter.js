@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { CarbonMonoxideConcentrationMeasurement } from "#clusters/carbon-monoxide-concentration-measurement";
+import { CarbonMonoxideConcentrationMeasurement } from "@matter/types/clusters/carbon-monoxide-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const CarbonMonoxideConcentrationMeasurementClientConstructor = ClientBehavior(
     CarbonMonoxideConcentrationMeasurement.Complete

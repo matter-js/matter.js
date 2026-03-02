@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/oven-mode";
+export * from "@matter/node/behaviors/oven-mode";

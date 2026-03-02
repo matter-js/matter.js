@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MediaPlayback } from "#clusters/media-playback";
+import { MediaPlayback } from "@matter/types/clusters/media-playback";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { MediaPlaybackInterface } from "./MediaPlaybackInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * MediaPlaybackBehavior is the base class for objects that support interaction with {@link MediaPlayback.Cluster}.

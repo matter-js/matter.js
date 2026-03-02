@@ -25,11 +25,11 @@ import { Priority } from "../globals/Priority.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { BasicInformation } from "./basic-information.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace BridgedDeviceBasicInformation {

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { TimeSynchronization } from "#clusters/time-synchronization";
+import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { TimeSynchronizationInterface } from "./TimeSynchronizationInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * TimeSynchronizationBehavior is the base class for objects that support interaction with

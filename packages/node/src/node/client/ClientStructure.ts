@@ -7,11 +7,14 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { Descriptor } from "#clusters/descriptor";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { RootEndpoint } from "#endpoints/root";
-import { Diagnostic, hex, InternalError, isDeepEqual, Logger, Observable } from "#general";
+import type { ClientNode } from "#node/ClientNode.js";
+import type { Node } from "#node/Node.js";
+import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
+import { DatasourceCache } from "#storage/client/DatasourceCache.js";
+import { Diagnostic, hex, InternalError, isDeepEqual, Logger, Observable } from "@matter/general";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -22,14 +25,11 @@ import {
     GeneratedCommandList,
     Matter,
     type FeatureBitmap,
-} from "#model";
-import type { ClientNode } from "#node/ClientNode.js";
-import type { Node } from "#node/Node.js";
-import { ReadScope, Val, type Read, type ReadResult } from "#protocol";
-import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
-import { DatasourceCache } from "#storage/client/DatasourceCache.js";
-import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "#types";
-import { Status } from "#types";
+} from "@matter/model";
+import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
+import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "@matter/types";
+import { Status } from "@matter/types";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { ClientEventEmitter } from "./ClientEventEmitter.js";
 import { ClientStructureEvents } from "./ClientStructureEvents.js";
 import { PeerBehavior } from "./PeerBehavior.js";

@@ -17,8 +17,8 @@ import {
     Time,
     Timer,
     Timespan,
-} from "#general";
-import { VendorId } from "#types";
+} from "@matter/general";
+import { VendorId } from "@matter/types";
 import { BleError } from "../ble/Ble.js";
 import { BtpCodec } from "../codec/BtpCodec.js";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, Scanner } from "./Scanner.js";

@@ -7,7 +7,7 @@
 import { BasicInformationServer } from "#behaviors/basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { ImplementationError, Logger } from "#general";
+import { ImplementationError, Logger } from "@matter/general";
 import { BridgedDeviceBasicInformationBehavior } from "./BridgedDeviceBasicInformationBehavior.js";
 
 const logger = Logger.get("BridgedDeviceBasicInformationServer");

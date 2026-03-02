@@ -13,10 +13,17 @@ import { ProductDescriptionServer } from "#behavior/system/product-description/P
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
 import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import type { Environment } from "#general";
-import { asyncNew, Construction, DiagnosticSource, errorOf, Identity, MatterError } from "#general";
-import { FabricManager, Interactable, OccurrenceManager, PeerSet, ServerInteraction, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import type { Environment } from "@matter/general";
+import { asyncNew, Construction, DiagnosticSource, errorOf, Identity, MatterError } from "@matter/general";
+import {
+    FabricManager,
+    Interactable,
+    OccurrenceManager,
+    PeerSet,
+    ServerInteraction,
+    SessionManager,
+} from "@matter/protocol";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Node } from "./Node.js";
 import { Peers } from "./client/Peers.js";

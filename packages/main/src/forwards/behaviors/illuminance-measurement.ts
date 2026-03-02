@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/illuminance-measurement";
+export * from "@matter/node/behaviors/illuminance-measurement";

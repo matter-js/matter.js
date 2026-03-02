@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/water-heater";
+export * from "@matter/node/devices/water-heater";

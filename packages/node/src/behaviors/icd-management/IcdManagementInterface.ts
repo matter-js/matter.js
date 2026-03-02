@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { IcdManagement } from "#clusters/icd-management";
+import { MaybePromise } from "@matter/general";
+import { IcdManagement } from "@matter/types/clusters/icd-management";
 
 export namespace IcdManagementInterface {
     export interface Base {

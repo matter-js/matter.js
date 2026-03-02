@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BleScanner as BaseBleScanner, DiscoveredBleDevice } from "#protocol";
+import { BleScanner as BaseBleScanner, DiscoveredBleDevice } from "@matter/protocol";
 import { ReactNativeBleClient, ReactNativeBlePeripheral } from "./ReactNativeBleClient.js";
 
-export type { DiscoveredBleDevice } from "#protocol";
+export type { DiscoveredBleDevice } from "@matter/protocol";
 
 export type ReactNativeDiscoveredBleDevice = Omit<DiscoveredBleDevice, "peripheral"> & {
     peripheral: ReactNativeBlePeripheral;

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/access-control";
+export * from "@matter/node/behaviors/access-control";

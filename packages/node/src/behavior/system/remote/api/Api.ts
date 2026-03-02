@@ -5,11 +5,11 @@
  */
 
 import { Agent } from "#endpoint/Agent.js";
-import { Abort, asError, Diagnostic, InternalError, Logger } from "#general";
 import { Node } from "#node/Node.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { Mark } from "#protocol";
-import { StatusResponse, StatusResponseError } from "#types";
+import { Abort, asError, Diagnostic, InternalError, Logger } from "@matter/general";
+import { Mark } from "@matter/protocol";
+import { StatusResponse, StatusResponseError } from "@matter/types";
 import { ApiPath } from "./ApiPath.js";
 import { ApiResource } from "./ApiResource.js";
 import { LocalResponse } from "./LocalResponse.js";

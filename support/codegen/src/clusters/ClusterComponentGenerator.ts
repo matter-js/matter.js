@@ -191,7 +191,7 @@ export class ClusterComponentGenerator {
     }
 
     private mapPrivilege(privilege: Access.Privilege) {
-        this.file.addImport("#model", "AccessLevel");
+        this.file.addImport("@matter/model", "AccessLevel");
         return `AccessLevel.${Access.PrivilegeName[privilege]}`;
     }
 

@@ -6,8 +6,8 @@
 
 import { ClusterInterface } from "#behavior/cluster/ClusterInterface.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import { MaybePromise } from "#general";
-import { BitFlag, ClusterType } from "#types";
+import { MaybePromise } from "@matter/general";
+import { BitFlag, ClusterType } from "@matter/types";
 import { MyCluster } from "./cluster-behavior-test-util.js";
 
 const FeaturedCluster = ClusterType({

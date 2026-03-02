@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/joint-fabric-administrator";
+export * from "@matter/types/clusters/joint-fabric-administrator";

@@ -10,8 +10,8 @@ import "@matter/nodejs";
 // Load node.js WS extension
 import "@matter/nodejs-ws";
 
-import { asError, Bytes, Environment, StorageBackendMemory, StorageService } from "#general";
-import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } from "#node";
+import { asError, Bytes, Environment, StorageBackendMemory, StorageService } from "@matter/general";
+import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } from "@matter/node";
 import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/device-energy-management-mode";
+export * from "@matter/types/clusters/device-energy-management-mode";

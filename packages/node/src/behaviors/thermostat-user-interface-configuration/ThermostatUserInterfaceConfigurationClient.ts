@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThermostatUserInterfaceConfiguration } from "#clusters/thermostat-user-interface-configuration";
+import { ThermostatUserInterfaceConfiguration } from "@matter/types/clusters/thermostat-user-interface-configuration";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ThermostatUserInterfaceConfigurationClientConstructor = ClientBehavior(
     ThermostatUserInterfaceConfiguration.Complete

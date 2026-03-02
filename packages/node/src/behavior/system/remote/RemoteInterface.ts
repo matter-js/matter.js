@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     Abort,
     AppAddress,
@@ -13,8 +14,7 @@ import {
     Lifetime,
     Logger,
     Multiplex,
-} from "#general";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
 import { ApiPath } from "./api/ApiPath.js";
 
 const logger = Logger.get("RemoteAdapter");

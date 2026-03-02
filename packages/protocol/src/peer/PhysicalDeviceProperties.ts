@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Instant, Logger, Millis, Minutes, Seconds } from "#general";
+import { Duration, Instant, Logger, Millis, Minutes, Seconds } from "@matter/general";
 
 const logger = Logger.get("PhysicalDeviceProperties");
 
