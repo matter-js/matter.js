@@ -291,7 +291,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * @param type the {@link Behavior} to patch
      * @param values the values to change
      */
-    async setStateOf<T extends Behavior.Type>(type: T, values: Behavior.PatchStateOf<T>): Promise<void>;
+    setStateOf<T extends Behavior.Type>(type: T, values: Behavior.PatchStateOf<T>): Promise<void>;
 
     /**
      * Update state values for a single behavior ID.
@@ -305,7 +305,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
      * @param type the {@link Behavior} to patch
      * @param values the values to change
      */
-    async setStateOf(type: string, values: Val.Struct): Promise<void>;
+    setStateOf(type: string, values: Val.Struct): Promise<void>;
 
     async setStateOf(type: Behavior.Type | string, values: Val.Struct) {
         if (typeof type === "string") {
