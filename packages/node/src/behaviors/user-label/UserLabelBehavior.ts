@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { UserLabel } from "#clusters/user-label";
+import { UserLabel } from "@matter/types/clusters/user-label";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * UserLabelBehavior is the base class for objects that support interaction with {@link UserLabel.Cluster}.

@@ -9,7 +9,7 @@ import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { EndpointType } from "#endpoint/type/EndpointType.js";
-import { NotImplementedError } from "#general";
+import { NotImplementedError } from "@matter/general";
 
 export type Commands<T extends EndpointType> = {
     [K in keyof T["behaviors"]]: Commands.OfBehavior<T["behaviors"][K]>;

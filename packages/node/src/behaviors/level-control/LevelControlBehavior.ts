@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { LevelControl } from "#clusters/level-control";
+import { LevelControl } from "@matter/types/clusters/level-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { LevelControlInterface } from "./LevelControlInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * LevelControlBehavior is the base class for objects that support interaction with {@link LevelControl.Cluster}.

@@ -7,7 +7,7 @@
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
 import { ClientNode } from "#node/ClientNode.js";
 import { NodePhysicalProperties } from "#node/NodePhysicalProperties.js";
-import { PhysicalDeviceProperties } from "#protocol";
+import { PhysicalDeviceProperties } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./ClientEndpointInitializer.js";
 
 const cache = new WeakMap<ClientNode, PhysicalDeviceProperties>();

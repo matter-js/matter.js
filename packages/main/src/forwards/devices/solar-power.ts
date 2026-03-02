@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/solar-power";
+export * from "@matter/node/devices/solar-power";

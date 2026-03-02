@@ -8,9 +8,9 @@
 
 import {
     RefrigeratorAndTemperatureControlledCabinetMode
-} from "#clusters/refrigerator-and-temperature-controlled-cabinet-mode";
+} from "@matter/types/clusters/refrigerator-and-temperature-controlled-cabinet-mode";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const RefrigeratorAndTemperatureControlledCabinetModeClientConstructor = ClientBehavior(
     RefrigeratorAndTemperatureControlledCabinetMode.Complete

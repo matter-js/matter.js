@@ -5,9 +5,9 @@
  */
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { AsyncObservable, InternalError, MaybePromise, Transaction } from "#general";
-import { AccessLevel } from "#model";
 import type { Node } from "#node/Node.js";
+import { AsyncObservable, InternalError, MaybePromise, Transaction } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 import {
     AccessControl,
     AclEndpointContext,
@@ -16,8 +16,8 @@ import {
     MessageExchange,
     NodeProtocol,
     SecureSession,
-} from "#protocol";
-import { FabricIndex, Priority } from "#types";
+} from "@matter/protocol";
+import { FabricIndex, Priority } from "@matter/types";
 import { Contextual } from "../Contextual.js";
 import { NodeActivity } from "../NodeActivity.js";
 

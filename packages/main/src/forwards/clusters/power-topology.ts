@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/power-topology";
+export * from "@matter/types/clusters/power-topology";

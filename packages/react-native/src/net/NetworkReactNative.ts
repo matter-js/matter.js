@@ -32,7 +32,7 @@ import {
     onSameNetwork,
     UdpChannel,
     UdpChannelOptions,
-} from "#general";
+} from "@matter/general";
 import { fetch as fetchNetworkInfo } from "@react-native-community/netinfo";
 import { UdpChannelReactNative } from "./UdpChannelReactNative.js";
 

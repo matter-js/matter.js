@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, Diagnostic, Duration, ImplementationError, Logger, Merge } from "#general";
+import { capitalize, Diagnostic, Duration, ImplementationError, Logger, Merge } from "@matter/general";
 import {
     AttributeClients,
     AttributeClientValues,
@@ -14,7 +14,7 @@ import {
     GroupClusterClientObj,
     SignatureFromCommandSpec,
     SignatureFromCommandSpecWithoutResponse,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     Attribute,
     AttributeId,
@@ -32,7 +32,7 @@ import {
     TypeFromPartialBitSchema,
     TypeFromSchema,
     UnknownAttribute,
-} from "#types";
+} from "@matter/types";
 import { createAttributeClient } from "./AttributeClient.js";
 import { createEventClient } from "./EventClient.js";
 import { InteractionClient } from "./InteractionClient.js";

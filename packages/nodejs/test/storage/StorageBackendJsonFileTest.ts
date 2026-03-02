@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import { StorageBackendJsonFile } from "#storage/index.js";
+import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";

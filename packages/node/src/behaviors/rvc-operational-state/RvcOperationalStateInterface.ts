@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { RvcOperationalState } from "#clusters/rvc-operational-state";
+import { MaybePromise } from "@matter/general";
+import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 
 export namespace RvcOperationalStateInterface {
     export interface Base {

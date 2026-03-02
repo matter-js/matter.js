@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/cook-surface";
+export * from "@matter/node/devices/cook-surface";

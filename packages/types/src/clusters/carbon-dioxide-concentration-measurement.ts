@@ -8,7 +8,7 @@
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace CarbonDioxideConcentrationMeasurement {

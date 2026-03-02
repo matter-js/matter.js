@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, camelize, InternalError } from "#general";
 import { type Model } from "#models/Model.js";
 import { type ValueModel } from "#models/ValueModel.js";
+import { asError, camelize, InternalError } from "@matter/general";
 import { FeatureSet, FieldValue, Metatype } from "../common/index.js";
 import { BasicToken, Lexer, TokenStream } from "../parser/index.js";
 import { Aspect } from "./Aspect.js";

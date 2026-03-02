@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/electrical-sensor";
+export * from "@matter/node/endpoints/electrical-sensor";

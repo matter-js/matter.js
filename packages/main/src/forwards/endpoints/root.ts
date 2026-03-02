@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/root";
+export * from "@matter/node/endpoints/root";

@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { AsyncObservable, Transaction } from "#general";
-import { DataModelPath, Schema } from "#model";
-import type { AccessControl, InteractionSettings, Val } from "#protocol";
+import type { AsyncObservable, Transaction } from "@matter/general";
+import { DataModelPath, Schema } from "@matter/model";
+import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
 

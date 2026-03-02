@@ -6,7 +6,7 @@
 
 import { InvalidMetadataError } from "#decoration/errors.js";
 import { FieldSemantics } from "#decoration/semantics/FieldSemantics.js";
-import { Decorator } from "#general";
+import { Decorator } from "@matter/general";
 
 /**
  * Mark a field as mandatory.

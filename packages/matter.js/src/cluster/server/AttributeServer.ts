@@ -5,9 +5,17 @@
  */
 
 import { Endpoint } from "#device/Endpoint.js";
-import { ImplementationError, InternalError, Logger, MatterError, camelize, isDeepEqual, serialize } from "#general";
-import { AccessLevel, AttributeModel, ClusterModel, DatatypeModel, FabricIndex, MatterModel } from "#model";
-import { Fabric, Message, NoAssociatedFabricError, SecureSession, Session } from "#protocol";
+import {
+    ImplementationError,
+    InternalError,
+    Logger,
+    MatterError,
+    camelize,
+    isDeepEqual,
+    serialize,
+} from "@matter/general";
+import { AccessLevel, AttributeModel, ClusterModel, DatatypeModel, FabricIndex, MatterModel } from "@matter/model";
+import { Fabric, Message, NoAssociatedFabricError, SecureSession, Session } from "@matter/protocol";
 import {
     Attribute,
     AttributeId,
@@ -21,7 +29,7 @@ import {
     TlvSchema,
     TypeFromPartialBitSchema,
     ValidationError,
-} from "#types";
+} from "@matter/types";
 import { ClusterDatasource } from "./ClusterDatasource.js";
 
 const logger = Logger.get("AttributeServer");

@@ -5,14 +5,14 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { Observable, ServerAddress, ServerAddressUdp } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "#protocol";
-import { EventNumber } from "#types";
+import { Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
+import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
+import { EventNumber } from "@matter/types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 

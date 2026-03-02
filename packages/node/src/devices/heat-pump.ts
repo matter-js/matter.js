@@ -10,7 +10,7 @@ import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/Iden
 import { ThermostatBehavior as BaseThermostatBehavior } from "../behaviors/thermostat/ThermostatBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Heat Pump device is a device that uses electrical energy to heat either spaces or water tanks using ground, water

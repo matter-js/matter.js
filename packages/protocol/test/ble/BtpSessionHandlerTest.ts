@@ -8,7 +8,7 @@ import { BleDisconnectedError } from "#ble/Ble.js";
 import { BTP_SEND_ACK_TIMEOUT } from "#ble/BleConsts.js";
 import { BtpFlowError, BtpProtocolError, BtpSessionHandler } from "#ble/BtpSessionHandler.js";
 import { BtpCodec } from "#codec/BtpCodec.js";
-import { Bytes, createPromise } from "#general";
+import { Bytes, createPromise } from "@matter/general";
 
 describe("BtpSessionHandler", () => {
     before(MockTime.enable);

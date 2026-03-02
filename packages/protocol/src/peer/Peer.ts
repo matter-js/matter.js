@@ -6,8 +6,12 @@
 
 import type { ClientInteraction } from "#action/client/ClientInteraction.js";
 import type { NodeProtocol } from "#action/protocols.js";
-import { BasicInformation } from "#clusters/basic-information";
 import { DiscoveryData } from "#common/Scanner.js";
+import { getOperationalDeviceQname } from "#mdns/MdnsConsts.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import type { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import type { NodeSession } from "#session/NodeSession.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     Abort,
     AbortedError,
@@ -30,13 +34,9 @@ import {
     ServerAddressUdp,
     Time,
     Timestamp,
-} from "#general";
-import { getOperationalDeviceQname } from "#mdns/MdnsConsts.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import type { ExchangeProvider } from "#protocol/ExchangeProvider.js";
-import type { NodeSession } from "#session/NodeSession.js";
-import { SessionParameters } from "#session/SessionParameters.js";
-import type { GlobalAttributes, TypeFromSchema } from "#types";
+} from "@matter/general";
+import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
 import { PeerUnreachableError } from "./PeerCommunicationError.js";
 import { PeerConnection } from "./PeerConnection.js";

@@ -14,14 +14,14 @@ import { TlvNodeId } from "../datatype/NodeId.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvEnum, TlvUInt8, TlvUInt32, TlvUInt16, TlvUInt64, TlvInt64 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { TlvByteString } from "../tlv/TlvString.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace OtaSoftwareUpdateRequestor {

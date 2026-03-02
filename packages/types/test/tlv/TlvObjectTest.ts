@@ -6,7 +6,6 @@
 
 import { ValidationError } from "#common/ValidationError.js";
 import { FabricIndex, TlvFabricIndex } from "#datatype/FabricIndex.js";
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
@@ -21,6 +20,7 @@ import {
 } from "#tlv/TlvObject.js";
 import { TypeFromSchema } from "#tlv/TlvSchema.js";
 import { TlvString } from "#tlv/TlvString.js";
+import { Bytes } from "@matter/general";
 
 const schema = TlvObject({
     /** Mandatory field jsdoc */

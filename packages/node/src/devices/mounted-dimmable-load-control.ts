@@ -18,7 +18,7 @@ import {
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Mounted Dimmable Load Control is a fixed device that provides power to a load connected to it, and is capable of

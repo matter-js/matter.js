@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/boolean-state";
+export * from "@matter/node/behaviors/boolean-state";

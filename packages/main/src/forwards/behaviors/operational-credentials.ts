@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/operational-credentials";
+export * from "@matter/node/behaviors/operational-credentials";

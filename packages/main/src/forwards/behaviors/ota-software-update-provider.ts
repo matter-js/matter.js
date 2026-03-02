@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/ota-software-update-provider";
+export * from "@matter/node/behaviors/ota-software-update-provider";

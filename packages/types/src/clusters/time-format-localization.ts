@@ -9,10 +9,10 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace TimeFormatLocalization {

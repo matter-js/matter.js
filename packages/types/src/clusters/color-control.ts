@@ -22,9 +22,9 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvString } from "../tlv/TlvString.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ColorControl {

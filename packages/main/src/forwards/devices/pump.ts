@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/pump";
+export * from "@matter/node/devices/pump";

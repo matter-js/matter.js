@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DoorLock } from "#clusters/door-lock";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { DoorLock } from "@matter/types/clusters/door-lock";
 import { DoorLockBehavior } from "./DoorLockBehavior.js";
 import LockState = DoorLock.LockState;
 

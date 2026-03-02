@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { ClusterType } from "#types";
+import { ClusterType } from "@matter/types";
 
 /**
  * Create a non-functional instance of a {@link Behavior} for introspection purposes.

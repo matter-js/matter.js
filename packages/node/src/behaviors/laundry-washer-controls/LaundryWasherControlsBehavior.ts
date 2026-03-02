@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { LaundryWasherControls } from "#clusters/laundry-washer-controls";
+import { LaundryWasherControls } from "@matter/types/clusters/laundry-washer-controls";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * LaundryWasherControlsBehavior is the base class for objects that support interaction with

@@ -20,7 +20,7 @@ import {
     X509,
     X520,
     X962,
-} from "#general";
+} from "@matter/general";
 import {
     CaseAuthenticatedTag,
     FabricId,
@@ -28,7 +28,7 @@ import {
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
 import { assertCertificateDerSize, Unsigned } from "./common.js";
 import {
     FabricId_Matter,

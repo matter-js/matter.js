@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/messages";
+export * from "@matter/types/clusters/messages";

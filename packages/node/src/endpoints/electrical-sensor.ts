@@ -14,9 +14,9 @@ import {
     ElectricalEnergyMeasurementServer as BaseElectricalEnergyMeasurementServer
 } from "../behaviors/electrical-energy-measurement/ElectricalEnergyMeasurementServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
-import { DeviceClassification } from "#model";
+import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * An Electrical Sensor device measures the electrical power and/or energy being imported and/or exported.

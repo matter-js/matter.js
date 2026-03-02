@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { FormaldehydeConcentrationMeasurement } from "#clusters/formaldehyde-concentration-measurement";
+import { FormaldehydeConcentrationMeasurement } from "@matter/types/clusters/formaldehyde-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const FormaldehydeConcentrationMeasurementClientConstructor = ClientBehavior(
     FormaldehydeConcentrationMeasurement.Complete

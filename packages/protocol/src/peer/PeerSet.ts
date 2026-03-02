@@ -4,6 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MdnsService } from "#mdns/MdnsService.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { ExchangeManager } from "#protocol/ExchangeManager.js";
+import { Session } from "#session/Session.js";
+import { SessionManager } from "#session/SessionManager.js";
 import {
     Abort,
     AsyncObservable,
@@ -23,13 +28,8 @@ import {
     ObserverGroup,
     RetrySchedule,
     ServerAddressUdp,
-} from "#general";
-import { MdnsService } from "#mdns/MdnsService.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { ExchangeManager } from "#protocol/ExchangeManager.js";
-import { Session } from "#session/Session.js";
-import { SessionManager } from "#session/SessionManager.js";
-import { FabricIndex } from "#types";
+} from "@matter/general";
+import { FabricIndex } from "@matter/types";
 import { NetworkProfiles } from "./NetworkProfile.js";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";

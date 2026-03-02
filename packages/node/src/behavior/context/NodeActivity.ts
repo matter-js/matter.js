@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, ObservableValue } from "#general";
+import { Diagnostic, ObservableValue } from "@matter/general";
 
 /**
  * Tracks activity associated with a node.

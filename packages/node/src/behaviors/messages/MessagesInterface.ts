@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { Messages } from "#clusters/messages";
+import { MaybePromise } from "@matter/general";
+import { Messages } from "@matter/types/clusters/messages";
 
 export namespace MessagesInterface {
     export interface Base {

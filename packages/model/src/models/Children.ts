@@ -6,7 +6,7 @@
 
 import { ElementTag } from "#common/ElementTag.js";
 import { AnyElement, BaseElement } from "#elements/index.js";
-import { camelize, ImplementationError } from "#general";
+import { camelize, ImplementationError } from "@matter/general";
 import type { Model } from "./Model.js";
 
 /**

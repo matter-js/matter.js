@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/fixed-label";
+export * from "@matter/node/behaviors/fixed-label";

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PowerSource } from "#clusters/power-source";
+import { PowerSource } from "@matter/types/clusters/power-source";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * PowerSourceBehavior is the base class for objects that support interaction with {@link PowerSource.Cluster}.

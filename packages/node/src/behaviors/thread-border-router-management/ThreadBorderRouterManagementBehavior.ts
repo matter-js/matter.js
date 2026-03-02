@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThreadBorderRouterManagement } from "#clusters/thread-border-router-management";
+import { ThreadBorderRouterManagement } from "@matter/types/clusters/thread-border-router-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ThreadBorderRouterManagementInterface } from "./ThreadBorderRouterManagementInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ThreadBorderRouterManagementBehavior is the base class for objects that support interaction with

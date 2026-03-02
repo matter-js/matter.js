@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { MediaPlayback } from "#clusters/media-playback";
+import { MaybePromise } from "@matter/general";
+import { MediaPlayback } from "@matter/types/clusters/media-playback";
 
 export namespace MediaPlaybackInterface {
     export interface Base {

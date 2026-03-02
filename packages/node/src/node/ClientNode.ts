@@ -15,12 +15,12 @@ import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
 import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
-import { Construction, Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "#general";
-import { Matter, MatterModel } from "#model";
-import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "#protocol";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { Construction, Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "@matter/general";
+import { Matter, MatterModel } from "@matter/model";
+import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
 import { ClientNodeInteraction } from "./client/ClientNodeInteraction.js";
 import { Node } from "./Node.js";

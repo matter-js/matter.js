@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/cooktop";
+export * from "@matter/node/devices/cooktop";

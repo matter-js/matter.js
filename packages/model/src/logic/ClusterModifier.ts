@@ -7,10 +7,10 @@
 import { Constraint } from "#aspects/Constraint.js";
 import type { ElementTag } from "#common/ElementTag.js";
 import type { FieldValue } from "#common/FieldValue.js";
-import { isDeepEqual } from "#general";
 import type { ClusterModel } from "#models/ClusterModel.js";
 import { Model as Schema, StructuralModelError } from "#models/Model.js";
 import { ValueModel } from "#models/ValueModel.js";
+import { isDeepEqual } from "@matter/general";
 import { Scope } from "./Scope.js";
 
 /**

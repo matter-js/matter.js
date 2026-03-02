@@ -4,8 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { GroupKeyManagement } from "#clusters/group-key-management";
-import { BasicSet, Bytes, Crypto, DataReader, ImplementationError, MatterFlowError, Time, Timestamp } from "#general";
+import {
+    BasicSet,
+    Bytes,
+    Crypto,
+    DataReader,
+    ImplementationError,
+    MatterFlowError,
+    Time,
+    Timestamp,
+} from "@matter/general";
+import type { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 export const GROUP_KEY_INFO = Bytes.fromString("GroupKeyHash");
 

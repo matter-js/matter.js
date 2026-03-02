@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/oven-cavity-operational-state";
+export * from "@matter/types/clusters/oven-cavity-operational-state";

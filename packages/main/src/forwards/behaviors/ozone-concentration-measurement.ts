@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/ozone-concentration-measurement";
+export * from "@matter/node/behaviors/ozone-concentration-measurement";

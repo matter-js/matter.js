@@ -16,8 +16,8 @@ import {
     MaybePromise,
     Observable,
     Transaction,
-} from "#general";
-import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val } from "#protocol";
+} from "@matter/general";
+import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val } from "@matter/protocol";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { StateType } from "../StateType.js";

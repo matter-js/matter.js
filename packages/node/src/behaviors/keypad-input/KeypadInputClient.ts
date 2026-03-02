@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { KeypadInput } from "#clusters/keypad-input";
+import { KeypadInput } from "@matter/types/clusters/keypad-input";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const KeypadInputClientConstructor = ClientBehavior(KeypadInput.Complete);
 export interface KeypadInputClient extends InstanceType<typeof KeypadInputClientConstructor> {}

@@ -5,10 +5,10 @@
  */
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
-import { ColorControl } from "#clusters/color-control";
-import { OnOff } from "#clusters/on-off";
-import { WindowCovering } from "#clusters/window-covering";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
+import { ColorControl } from "@matter/types/clusters/color-control";
+import { OnOff } from "@matter/types/clusters/on-off";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 
 const WC1 = ClusterBehavior.for(WindowCovering.Cluster.with("Lift"));
 const WC2 = ClusterBehavior.for(WindowCovering.Cluster.with("Tilt", "PositionAwareTilt"));

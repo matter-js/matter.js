@@ -7,7 +7,7 @@
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { IndexBehavior } from "#behavior/system/index/IndexBehavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { ImplementationError } from "#general";
+import { ImplementationError } from "@matter/general";
 import { PeerAddress } from "@matter/protocol";
 
 /**

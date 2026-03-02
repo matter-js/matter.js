@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ContentAppObserver } from "#clusters/content-app-observer";
+import { MaybePromise } from "@matter/general";
+import { ContentAppObserver } from "@matter/types/clusters/content-app-observer";
 
 export namespace ContentAppObserverInterface {
     export interface Base {

@@ -5,9 +5,9 @@
  */
 
 import { BlePeripheralInterface } from "#ble/Ble.js";
-import { Bytes, Duration, ImplementationError, Lifetime, Millis } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
-import { MAXIMUM_COMMISSIONING_TIMEOUT } from "#types";
+import { Bytes, Duration, ImplementationError, Lifetime, Millis } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
+import { MAXIMUM_COMMISSIONING_TIMEOUT } from "@matter/types";
 import { Advertisement } from "../Advertisement.js";
 import { Advertiser } from "../Advertiser.js";
 import { CommissioningMode } from "../CommissioningMode.js";

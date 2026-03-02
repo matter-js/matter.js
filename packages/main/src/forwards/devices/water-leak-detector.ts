@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/water-leak-detector";
+export * from "@matter/node/devices/water-leak-detector";

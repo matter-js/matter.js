@@ -11,7 +11,7 @@ import { Attribute, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvInt16, TlvUInt16, TlvInt8 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace PressureMeasurement {

@@ -11,8 +11,8 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { AccessControl, hasLocalActor, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits, WildcardPathFlagsCodec } from "#action/server/DataResponse.js";
 import { Val } from "#action/Val.js";
-import { InternalError, Logger, serialize } from "#general";
-import { AttributeModel, DataModelPath, ElementTag } from "#model";
+import { InternalError, Logger, serialize } from "@matter/general";
+import { AttributeModel, DataModelPath, ElementTag } from "@matter/model";
 import {
     AttributePath,
     ClusterId,
@@ -23,7 +23,7 @@ import {
     StatusCode,
     StatusResponseError,
     TlvSchema,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("AttributeReadResponse");
 

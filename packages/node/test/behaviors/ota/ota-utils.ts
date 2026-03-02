@@ -7,14 +7,20 @@
 import { OtaUpdateAvailableDetails, SoftwareUpdateManager } from "#behavior/system/software-update/index.js";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update-requestor";
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
-import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { DclOtaUpdateService, OtaImageWriter, OtaUpdateSource, PeerAddress, PersistedFileDesignator } from "#protocol";
-import { VendorId } from "#types";
+import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "@matter/general";
+import {
+    DclOtaUpdateService,
+    OtaImageWriter,
+    OtaUpdateSource,
+    PeerAddress,
+    PersistedFileDesignator,
+} from "@matter/protocol";
+import { VendorId } from "@matter/types";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { MockSite } from "../../node/mock-site.js";
 
 /**

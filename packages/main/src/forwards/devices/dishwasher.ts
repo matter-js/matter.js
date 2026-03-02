@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/dishwasher";
+export * from "@matter/node/devices/dishwasher";

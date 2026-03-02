@@ -3,8 +3,8 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { BitFlag, BitmapSchema, TypeFromPartialBitSchema } from "#types";
 import { Bytes } from "@matter/general";
+import { BitFlag, BitmapSchema, TypeFromPartialBitSchema } from "@matter/types";
 
 export const ExtensionKeyUsageBitmap = {
     digitalSignature: BitFlag(0),

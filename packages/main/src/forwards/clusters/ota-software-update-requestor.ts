@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/ota-software-update-requestor";
+export * from "@matter/types/clusters/ota-software-update-requestor";

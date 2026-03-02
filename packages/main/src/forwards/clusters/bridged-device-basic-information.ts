@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/bridged-device-basic-information";
+export * from "@matter/types/clusters/bridged-device-basic-information";

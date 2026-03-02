@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/concentration-measurement";
+export * from "@matter/node/behaviors/concentration-measurement";

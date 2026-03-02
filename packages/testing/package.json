@@ -40,10 +40,6 @@
         "url": "https://github.com/matter-js/matter.js/issues"
     },
     "homepage": "https://github.com/matter-js/matter.js#readme",
-    "imports": {
-        "#tools": "@matter/tools",
-        "#tools/ansi-text": "@matter/tools/ansi-text"
-    },
     "dependencies": {
         "@matter/tools": "*",
         "@types/express": "^5.0.6",

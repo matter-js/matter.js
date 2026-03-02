@@ -11,8 +11,8 @@ import { WritableAttribute, Attribute, Command, TlvNoResponse, OptionalCommand }
 import { TlvUInt16, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
-import { Identity } from "#general";
+import { AccessLevel } from "@matter/model";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Identify {

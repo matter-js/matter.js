@@ -6,9 +6,9 @@
 
 import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
-import { BasicSet, Environment, Environmental, Lifetime, Millis, Time, Timer, Timestamp } from "#general";
 import { SubscriptionId } from "#interaction/Subscription.js";
 import { PeerAddress } from "#peer/PeerAddress.js";
+import { BasicSet, Environment, Environmental, Lifetime, Millis, Time, Timer, Timestamp } from "@matter/general";
 import { ClientSubscription } from "./ClientSubscription.js";
 import type { PeerSubscription } from "./PeerSubscription.js";
 

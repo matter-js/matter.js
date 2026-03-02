@@ -33,15 +33,6 @@
     "bin": {
         "matter-shell": "dist/cjs/app.js"
     },
-    "imports": {
-        "#general": "@matter/general",
-        "#model": "@matter/model",
-        "#node": "@matter/node",
-        "#nodejs": "@matter/nodejs",
-        "#nodejs-ble": "@matter/nodejs-ble",
-        "#protocol": "@matter/protocol",
-        "#types": "@matter/types"
-    },
     "dependencies": {
         "@matter/general": "*",
         "@matter/model": "*",

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Diagnostic } from "#general";
-import { Specification } from "#model";
+import { camelize, Diagnostic } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     AttributePath,
     ClusterType,
@@ -14,7 +14,7 @@ import {
     EventPath,
     GlobalAttributes,
     ReadRequest,
-} from "#types";
+} from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 

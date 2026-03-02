@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/group-key-management";
+export * from "@matter/node/behaviors/group-key-management";

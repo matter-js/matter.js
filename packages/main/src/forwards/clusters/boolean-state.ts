@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/boolean-state";
+export * from "@matter/types/clusters/boolean-state";

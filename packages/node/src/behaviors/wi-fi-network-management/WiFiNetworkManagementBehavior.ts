@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WiFiNetworkManagement } from "#clusters/wi-fi-network-management";
+import { WiFiNetworkManagement } from "@matter/types/clusters/wi-fi-network-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { WiFiNetworkManagementInterface } from "./WiFiNetworkManagementInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * WiFiNetworkManagementBehavior is the base class for objects that support interaction with

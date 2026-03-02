@@ -5,9 +5,9 @@
  */
 
 import { InvalidMetadataError } from "#decoration/errors.js";
-import { InternalError } from "#general";
 import { FieldModel } from "#models/FieldModel.js";
 import type { Model } from "#models/Model.js";
+import { InternalError } from "@matter/general";
 import type { ClassSemantics } from "./ClassSemantics.js";
 import { Semantics } from "./Semantics.js";
 

@@ -10,8 +10,8 @@ import { Invoke } from "#action/request/Invoke.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
-import { Diagnostic, InternalError, Logger } from "#general";
-import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "#model";
+import { Diagnostic, InternalError, Logger } from "@matter/general";
+import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     CommandPath,
     EndpointNumber,
@@ -22,7 +22,7 @@ import {
     TlvSchema,
     TlvStream,
     ValidationError,
-} from "#types";
+} from "@matter/types";
 import { Subject } from "./Subject.js";
 
 const logger = Logger.get("CommandInvokeResponse");

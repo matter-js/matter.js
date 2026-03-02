@@ -12,7 +12,7 @@ import { FanControlServer as BaseFanControlServer } from "../behaviors/fan-contr
 import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Fan device is typically standalone or mounted on a ceiling or wall and is used to circulate air in a room.

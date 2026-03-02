@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/color-dimmer-switch";
+export * from "@matter/node/devices/color-dimmer-switch";

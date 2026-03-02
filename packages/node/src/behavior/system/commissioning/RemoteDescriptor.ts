@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Immutable, ServerAddress } from "#general";
-import { CommissionableDevice, OperationalDevice, PeerAddress } from "#protocol";
-import { DeviceTypeId, VendorId } from "#types";
+import { Immutable, ServerAddress } from "@matter/general";
+import { CommissionableDevice, OperationalDevice, PeerAddress } from "@matter/protocol";
+import { DeviceTypeId, VendorId } from "@matter/types";
 import type { CommissioningClient } from "./CommissioningClient.js";
 
 /**

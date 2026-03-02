@@ -15,7 +15,7 @@ import {
 } from "../behaviors/commissioner-control/CommissionerControlServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This device type aggregates endpoints as a collection. Clusters on the endpoint indicating this device type provide

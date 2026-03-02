@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#endpoints/ota-requestor";
+export * from "@matter/node/endpoints/ota-requestor";

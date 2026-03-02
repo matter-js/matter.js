@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Diagnostic, ImplementationError, Lifecycle, Logger, Observable } from "#general";
 import type { Node } from "#node/Node.js";
+import { AsyncObservable, Diagnostic, ImplementationError, Lifecycle, Logger, Observable } from "@matter/general";
 import type { Endpoint } from "../Endpoint.js";
 
 const logger = Logger.get("PartLifecycle");

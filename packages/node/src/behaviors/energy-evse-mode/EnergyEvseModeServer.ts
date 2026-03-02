@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { EnergyEvseMode } from "#clusters/energy-evse-mode";
-import { ModeBase } from "#clusters/mode-base";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { EnergyEvseMode } from "@matter/types/clusters/energy-evse-mode";
+import { ModeBase } from "@matter/types/clusters/mode-base";
 import { EnergyEvseModeBehavior } from "./EnergyEvseModeBehavior.js";
 
 /**

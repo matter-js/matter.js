@@ -10,10 +10,9 @@ import { Transitions } from "#behavior/Transitions.js";
 import { GeneralDiagnosticsBehavior } from "#behaviors/general-diagnostics";
 import { OnOffServer } from "#behaviors/on-off";
 import { ScenesManagementServer } from "#behaviors/scenes-management";
-import { ColorControl } from "#clusters/color-control";
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     addValueWithOverflow,
     AsyncObservable,
@@ -22,10 +21,11 @@ import {
     Logger,
     MaybePromise,
     Millis,
-} from "#general";
-import { ServerNode } from "#node/ServerNode.js";
-import { Val } from "#protocol";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "#types";
+} from "@matter/general";
+import { Val } from "@matter/protocol";
+import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { ColorControl } from "@matter/types/clusters/color-control";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ColorControlBehavior } from "./ColorControlBehavior.js";
 import {
     hsvToMireds,

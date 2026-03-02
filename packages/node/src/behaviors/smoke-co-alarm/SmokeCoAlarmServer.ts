@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SmokeCoAlarm } from "#clusters/smoke-co-alarm";
-import { ClusterType } from "#types";
+import { ClusterType } from "@matter/types";
+import { SmokeCoAlarm } from "@matter/types/clusters/smoke-co-alarm";
 import { SmokeCoAlarmBehavior } from "./SmokeCoAlarmBehavior.js";
 
 const SmokeCoAlarmBase = SmokeCoAlarmBehavior.with(SmokeCoAlarm.Feature.SmokeAlarm, SmokeCoAlarm.Feature.CoAlarm);

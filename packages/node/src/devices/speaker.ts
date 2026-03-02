@@ -10,7 +10,7 @@ import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.
 import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This defines conformance to the Speaker device type.

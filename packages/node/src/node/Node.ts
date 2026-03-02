@@ -24,9 +24,9 @@ import {
     ImplementationError,
     Logger,
     MatterError,
-} from "#general";
-import { Interactable } from "#protocol";
-import type { EndpointNumber } from "#types";
+} from "@matter/general";
+import { Interactable } from "@matter/protocol";
+import type { EndpointNumber } from "@matter/types";
 import { RootEndpoint } from "../endpoints/root.js";
 import { NodeLifecycle } from "./NodeLifecycle.js";
 import { ProtocolService } from "./integration/ProtocolService.js";

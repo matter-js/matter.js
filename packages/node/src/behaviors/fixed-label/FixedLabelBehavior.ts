@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { FixedLabel } from "#clusters/fixed-label";
+import { FixedLabel } from "@matter/types/clusters/fixed-label";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * FixedLabelBehavior is the base class for objects that support interaction with {@link FixedLabel.Cluster}.

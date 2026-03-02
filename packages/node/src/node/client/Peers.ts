@@ -18,6 +18,9 @@ import { OperationalCredentialsClient } from "#behaviors/operational-credentials
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointContainer } from "#endpoint/properties/EndpointContainer.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
+import { ClientGroup } from "#node/ClientGroup.js";
+import { InteractionServer } from "#node/server/InteractionServer.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     CancelablePromise,
     Diagnostic,
@@ -31,11 +34,14 @@ import {
     Time,
     Timestamp,
     UninitializedDependencyError,
-} from "#general";
-import { ClientGroup } from "#node/ClientGroup.js";
-import { InteractionServer } from "#node/server/InteractionServer.js";
-import { ClientSubscriptionHandler, ClientSubscriptions, FabricManager, PeerAddress, SessionManager } from "#protocol";
-import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+} from "@matter/general";
+import {
+    ClientSubscriptionHandler,
+    ClientSubscriptions,
+    FabricManager,
+    PeerAddress,
+    SessionManager,
+} from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { ClientNode } from "../ClientNode.js";
 import type { ServerNode } from "../ServerNode.js";

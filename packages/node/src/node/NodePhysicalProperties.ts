@@ -8,14 +8,14 @@ import { DescriptorClient } from "#behaviors/descriptor";
 import { NetworkCommissioningClient } from "#behaviors/network-commissioning";
 import { PowerSourceClient } from "#behaviors/power-source";
 import { ThreadNetworkDiagnosticsClient } from "#behaviors/thread-network-diagnostics";
-import { PowerSource } from "#clusters/power-source";
-import { ThreadNetworkDiagnostics } from "#clusters/thread-network-diagnostics";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
-import { IcdManagement } from "#model";
 import { Node } from "#node/Node.js";
-import { PhysicalDeviceProperties } from "#protocol";
-import { ClusterId } from "#types";
+import { IcdManagement } from "@matter/model";
+import { PhysicalDeviceProperties } from "@matter/protocol";
+import { ClusterId } from "@matter/types";
+import { PowerSource } from "@matter/types/clusters/power-source";
+import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 
 /**
  * Inspects a node to generate {@link PhysicalDeviceProperties}.

@@ -9,6 +9,8 @@ import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavi
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { Node } from "#node/Node.js";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     Crypto,
     DataReadQueue,
@@ -22,12 +24,10 @@ import {
     NetworkSimulator,
     StorageBackendMemory,
     StorageService,
-} from "#general";
-import { AccessLevel } from "#model";
-import { Node } from "#node/Node.js";
-import { ServerNode } from "#node/ServerNode.js";
-import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "#protocol";
-import { FabricIndex, NodeId } from "#types";
+} from "@matter/general";
+import { AccessLevel } from "@matter/model";
+import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "@matter/protocol";
+import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "./mock-exchange.js";
 
 export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint> extends ServerNode<T> {

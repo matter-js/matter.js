@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/nitrogen-dioxide-concentration-measurement";
+export * from "@matter/node/behaviors/nitrogen-dioxide-concentration-measurement";

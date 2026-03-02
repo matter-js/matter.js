@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/pump-configuration-and-control";
+export * from "@matter/types/clusters/pump-configuration-and-control";

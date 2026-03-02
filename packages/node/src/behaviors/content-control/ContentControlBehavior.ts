@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ContentControl } from "#clusters/content-control";
+import { ContentControl } from "@matter/types/clusters/content-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ContentControlInterface } from "./ContentControlInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ContentControlBehavior is the base class for objects that support interaction with {@link ContentControl.Cluster}.

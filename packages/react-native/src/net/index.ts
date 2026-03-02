@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, Network } from "#general";
+import { Environment, Network } from "@matter/general";
 
 export * from "./NetworkReactNative.js";
 

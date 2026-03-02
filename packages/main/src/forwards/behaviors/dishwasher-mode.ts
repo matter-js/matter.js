@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/dishwasher-mode";
+export * from "@matter/node/behaviors/dishwasher-mode";

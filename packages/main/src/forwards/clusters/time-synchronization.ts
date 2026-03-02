@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/time-synchronization";
+export * from "@matter/types/clusters/time-synchronization";

@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/content-launcher";
+export * from "@matter/node/behaviors/content-launcher";

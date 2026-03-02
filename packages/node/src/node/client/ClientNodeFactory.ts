@@ -5,9 +5,9 @@
  */
 
 import type { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import type { ImmutableSet } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
-import type { PeerAddress } from "#protocol";
+import type { ImmutableSet } from "@matter/general";
+import type { PeerAddress } from "@matter/protocol";
 
 /**
  * Create a new client node.

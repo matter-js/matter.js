@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const GeneralDiagnosticsClientConstructor = ClientBehavior(GeneralDiagnostics.Complete);
 export interface GeneralDiagnosticsClient extends InstanceType<typeof GeneralDiagnosticsClientConstructor> {}

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, InternalError } from "#general";
-import { BdxMessageType, Schema, SchemaType } from "#types";
+import { Bytes, InternalError } from "@matter/general";
+import { BdxMessageType, Schema, SchemaType } from "@matter/types";
 import { BdxReceiveAcceptMessage, BdxSendAcceptMessage } from "./BdxAcceptMessagesSchema.js";
 import {
     BdxBlockAckEofMessage,

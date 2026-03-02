@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/activated-carbon-filter-monitoring";
+export * from "@matter/node/behaviors/activated-carbon-filter-monitoring";

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { BridgedDeviceBasicInformation } from "#clusters/bridged-device-basic-information";
+import { MaybePromise } from "@matter/general";
+import { BridgedDeviceBasicInformation } from "@matter/types/clusters/bridged-device-basic-information";
 
 export namespace BridgedDeviceBasicInformationInterface {
     export interface BridgedIcdSupport {

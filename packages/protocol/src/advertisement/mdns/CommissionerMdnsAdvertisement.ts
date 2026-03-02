@@ -6,12 +6,12 @@
 
 import type { Advertisement } from "#advertisement/Advertisement.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
-import { PtrRecord } from "#general";
 import {
     getCommissionerDeviceQname,
     MATTER_COMMISSIONER_SERVICE_QNAME,
     SERVICE_DISCOVERY_QNAME,
 } from "#mdns/MdnsConsts.js";
+import { PtrRecord } from "@matter/general";
 import { MdnsAdvertisement } from "./MdnsAdvertisement.js";
 import type { MdnsAdvertiser } from "./MdnsAdvertiser.js";
 

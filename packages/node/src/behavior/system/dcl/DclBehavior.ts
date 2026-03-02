@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { DclCertificateService, DclConfig, DclOtaUpdateService } from "#protocol";
+import { DclCertificateService, DclConfig, DclOtaUpdateService } from "@matter/protocol";
 
 /**
  * DCL (Distributed Compliance Ledger) configuration behavior.

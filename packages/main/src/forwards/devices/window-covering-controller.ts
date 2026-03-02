@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/window-covering-controller";
+export * from "@matter/node/devices/window-covering-controller";

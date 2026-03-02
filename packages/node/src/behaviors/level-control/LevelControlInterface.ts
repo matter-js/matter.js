@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { LevelControl } from "#clusters/level-control";
+import { MaybePromise } from "@matter/general";
+import { LevelControl } from "@matter/types/clusters/level-control";
 
 export namespace LevelControlInterface {
     export interface Base {

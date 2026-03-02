@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/wi-fi-network-management";
+export * from "@matter/node/behaviors/wi-fi-network-management";

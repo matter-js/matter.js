@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { CommissionerControl } from "#clusters/commissioner-control";
+import { MaybePromise } from "@matter/general";
+import { CommissionerControl } from "@matter/types/clusters/commissioner-control";
 
 export namespace CommissionerControlInterface {
     export interface Base {

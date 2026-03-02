@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/label";
+export * from "@matter/node/behaviors/label";

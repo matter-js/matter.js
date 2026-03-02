@@ -14,7 +14,7 @@ import { TlvPercent, TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace EnergyPreference {

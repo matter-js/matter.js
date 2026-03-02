@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { GroupKeyManagement } from "#clusters/group-key-management";
+import { MaybePromise } from "@matter/general";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 
 export namespace GroupKeyManagementInterface {
     export interface Base {

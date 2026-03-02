@@ -10,18 +10,15 @@
  * @deprecated
  */
 
-import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
 import {
     InteractionClientProvider,
     NodeDiscoveryType,
     PeerConnectionOptions,
 } from "#cluster/client/InteractionClient.js";
-import { BasicInformation, GeneralCommissioning } from "#clusters";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
-import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     BasicMultiplex,
     Bytes,
@@ -47,7 +44,7 @@ import {
     StorageService,
     SupportedStorageTypes,
     Time,
-} from "#general";
+} from "@matter/general";
 import {
     ClientNode,
     ClientNodePhysicalProperties,
@@ -61,7 +58,9 @@ import {
     RemoteDescriptor,
     ServerNode,
     ServerNodeStore,
-} from "#node";
+} from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
+import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
 import {
     CertificateAuthority,
     CommissioningError,
@@ -79,7 +78,7 @@ import {
     ScannerSet,
     SecureSession,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
     DiscoveryCapabilitiesBitmap,
@@ -90,7 +89,8 @@ import {
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { BasicInformation, GeneralCommissioning } from "@matter/types/clusters";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;

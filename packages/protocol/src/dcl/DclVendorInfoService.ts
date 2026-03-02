@@ -15,7 +15,7 @@ import {
     StorageService,
     Time,
     Timer,
-} from "#general";
+} from "@matter/general";
 import { DclClient } from "./DclClient.js";
 import { DclConfig } from "./DclConfig.js";
 import { DclVendorInfo } from "./DclRestApiTypes.js";

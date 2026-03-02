@@ -15,7 +15,7 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Priority } from "../globals/Priority.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvMeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ElectricalEnergyMeasurement {

@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BleScanner as BaseBleScanner, DiscoveredBleDevice } from "#protocol";
+import { BleScanner as BaseBleScanner, DiscoveredBleDevice } from "@matter/protocol";
 import type { Peripheral } from "@stoprocent/noble";
 import { NobleBleClient } from "./NobleBleClient.js";
 
-export type { DiscoveredBleDevice } from "#protocol";
+export type { DiscoveredBleDevice } from "@matter/protocol";
 
 export type NobleDiscoveredBleDevice = Omit<DiscoveredBleDevice, "peripheral"> & { peripheral: Peripheral };
 

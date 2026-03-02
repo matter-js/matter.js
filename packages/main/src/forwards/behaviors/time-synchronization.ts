@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/time-synchronization";
+export * from "@matter/node/behaviors/time-synchronization";

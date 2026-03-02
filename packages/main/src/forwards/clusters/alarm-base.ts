@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/alarm-base";
+export * from "@matter/types/clusters/alarm-base";

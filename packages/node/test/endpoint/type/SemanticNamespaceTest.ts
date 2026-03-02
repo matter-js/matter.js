@@ -6,7 +6,7 @@
 
 import { SemanticNamespace } from "#endpoint/type/SemanticNamespace.js";
 import { RefrigeratorTag } from "#tags/RefrigeratorTag.js";
-import { Semtag } from "#types";
+import { Semtag } from "@matter/types";
 
 describe("SemanticNamespace", () => {
     it("defines tags", () => {

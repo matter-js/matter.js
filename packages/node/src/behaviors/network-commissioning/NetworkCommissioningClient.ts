@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { NetworkCommissioning } from "#clusters/network-commissioning";
+import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const NetworkCommissioningClientConstructor = ClientBehavior(NetworkCommissioning.Complete);
 export interface NetworkCommissioningClient extends InstanceType<typeof NetworkCommissioningClientConstructor> {}

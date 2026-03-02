@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, UnexpectedDataError } from "#general";
+import { Bytes, UnexpectedDataError } from "@matter/general";
 import { Schema } from "./Schema.js";
 
 const BASE38_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-.";

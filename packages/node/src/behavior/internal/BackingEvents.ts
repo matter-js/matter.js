@@ -6,7 +6,7 @@
 
 import { OnlineEvent } from "#behavior/Events.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import { EventEmitter, GeneratedClass, Observable, ObservableProxy } from "#general";
+import { EventEmitter, GeneratedClass, Observable, ObservableProxy } from "@matter/general";
 import type { BehaviorBacking } from "./BehaviorBacking.js";
 
 type Implementation = new (target: EventEmitter) => EventEmitter;

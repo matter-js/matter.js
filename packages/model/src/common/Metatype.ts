@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Duration, isObject, UnexpectedDataError } from "#general";
+import { Bytes, Duration, isObject, UnexpectedDataError } from "@matter/general";
 
 export class UnsupportedCastError extends UnexpectedDataError {}
 

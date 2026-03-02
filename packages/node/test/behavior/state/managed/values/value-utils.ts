@@ -9,11 +9,11 @@ import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { camelize, Identity, MaybePromise, MockCrypto, Observable } from "#general";
-import { DataModelPath, FieldElement, FieldModel } from "#model";
 import type { Node } from "#node/Node.js";
-import { Val } from "#protocol";
-import { ClusterId, EndpointNumber } from "#types";
+import { camelize, Identity, MaybePromise, MockCrypto, Observable } from "@matter/general";
+import { DataModelPath, FieldElement, FieldModel } from "@matter/model";
+import { Val } from "@matter/protocol";
+import { ClusterId, EndpointNumber } from "@matter/types";
 
 /**
  * Create schema for a single field.

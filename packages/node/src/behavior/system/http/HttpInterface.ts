@@ -17,8 +17,8 @@ import {
     MatterError,
     NotImplementedError,
     Stream,
-} from "#general";
-import { StatusResponse, StatusResponseError } from "#types";
+} from "@matter/general";
+import { StatusResponse, StatusResponseError } from "@matter/types";
 import { Api } from "../remote/api/Api.js";
 import { ApiPath } from "../remote/api/ApiPath.js";
 import { ApiResource } from "../remote/api/ApiResource.js";

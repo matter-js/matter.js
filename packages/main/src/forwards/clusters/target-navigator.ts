@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/target-navigator";
+export * from "@matter/types/clusters/target-navigator";

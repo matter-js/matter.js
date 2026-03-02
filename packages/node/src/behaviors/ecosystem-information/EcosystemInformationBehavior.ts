@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EcosystemInformation } from "#clusters/ecosystem-information";
+import { EcosystemInformation } from "@matter/types/clusters/ecosystem-information";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * EcosystemInformationBehavior is the base class for objects that support interaction with

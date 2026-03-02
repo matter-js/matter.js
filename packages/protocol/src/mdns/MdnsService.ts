@@ -16,7 +16,7 @@ import {
     MdnsSocket,
     Network,
     VariableService,
-} from "#general";
+} from "@matter/general";
 import { MdnsServer } from "../mdns/MdnsServer.js";
 import { MdnsClient } from "./MdnsClient.js";
 

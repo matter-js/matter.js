@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Transaction } from "#general";
 import { ExchangeLogContext } from "#protocol/MessageExchange.js";
+import { Duration, Transaction } from "@matter/general";
 
 /**
  * Configuration that applies to all interactions.

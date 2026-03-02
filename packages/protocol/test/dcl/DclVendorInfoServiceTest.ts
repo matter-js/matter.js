@@ -5,7 +5,7 @@
  */
 
 import { DclVendorInfoService } from "#dcl/DclVendorInfoService.js";
-import { Environment, Minutes, MockFetch, StorageBackendMemory, StorageManager, StorageService } from "#general";
+import { Environment, Minutes, MockFetch, StorageBackendMemory, StorageManager, StorageService } from "@matter/general";
 
 // Mock DCL vendor info responses
 const mockVendorsPage1 = {

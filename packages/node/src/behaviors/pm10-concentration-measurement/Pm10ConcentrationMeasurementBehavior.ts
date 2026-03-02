@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Pm10ConcentrationMeasurement } from "#clusters/pm10-concentration-measurement";
+import { Pm10ConcentrationMeasurement } from "@matter/types/clusters/pm10-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * Pm10ConcentrationMeasurementBehavior is the base class for objects that support interaction with

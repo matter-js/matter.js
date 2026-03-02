@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/fan-control";
+export * from "@matter/types/clusters/fan-control";

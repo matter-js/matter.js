@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Val } from "#protocol";
+import type { Val } from "@matter/protocol";
 
 /**
  * API for bypassing managed collections and accessing the internal object containing raw data.

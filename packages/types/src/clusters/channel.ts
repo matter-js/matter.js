@@ -19,7 +19,7 @@ import { Status as GlobalStatus } from "../globals/Status.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { ContentLauncher } from "./content-launcher.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Channel {

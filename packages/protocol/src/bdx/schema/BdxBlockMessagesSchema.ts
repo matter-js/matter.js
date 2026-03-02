@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DataReader, DataWriter, Endian } from "#general";
-import { Schema } from "#types";
+import { Bytes, DataReader, DataWriter, Endian } from "@matter/general";
+import { Schema } from "@matter/types";
 
 interface BdxCounterOnly {
     blockCounter: number;

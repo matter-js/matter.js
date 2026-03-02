@@ -13,6 +13,7 @@ import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { DescriptorBehavior } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import type { Node } from "#node/Node.js";
 import {
     camelize,
     Diagnostic,
@@ -22,9 +23,8 @@ import {
     MaybePromise,
     Observable,
     Transaction,
-} from "#general";
-import { AcceptedCommandList, AttributeList, ElementTag, GeneratedCommandList, Matter } from "#model";
-import type { Node } from "#node/Node.js";
+} from "@matter/general";
+import { AcceptedCommandList, AttributeList, ElementTag, GeneratedCommandList, Matter } from "@matter/model";
 import type {
     AttributeTypeProtocol,
     ClusterProtocol,
@@ -35,7 +35,7 @@ import type {
     EndpointProtocol,
     InteractionSession,
     NodeProtocol,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     EventTypeProtocol,
     FabricManager,
@@ -44,7 +44,7 @@ import {
     OccurrenceManager,
     toWildcardOrHexPath,
     Val,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeId,
     AttributePath,
@@ -58,7 +58,7 @@ import {
     EventPath,
     FabricIndex,
     WildcardPathFlags as WildcardPathFlagsType,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("ProtocolService");
 

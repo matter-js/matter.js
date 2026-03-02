@@ -17,6 +17,11 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
 import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Mark } from "#common/Mark.js";
+import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
+import { Subscription } from "#interaction/Subscription.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Abort,
     AbortedError,
@@ -40,13 +45,8 @@ import {
     Seconds,
     Time,
     Timer,
-} from "#general";
-import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
-import { Subscription } from "#interaction/Subscription.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
-import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
-import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
+} from "@matter/general";
+import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";

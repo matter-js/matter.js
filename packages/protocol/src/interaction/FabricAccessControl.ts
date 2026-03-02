@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { Subject } from "#action/server/Subject.js";
-import { AccessControl } from "#clusters/access-control";
 import type { Fabric } from "#fabric/Fabric.js";
-import { Diagnostic, InternalError, Logger, MatterFlowError } from "#general";
-import { AccessLevel } from "#model";
+import { Diagnostic, InternalError, Logger, MatterFlowError } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 import {
     CaseAuthenticatedTag,
     ClusterId,
@@ -18,7 +17,8 @@ import {
     StatusCode,
     StatusResponseError,
     SubjectId,
-} from "#types";
+} from "@matter/types";
+import { AccessControl } from "@matter/types/clusters/access-control";
 import { AccessControl as AccessControlContext } from "../action/server/AccessControl.js";
 
 const logger = Logger.get("FabricAccessControl");

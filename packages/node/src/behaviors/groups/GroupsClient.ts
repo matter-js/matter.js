@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Groups } from "#clusters/groups";
+import { Groups } from "@matter/types/clusters/groups";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const GroupsClientConstructor = ClientBehavior(Groups.Complete);
 export interface GroupsClient extends InstanceType<typeof GroupsClientConstructor> {}

@@ -6,7 +6,7 @@
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
-import { EventEmitter, Observable } from "#general";
+import { EventEmitter, Observable } from "@matter/general";
 import { Behavior } from "../../Behavior.js";
 
 /**

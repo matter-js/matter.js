@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/rvc-run-mode";
+export * from "@matter/node/behaviors/rvc-run-mode";

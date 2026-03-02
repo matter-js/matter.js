@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger, MatterError } from "#general";
-import { BLE_MATTER_SERVICE_UUID, BlePeripheral } from "#protocol";
+import { Bytes, Diagnostic, Logger, MatterError } from "@matter/general";
+import { BLE_MATTER_SERVICE_UUID, BlePeripheral } from "@matter/protocol";
 import { BleError, BleErrorCode, BleManager, State as BluetoothState, Device } from "react-native-ble-plx";
 
 export interface ReactNativeBlePeripheral extends BlePeripheral {

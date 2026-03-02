@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, ImplementationError, isObject } from "#general";
-import type { Schema } from "#model";
-import { DataModelPath, Metatype, ValueModel } from "#model";
-import { SchemaImplementationError, Val, WriteError } from "#protocol";
+import { camelize, ImplementationError, isObject } from "@matter/general";
+import type { Schema } from "@matter/model";
+import { DataModelPath, Metatype, ValueModel } from "@matter/model";
+import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 

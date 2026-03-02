@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/localization-configuration";
+export * from "@matter/node/behaviors/localization-configuration";

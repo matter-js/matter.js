@@ -28,10 +28,6 @@
         "build-clean": "matter-build --clean"
     },
     "imports": {
-        "#general": "@matter/general",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
-        "#nodejs": "@matter/nodejs",
         "#*": "./src/*"
     },
     "dependencies": {

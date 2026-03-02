@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/power-source";
+export * from "@matter/types/clusters/power-source";

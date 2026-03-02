@@ -5,15 +5,15 @@
  */
 
 import { MessagesServer } from "#behaviors/messages";
-import { BasicInformation, BasicInformationCluster } from "#clusters/basic-information";
-import { Messages } from "#clusters/messages";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
-import { Bytes, Seconds } from "#general";
 import { ServerNode } from "#index.js";
-import { AccessLevel, Specification } from "#model";
-import { EventReadResponse, Read, ReadResult } from "#protocol";
-import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "#types";
+import { Bytes, Seconds } from "@matter/general";
+import { AccessLevel, Specification } from "@matter/model";
+import { EventReadResponse, Read, ReadResult } from "@matter/protocol";
+import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "@matter/types";
+import { BasicInformation, BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { Messages } from "@matter/types/clusters/messages";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 

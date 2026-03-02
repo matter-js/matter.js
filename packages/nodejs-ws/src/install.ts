@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { WsAdapter } from "#nodejs";
+import { WsAdapter } from "@matter/nodejs";
 import { factory } from "./factory.js";
 
 WsAdapter.defaultFactory = factory;

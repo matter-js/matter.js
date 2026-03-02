@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { ModeBase } from "#clusters/mode-base";
-import { RvcCleanMode } from "#clusters/rvc-clean-mode";
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
+import { ModeBase } from "@matter/types/clusters/mode-base";
+import { RvcCleanMode } from "@matter/types/clusters/rvc-clean-mode";
 import { RvcCleanModeBehavior } from "./RvcCleanModeBehavior.js";
 
 /**

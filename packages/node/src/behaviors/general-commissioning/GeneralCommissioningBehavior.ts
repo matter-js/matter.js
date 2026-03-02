@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { GeneralCommissioning } from "#clusters/general-commissioning";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { GeneralCommissioningInterface } from "./GeneralCommissioningInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * GeneralCommissioningBehavior is the base class for objects that support interaction with

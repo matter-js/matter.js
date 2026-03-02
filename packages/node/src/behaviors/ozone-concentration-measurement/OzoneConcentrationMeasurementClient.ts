@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OzoneConcentrationMeasurement } from "#clusters/ozone-concentration-measurement";
+import { OzoneConcentrationMeasurement } from "@matter/types/clusters/ozone-concentration-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const OzoneConcentrationMeasurementClientConstructor = ClientBehavior(OzoneConcentrationMeasurement.Complete);
 export interface OzoneConcentrationMeasurementClient extends InstanceType<typeof OzoneConcentrationMeasurementClientConstructor> {}

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { AlarmBase } from "#clusters/alarm-base";
+import { MaybePromise } from "@matter/general";
+import { AlarmBase } from "@matter/types/clusters/alarm-base";
 
 export namespace AlarmBaseInterface {
     export interface Base {

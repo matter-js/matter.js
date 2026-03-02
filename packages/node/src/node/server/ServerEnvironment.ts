@@ -6,12 +6,19 @@
 
 import { limitNodeDataToAllowedFabrics } from "#behavior/cluster/FabricScopedDataHandler.js";
 import { EndpointInitializer } from "#endpoint/properties/EndpointInitializer.js";
-import { Crypto, Environment, Observable, SharedEnvironmentServices } from "#general";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import { ServerEndpointInitializer } from "#node/server/ServerEndpointInitializer.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { FabricAuthority, FabricManager, MdnsService, OccurrenceManager, PeerSet, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import { Crypto, Environment, Observable, SharedEnvironmentServices } from "@matter/general";
+import {
+    FabricAuthority,
+    FabricManager,
+    MdnsService,
+    OccurrenceManager,
+    PeerSet,
+    SessionManager,
+} from "@matter/protocol";
 import { IdentityService } from "./IdentityService.js";
 
 /**

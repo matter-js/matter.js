@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { OperationalState } from "#clusters/operational-state";
+import { MaybePromise } from "@matter/general";
+import { OperationalState } from "@matter/types/clusters/operational-state";
 
 export namespace OperationalStateInterface {
     export interface Base {

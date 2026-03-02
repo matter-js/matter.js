@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/icd-management";
+export * from "@matter/types/clusters/icd-management";

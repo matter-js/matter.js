@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, PrivateKey, Time, toHex } from "#general";
-import { VendorId } from "#types";
+import { Bytes, Crypto, PrivateKey, Time, toHex } from "@matter/general";
+import { VendorId } from "@matter/types";
 import {
     TestCert_PAA_NoVID_PrivateKey,
     TestCert_PAA_NoVID_PublicKey,

@@ -5,9 +5,16 @@
  */
 
 import { Endpoint } from "#device/Endpoint.js";
-import { ImplementationError, InternalError, isObject, MatterAggregateError, MaybePromise, Time } from "#general";
-import { AccessLevel, ClusterModel, EventModel, MatterModel } from "#model";
-import { Message, NumberedOccurrence, Occurrence, OccurrenceManager, SecureSession, Session } from "#protocol";
+import {
+    ImplementationError,
+    InternalError,
+    isObject,
+    MatterAggregateError,
+    MaybePromise,
+    Time,
+} from "@matter/general";
+import { AccessLevel, ClusterModel, EventModel, MatterModel } from "@matter/model";
+import { Message, NumberedOccurrence, Occurrence, OccurrenceManager, SecureSession, Session } from "@matter/protocol";
 import {
     Attributes,
     BitSchema,
@@ -23,7 +30,7 @@ import {
     TlvSchema,
     TypeFromPartialBitSchema,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 
 export type AnyEventServer<T = any> = EventServer<T> | FabricSensitiveEventServer<T>;
 

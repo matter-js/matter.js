@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/wi-fi-network-diagnostics";
+export * from "@matter/types/clusters/wi-fi-network-diagnostics";

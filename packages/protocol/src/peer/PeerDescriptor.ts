@@ -5,9 +5,9 @@
  */
 
 import { DiscoveryData } from "#common/Scanner.js";
-import { isDeepEqual, ServerAddressUdp } from "#general";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { CaseAuthenticatedTag } from "#types";
+import { isDeepEqual, ServerAddressUdp } from "@matter/general";
+import { CaseAuthenticatedTag } from "@matter/types";
 import { PeerAddress } from "./PeerAddress.js";
 
 /**

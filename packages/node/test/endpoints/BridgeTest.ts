@@ -10,7 +10,7 @@ import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { BridgedNodeEndpoint } from "#endpoints/bridged-node";
-import { Environment, StorageBackendMemory, StorageService } from "#general";
+import { Environment, StorageBackendMemory, StorageService } from "@matter/general";
 import { BridgedLightDevice, createBridge } from "./bridge-helpers.js";
 
 function expectBridgedLight(bridge: Endpoint) {

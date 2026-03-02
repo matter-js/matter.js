@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { BasicInformation } from "#clusters/basic-information";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * BasicInformationBehavior is the base class for objects that support interaction with

@@ -8,8 +8,8 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
-import { Bytes, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "#general";
-import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
+import { Bytes, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 
 const crypto = new StandardCrypto();
 

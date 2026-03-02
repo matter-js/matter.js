@@ -5,10 +5,10 @@
  */
 
 import { MetadataConflictError } from "#decoration/errors.js";
-import { InternalError } from "#general";
 import { CommandModel } from "#models/CommandModel.js";
 import type { Model } from "#models/Model.js";
 import * as models from "#standard/elements/models.js";
+import { InternalError } from "@matter/general";
 import type { ClassSemantics } from "./ClassSemantics.js";
 import type { FieldSemantics } from "./FieldSemantics.js";
 

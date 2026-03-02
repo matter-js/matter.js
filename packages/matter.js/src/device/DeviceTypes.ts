@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import * as MatterClusters from "#clusters";
-import { capitalize } from "#general";
-import { MatterModel } from "#model";
-import { ClusterId, DeviceTypeId } from "#types";
+import { capitalize } from "@matter/general";
+import { MatterModel } from "@matter/model";
+import { ClusterId, DeviceTypeId } from "@matter/types";
+import * as MatterClusters from "@matter/types/clusters";
 
 /**
  * General device classification categories.

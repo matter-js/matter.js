@@ -7,9 +7,9 @@
 // Must import these via index to ensure proper initialization
 import { DatatypeModel, FieldModel, Model } from "#models/index.js";
 
-import { camelize, InternalError } from "#general";
 import { Scope } from "#logic/Scope.js";
 import { any, struct } from "#standard/elements/models.js";
+import { camelize, InternalError } from "@matter/general";
 import { InvalidMetadataError, MetadataConflictError } from "../errors.js";
 import { FieldSemantics } from "./FieldSemantics.js";
 import { Semantics } from "./Semantics.js";

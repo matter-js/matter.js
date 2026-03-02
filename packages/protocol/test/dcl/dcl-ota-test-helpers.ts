@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Crypto } from "#general";
 import { OtaImageWriter } from "#ota/OtaImageWriter.js";
-import { DeviceSoftwareVersionModelDclSchema, VendorId } from "#types";
+import { Crypto } from "@matter/general";
+import { DeviceSoftwareVersionModelDclSchema, VendorId } from "@matter/types";
 
 /**
  * Helper to create a valid OTA image for testing.

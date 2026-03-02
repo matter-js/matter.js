@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PowerTopology } from "#clusters/power-topology";
+import { PowerTopology } from "@matter/types/clusters/power-topology";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const PowerTopologyClientConstructor = ClientBehavior(PowerTopology.Complete);
 export interface PowerTopologyClient extends InstanceType<typeof PowerTopologyClientConstructor> {}

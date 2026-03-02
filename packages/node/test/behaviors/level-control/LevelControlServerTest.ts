@@ -5,10 +5,10 @@
  */
 
 import { LevelControlServer } from "#behaviors/level-control";
-import { LevelControl } from "#clusters/level-control";
 import { DimmableLightDevice } from "#devices/dimmable-light";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { Time } from "#general";
+import { Time } from "@matter/general";
+import { LevelControl } from "@matter/types/clusters/level-control";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("LevelControlServer", () => {

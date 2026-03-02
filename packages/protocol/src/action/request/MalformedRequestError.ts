@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#general";
+import { ImplementationError } from "@matter/general";
 
 /**
  * Thrown when an action request does not adhere to the Matter specification.

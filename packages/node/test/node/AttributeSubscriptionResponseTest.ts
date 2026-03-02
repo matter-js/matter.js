@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BasicInformationCluster } from "#clusters/basic-information";
-import { Specification } from "#model";
-import { AttributeSubscriptionResponse, DirtyState, Read } from "#protocol";
-import { AttributeId, ClusterId, EndpointNumber } from "#types";
+import { Specification } from "@matter/model";
+import { AttributeSubscriptionResponse, DirtyState, Read } from "@matter/protocol";
+import { AttributeId, ClusterId, EndpointNumber } from "@matter/types";
+import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs } from "./read-helpers.js";
 import INTERACTION_MODEL_REVISION = Specification.INTERACTION_MODEL_REVISION;

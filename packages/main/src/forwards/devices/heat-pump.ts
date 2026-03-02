@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#devices/heat-pump";
+export * from "@matter/node/devices/heat-pump";

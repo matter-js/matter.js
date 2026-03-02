@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#clusters/joint-fabric-datastore";
+export * from "@matter/types/clusters/joint-fabric-datastore";

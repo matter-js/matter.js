@@ -7,7 +7,6 @@
 import type { Advertisement } from "#advertisement/Advertisement.js";
 import { PairingHintBitmapSchema } from "#advertisement/PairingHintBitmap.js";
 import { ServiceDescription } from "#advertisement/ServiceDescription.js";
-import { ImplementationError, PtrRecord } from "#general";
 import {
     DEFAULT_PAIRING_HINT,
     getCommissionableDeviceQname,
@@ -20,6 +19,7 @@ import {
     PAIRING_HINTS_REQUIRING_INSTRUCTION,
     SERVICE_DISCOVERY_QNAME,
 } from "#mdns/MdnsConsts.js";
+import { ImplementationError, PtrRecord } from "@matter/general";
 import { MdnsAdvertisement } from "./MdnsAdvertisement.js";
 import type { MdnsAdvertiser } from "./MdnsAdvertiser.js";
 

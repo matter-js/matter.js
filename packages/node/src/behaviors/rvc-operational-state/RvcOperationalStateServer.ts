@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OperationalState } from "#clusters/operational-state";
-import { RvcOperationalState } from "#clusters/rvc-operational-state";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { OperationalState } from "@matter/types/clusters/operational-state";
+import { RvcOperationalState } from "@matter/types/clusters/rvc-operational-state";
 import { RvcOperationalStateBehavior } from "./RvcOperationalStateBehavior.js";
 
 /**

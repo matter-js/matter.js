@@ -8,4 +8,4 @@
 
 import "#platform";
 
-export * from "#behaviors/media-playback";
+export * from "@matter/node/behaviors/media-playback";

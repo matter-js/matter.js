@@ -7,9 +7,12 @@
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { DescriptorServer } from "#behaviors/descriptor";
 import { OtaSoftwareUpdateProviderClient } from "#behaviors/ota-software-update-provider";
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
+import type { ClientNode } from "#node/ClientNode.js";
+import { Node } from "#node/Node.js";
+import type { ServerNode } from "#node/ServerNode.js";
+import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
 import {
     AsyncObservable,
     Bytes,
@@ -28,12 +31,8 @@ import {
     Seconds,
     Time,
     Timer,
-} from "#general";
-import { FieldElement } from "#model";
-import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
-import type { ClientNode } from "#node/ClientNode.js";
-import { Node } from "#node/Node.js";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
+import { FieldElement } from "@matter/model";
 import {
     BdxClient,
     BdxError,
@@ -44,9 +43,10 @@ import {
     OtaImageReader,
     PeerAddress,
     PersistedFileDesignator,
-} from "#protocol";
-import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { FabricIndex, NodeId, StatusResponse } from "#types";
+} from "@matter/protocol";
+import { FabricIndex, NodeId, StatusResponse } from "@matter/types";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { OtaSoftwareUpdateRequestorBehavior } from "./OtaSoftwareUpdateRequestorBehavior.js";
 
 const logger = Logger.get("OtaSoftwareUpdateRequestorServer");

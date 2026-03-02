@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, MatterError } from "#general";
+import { InternalError, MatterError } from "@matter/general";
 import { MAX_COUNTER_VALUE_32BIT } from "./MessageCounter.js";
 
 /** 2^31 used for Duplicate detection in some cases. */

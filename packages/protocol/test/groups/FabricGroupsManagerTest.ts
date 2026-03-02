@@ -5,8 +5,8 @@
  */
 
 import { Fabric } from "#fabric/Fabric.js";
-import { Bytes, Key, PrivateKey, StandardCrypto } from "#general";
-import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "#types";
+import { Bytes, Key, PrivateKey, StandardCrypto } from "@matter/general";
+import { FabricId, FabricIndex, GlobalFabricId, GroupId, NodeId, VendorId } from "@matter/types";
 
 const TEST_ROOT_PUBLIC_KEY = Bytes.fromHex(
     "044a9f42b1ca4840d37292bbc7f6a7e11e22200c976fc900dbc98a7a383a641cb8254a2e56d4e295a847943b4e3897c4a773e930277b4d9fbede8a052686bfacfa",
