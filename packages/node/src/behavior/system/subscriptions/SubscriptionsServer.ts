@@ -237,9 +237,9 @@ export class SubscriptionsServer extends Behavior {
                     }
 
                     const { operationalAddress } = peerSubscriptions[0];
-                    const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
                     let session;
                     try {
+                        const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
                         session = await peer.connect({ connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT });
                         if (GroupSession.is(session)) {
                             // Should never happen but add for easier typing
