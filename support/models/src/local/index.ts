@@ -24,6 +24,7 @@ import "./ElectricalPowerMeasurementOverrides.js";
 import "./epoch-s.js";
 import "./epoch-us.js";
 import "./FanControl.js";
+import "./GeneralDiagnosticsOverrides.js";
 import "./GroupKeyManagementOverrides.js";
 import "./GroupcastCluster.js";
 import "./hwadr.js";

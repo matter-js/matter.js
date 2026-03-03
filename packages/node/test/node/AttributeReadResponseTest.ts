@@ -16,7 +16,7 @@ const ROOT_ENDPOINT_FULL_CLUSTER_LIST = {
     31: 11,
     40: 22,
     48: 10,
-    51: 10,
+    51: 11,
     60: 8,
     62: 11,
     63: 10,

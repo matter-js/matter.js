@@ -6,11 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { Groupcast } from "@matter/types/clusters/groupcast";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { GroupcastInterface } from "./GroupcastInterface.js";
-import { Identity } from "@matter/general";
 import { ClusterType } from "@matter/types";
-import { Groupcast } from "@matter/types/clusters/groupcast";
+import { Identity } from "@matter/general";
 
 /**
  * GroupcastBehavior is the base class for objects that support interaction with {@link Groupcast.Cluster}.

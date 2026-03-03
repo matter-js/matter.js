@@ -682,7 +682,7 @@ const PEER1_STATE = {
         maxEventNumber: 3n,
     },
     basicInformation: {
-        clusterRevision: 5,
+        clusterRevision: 6,
         configurationVersion: 1,
         dataModelRevision: Specification.DATA_MODEL_REVISION,
         vendorName: "Matter.js Test Vendor",
@@ -703,7 +703,14 @@ const PEER1_STATE = {
         localConfigDisabled: undefined,
         reachable: undefined,
         uniqueId: expect.STRING,
-        capabilityMinima: { caseSessionsPerFabric: 3, subscriptionsPerFabric: 3 },
+        capabilityMinima: {
+            caseSessionsPerFabric: 3,
+            subscriptionsPerFabric: 3,
+            simultaneousInvocationsSupported: 6,
+            simultaneousWritesSupported: 4,
+            readPathsSupported: 9,
+            subscribePathsSupported: 3,
+        },
         productAppearance: undefined,
         specificationVersion: 0x1040200,
         maxPathsPerInvoke: 10,
@@ -812,7 +819,7 @@ const PEER1_STATE = {
         generatedCommandList: [1, 3, 5, 8, 0xe],
     },
     generalDiagnostics: {
-        clusterRevision: 2,
+        clusterRevision: 3,
         featureMap: { dataModelTest: true },
         networkInterfaces: [
             {
@@ -835,7 +842,8 @@ const PEER1_STATE = {
         activeNetworkFaults: undefined,
         testEventTriggersEnabled: false,
         doNotUse: undefined,
-        attributeList: [0, 1, 2, 3, 8, ...GLOBAL_ATTRS],
+        deviceLoadStatus: expect.IGNORE,
+        attributeList: [0, 1, 2, 3, 8, 10, ...GLOBAL_ATTRS],
         eventList: undefined,
         acceptedCommandList: [0, 1, 3],
         generatedCommandList: [2, 4],
