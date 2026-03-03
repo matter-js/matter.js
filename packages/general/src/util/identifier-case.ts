@@ -11,12 +11,20 @@ export function capitalize<T extends string>(text: T) {
     return (text[0].toUpperCase() + text.slice(1)) as Capitalize<T>;
 }
 
+const camelizeCache = new Map<string, string>();
+
 /**
  * Converts identifiers of the form "foo-bar", "foo_bar", "foo bar", "foo*bar",
  * "fooBar" or "FOOBar" into "fooBar" or "FooBar".
  * Stops processing when a "$" is reached
  */
 export function camelize(name: string, upperFirst = false) {
+    const key = upperFirst ? `+${name}` : name;
+    const cached = camelizeCache.get(key);
+    if (cached !== undefined) {
+        return cached;
+    }
+
     const pieces = new Array<string>();
     let pieceStart = 0,
         sawUpper = false,
@@ -83,6 +91,7 @@ export function camelize(name: string, upperFirst = false) {
         result += name.slice(i);
     }
 
+    camelizeCache.set(key, result);
     return result;
 }
 
