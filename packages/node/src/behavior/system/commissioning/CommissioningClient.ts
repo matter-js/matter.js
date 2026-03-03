@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { Events as BaseEvents } from "#behavior/Events.js";
+import type { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
@@ -48,6 +49,7 @@ import {
     CommissioningMode,
     ControllerCommissioner,
     ControllerCommissioningFlow,
+    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
@@ -182,26 +184,44 @@ export class CommissioningClient extends Behavior {
         }
 
         const addresses = this.state.addresses;
-        if (!addresses?.length) {
-            throw new ImplementationError(`Cannot commission ${node} because the node has not been located`);
-        }
-
         const commissioner = node.env.get(ControllerCommissioner);
 
         const address = await controller.allocatePeerAddress(fabric.fabricIndex, opts.nodeId);
-
-        const commissioningOptions: LocatedNodeCommissioningOptions = {
-            addresses: addresses.map(ServerAddress),
-            fabric,
-            nodeId: address.nodeId,
-            passcode,
-            discoveryData: this.descriptor,
-            commissioningFlowImpl: options.commissioningFlowImpl,
-            // TODO Allow to configure all relevant commissioning options like
-            //  * wifi/thread credentials
-            //  * regulatory config
-            //  * custom otaUpdateProviderLocation
-        };
+        // Commissioning supports two execution modes:
+        // 1) Discovery mode when passcode+discriminator are known. In this mode protocol-level
+        //    discovery/PASE logic picks the correct candidate among multiple devices.
+        // 2) Located-node mode when we already know addresses and no discriminator was provided.
+        let commissioningOptions: LocatedNodeCommissioningOptions | DiscoveryAndCommissioningOptions;
+        if (opts.discriminator !== undefined) {
+            commissioningOptions = {
+                fabric,
+                nodeId: address.nodeId,
+                passcode,
+                commissioningFlowImpl: options.commissioningFlowImpl,
+                discovery: {
+                    identifierData: { longDiscriminator: opts.discriminator },
+                    discoveryCapabilities: opts.discoveryCapabilities,
+                    timeout: (options as Discovery.InstanceOptions).timeout,
+                },
+            };
+        } else if (addresses?.length) {
+            commissioningOptions = {
+                addresses: addresses.map(ServerAddress),
+                fabric,
+                nodeId: address.nodeId,
+                passcode,
+                discoveryData: this.descriptor,
+                commissioningFlowImpl: options.commissioningFlowImpl,
+                // TODO Allow to configure all relevant commissioning options like
+                //  * wifi/thread credentials
+                //  * regulatory config
+                //  * custom otaUpdateProviderLocation
+            };
+        } else {
+            throw new ImplementationError(
+                `Cannot commission ${node} because the node has not been located and no discriminator was provided`,
+            );
+        }
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
         const otaProviderEndpoint = this.#findServerOtaProviderEndpoint();
@@ -220,7 +240,11 @@ export class CommissioningClient extends Behavior {
         }
 
         try {
-            await commissioner.commission(commissioningOptions);
+            if ("discovery" in commissioningOptions) {
+                await commissioner.commissionWithDiscovery(commissioningOptions);
+            } else {
+                await commissioner.commission(commissioningOptions);
+            }
             this.state.peerAddress = address;
             this.state.commissionedAt = Time.nowMs;
 
