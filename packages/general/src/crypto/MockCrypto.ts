@@ -8,6 +8,7 @@ import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Crypto, ec } from "./Crypto.js";
 import { CurveType, Key, KeyType, PrivateKey } from "./Key.js";
+import { NodeJsStyleCrypto } from "./NodeJsStyleCrypto.js";
 import { StandardCrypto } from "./StandardCrypto.js";
 
 /**
@@ -32,7 +33,10 @@ export interface MockCrypto extends Crypto {
     entropic: boolean;
 }
 
-export function MockCrypto(index: number = 0x80, implementation: new () => Crypto = StandardCrypto) {
+export function MockCrypto(
+    index: number = 0x80,
+    implementation: new () => Crypto = NodeJsStyleCrypto.detectedCrypto ? NodeJsStyleCrypto : StandardCrypto,
+) {
     if (index < 0 || index > 255) {
         throw new ImplementationError(`Index for stable crypto must be 0-255`);
     }

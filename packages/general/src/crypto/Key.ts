@@ -13,7 +13,6 @@ import { KeyInputError } from "./CryptoError.js";
 import { Pem } from "./Pem.js";
 
 const {
-    numberToBytesBE,
     p256: { getPublicKey, Point, getSharedSecret },
 } = ec;
 
@@ -593,8 +592,8 @@ export function Key(properties: Partial<Key>) {
         const ecKey = Point.fromBytes(pubKeyBytes);
 
         // Install
-        that.xBits = numberToBytesBE(ecKey.x, keyLength);
-        that.yBits = numberToBytesBE(ecKey.y, keyLength);
+        that.xBits = Bytes.fromBigInt(ecKey.x, keyLength);
+        that.yBits = Bytes.fromBigInt(ecKey.y, keyLength);
     }
 
     if (that.type === KeyType.EC) {
