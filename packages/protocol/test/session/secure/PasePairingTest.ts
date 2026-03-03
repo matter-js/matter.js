@@ -42,7 +42,7 @@ describe("PasePairing", () => {
             };
 
             expect(() => PaseClient.generateRandomPasscode(brokenEntropy as any)).throw(
-                "Unable to generate valid passcode; entropy source is broken",
+                "Unable to generate valid passcode in 100 tries; entropy source is broken",
             );
         });
     });
