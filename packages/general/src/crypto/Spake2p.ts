@@ -12,8 +12,6 @@ import { CRYPTO_GROUP_SIZE_BYTES } from "./CryptoConstants.js";
 
 const {
     p256: { Point },
-    numberToBytesBE,
-    bytesToNumberBE,
     mod,
 } = ec;
 
@@ -41,8 +39,8 @@ export class Spake2p {
             await crypto.createPbkdf2Key(pinWriter.toByteArray(), salt, iterations, CRYPTO_W_SIZE_BYTES * 2),
         );
         const curve = Point.CURVE();
-        const w0 = mod(bytesToNumberBE(ws.slice(0, 40)), curve.n);
-        const w1 = mod(bytesToNumberBE(ws.slice(40, 80)), curve.n);
+        const w0 = mod(Bytes.asBigInt(ws.slice(0, 40)), curve.n);
+        const w1 = mod(Bytes.asBigInt(ws.slice(40, 80)), curve.n);
         return { w0, w1 };
     }
 
@@ -129,7 +127,7 @@ export class Spake2p {
         this.addToContext(TTwriter, Y);
         this.addToContext(TTwriter, Z);
         this.addToContext(TTwriter, V);
-        this.addToContext(TTwriter, numberToBytesBE(this.#w0, 32));
+        this.addToContext(TTwriter, Bytes.fromBigInt(this.#w0, 32));
         return this.#crypto.computeHash(TTwriter.toByteArray());
     }
 

@@ -12,7 +12,6 @@ import {
     Channel,
     Crypto,
     Diagnostic,
-    ec,
     Logger,
     MatterFlowError,
     PbkdfParameters,
@@ -27,8 +26,6 @@ import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
 import { ChannelStatusResponseError } from "../../securechannel/SecureChannelMessenger.js";
 import { DEFAULT_PASSCODE_ID, PaseServerMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
-
-const { bytesToNumberBE } = ec;
 
 const logger = Logger.get("PaseServer");
 
@@ -57,7 +54,7 @@ export class PaseServer implements ProtocolHandler {
         pbkdfParameters?: PbkdfParameters,
     ) {
         const verificationData = Bytes.of(verificationValue);
-        const w0 = bytesToNumberBE(verificationData.slice(0, 32));
+        const w0 = Bytes.asBigInt(verificationData.slice(0, 32));
         const L = verificationData.slice(32, 32 + 65);
         return new PaseServer(sessions, w0, L, pbkdfParameters);
     }

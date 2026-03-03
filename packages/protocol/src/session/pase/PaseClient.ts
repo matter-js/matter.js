@@ -7,12 +7,10 @@
 import { Mark } from "#common/Mark.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Channel, Crypto, ec, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "@matter/general";
+import { Bytes, Channel, Crypto, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "@matter/general";
 import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "@matter/types";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { DEFAULT_PASSCODE_ID, PaseClientMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
-
-const { numberToBytesBE } = ec;
 
 const logger = Logger.get("PaseClient");
 
@@ -25,7 +23,7 @@ export class PaseClient {
 
     static async generatePakePasscodeVerifier(crypto: Crypto, setupPinCode: number, pbkdfParameters: PbkdfParameters) {
         const { w0, L } = await Spake2p.computeW0L(crypto, pbkdfParameters, setupPinCode);
-        return Bytes.concat(numberToBytesBE(w0, 32), L);
+        return Bytes.concat(Bytes.fromBigInt(w0, 32), L);
     }
 
     static generateRandomPasscode(crypto: Crypto) {
