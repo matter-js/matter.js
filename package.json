@@ -81,7 +81,6 @@
     },
     "devDependencies": {
         "c8": "^11.0.0",
-        "embedme": "^1.22.1",
         "oxlint": "^1.49.0",
         "oxlint-tsgolint": "^0.15.0",
         "prettier": "^3.8.0",
