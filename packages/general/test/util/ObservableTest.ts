@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AsyncObservable, Observable, ObserverGroup } from "#util/Observable.js";
+import { AsyncObservable, Observable, ObservableValue, ObserverGroup } from "#util/Observable.js";
 
 // Observable deserves proper unit tests but is tested heavily via other modules.  Currently this file just tests a
 // few spot cases
@@ -86,5 +86,67 @@ describe("AsyncObservable", () => {
         await observable.emit("asdf");
 
         expect(observedFoos).deep.equals(["asdf", "asdf", "asdf", "asdf", "asdf", "asdf"]);
+    });
+});
+
+describe("ObservableValue", () => {
+    it("does not resolve for falsy value assignment and resolves for the next truthy value", async () => {
+        const observable = ObservableValue<[value: string]>();
+
+        const observedValues = Array<string>();
+        observable.on(value => {
+            observedValues.push(value);
+        });
+
+        let resolved = false;
+        let resolvedValue: string | undefined;
+        const done = observable.then(value => {
+            resolved = true;
+            resolvedValue = value;
+        });
+
+        observable.value = "";
+
+        await MockTime.yield();
+        expect(resolved).false;
+        expect(observedValues).deep.equals([]);
+
+        observable.value = "next";
+
+        await done;
+        expect(resolved).true;
+        expect(resolvedValue).equals("next");
+        expect(observedValues).deep.equals([]);
+    });
+
+    it("emits falsy values but resolves only when a truthy value is emitted", async () => {
+        const observable = ObservableValue<[value: string]>();
+
+        const observedValues = Array<string>();
+        observable.on(value => {
+            observedValues.push(value);
+        });
+
+        let resolved = false;
+        let resolvedValue: string | undefined;
+        const done = observable.then(value => {
+            resolved = true;
+            resolvedValue = value;
+        });
+
+        observable.emit("");
+
+        await Promise.resolve();
+        expect(observable.value).equals("");
+        expect(resolved).false;
+        expect(observedValues).deep.equals([""]);
+
+        observable.emit("next");
+
+        await done;
+        expect(observable.value).equals("next");
+        expect(resolved).true;
+        expect(resolvedValue).equals("next");
+        expect(observedValues).deep.equals(["", "next"]);
     });
 });
