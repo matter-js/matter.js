@@ -317,9 +317,9 @@ function assertInterface<T extends {}>(name: string, object: T, requiredMethods:
     }
 }
 
-// If available, unconditionally add to Environment as it has not been exported yet so there can be no other
-// implementation present
-if ("crypto" in globalThis && globalThis.crypto?.subtle) {
+// Install as fallback if no other Crypto implementation is already present (NodeJsStyleCrypto may have
+// self-installed first depending on module load order)
+if ("crypto" in globalThis && globalThis.crypto?.subtle && !Environment.default.has(Crypto)) {
     const crypto = new StandardCrypto();
     Environment.default.set(Entropy, crypto);
     Environment.default.set(Crypto, crypto);

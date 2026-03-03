@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Environment } from "#environment/Environment.js";
 import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
+import { Entropy } from "#util/Entropy.js";
 import { asError } from "#util/Error.js";
 import { MaybePromise } from "#util/Promises.js";
 import {
@@ -139,12 +141,17 @@ export namespace NodeJsCryptoApiLike {
 export class NodeJsStyleCrypto extends Crypto {
     implementationName = "Node.js";
 
+    /**
+     * The auto-detected Node.js crypto module, set at module load time if available.
+     */
+    static detectedCrypto?: NodeJsCryptoApiLike;
+
     #crypto: NodeJsCryptoApiLike;
 
-    constructor(crypto: NodeJsCryptoApiLike) {
+    constructor(crypto?: NodeJsCryptoApiLike) {
         super();
 
-        this.#crypto = crypto;
+        this.#crypto = (crypto ?? NodeJsStyleCrypto.detectedCrypto)!;
     }
 
     encrypt(key: Bytes, data: Bytes, nonce: Bytes, aad?: Bytes): Bytes {
@@ -379,4 +386,13 @@ export class NodeJsStyleCrypto extends Crypto {
         result.set(Bytes.of(Bytes.fromBigInt(p - ry, 32)), 33);
         return result;
     }
+}
+
+// Auto-detect Node.js crypto and self-install
+const nodeCrypto = (globalThis as any).process?.getBuiltinModule?.("crypto");
+if (nodeCrypto?.createECDH) {
+    NodeJsStyleCrypto.detectedCrypto = nodeCrypto;
+    const nodeJsStyleCrypto = new NodeJsStyleCrypto();
+    Environment.default.set(Entropy, nodeJsStyleCrypto);
+    Environment.default.set(Crypto, nodeJsStyleCrypto);
 }
