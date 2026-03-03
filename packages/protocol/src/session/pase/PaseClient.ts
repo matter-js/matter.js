@@ -50,7 +50,9 @@ export class PaseClient {
             }
         }
 
-        throw new InternalError("Unable to generate valid passcode in 100 tries; entropy source is broken");
+        throw new InternalError(
+            `Unable to generate valid passcode in ${MAX_PASSCODE_GENERATION_ATTEMPTS} tries; entropy source is broken`,
+        );
     }
 
     static generateRandomDiscriminator(crypto: Crypto) {
