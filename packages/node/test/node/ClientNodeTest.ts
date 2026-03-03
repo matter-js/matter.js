@@ -267,11 +267,14 @@ describe("ClientNode", () => {
         const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
         controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
 
-        const commissioned = await MockTime.resolve(controller.peers.commission({
-            passcode: 22223333,
-            discriminator: 1234,
-            timeout: Seconds(90),
-        }), { macrotasks: true });
+        const commissioned = await MockTime.resolve(
+            controller.peers.commission({
+                passcode: 22223333,
+                discriminator: 1234,
+                timeout: Seconds(90),
+            }),
+            { macrotasks: true },
+        );
 
         controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
 
