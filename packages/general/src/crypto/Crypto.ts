@@ -136,6 +136,29 @@ export abstract class Crypto extends Entropy {
      */
     abstract ecMultiply(point: Bytes, scalar: Bytes): Bytes;
 
+    /**
+     * Add two EC points on the P-256 curve.
+     *
+     * @param a - 65-byte uncompressed EC point (04 || x || y)
+     * @param b - 65-byte uncompressed EC point (04 || x || y)
+     * @returns 65-byte uncompressed EC point
+     */
+    ecAdd(a: Bytes, b: Bytes): Bytes {
+        return ec.p256.Point.fromBytes(Bytes.of(a))
+            .add(ec.p256.Point.fromBytes(Bytes.of(b)))
+            .toBytes(false);
+    }
+
+    /**
+     * Negate an EC point on the P-256 curve.
+     *
+     * @param point - 65-byte uncompressed EC point (04 || x || y)
+     * @returns 65-byte uncompressed EC point
+     */
+    ecNegate(point: Bytes): Bytes {
+        return ec.p256.Point.fromBytes(Bytes.of(point)).negate().toBytes(false);
+    }
+
     reportUsage(component?: string) {
         const message = ["Using", Diagnostic.strong(this.implementationName), "crypto implementation"];
         if (component) {

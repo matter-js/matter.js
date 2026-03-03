@@ -71,42 +71,40 @@ export class Spake2p {
     computeX(): Bytes {
         const randomBytes = Bytes.fromBigInt(this.#random, 32);
         const w0Bytes = Bytes.fromBigInt(this.#w0, 32);
-        const baseR = Point.fromBytes(Bytes.of(this.#crypto.ecMultiply(BASE_BYTES, randomBytes)));
-        const mW0 = Point.fromBytes(Bytes.of(this.#crypto.ecMultiply(M_BYTES, w0Bytes)));
-        return baseR.add(mW0).toBytes(false);
+        const baseR = this.#crypto.ecMultiply(BASE_BYTES, randomBytes);
+        const mW0 = this.#crypto.ecMultiply(M_BYTES, w0Bytes);
+        return this.#crypto.ecAdd(baseR, mW0);
     }
 
     computeY(): Bytes {
         const randomBytes = Bytes.fromBigInt(this.#random, 32);
         const w0Bytes = Bytes.fromBigInt(this.#w0, 32);
-        const baseR = Point.fromBytes(Bytes.of(this.#crypto.ecMultiply(BASE_BYTES, randomBytes)));
-        const nW0 = Point.fromBytes(Bytes.of(this.#crypto.ecMultiply(N_BYTES, w0Bytes)));
-        return baseR.add(nW0).toBytes(false);
+        const baseR = this.#crypto.ecMultiply(BASE_BYTES, randomBytes);
+        const nW0 = this.#crypto.ecMultiply(N_BYTES, w0Bytes);
+        return this.#crypto.ecAdd(baseR, nW0);
     }
 
     async computeSecretAndVerifiersFromY(w1: bigint, X: Bytes, Y: Bytes) {
-        const YPoint = Point.fromBytes(Bytes.of(Y));
         try {
-            YPoint.assertValidity();
+            Point.fromBytes(Bytes.of(Y)).assertValidity();
         } catch (error) {
             throw new InternalError(`Y is not on the curve: ${(error as any).message}`);
         }
-        const nW0 = Point.fromBytes(Bytes.of(this.#crypto.ecMultiply(N_BYTES, Bytes.fromBigInt(this.#w0, 32))));
-        const yNwoBytes = YPoint.add(nW0.negate()).toBytes(false);
-        const Z = this.#crypto.ecMultiply(yNwoBytes, Bytes.fromBigInt(this.#random, 32));
-        const V = this.#crypto.ecMultiply(yNwoBytes, Bytes.fromBigInt(w1, 32));
+        const nW0 = this.#crypto.ecNegate(this.#crypto.ecMultiply(N_BYTES, Bytes.fromBigInt(this.#w0, 32)));
+        const yNwo = this.#crypto.ecAdd(Y, nW0);
+        const Z = this.#crypto.ecMultiply(yNwo, Bytes.fromBigInt(this.#random, 32));
+        const V = this.#crypto.ecMultiply(yNwo, Bytes.fromBigInt(w1, 32));
         return this.computeSecretAndVerifiers(X, Y, Z, V);
     }
 
     async computeSecretAndVerifiersFromX(L: Bytes, X: Bytes, Y: Bytes) {
-        const XPoint = Point.fromBytes(Bytes.of(X));
         try {
-            XPoint.assertValidity();
+            Point.fromBytes(Bytes.of(X)).assertValidity();
         } catch (error) {
             throw new InternalError(`X is not on the curve: ${(error as any).message}`);
         }
-        const mW0 = Point.fromBytes(Bytes.of(this.#crypto.ecMultiply(M_BYTES, Bytes.fromBigInt(this.#w0, 32))));
-        const xSubM = XPoint.add(mW0.negate()).toBytes(false);
+        const mW0 = this.#crypto.ecNegate(this.#crypto.ecMultiply(M_BYTES, Bytes.fromBigInt(this.#w0, 32)));
+        const xSubM = this.#crypto.ecAdd(X, mW0);
         const Z = this.#crypto.ecMultiply(xSubM, Bytes.fromBigInt(this.#random, 32));
         const V = this.#crypto.ecMultiply(L, Bytes.fromBigInt(this.#random, 32));
         return this.computeSecretAndVerifiers(X, Y, Z, V);
@@ -134,8 +132,8 @@ export class Spake2p {
         this.addToContext(TTwriter, this.#context);
         this.addToContext(TTwriter, Bytes.fromString(""));
         this.addToContext(TTwriter, Bytes.fromString(""));
-        this.addToContext(TTwriter, M.toBytes(false));
-        this.addToContext(TTwriter, N.toBytes(false));
+        this.addToContext(TTwriter, M_BYTES);
+        this.addToContext(TTwriter, N_BYTES);
         this.addToContext(TTwriter, X);
         this.addToContext(TTwriter, Y);
         this.addToContext(TTwriter, Z);
