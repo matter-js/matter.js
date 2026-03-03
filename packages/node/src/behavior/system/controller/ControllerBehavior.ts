@@ -214,9 +214,6 @@ export class ControllerBehavior extends Behavior {
             }
         }
 
-        // Clear operational targets
-        this.internal.mdnsTargetCriteria.operationalTargets.length = 0;
-
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
             netTransports.delete(this.env.get(Ble).centralInterface);
@@ -224,8 +221,6 @@ export class ControllerBehavior extends Behavior {
     }
 
     #enableScanningForFabric(fabric: Fabric) {
-        this.internal.mdnsTargetCriteria.operationalTargets.push({ fabricId: fabric.globalId });
-
         // Send a one-time wildcard query via DnssdNames so existing operational nodes on this fabric respond and
         // populate IpService for known peers
         if (this.internal.services) {
@@ -252,7 +247,6 @@ export namespace ControllerBehavior {
          */
         mdnsTargetCriteria: MdnsScannerTargetCriteria = {
             commissionable: true,
-            operationalTargets: [],
         };
 
         services?: SharedEnvironmentServices;
