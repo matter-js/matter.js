@@ -39,7 +39,11 @@ export class StorageBackendAsyncStorageV2 extends Storage {
     }
 
     clear() {
-        return AsyncStorage.clear();
+        if (!this.#namespace.length) {
+            return AsyncStorage.clear();
+        }
+
+        return this.clearAll([]);
     }
 
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {
@@ -50,7 +54,9 @@ export class StorageBackendAsyncStorageV2 extends Storage {
             contextKey.startsWith(".") ||
             contextKey.endsWith(".")
         )
-            throw new StorageError("Context must not be an empty and not contain dots.");
+            throw new StorageError(
+                "Context must not be empty and must not contain empty segments or leading or trailing dots.",
+            );
         return `${this.#namespace.length ? `${this.#namespace}#` : ""}${contextKey}`;
     }
 
@@ -86,9 +92,11 @@ export class StorageBackendAsyncStorageV2 extends Storage {
         if (typeof keyOrValues === "string") {
             await AsyncStorage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
         } else {
+            const entries = {} as Record<string, string>;
             for (const [key, value] of Object.entries(keyOrValues)) {
-                await AsyncStorage.setItem(this.buildStorageKey(contexts, key), toJson(value));
+                entries[this.buildStorageKey(contexts, key)] = toJson(value);
             }
+            await AsyncStorage.setMany(entries);
         }
     }
 
@@ -112,39 +120,54 @@ export class StorageBackendAsyncStorageV2 extends Storage {
 
     async values(contexts: string[]) {
         // Initialize and context checks are done by keys method
+        const keys = await this.keys(contexts);
+        const storageKeys = keys.map(key => this.buildStorageKey(contexts, key));
+        const entries = await AsyncStorage.getMany(storageKeys);
         const values = {} as Record<string, SupportedStorageTypes>;
-        for (const key of await this.keys(contexts)) {
-            values[key] = await this.get(contexts, key);
+        for (const [index, key] of keys.entries()) {
+            const value = entries[storageKeys[index]];
+            if (value !== null && value !== undefined) {
+                values[key] = fromJson(value) as SupportedStorageTypes;
+            }
         }
         return values;
     }
 
     async contexts(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = contextKey.length ? `${contextKey}.` : "";
-        const foundContexts: string[] = [];
+        const startContextKey = this.buildSubContextPrefix(contextKey);
+        const foundContexts = new Set<string>();
         const allKeys = await AsyncStorage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 const subKeys = key.substring(startContextKey.length).split(".");
                 if (subKeys.length === 1) continue; // found leaf key
                 const context = subKeys[0];
-                if (!foundContexts.includes(context)) {
-                    foundContexts.push(context);
-                }
+                foundContexts.add(context);
             }
         }
-        return foundContexts;
+        return Array.from(foundContexts);
     }
 
     async clearAll(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = contextKey.length ? `${contextKey}.` : "";
+        const startContextKey = this.buildSubContextPrefix(contextKey);
         const allKeys = await AsyncStorage.getAllKeys();
+        const keysToDelete: string[] = [];
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
-                await AsyncStorage.removeItem(key);
+                keysToDelete.push(key);
             }
         }
+        if (keysToDelete.length) {
+            await AsyncStorage.removeMany(keysToDelete);
+        }
+    }
+
+    private buildSubContextPrefix(contextKey: string) {
+        if (!contextKey.length) {
+            return "";
+        }
+        return contextKey.endsWith("#") ? contextKey : `${contextKey}.`;
     }
 }

@@ -52,7 +52,9 @@ export class StorageBackendAsyncStorage extends Storage {
             contextKey.startsWith(".") ||
             contextKey.endsWith(".")
         )
-            throw new StorageError("Context must not be an empty and not contain dots.");
+            throw new StorageError(
+                "Context must not be empty and must not contain empty segments or leading or trailing dots.",
+            );
         return contextKey;
     }
 
@@ -132,19 +134,17 @@ export class StorageBackendAsyncStorage extends Storage {
     async contexts(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
         const startContextKey = contextKey.length ? `${contextKey}.` : "";
-        const foundContexts = new Array<string>();
+        const foundContexts = new Set<string>();
         const allKeys = await this.#storage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 const subKeys = key.substring(startContextKey.length).split(".");
                 if (subKeys.length === 1) continue; // found leaf key
                 const context = subKeys[0];
-                if (!foundContexts.includes(context)) {
-                    foundContexts.push(context);
-                }
+                foundContexts.add(context);
             }
         }
-        return foundContexts;
+        return Array.from(foundContexts);
     }
 
     async clearAll(contexts: string[]) {
