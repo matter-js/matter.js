@@ -7,12 +7,23 @@
 import { Mark } from "#common/Mark.js";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Channel, Crypto, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "@matter/general";
+import {
+    Bytes,
+    Channel,
+    Crypto,
+    InternalError,
+    Logger,
+    PbkdfParameters,
+    Spake2p,
+    UnexpectedDataError,
+} from "@matter/general";
 import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "@matter/types";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { DEFAULT_PASSCODE_ID, PaseClientMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
 
 const logger = Logger.get("PaseClient");
+
+const MAX_PASSCODE_GENERATION_ATTEMPTS = 100;
 
 export class PaseClient {
     #sessions: SessionManager;
@@ -27,12 +38,21 @@ export class PaseClient {
     }
 
     static generateRandomPasscode(crypto: Crypto) {
-        let passcode: number;
-        passcode = (crypto.randomUint32 % 99999998) + 1; // prevents 00000000 and 99999999
-        if (CommissioningOptions.FORBIDDEN_PASSCODES.includes(passcode)) {
-            passcode += 1; // With current forbidden passcode list can never collide
+        // Generate 27-bit random candidates and reject invalid values to avoid modulo bias.
+        for (let i = 0; i < MAX_PASSCODE_GENERATION_ATTEMPTS; i++) {
+            const passcode = crypto.randomUint32 & 0x07ff_ffff;
+            if (
+                passcode >= 1 &&
+                passcode <= 99_999_998 &&
+                !CommissioningOptions.FORBIDDEN_PASSCODES.includes(passcode)
+            ) {
+                return passcode;
+            }
         }
-        return passcode;
+
+        throw new InternalError(
+            `Unable to generate valid passcode in ${MAX_PASSCODE_GENERATION_ATTEMPTS} tries; entropy source is broken`,
+        );
     }
 
     static generateRandomDiscriminator(crypto: Crypto) {
