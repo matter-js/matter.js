@@ -125,8 +125,8 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         return this.#transports.hasInterfaceFor(type, address);
     }
 
-    initiateExchange(address: PeerAddress, protocolId: number) {
-        return this.initiateExchangeForSession(this.#sessions.sessionFor(address), protocolId);
+    initiateExchange(address: PeerAddress, protocolId: number, options?: MessageExchange.Options) {
+        return this.initiateExchangeForSession(this.#sessions.sessionFor(address), protocolId, options);
     }
 
     initiateExchangeForSession(session: Session, protocolId: number, options?: MessageExchange.Options) {

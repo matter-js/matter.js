@@ -219,6 +219,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         using activity = this.#activity.begin(`session#${exchange.session.id.toString(16)}`);
         (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey] = activity;
 
+        // Count all subsequent IM messages received on this exchange (e.g. StatusResponse acks for ReportData)
+        exchange.onReceive = (_, duplicate) => {
+            if (!duplicate) {
+                this.#counters.totalInteractionModelMessagesReceived++;
+            }
+        };
+
         // Delegate to InteractionServerMessenger
         try {
             const result = await new InteractionServerMessenger(exchange).handleRequest(this);
@@ -772,7 +779,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }: PeerSubscription,
         session: NodeSession,
     ) {
-        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID, {
+            onReceive: (_, duplicate) => {
+                if (!duplicate) {
+                    this.#counters.totalInteractionModelMessagesReceived++;
+                }
+            },
+        });
 
         logger.info(
             `Reestablish subscription`,
