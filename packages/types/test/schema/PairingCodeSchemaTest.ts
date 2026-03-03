@@ -112,7 +112,9 @@ describe("QrPairingCodeCodec", () => {
 
             expect(result).deep.equal(MULTI_QR_CODE_DATA);
         });
+    });
 
+    describe("round-trip", () => {
         it("round-trips a short numeric passcode", () => {
             const shortPasscodeQr: QrCodeData = {
                 ...QR_CODE_DATA,
