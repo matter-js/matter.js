@@ -5,27 +5,25 @@
  */
 
 import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
-import { createAsyncStorage, type AsyncStorage } from "@react-native-async-storage/async-storage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 /**
- * AsyncStorage backend based on AsyncStorage v3 scoped instances.
+ * V2-compatible AsyncStorage backend using the package default export.
  *
- * This backend uses `createAsyncStorage(...)`, so each backend instance stores
- * data in its own scoped storage area. It is the default backend for
- * `@matter/react-native` with async-storage `3.x`.
- *
- * For migration scenarios that need legacy v2-compatible singleton storage
- * behavior, use {@link StorageBackendAsyncStorageV2} from
- * `@matter/react-native/storage` instead.
+ * This backend exists as migration path when apps need to keep using the legacy
+ * singleton storage behavior before switching to the v3 scoped storage backend.
  */
-export class StorageBackendAsyncStorage extends Storage {
-    #storage: AsyncStorage;
+export class StorageBackendAsyncStorageV2 extends Storage {
+    #namespace: string;
     protected isInitialized = false;
 
-    /** Creates a namespaced storage area when AsyncStorage v3 is available. */
+    /**
+     * Creates a new instance of the v2-compatible AsyncStorage backend. If a
+     * namespace is provided, keys are prefixed with "<namespace>#".
+     */
     constructor(namespace?: string) {
         super();
-        this.#storage = createAsyncStorage(namespace ?? "matterjs");
+        this.#namespace = namespace ?? "";
     }
 
     get initialized() {
@@ -41,7 +39,11 @@ export class StorageBackendAsyncStorage extends Storage {
     }
 
     clear() {
-        return this.#storage.clear();
+        if (!this.#namespace.length) {
+            return AsyncStorage.clear();
+        }
+
+        return this.clearAll([]);
     }
 
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {
@@ -55,7 +57,7 @@ export class StorageBackendAsyncStorage extends Storage {
             throw new StorageError(
                 "Context must not be empty and must not contain empty segments or leading or trailing dots.",
             );
-        return contextKey;
+        return `${this.#namespace.length ? `${this.#namespace}#` : ""}${contextKey}`;
     }
 
     buildStorageKey(contexts: string[], key: string) {
@@ -67,7 +69,7 @@ export class StorageBackendAsyncStorage extends Storage {
     }
 
     async get<T extends SupportedStorageTypes>(contexts: string[], key: string): Promise<T | undefined> {
-        const value = await this.#storage.getItem(this.buildStorageKey(contexts, key));
+        const value = await AsyncStorage.getItem(this.buildStorageKey(contexts, key));
         if (value === null) return undefined;
         return fromJson(value) as T;
     }
@@ -88,26 +90,26 @@ export class StorageBackendAsyncStorage extends Storage {
         value?: SupportedStorageTypes,
     ) {
         if (typeof keyOrValues === "string") {
-            await this.#storage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
+            await AsyncStorage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
         } else {
             const entries = {} as Record<string, string>;
             for (const [key, value] of Object.entries(keyOrValues)) {
                 entries[this.buildStorageKey(contexts, key)] = toJson(value);
             }
-            await this.#storage.setMany(entries);
+            await AsyncStorage.setMany(entries);
         }
     }
 
     delete(contexts: string[], key: string) {
-        return this.#storage.removeItem(this.buildStorageKey(contexts, key));
+        return AsyncStorage.removeItem(this.buildStorageKey(contexts, key));
     }
 
     /** Returns all keys of a storage context without keys of sub-contexts */
     async keys(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts);
-        const keys = [];
+        const keys: string[] = [];
         const contextKeyStart = `${contextKey}.`;
-        const allKeys = await this.#storage.getAllKeys();
+        const allKeys = await AsyncStorage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(contextKeyStart) && !key.includes(".", contextKeyStart.length)) {
                 keys.push(key.substring(contextKeyStart.length));
@@ -120,7 +122,7 @@ export class StorageBackendAsyncStorage extends Storage {
         // Initialize and context checks are done by keys method
         const keys = await this.keys(contexts);
         const storageKeys = keys.map(key => this.buildStorageKey(contexts, key));
-        const entries = await this.#storage.getMany(storageKeys);
+        const entries = await AsyncStorage.getMany(storageKeys);
         const values = {} as Record<string, SupportedStorageTypes>;
         for (const [index, key] of keys.entries()) {
             const value = entries[storageKeys[index]];
@@ -133,9 +135,9 @@ export class StorageBackendAsyncStorage extends Storage {
 
     async contexts(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = contextKey.length ? `${contextKey}.` : "";
+        const startContextKey = this.buildSubContextPrefix(contextKey);
         const foundContexts = new Set<string>();
-        const allKeys = await this.#storage.getAllKeys();
+        const allKeys = await AsyncStorage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 const subKeys = key.substring(startContextKey.length).split(".");
@@ -149,16 +151,23 @@ export class StorageBackendAsyncStorage extends Storage {
 
     async clearAll(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = contextKey.length ? `${contextKey}.` : "";
-        const allKeys = await this.#storage.getAllKeys();
-        const keysToDelete = [];
+        const startContextKey = this.buildSubContextPrefix(contextKey);
+        const allKeys = await AsyncStorage.getAllKeys();
+        const keysToDelete: string[] = [];
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 keysToDelete.push(key);
             }
         }
         if (keysToDelete.length) {
-            await this.#storage.removeMany(keysToDelete);
+            await AsyncStorage.removeMany(keysToDelete);
         }
+    }
+
+    private buildSubContextPrefix(contextKey: string) {
+        if (!contextKey.length) {
+            return "";
+        }
+        return contextKey.endsWith("#") ? contextKey : `${contextKey}.`;
     }
 }

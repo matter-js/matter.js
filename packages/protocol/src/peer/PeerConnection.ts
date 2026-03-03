@@ -318,8 +318,8 @@ export async function PeerConnection(
         logger.warn(logHeaderFor(address), ...message);
     }
 
-    function info(address: ServerAddressUdp, ...message: unknown[]) {
-        logger.info(logHeaderFor(address), ...message);
+    function info(via: string, address: ServerAddressUdp, ...message: unknown[]) {
+        logger.info(logHeaderFor(address, via), ...message);
     }
 
     function debug(via: string, address: ServerAddressUdp, ...message: unknown[]) {
@@ -389,7 +389,7 @@ export async function PeerConnection(
 
         await using exchange = PeerConnection.createExchange(peer, context.exchanges, unsecuredSession, network);
 
-        debug(
+        info(
             Diagnostic.via(`${peer.address.toString()}${exchange.via}`),
             address,
             "Connecting",
@@ -451,6 +451,7 @@ export async function PeerConnection(
             if (csre.generalStatusCode === GeneralStatusCode.Busy && csre.busyDelay !== undefined) {
                 delay = Millis(csre.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
                 info(
+                    via,
                     address,
                     `Peer requested to delay and retry no earlier than ${Duration.format(csre.busyDelay)} from now (retry in ${Duration.format(delay)})`,
                 );

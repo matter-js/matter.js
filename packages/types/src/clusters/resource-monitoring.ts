@@ -226,7 +226,7 @@ export namespace ResourceMonitoring {
             inPlaceIndicator: OptionalAttribute(0x3, TlvBoolean),
 
             /**
-             * This attribute may indicates the time at which the resource has been changed, if supported bytheserver.
+             * This attribute may indicates the time at which the resource has been changed, if supported by the server.
              * The attribute shall be null if it was never set or is unknown.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5

@@ -153,6 +153,10 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
  * Unlike a normal {@link Observable}, awaiting an {@link ObservableValue} will result in immediate resolution if the
  * value is truthy, and immediately upon updating to a truthy value otherwise.
  *
+ * Emitting values uses normal {@link Observable} semantics: all values (including falsy values) are emitted to
+ * observers and stored as the current {@link ObservableValue.value}.  However, the promise interface still resolves
+ * only when the current value is truthy.
+ *
  * Also unlike a normal {@link Observable}, an {@link ObservableValue} may be placed into an error state which will
  * result in rejection if awaited.
  */
@@ -161,7 +165,8 @@ export interface ObservableValue<T extends [any, ...any[]] = [boolean], R extend
     /**
      * The current value.
      *
-     * Setting the value will resolve the promise interface but you must use {@link emit} to also emit an event.
+     * Setting the value updates state and may resolve the promise interface when the value is truthy, but does not
+     * emit an event.  Use {@link emit} to notify observers.
      */
     value: T[0] | undefined;
 
@@ -618,7 +623,7 @@ export class BasicObservableValue<T extends [any, ...any[]] = [boolean], R exten
     }
 
     set value(value: T[0] | undefined) {
-        this.#maybeResolve([value]);
+        this.#maybeResolve(value);
     }
 
     get error() {

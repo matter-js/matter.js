@@ -21,6 +21,37 @@ This package uses the following react-native libraries to provide the needed fun
 - @react-native-async-storage/async-storage
   Please check these projects if special preparations need to be done for your developed app.
 
+When using `@react-native-async-storage/async-storage` v3 on Android, add the package local Maven repository in your
+project `android/build.gradle` (or `build.gradle.kts`):
+
+```gradle
+allprojects {
+    repositories {
+        // ... others like google(), mavenCentral()
+
+        maven {
+            url = uri(project(":react-native-async-storage_async-storage").file("local_repo"))
+        }
+    }
+}
+```
+
+## AsyncStorage v3 migration path
+
+`@matter/react-native` uses the v3-scoped `StorageBackendAsyncStorage` by default.
+
+If you need a staged migration and want to keep the legacy singleton behavior temporarily, use
+`StorageBackendAsyncStorageV2` explicitly:
+
+```ts
+import { Environment, StorageService } from "@matter/general";
+import { StorageBackendAsyncStorageV2 } from "@matter/react-native/storage";
+
+const env = new Environment("default");
+const service = env.get(StorageService);
+service.factory = namespace => new StorageBackendAsyncStorageV2(namespace);
+```
+
 ## Building
 
 -   `npm run build`: Build all code and create CommonJS and ES6 variants in dist directory. This will built incrementally and only build the changed files.
