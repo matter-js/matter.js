@@ -112,6 +112,17 @@ describe("QrPairingCodeCodec", () => {
 
             expect(result).deep.equal(MULTI_QR_CODE_DATA);
         });
+
+        it("round-trips a short numeric passcode", () => {
+            const shortPasscodeQr: QrCodeData = {
+                ...QR_CODE_DATA,
+                passcode: 1,
+            };
+
+            const encoded = QrPairingCodeCodec.encode([shortPasscodeQr]);
+            const decoded = QrPairingCodeCodec.decode(encoded);
+            expect(decoded[0].passcode).equal(1);
+        });
     });
 
     describe("Encode/Decode TlvData", () => {
@@ -182,6 +193,27 @@ describe("ManualPairingCodeCodec", () => {
                 expect(result.shortDiscriminator).equal(dataCode.data.shortDiscriminator);
                 expect(result.passcode).equal(dataCode.data.passcode);
             }
+        });
+
+        it("round-trips short numeric passcodes using canonical manual code encoding", () => {
+            const encoded = ManualPairingCodeCodec.encode({
+                discriminator: 1234,
+                passcode: 123456,
+            });
+
+            expect(encoded).length(11);
+            const decoded = ManualPairingCodeCodec.decode(encoded);
+            expect(decoded.passcode).equal(123456);
+        });
+
+        it("round-trips passcode value 1", () => {
+            const encoded = ManualPairingCodeCodec.encode({
+                discriminator: 1234,
+                passcode: 1,
+            });
+
+            const decoded = ManualPairingCodeCodec.decode(encoded);
+            expect(decoded.passcode).equal(1);
         });
     });
 });

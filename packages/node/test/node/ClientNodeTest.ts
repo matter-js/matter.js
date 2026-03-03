@@ -171,6 +171,31 @@ describe("ClientNode", () => {
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
     });
 
+    it("commissions with a short numeric passcode", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice({
+            commissioning: {
+                passcode: 1,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        const { passcode, discriminator } = device.state.commissioning;
+        expect(passcode).equals(1);
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).equals(1);
+    });
+
     it("invokes, receives state updates and emits changed events", async () => {
         // *** SETUP ***
 
