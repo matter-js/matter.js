@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
@@ -105,6 +106,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
         if (this.features.matterScheduleConfiguration) {
             logger.warn("MatterScheduleConfiguration feature is not yet implemented. Please do not activate it");
+        }
+
+        if (!this.features.presets && !this.features.matterScheduleConfiguration) {
+            this.atomicRequest = Behavior.unimplemented;
         }
 
         // Initialize persisted presets from defaults if not already set
