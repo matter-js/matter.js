@@ -127,6 +127,15 @@ export abstract class Crypto extends Entropy {
      */
     abstract generateDhSecret(key: PrivateKey, peerKey: PublicKey): MaybePromise<Bytes>;
 
+    /**
+     * Multiply an EC point by a scalar on the P-256 curve.
+     *
+     * @param point - 65-byte uncompressed EC point (04 || x || y)
+     * @param scalar - 32-byte big-endian scalar
+     * @returns 65-byte uncompressed EC point
+     */
+    abstract ecMultiply(point: Bytes, scalar: Bytes): Bytes;
+
     reportUsage(component?: string) {
         const message = ["Using", Diagnostic.strong(this.implementationName), "crypto implementation"];
         if (component) {

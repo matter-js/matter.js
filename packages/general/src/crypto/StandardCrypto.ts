@@ -13,7 +13,7 @@ import { MaybePromise } from "#util/Promises.js";
 import { describeList } from "#util/String.js";
 import { Logger } from "../log/Logger.js";
 import { Ccm } from "./aes/Ccm.js";
-import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, HashAlgorithm } from "./Crypto.js";
+import { Crypto, CRYPTO_SYMMETRIC_KEY_LENGTH, ec, HashAlgorithm } from "./Crypto.js";
 import { CryptoVerifyError, KeyInputError } from "./CryptoError.js";
 import { EcdsaSignature } from "./EcdsaSignature.js";
 import { CurveType, Key, KeyType, PrivateKey, PublicKey } from "./Key.js";
@@ -279,6 +279,12 @@ export class StandardCrypto extends Crypto {
             subtleKey,
             256,
         );
+    }
+
+    ecMultiply(point: Bytes, scalar: Bytes): Bytes {
+        return ec.p256.Point.fromBytes(Bytes.of(point))
+            .multiply(Bytes.asBigInt(Bytes.of(scalar)))
+            .toBytes(false);
     }
 
     protected async importKey(

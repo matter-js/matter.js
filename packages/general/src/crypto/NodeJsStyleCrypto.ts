@@ -16,6 +16,7 @@ import {
     CRYPTO_ENCRYPT_ALGORITHM,
     CRYPTO_HASH_ALGORITHM,
     CRYPTO_SYMMETRIC_KEY_LENGTH,
+    ec,
     HashAlgorithm,
 } from "./Crypto.js";
 import { CryptoDecryptError, CryptoVerifyError } from "./CryptoError.js";
@@ -329,5 +330,53 @@ export class NodeJsStyleCrypto extends Crypto {
         ecdh.setPrivateKey(Bytes.of(key.privateBits));
 
         return Bytes.of(ecdh.computeSecret(Bytes.of(peerKey.publicBits)));
+    }
+
+    ecMultiply(point: Bytes, scalar: Bytes): Bytes {
+        const {
+            p256: { Point },
+            pow,
+            mod: modFn,
+        } = ec;
+        const curve = Point.CURVE();
+        const scalarVal = Bytes.asBigInt(Bytes.of(scalar));
+
+        // Edge cases: fall back to noble-curves
+        if (scalarVal === 0n || scalarVal + 1n >= curve.n) {
+            return Point.fromBytes(Bytes.of(point)).multiply(scalarVal).toBytes(false);
+        }
+
+        const pointBuf = Bytes.of(point);
+        const p = curve.p;
+
+        // Native ECDH for x-coordinate of scalar * point
+        const ecdh1 = this.#crypto.createECDH(CRYPTO_EC_CURVE);
+        ecdh1.setPrivateKey(Bytes.of(scalar));
+        const rx = Bytes.asBigInt(Bytes.of(ecdh1.computeSecret(pointBuf)));
+
+        // Recover y via curve equation: y² = x³ - 3x + b (mod p)
+        const rx2 = modFn(rx * rx, p);
+        const rhs = modFn(rx2 * rx + (p - 3n) * rx + curve.b, p);
+        const ry = pow(rhs, (p + 1n) / 4n, p);
+
+        // Determine correct y parity via (scalar + 1) * point
+        const ecdh2 = this.#crypto.createECDH(CRYPTO_EC_CURVE);
+        ecdh2.setPrivateKey(Bytes.of(Bytes.fromBigInt(scalarVal + 1n, 32)));
+        const expectedX = Bytes.asBigInt(Bytes.of(ecdh2.computeSecret(pointBuf)));
+
+        // Build result with candidate y
+        const result = new Uint8Array(65);
+        result[0] = 0x04;
+        result.set(Bytes.of(Bytes.fromBigInt(rx, 32)), 1);
+        result.set(Bytes.of(Bytes.fromBigInt(ry, 32)), 33);
+
+        // Check: (rx, ry) + point should have x-coordinate == expectedX
+        if (Point.fromBytes(result).add(Point.fromBytes(pointBuf)).x === expectedX) {
+            return result;
+        }
+
+        // Wrong y parity; negate
+        result.set(Bytes.of(Bytes.fromBigInt(p - ry, 32)), 33);
+        return result;
     }
 }
