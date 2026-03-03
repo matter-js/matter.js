@@ -5,3 +5,4 @@
  */
 
 export * from "./StorageBackendAsyncStorage.js";
+export * from "./StorageBackendAsyncStorageV2.js";

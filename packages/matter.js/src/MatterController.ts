@@ -408,6 +408,12 @@ export class MatterController {
         });
     }
 
+    get peers() {
+        this.construction.assert();
+
+        return this.#peers!;
+    }
+
     #enableOtaProvider() {
         if (!this.#node) {
             throw new ImplementationError("Node is not initialized yet");
