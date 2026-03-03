@@ -20,7 +20,8 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
 
 - @matter/protocol
-    - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient and offers more knobs for tuning
+    - Breaking: Removed automatic retry-logic for interactions on node-reachabiloity issues, new session will be initialized automatically afterwards
+    - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
     - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
     - Feature: matter.js now responds immediately to IP changes advertised via MDNS
@@ -32,6 +33,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/react-native
     - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
+
+- @project-chip/matter.js
+    - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
 
 ## 0.16.10 (2026-02-22)
 

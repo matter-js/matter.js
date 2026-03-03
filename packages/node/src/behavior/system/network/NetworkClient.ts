@@ -132,8 +132,9 @@ export class NetworkClient extends NetworkBehavior {
             });
 
             if (this.internal.activeSubscription instanceof SustainedSubscription) {
-                this.internal.activeSubscription.active.on(() => this.events.subscriptionStatusChanged.emit(true));
-                this.internal.activeSubscription.inactive.on(() => this.events.subscriptionStatusChanged.emit(false));
+                this.internal.activeSubscription.active.on(isActive =>
+                    this.events.subscriptionStatusChanged.emit(isActive),
+                );
             } else {
                 this.events.subscriptionStatusChanged.emit(true);
             }
