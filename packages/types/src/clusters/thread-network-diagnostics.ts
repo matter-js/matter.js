@@ -10,7 +10,7 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, TlvNoResponse, OptionalAttribute, OptionalEvent } from "../cluster/Cluster.js";
 import { TlvUInt64, TlvUInt16, TlvUInt32, TlvEnum, TlvUInt8, TlvInt8 } from "../tlv/TlvNumber.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
@@ -19,7 +19,7 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ThreadNetworkDiagnostics {
@@ -678,8 +678,8 @@ export namespace ThreadNetworkDiagnostics {
             txAckedCount: OptionalAttribute(0x1a, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the total number of unique MAC frame transmission requests withoutrequestedacknowledgment. The
-             * attribute shall only be incremented by 1 for each MAC transmission request that is does not request
+             * Indicates the total number of unique MAC frame transmission requests without requested acknowledgment.
+             * The attribute shall only be incremented by 1 for each MAC transmission request that is does not request
              * acknowledgement regardless of the amount of CCA failures, CSMA-CA attempts, or retransmissions.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.28
@@ -842,8 +842,8 @@ export namespace ThreadNetworkDiagnostics {
             rxBeaconRequestCount: OptionalAttribute(0x2d, TlvUInt32, { omitChanges: true, default: 0 }),
 
             /**
-             * Indicates the total number of received unique MAC frame requests that are not counted by
-             * anyotherattribute. This value shall only be reset upon a Node reboot.
+             * Indicates the total number of received unique MAC frame requests that are not counted by any other
+             * attribute. This value shall only be reset upon a Node reboot.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.14.6.47
              */

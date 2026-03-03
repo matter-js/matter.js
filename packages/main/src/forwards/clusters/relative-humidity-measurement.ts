@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/relative-humidity-measurement";
+export * from "@matter/types/clusters/relative-humidity-measurement";

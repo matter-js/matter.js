@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError } from "#general";
+import { InternalError } from "@matter/general";
 import { Access, Aspect, Constraint } from "../aspects/index.js";
 import { ElementTag, FieldValue, Metatype, Specification } from "../common/index.js";
 import { AnyElement } from "../elements/index.js";
@@ -28,6 +28,8 @@ import type { CommandModel, MatterModel, Model, ScopeModel, ValueModel } from ".
 const OPERATION_DEPTH_LIMIT = 20;
 
 let memos: Memos | undefined;
+
+const aspectCache = new WeakMap<Model, Record<string, Aspect | null>>();
 
 /**
  * This class performs lookups of models in the scope of a specific model.  We use a class so the lookup can maintain
@@ -347,6 +349,16 @@ export class ModelTraversal {
             return;
         }
 
+        if (Object.isFrozen(model)) {
+            const cached = aspectCache.get(model);
+            if (cached !== undefined) {
+                const entry = cached[name];
+                if (entry !== undefined) {
+                    return (entry ?? undefined) as T | undefined;
+                }
+            }
+        }
+
         const findAspectOp = () => {
             let aspect = model[name] as T;
 
@@ -362,7 +374,18 @@ export class ModelTraversal {
             return aspect;
         };
 
-        return this.operation(findAspectOp);
+        const result = this.operation(findAspectOp);
+
+        if (Object.isFrozen(model)) {
+            let slot = aspectCache.get(model);
+            if (slot === undefined) {
+                slot = {};
+                aspectCache.set(model, slot);
+            }
+            slot[name] = result ?? null;
+        }
+
+        return result;
     }
 
     /**

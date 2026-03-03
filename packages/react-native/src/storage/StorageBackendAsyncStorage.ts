@@ -4,20 +4,28 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "#general";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Bytes, Storage, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
+import { createAsyncStorage, type AsyncStorage } from "@react-native-async-storage/async-storage";
 
+/**
+ * AsyncStorage backend based on AsyncStorage v3 scoped instances.
+ *
+ * This backend uses `createAsyncStorage(...)`, so each backend instance stores
+ * data in its own scoped storage area. It is the default backend for
+ * `@matter/react-native` with async-storage `3.x`.
+ *
+ * For migration scenarios that need legacy v2-compatible singleton storage
+ * behavior, use {@link StorageBackendAsyncStorageV2} from
+ * `@matter/react-native/storage` instead.
+ */
 export class StorageBackendAsyncStorage extends Storage {
-    #namespace: string;
+    #storage: AsyncStorage;
     protected isInitialized = false;
 
-    /**
-     * Creates a new instance of the AsyncStorage storage backend. In a "namespace" is provided then the keys will be
-     * prefixed with the namespace (separated with a # which is normally not used in matter.js keys).
-     */
+    /** Creates a namespaced storage area when AsyncStorage v3 is available. */
     constructor(namespace?: string) {
         super();
-        this.#namespace = namespace ?? "";
+        this.#storage = createAsyncStorage(namespace ?? "matterjs");
     }
 
     get initialized() {
@@ -33,8 +41,7 @@ export class StorageBackendAsyncStorage extends Storage {
     }
 
     clear() {
-        // @ts-expect-error AsyncStorage types are not correct
-        return AsyncStorage.clear();
+        return this.#storage.clear();
     }
 
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {
@@ -45,8 +52,10 @@ export class StorageBackendAsyncStorage extends Storage {
             contextKey.startsWith(".") ||
             contextKey.endsWith(".")
         )
-            throw new StorageError("Context must not be an empty and not contain dots.");
-        return `${this.#namespace.length ? `${this.#namespace}#` : ""}${contextKey}`;
+            throw new StorageError(
+                "Context must not be empty and must not contain empty segments or leading or trailing dots.",
+            );
+        return contextKey;
     }
 
     buildStorageKey(contexts: string[], key: string) {
@@ -58,8 +67,7 @@ export class StorageBackendAsyncStorage extends Storage {
     }
 
     async get<T extends SupportedStorageTypes>(contexts: string[], key: string): Promise<T | undefined> {
-        // @ts-expect-error AsyncStorage types are not correct
-        const value = await AsyncStorage.getItem(this.buildStorageKey(contexts, key));
+        const value = await this.#storage.getItem(this.buildStorageKey(contexts, key));
         if (value === null) return undefined;
         return fromJson(value) as T;
     }
@@ -80,19 +88,18 @@ export class StorageBackendAsyncStorage extends Storage {
         value?: SupportedStorageTypes,
     ) {
         if (typeof keyOrValues === "string") {
-            // @ts-expect-error AsyncStorage types are not correct
-            await AsyncStorage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
+            await this.#storage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
         } else {
+            const entries = {} as Record<string, string>;
             for (const [key, value] of Object.entries(keyOrValues)) {
-                // @ts-expect-error AsyncStorage types are not correct
-                await AsyncStorage.setItem(this.buildStorageKey(contexts, key), toJson(value));
+                entries[this.buildStorageKey(contexts, key)] = toJson(value);
             }
+            await this.#storage.setMany(entries);
         }
     }
 
     delete(contexts: string[], key: string) {
-        // @ts-expect-error AsyncStorage types are not correct
-        return AsyncStorage.removeItem(this.buildStorageKey(contexts, key));
+        return this.#storage.removeItem(this.buildStorageKey(contexts, key));
     }
 
     /** Returns all keys of a storage context without keys of sub-contexts */
@@ -100,8 +107,7 @@ export class StorageBackendAsyncStorage extends Storage {
         const contextKey = this.getContextBaseKey(contexts);
         const keys = [];
         const contextKeyStart = `${contextKey}.`;
-        // @ts-expect-error AsyncStorage types are not correct
-        const allKeys = await AsyncStorage.getAllKeys();
+        const allKeys = await this.#storage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(contextKeyStart) && !key.includes(".", contextKeyStart.length)) {
                 keys.push(key.substring(contextKeyStart.length));
@@ -112,9 +118,15 @@ export class StorageBackendAsyncStorage extends Storage {
 
     async values(contexts: string[]) {
         // Initialize and context checks are done by keys method
+        const keys = await this.keys(contexts);
+        const storageKeys = keys.map(key => this.buildStorageKey(contexts, key));
+        const entries = await this.#storage.getMany(storageKeys);
         const values = {} as Record<string, SupportedStorageTypes>;
-        for (const key of await this.keys(contexts)) {
-            values[key] = await this.get(contexts, key);
+        for (const [index, key] of keys.entries()) {
+            const value = entries[storageKeys[index]];
+            if (value !== null && value !== undefined) {
+                values[key] = fromJson(value) as SupportedStorageTypes;
+            }
         }
         return values;
     }
@@ -122,32 +134,31 @@ export class StorageBackendAsyncStorage extends Storage {
     async contexts(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
         const startContextKey = contextKey.length ? `${contextKey}.` : "";
-        const foundContexts = new Array<string>();
-        // @ts-expect-error AsyncStorage types are not correct
-        const allKeys = await AsyncStorage.getAllKeys();
+        const foundContexts = new Set<string>();
+        const allKeys = await this.#storage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 const subKeys = key.substring(startContextKey.length).split(".");
                 if (subKeys.length === 1) continue; // found leaf key
                 const context = subKeys[0];
-                if (!foundContexts.includes(context)) {
-                    foundContexts.push(context);
-                }
+                foundContexts.add(context);
             }
         }
-        return foundContexts;
+        return Array.from(foundContexts);
     }
 
     async clearAll(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
         const startContextKey = contextKey.length ? `${contextKey}.` : "";
-        // @ts-expect-error AsyncStorage types are not correct
-        const allKeys = await AsyncStorage.getAllKeys();
+        const allKeys = await this.#storage.getAllKeys();
+        const keysToDelete = [];
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
-                // @ts-expect-error AsyncStorage types are not correct
-                await AsyncStorage.removeItem(key);
+                keysToDelete.push(key);
             }
+        }
+        if (keysToDelete.length) {
+            await this.#storage.removeMany(keysToDelete);
         }
     }
 }

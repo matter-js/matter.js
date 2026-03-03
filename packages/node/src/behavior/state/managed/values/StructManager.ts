@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, GeneratedClass, ImplementationError, isObject } from "#general";
-import type { Schema } from "#model";
-import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "#model";
-import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "#protocol";
-import { FabricIndex } from "#types";
+import { camelize, GeneratedClass, ImplementationError, isObject } from "@matter/general";
+import type { Schema } from "@matter/model";
+import { Access, ElementTag, FieldValue, Metatype, ValueModel } from "@matter/model";
+import { AccessControl, PhantomReferenceError, SchemaImplementationError, Val } from "@matter/protocol";
+import { FabricIndex } from "@matter/types";
 import { RootSupervisor } from "../../../supervision/RootSupervisor.js";
 import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";
@@ -173,7 +173,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
 
     const { access, manage, validate } = supervisor.get(schema);
 
-    const fabricScopedList =
+    const isFabricScopedList =
         schema.effectiveAccess.fabric === Access.Fabric.Scoped && schema.effectiveMetatype === Metatype.array;
 
     // We generally do not deal with default values.  If the schema defines a default it is assigned before the manager
@@ -236,7 +236,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                 }
 
                 // Modify the value
-                if (fabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
+                if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
                     // In the case of fabric-scoped write to established list we use the managed proxy to perform update
                     // as it will sort through values and only modify those with correct fabricIndex
                     const proxy = self[name] as Val.List;

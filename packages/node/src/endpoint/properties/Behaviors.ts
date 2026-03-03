@@ -12,6 +12,7 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { Events } from "#behavior/Events.js";
 import { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { ProtocolService } from "#node/integration/ProtocolService.js";
 import {
     BasicObservable,
     camelize,
@@ -26,11 +27,10 @@ import {
     Logger,
     MaybePromise,
     Transaction,
-} from "#general";
-import { FeatureSet } from "#model";
-import { ProtocolService } from "#node/integration/ProtocolService.js";
-import { ClusterTypeProtocol, Val } from "#protocol";
-import { ClusterType, VoidSchema } from "#types";
+} from "@matter/general";
+import { FeatureSet } from "@matter/model";
+import { ClusterTypeProtocol, Val } from "@matter/protocol";
+import { ClusterType, VoidSchema } from "@matter/types";
 import type { Agent } from "../Agent.js";
 import type { Endpoint } from "../Endpoint.js";
 import { EndpointVariableService } from "../EndpointVariableService.js";

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/ethernet-network-diagnostics";
+export * from "@matter/node/behaviors/ethernet-network-diagnostics";

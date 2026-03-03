@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, InternalError } from "#general";
+import { camelize, InternalError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
@@ -17,9 +17,9 @@ import {
     Schema,
     Scope,
     ValueModel,
-} from "#model";
-import { AccessControl, Val } from "#protocol";
-import { AttributeId } from "#types";
+} from "@matter/model";
+import { AccessControl, Val } from "@matter/protocol";
+import { AttributeId } from "@matter/types";
 import { ValueCaster } from "../state/managed/values/ValueCaster.js";
 import { ValueManager } from "../state/managed/values/ValueManager.js";
 import { ValuePatcher } from "../state/managed/values/ValuePatcher.js";

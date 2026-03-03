@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/rvc-operational-state";
+export * from "@matter/node/behaviors/rvc-operational-state";

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppAddress, ImplementationError, MqttEndpoint, MqttEndpointFactory, StorageService } from "#general";
+import { AppAddress, ImplementationError, MqttEndpoint, MqttEndpointFactory, StorageService } from "@matter/general";
 import { connectAsync, IClientOptions } from "mqtt";
 import { MqttJsEndpoint } from "./MqttJsEndpoint.js";
 import { MqttJsMessage } from "./MqttJsMessage.js";
@@ -67,6 +67,9 @@ export class MqttJsEndpointFactory extends MqttEndpointFactory {
         if (options.will) {
             opts.will = MqttJsMessage.encode(options.will);
         }
+
+        opts.cert = options.certificate;
+        opts.key = options.key;
 
         const client = await connectAsync(opts);
 

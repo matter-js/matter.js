@@ -31,11 +31,6 @@
         "embed-examples": "embedme **/README.md"
     },
     "imports": {
-        "#general": "@matter/general",
-        "#model": "@matter/model",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
-        "#clusters/*": "@matter/types/clusters/*",
         "#behaviors/*": "./src/behaviors/*/index.js",
         "#endpoints/*": "./src/endpoints/*.js",
         "#devices/*": "./src/devices/*.js",

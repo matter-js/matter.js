@@ -8,6 +8,7 @@ import {
     AppAddress,
     asError,
     Bytes,
+    causedBy,
     Diagnostic,
     HttpEndpoint,
     HttpService,
@@ -16,8 +17,8 @@ import {
     MatterError,
     NotImplementedError,
     Stream,
-} from "#general";
-import { StatusResponse, StatusResponseError } from "#types";
+} from "@matter/general";
+import { StatusResponse, StatusResponseError } from "@matter/types";
 import { Api } from "../remote/api/Api.js";
 import { ApiPath } from "../remote/api/ApiPath.js";
 import { ApiResource } from "../remote/api/ApiResource.js";
@@ -35,7 +36,7 @@ export class HttpInterface extends RemoteInterface {
     #http?: HttpEndpoint;
 
     protected override async start() {
-        this.#http = await this.env.get(HttpService).create(this.address);
+        this.#http = await this.env.get(HttpService).create(this);
         this.#http.http = this.#handleRequest.bind(this);
     }
 
@@ -250,7 +251,7 @@ function adaptError(e: unknown) {
     }
 
     if (status === undefined) {
-        if (e instanceof StatusResponseError) {
+        if (causedBy(e, StatusResponseError)) {
             status = 400;
         } else {
             status = 500;

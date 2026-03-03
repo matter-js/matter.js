@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/time-format-localization";
+export * from "@matter/types/clusters/time-format-localization";

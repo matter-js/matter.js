@@ -10,23 +10,22 @@ import "@matter/nodejs";
 // Load node.js WS extension
 import "@matter/nodejs-ws";
 
-import { asError, Bytes, Environment, StorageBackendMemory, StorageService } from "#general";
-import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } from "#node";
+import { asError, Bytes, Environment, StorageBackendMemory, StorageService } from "@matter/general";
+import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } from "@matter/node";
 import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";
-import { MdnsService } from "@matter/protocol";
+import { MdnsService, Val } from "@matter/protocol";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ErrorEvent, WebSocket } from "ws";
-import { Val } from "../../protocol/src/action/Val.js";
 
 let tempFileNum = 0;
 
 let environment: Environment;
 
-// TODO The timeouts of 5s are needed when the test runs locally with more network interfaces because it uses the
-//  real network. We should change that to use a mock network layer instead.
+// TODO The timeouts of 5s are needed when the test runs locally with more network interfaces because it uses the real
+//  network. We should change that to use a mock network layer instead.
 
 describe("WebSocket", () => {
     beforeEach(async () => {
@@ -102,8 +101,8 @@ describe("WebSocket", () => {
 
         await cx.receiveValue(
             {
-                acceptedCommandList: [0, 64, 65, 66, 1, 2],
-                attributeList: [0, 65533, 65532, 65531, 65529, 65528, 16384, 16385, 16386, 16387],
+                acceptedCommandList: [0, 1, 2, 64, 65, 66],
+                attributeList: [0, 16384, 16385, 16386, 16387, 65528, 65529, 65531, 65532, 65533],
                 clusterRevision: 6,
                 featureMap: {
                     deadFrontBehavior: false,
@@ -204,7 +203,6 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 0, "subscriptions", "a");
         await cx.receiveUpdate("test", 0, "sessions", "a");
         await cx.receiveUpdate("test", 0, "events", "a");
-        await cx.receiveUpdate("test", 0, "controller", "a");
         await cx.receiveUpdate("test", 0, "websocket", "a");
         await cx.receiveUpdate("test", 0, "descriptor", "a");
         await cx.receiveUpdate("test", 1, "identify", "a");
@@ -213,8 +211,6 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 1, "onOff", "a");
         await cx.receiveUpdate("test", 1, "descriptor", "a");
         await cx.receiveUpdate("test", 0, "productDescription", "a");
-        await cx.receiveUpdate("test", 0, "controller", "a");
-        await cx.receiveUpdate("test", 0, "commissioning", "a");
 
         await cx.send({
             id: "b",
@@ -252,7 +248,7 @@ describe("WebSocket", () => {
     });
 });
 
-async function setup() {
+async function setup(proto = "ws+unix") {
     const socketPath = join(tmpdir(), `${process.pid}-${tempFileNum++}.sock`);
 
     const node = new ServerNode(ServerNode.RootEndpoint.with(WebSocketServer), {
@@ -260,7 +256,7 @@ async function setup() {
         environment: environment,
 
         websocket: {
-            address: `ws+unix://${encodeURIComponent(socketPath)}/`,
+            address: `${proto}://${encodeURIComponent(socketPath)}/`,
         },
 
         parts: [new Endpoint(OnOffLightDevice.with(OnOffServer.with("Lighting")), { id: "light" })],
@@ -270,7 +266,7 @@ async function setup() {
         await node.lifecycle.partsReady;
     }
 
-    const ws = new WebSocket(`ws+unix://${socketPath}:/`);
+    const ws = new WebSocket(`${proto}://${socketPath}:/`);
 
     await new Promise<void>((resolve, reject) => {
         ws.addEventListener("open", onOpen);

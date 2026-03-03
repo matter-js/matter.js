@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/bridged-device-basic-information";
+export * from "@matter/node/behaviors/bridged-device-basic-information";

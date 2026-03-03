@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { AccountLogin } from "#clusters/account-login";
+import { AccountLogin } from "@matter/types/clusters/account-login";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { AccountLoginInterface } from "./AccountLoginInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * AccountLoginBehavior is the base class for objects that support interaction with {@link AccountLogin.Cluster}.

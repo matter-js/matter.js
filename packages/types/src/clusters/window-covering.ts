@@ -22,9 +22,9 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag, BitFieldEnum } from "../schema/BitmapSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace WindowCovering {
@@ -1063,9 +1063,9 @@ export namespace WindowCovering {
             ),
 
             /**
-             * The SafetyStatus attribute reflects the state of the safety sensors and the common
-             * issuespreventingmovements. By default for nominal operation all flags are cleared (0). A device might
-             * support none, one or several bit flags from this attribute (all optional).
+             * The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing
+             * movements. By default for nominal operation all flags are cleared (0). A device might support none, one
+             * or several bit flags from this attribute (all optional).
              *
              * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.22
              */

@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WaterHeaterMode } from "#clusters/water-heater-mode";
+import { WaterHeaterMode } from "@matter/types/clusters/water-heater-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { WaterHeaterModeInterface } from "./WaterHeaterModeInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * WaterHeaterModeBehavior is the base class for objects that support interaction with {@link WaterHeaterMode.Cluster}.

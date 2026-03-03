@@ -21,7 +21,7 @@ import {
 } from "../behaviors/oven-cavity-operational-state/OvenCavityOperationalStateServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Temperature Controlled Cabinet only exists composed as part of another device type. It represents a single cabinet

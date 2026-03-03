@@ -13,7 +13,7 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export namespace AlarmBase {
     /**
@@ -40,7 +40,7 @@ export namespace AlarmBase {
     export const TlvResetRequest = TlvObject({
         /**
          * This field shall indicate a bitmap where each bit set in this field corresponds to an alarm that shall be
-         * reset to inactive in the State attribute unless the alarm definition requiresmanualintervention. If the
+         * reset to inactive in the State attribute unless the alarm definition requires manual intervention. If the
          * alarms indicated are successfully reset, the response status code shall be SUCCESS, otherwise, the response
          * status code shall be FAILURE.
          *
@@ -114,7 +114,7 @@ export namespace AlarmBase {
         inactive: TlvField(1, TlvUInt32),
 
         /**
-         * This field shall be a copy of the new State attribute value that resulted in the eventbeinggenerated. That
+         * This field shall be a copy of the new State attribute value that resulted in the event being generated. That
          * is, this field shall have all the bits in Active set and shall NOT have any of the bits in Inactive set.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.4

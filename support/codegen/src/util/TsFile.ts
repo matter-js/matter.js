@@ -734,12 +734,8 @@ export class TsFile extends Block {
             return filename;
         } else if (filename.endsWith(".js")) {
             throw new InternalError(`Local import of ${filename} must start with "!", "#" or "."`);
-        } else if (filename.startsWith("@project-chip/")) {
-            return filename.replace(/^@project-chip\/matter-/, "#");
-        } else if (filename.startsWith("@matter/")) {
-            // For @matter/package we assume an alias of "#package"; for "@matter/package/submodule" we assume an
-            // alias of "#submodule"
-            return filename.replace(/^@matter\/[^/]+\//, "#");
+        } else if (filename.startsWith("@project-chip/") || filename.startsWith("@matter/")) {
+            return filename;
         } else {
             throw new InternalError(`Absolute import of ${filename} must start with "@matter"`);
         }

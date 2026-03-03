@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { DiagnosticLogs } from "#clusters/diagnostic-logs";
+import { MaybePromise } from "@matter/general";
+import { DiagnosticLogs } from "@matter/types/clusters/diagnostic-logs";
 
 export namespace DiagnosticLogsInterface {
     export interface Base {

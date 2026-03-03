@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#endpoints/secondary-network-interface";
+export * from "@matter/node/endpoints/secondary-network-interface";

@@ -25,7 +25,7 @@ import {
 } from "../behaviors/relative-humidity-measurement/RelativeHumidityMeasurementServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This defines conformance to the Room Air Conditioner device type.

@@ -5,30 +5,32 @@
  */
 
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Agent } from "#endpoint/Agent.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { Node } from "#node/Node.js";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     Crypto,
     DataReadQueue,
     Entropy,
     Environment,
     hex,
+    Identity,
     MaybePromise,
     MockCrypto,
     Network,
     NetworkSimulator,
     StorageBackendMemory,
     StorageService,
-} from "#general";
-import { AccessLevel } from "#model";
-import { Node } from "#node/Node.js";
-import { ServerNode } from "#node/ServerNode.js";
-import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "#protocol";
-import { FabricIndex, NodeId } from "#types";
+} from "@matter/general";
+import { AccessLevel } from "@matter/model";
+import { ExchangeManager, FabricManager, ProtocolMocks, SessionManager, TestFabric } from "@matter/protocol";
+import { FabricIndex, NodeId } from "@matter/types";
 import { MockExchange } from "./mock-exchange.js";
 
-export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint> extends ServerNode<T> {
+export class MockServerNode<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint> extends ServerNode<T> {
     #newExchanges = new DataReadQueue<MockExchange>();
     #simulator: NetworkSimulator;
 
@@ -98,15 +100,15 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
         return RemoteActorContext(options as RemoteActorContext.Options).act(context => actor(this.agentFor(context)));
     }
 
-    static async createOnline<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
+    static async createOnline<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         type?: T,
         options?: MockServerNode.Options<T>,
     ): Promise<MockServerNode<T>>;
-    static async createOnline<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
+    static async createOnline<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         definition: T | MockServerNode.Configuration<T>,
         options?: MockServerNode.Options<T>,
     ): Promise<MockServerNode<T>>;
-    static async createOnline<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint>(
+    static async createOnline<T extends MockServerNode.RootEndpoint = MockServerNode.RootEndpoint>(
         definition: T | MockServerNode.Configuration<T>,
         options?: MockServerNode.Options<T>,
     ) {
@@ -116,7 +118,7 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
             options ?? ({} as MockServerNode.Options<T>),
         );
 
-        const node = new MockServerNode<ServerNode.RootEndpoint>(config.type, config);
+        const node = new MockServerNode<MockServerNode.RootEndpoint>(config.type, config);
 
         let device = config.device;
         if (device === undefined && !("device" in config)) {
@@ -168,8 +170,8 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
         });
     }
 
-    override async cancel() {
-        await MockTime.resolve(super.cancel());
+    override async stop() {
+        await MockTime.resolve(super.stop());
     }
 
     override async close(stepMs?: number) {
@@ -187,16 +189,16 @@ export class MockServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootE
 }
 
 export namespace MockServerNode {
+    export const RootEndpoint = ServerNode.RootEndpoint.with(ControllerBehavior);
+    export interface RootEndpoint extends Identity<typeof RootEndpoint> {}
+
     export interface MockOptions extends Node.NodeOptions {
         online?: boolean;
         device?: Endpoint.Definition;
         index?: number;
         simulator?: NetworkSimulator;
     }
-    export type Options<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint> = Endpoint.Options<T, MockOptions>;
+    export type Options<T extends RootEndpoint = RootEndpoint> = Endpoint.Options<T, MockOptions>;
 
-    export type Configuration<T extends ServerNode.RootEndpoint = ServerNode.RootEndpoint> = Endpoint.Configuration<
-        T,
-        MockOptions
-    >;
+    export type Configuration<T extends RootEndpoint = RootEndpoint> = Endpoint.Configuration<T, MockOptions>;
 }

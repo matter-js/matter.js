@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterFlowError } from "#general";
 import { ExchangeSendOptions } from "#protocol/MessageExchange.js";
-import { SecureMessageType, TypeFromSchema } from "#types";
+import { MatterFlowError } from "@matter/general";
+import { SecureMessageType, TypeFromSchema } from "@matter/types";
 import { SecureChannelMessenger } from "../../securechannel/SecureChannelMessenger.js";
 import {
     CaseSigma1,
@@ -20,7 +20,7 @@ import {
 
 export class CaseServerMessenger extends SecureChannelMessenger {
     async readSigma1() {
-        const { payload } = await this.nextMessage(SecureMessageType.Sigma1);
+        const { payload } = await this.nextMessage({ type: SecureMessageType.Sigma1 });
         return { sigma1Bytes: payload, sigma1: TlvCaseSigma1.decode(payload) as CaseSigma1 };
     }
 
@@ -33,23 +33,22 @@ export class CaseServerMessenger extends SecureChannelMessenger {
     }
 
     async readSigma3() {
-        const { payload } = await this.nextMessage(SecureMessageType.Sigma3);
+        const { payload } = await this.nextMessage({ type: SecureMessageType.Sigma3 });
         return { sigma3Bytes: payload, sigma3: TlvCaseSigma3.decode(payload) };
     }
 }
 
 export class CaseClientMessenger extends SecureChannelMessenger {
-    sendSigma1(sigma1: TypeFromSchema<typeof TlvCaseSigma1>, options?: ExchangeSendOptions) {
-        return this.send(sigma1, SecureMessageType.Sigma1, TlvCaseSigma1, options);
+    async sendSigma1(sigma1: TypeFromSchema<typeof TlvCaseSigma1>, options?: ExchangeSendOptions) {
+        return await this.send(sigma1, SecureMessageType.Sigma1, TlvCaseSigma1, options);
     }
 
-    async readSigma2() {
+    async readSigma2(abort?: AbortSignal) {
         const {
             payload,
             payloadHeader: { messageType },
-        } = await this.anyNextMessage("Sigma2(Resume)");
+        } = await this.nextMessage({ description: "Sigma2(Resume)", abort });
 
-        // TODO Add support for BUSY response and resend the message after waiting time
         switch (messageType) {
             case SecureMessageType.Sigma2:
                 return { sigma2Bytes: payload, sigma2: TlvCaseSigma2.decode(payload) as CaseSigma2 };
@@ -62,7 +61,7 @@ export class CaseClientMessenger extends SecureChannelMessenger {
         }
     }
 
-    sendSigma3(sigma3: TypeFromSchema<typeof TlvCaseSigma3>) {
-        return this.send(sigma3, SecureMessageType.Sigma3, TlvCaseSigma3);
+    async sendSigma3(sigma3: TypeFromSchema<typeof TlvCaseSigma3>, options?: ExchangeSendOptions) {
+        return await this.send(sigma3, SecureMessageType.Sigma3, TlvCaseSigma3, options);
     }
 }

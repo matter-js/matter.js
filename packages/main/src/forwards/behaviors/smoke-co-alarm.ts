@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/smoke-co-alarm";
+export * from "@matter/node/behaviors/smoke-co-alarm";

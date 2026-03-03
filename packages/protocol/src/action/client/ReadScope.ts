@@ -5,7 +5,7 @@
  */
 
 import { Read } from "#action/request/Read.js";
-import { ClusterId, EndpointNumber } from "#types";
+import { ClusterId, EndpointNumber } from "@matter/types";
 
 /**
  * This utility tells you whether a given endpoint/cluster is in scope for a read.

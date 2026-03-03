@@ -9,13 +9,9 @@
 import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
 import { WiFiNetworkDiagnosticsServer } from "#behaviors/wi-fi-network-diagnostics";
-import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
-import { BasicInformation } from "#clusters/basic-information";
-import { GeneralDiagnostics } from "#clusters/general-diagnostics";
-import { Observable } from "#general";
-import { Specification } from "#model";
 import { InteractionServer } from "#node/server/InteractionServer.js";
-import { ServerNode } from "#node/ServerNode.js";
+import { Observable } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     BaseDataReport,
     DataReportPayload,
@@ -29,7 +25,7 @@ import {
     SubscribeRequest,
     WriteRequest,
     WriteResponse,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -57,7 +53,10 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
     WildcardPathFlagsBitmap,
-} from "#types";
+} from "@matter/types";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
 import { createDummyMessageExchange } from "./InteractionTestUtils.js";
@@ -1086,7 +1085,7 @@ describe("InteractionProtocol", () => {
 
     async function createNode(maxPathsPerInvoke = 100) {
         node = await MockServerNode.createOnline({
-            type: ServerNode.RootEndpoint.with(AdministratorCommissioningServer.with("Basic")),
+            type: MockServerNode.RootEndpoint.with(AdministratorCommissioningServer.with("Basic")),
             basicInformation: {
                 dataModelRevision: 1,
                 vendorName: "vendor",

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/pm10-concentration-measurement";
+export * from "@matter/node/behaviors/pm10-concentration-measurement";

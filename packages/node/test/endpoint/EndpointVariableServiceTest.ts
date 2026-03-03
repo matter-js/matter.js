@@ -6,7 +6,7 @@
 
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { EndpointBehaviorsError } from "#endpoint/errors.js";
-import { Environment } from "#general";
+import { Environment } from "@matter/general";
 import { MockServerNode } from "../node/mock-server-node.js";
 import { MockEndpoint } from "./mock-endpoint.js";
 

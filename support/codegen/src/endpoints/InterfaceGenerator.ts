@@ -32,7 +32,7 @@ export class InterfaceGenerator {
         const intf = this.file.ns.statements(`export interface ${name} {`, "}");
 
         for (const command of commands) {
-            this.file.addImport("#general", "MaybePromise");
+            this.file.addImport("@matter/general", "MaybePromise");
 
             let request = this.types.reference(command, "");
             if (request.length) {

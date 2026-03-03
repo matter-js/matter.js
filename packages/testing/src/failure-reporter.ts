@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi, Printer, STATUS_ICON_FAILURE } from "#tools";
+import { ansi, Printer, STATUS_ICON_FAILURE } from "@matter/tools";
 import { FailureDetail } from "./failure-detail.js";
 import { TextDiff } from "./text-diff.js";
 
@@ -73,6 +73,6 @@ function dumpDetails(
     }
 
     if (diagnostics) {
-        out("\n", ansi.bold("Process state at timeout:"), "\n", diagnostics, "\n");
+        out("\n", ansi.bold("Process state at timeout:"), diagnostics, "\n");
     }
 }

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { DeviceEnergyManagement } from "#clusters/device-energy-management";
+import { DeviceEnergyManagement } from "@matter/types/clusters/device-energy-management";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const DeviceEnergyManagementClientConstructor = ClientBehavior(DeviceEnergyManagement.Complete);
 export interface DeviceEnergyManagementClient extends InstanceType<typeof DeviceEnergyManagementClientConstructor> {}

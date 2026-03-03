@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { EventEmitter, Observable } from "#general";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ExposedFabricInformation, NodeSession, SessionManager, Subscription } from "#protocol";
-import { NodeId } from "#types";
+import { EventEmitter, Observable } from "@matter/general";
+import { ExposedFabricInformation, NodeSession, SessionManager, Subscription } from "@matter/protocol";
+import { NodeId } from "@matter/types";
 import { NodeLifecycle } from "../../../node/NodeLifecycle.js";
 import { Behavior } from "../../Behavior.js";
 

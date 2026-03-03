@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ElectricalEnergyMeasurement } from "#clusters/electrical-energy-measurement";
+import { ElectricalEnergyMeasurement } from "@matter/types/clusters/electrical-energy-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * ElectricalEnergyMeasurementBehavior is the base class for objects that support interaction with

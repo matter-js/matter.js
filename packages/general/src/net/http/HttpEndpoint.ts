@@ -55,6 +55,14 @@ export namespace HttpEndpoint {
      * Configuration options.
      */
     export interface Options {
+        certificate?: string;
+        key?: string;
+    }
+
+    /**
+     * Full configuration.
+     */
+    export interface Configuration extends Options {
         address: AppAddress.Definition;
     }
 }

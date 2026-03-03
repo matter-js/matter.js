@@ -6,6 +6,7 @@
 
 import { NodeActivity } from "#behavior/context/NodeActivity.js";
 import { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
     Diagnostic,
@@ -25,10 +26,9 @@ import {
     Time,
     Timer,
     Timestamp,
-} from "#general";
-import { Specification } from "#model";
-import type { ServerNode } from "#node/ServerNode.js";
-import type { DirtyState, MessageExchange, NodeSession, Session, SubscriptionId } from "#protocol";
+} from "@matter/general";
+import { Specification } from "@matter/model";
+import type { DirtyState, MessageExchange, NodeSession, Session, SubscriptionId } from "@matter/protocol";
 import {
     AttributeReadResponse,
     AttributeSubscriptionResponse,
@@ -40,7 +40,7 @@ import {
     ReadResult,
     SessionClosedError,
     Subscription,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
@@ -50,7 +50,7 @@ import {
     StatusCode,
     StatusResponseError,
     SubscribeRequest,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("ServerSubscription");
 
@@ -311,11 +311,13 @@ export class ServerSubscription implements Subscription {
             return;
         }
 
-        // Change received while we are seeding this subscription
+        // Change received while we are seeding this subscription.  If the cluster was already included in the initial
+        // report at the same version, the subscriber already has this data so we skip it.  If the cluster was not
+        // included (seededVersion is undefined), the subscriber may already be up-to-date due to data version filtering,
+        // so we accept the change and queue it for delivery after activation
         if (this.#seededClusterDetails !== undefined) {
             const seededVersion = this.#seededClusterDetails.get(`${endpointId}-${clusterId}`);
-            if (seededVersion === undefined || seededVersion === version) {
-                // We do not seed this cluster, or we seeded with the same version, so no change or yet to come in seed
+            if (seededVersion !== undefined && seededVersion === version) {
                 return;
             }
         }

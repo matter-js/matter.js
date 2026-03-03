@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/electrical-power-measurement";
+export * from "@matter/node/behaviors/electrical-power-measurement";

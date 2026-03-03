@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/smoke-co-alarm";
+export * from "@matter/types/clusters/smoke-co-alarm";

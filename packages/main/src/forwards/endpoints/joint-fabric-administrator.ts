@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#endpoints/joint-fabric-administrator";
+export * from "@matter/node/endpoints/joint-fabric-administrator";

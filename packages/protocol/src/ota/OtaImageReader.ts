@@ -14,7 +14,7 @@ import {
     InternalError,
     Logger,
     MatterError,
-} from "#general";
+} from "@matter/general";
 import { OtaImageHeader, TlvOtaImageHeader } from "./OtaImageHeader.js";
 
 const logger = Logger.get("OtaImageReader");

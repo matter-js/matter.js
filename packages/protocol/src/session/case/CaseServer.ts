@@ -6,8 +6,14 @@
 
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Mark } from "#common/Mark.js";
+import { PeerUnresponsiveError, TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
+import { NodeSession } from "#session/NodeSession.js";
+import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
+import { ResumptionRecord, SessionManager, ShutdownError } from "#session/SessionManager.js";
 import {
+    asError,
     Bytes,
+    causedBy,
     Channel,
     Crypto,
     CryptoDecryptError,
@@ -16,11 +22,8 @@ import {
     Logger,
     PublicKey,
     UnexpectedDataError,
-} from "#general";
-import { NodeSession } from "#session/NodeSession.js";
-import { SessionParametersWithDurations } from "#session/pase/PaseMessages.js";
-import { ResumptionRecord, SessionManager } from "#session/SessionManager.js";
-import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+} from "@matter/general";
+import { SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { FabricManager, FabricNotFoundError } from "../../fabric/FabricManager.js";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
@@ -59,14 +62,32 @@ export class CaseServer implements ProtocolHandler {
         const messenger = new CaseServerMessenger(exchange);
         try {
             await this.#handleSigma1(messenger);
-        } catch (error) {
-            if (error instanceof FabricNotFoundError) {
-                logger.error("Error establishing CASE session:", Diagnostic.errorMessage(error));
+        } catch (e) {
+            const error = asError(e);
+
+            if (
+                causedBy(
+                    error,
+                    FabricNotFoundError,
+                    ChannelStatusResponseError,
+                    TransientPeerCommunicationError,
+                    ShutdownError,
+                )
+            ) {
+                logger.error(messenger.via, "Error establishing CASE session:", Diagnostic.errorMessage(error));
+            } else {
+                logger.error(messenger.via, "Error establishing CASE session:", error);
+            }
+
+            if (exchange.considerClosed) {
+                return;
+            }
+
+            if (causedBy(error, FabricNotFoundError)) {
                 await messenger.sendError(SecureChannelStatusCode.NoSharedTrustRoots);
             }
             // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
-            else if (!(error instanceof ChannelStatusResponseError)) {
-                logger.error("Error establishing CASE session", error);
+            else if (!causedBy(error, ChannelStatusResponseError, PeerUnresponsiveError)) {
                 await messenger.sendError(SecureChannelStatusCode.InvalidParam);
             }
         } finally {
@@ -76,7 +97,7 @@ export class CaseServer implements ProtocolHandler {
     }
 
     async #handleSigma1(messenger: CaseServerMessenger) {
-        logger.info("Received pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
+        logger.info(messenger.via, "Pairing request", Mark.INBOUND, Diagnostic.via(messenger.channelName));
 
         // Initialize context with information from a peer
         const { sigma1Bytes, sigma1 } = await messenger.readSigma1();
@@ -103,6 +124,7 @@ export class CaseServer implements ProtocolHandler {
         }
 
         logger.info(
+            messenger.via,
             "Invalid resumption ID or resume MIC received from",
             messenger.channelName,
             Diagnostic.dict({
@@ -182,7 +204,7 @@ export class CaseServer implements ProtocolHandler {
         cx.resumptionRecord.resumptionId = cx.localResumptionId; /* Update the ID */
 
         // Wait for success on the peer side
-        await cx.messenger.waitForSuccess("Sigma2Resume-Success");
+        await cx.messenger.waitForSuccess({ description: "Sigma2Resume-Success" });
 
         await cx.messenger.close();
         await this.#sessions.saveResumptionRecord(cx.resumptionRecord);

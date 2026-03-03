@@ -2,7 +2,7 @@
     "recommended": [
         "rioj7.command-variable",
         "esbenp.prettier-vscode",
-        "dbaeumer.vscode-eslint",
+        "oxc.oxc-vscode",
         "cameron.rerun-last-command"
     ]
 }

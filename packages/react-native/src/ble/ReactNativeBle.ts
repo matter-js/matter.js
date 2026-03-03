@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, ConnectionlessTransport, ImplementationError } from "#general";
-import { Ble, BlePeripheralInterface, Scanner } from "#protocol";
+import { ChannelType, ConnectionlessTransport, ImplementationError } from "@matter/general";
+import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { BleScanner } from "./BleScanner.js";
 import { ReactNativeBleCentralInterface } from "./ReactNativeBleChannel.js";
 import { ReactNativeBleClient } from "./ReactNativeBleClient.js";

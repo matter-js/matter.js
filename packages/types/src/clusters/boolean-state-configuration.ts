@@ -23,7 +23,7 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace BooleanStateConfiguration {
@@ -294,10 +294,10 @@ export namespace BooleanStateConfiguration {
 
         events: {
             /**
-             * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressedattributeschange.
-             * This may occur in situations such as when internal processing by the server determines that an alarm mode
-             * becomes active or inactive, or when the SuppressAlarm or EnableDisableAlarm commands are processed in a
-             * way that some alarm modes becomes suppressed, active or inactive.
+             * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressed attributes
+             * change. This may occur in situations such as when internal processing by the server determines that an
+             * alarm mode becomes active or inactive, or when the SuppressAlarm or EnableDisableAlarm commands are
+             * processed in a way that some alarm modes becomes suppressed, active or inactive.
              *
              * If several alarm modes change state at the same time, a single event combining multiple changes may be
              * emitted instead of multiple events each representing a single change.

@@ -5,8 +5,8 @@
  */
 
 import { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
-import { CRYPTO_HASH_LEN_BYTES, CRYPTO_PUBLIC_KEY_SIZE_BYTES } from "#general";
 import { SessionIntervals } from "#session/SessionIntervals.js";
+import { CRYPTO_HASH_LEN_BYTES, CRYPTO_PUBLIC_KEY_SIZE_BYTES } from "@matter/general";
 import {
     TlvBitmap,
     TlvBoolean,
@@ -17,7 +17,7 @@ import {
     TlvUInt16,
     TlvUInt32,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 
 /** @see {@link MatterSpecification.v13.Core} § 4.12.8 */
 export const TlvSessionParameters = TlvObject({

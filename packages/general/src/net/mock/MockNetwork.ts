@@ -16,20 +16,77 @@ export class MockNetwork extends Network {
     readonly router = MockRouter();
     readonly #simulator: NetworkSimulator;
     readonly #intf: NetworkInterfaceDetails;
+    #defaultRoute?: string;
+    readonly #ips: Set<string>;
+    readonly #multicastIps = new Set<string>();
 
     constructor(simulator: NetworkSimulator, mac: string, ips: string[]) {
         super();
         this.#simulator = simulator;
+        this.#ips = new Set(ips);
+        const self = this;
+
         this.#intf = {
             mac,
-            ipV4: ips.filter(ip => isIPv4(ip)),
-            ipV6: ips.filter(ip => !isIPv4(ip)),
+
+            get ipV4() {
+                return [...self.#ips].filter(ip => isIPv4(ip));
+            },
+
+            get ipV6() {
+                return [...self.#ips].filter(ip => !isIPv4(ip));
+            },
         };
+
         this.#simulator.router.add(this.router);
     }
 
     get simulator() {
         return this.#simulator;
+    }
+
+    addAddr(...ips: string[]) {
+        for (const ip of ips) {
+            this.#ips.add(ip);
+        }
+    }
+
+    deleteAddr(...ips: string[]) {
+        for (const ip of ips) {
+            this.#ips.delete(ip);
+        }
+    }
+
+    addMembership(...multicastIps: string[]) {
+        for (const ip of multicastIps) {
+            this.#multicastIps.add(ip);
+        }
+    }
+
+    dropMembership(...multicastIps: string[]) {
+        for (const ip of multicastIps) {
+            this.#multicastIps.delete(ip);
+        }
+    }
+
+    isMemberOf(multicastIp: string) {
+        return this.#multicastIps.has(multicastIp);
+    }
+
+    shouldReceive(ip: string) {
+        return this.#ips.has(ip) || this.#multicastIps.has(ip);
+    }
+
+    set defaultRoute(ip: string | undefined) {
+        this.#defaultRoute = ip;
+    }
+
+    get defaultRoute(): string {
+        const ip = this.#defaultRoute ?? this.#ips[Symbol.iterator]().next().value;
+        if (ip === undefined) {
+            throw new Error("No default route");
+        }
+        return ip;
     }
 
     getNetInterfaces(): NetworkInterface[] {

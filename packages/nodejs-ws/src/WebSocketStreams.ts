@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { asError, Bytes, Gate, InternalError } from "#general";
+import { asError, Bytes, Gate, InternalError } from "@matter/general";
 import { WebSocket } from "ws";
 
 /**

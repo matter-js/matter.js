@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/laundry-washer-mode";
+export * from "@matter/types/clusters/laundry-washer-mode";

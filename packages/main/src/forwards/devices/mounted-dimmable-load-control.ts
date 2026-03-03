@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#devices/mounted-dimmable-load-control";
+export * from "@matter/node/devices/mounted-dimmable-load-control";

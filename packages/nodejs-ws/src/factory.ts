@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { HttpEndpoint } from "#general";
-import { type NodeJsHttpEndpoint, WsAdapter } from "#nodejs";
+import { HttpEndpoint } from "@matter/general";
+import { type NodeJsHttpEndpoint, WsAdapter } from "@matter/nodejs";
 import { WebSocketServer } from "ws";
 import { WebSocketStreams } from "./WebSocketStreams.js";
 

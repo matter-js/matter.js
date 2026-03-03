@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/boolean-state-configuration";
+export * from "@matter/node/behaviors/boolean-state-configuration";

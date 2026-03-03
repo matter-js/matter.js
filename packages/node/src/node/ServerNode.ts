@@ -6,18 +6,24 @@
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { CommissioningServer } from "#behavior/system/commissioning/CommissioningServer.js";
-import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { EventsBehavior } from "#behavior/system/events/EventsBehavior.js";
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import { ServerNetworkRuntime } from "#behavior/system/network/ServerNetworkRuntime.js";
 import { ProductDescriptionServer } from "#behavior/system/product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "#behavior/system/sessions/SessionsBehavior.js";
-import { SubscriptionsBehavior } from "#behavior/system/subscriptions/SubscriptionsServer.js";
+import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
-import type { Environment } from "#general";
-import { asyncNew, Construction, DiagnosticSource, errorOf, Identity, MatterError } from "#general";
-import { FabricManager, Interactable, OccurrenceManager, ServerInteraction, SessionManager } from "#protocol";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
+import type { Environment } from "@matter/general";
+import { asyncNew, Construction, DiagnosticSource, errorOf, Identity, MatterError } from "@matter/general";
+import {
+    FabricManager,
+    Interactable,
+    OccurrenceManager,
+    PeerSet,
+    ServerInteraction,
+    SessionManager,
+} from "@matter/protocol";
 import { RootEndpoint as BaseRootEndpoint } from "../endpoints/root.js";
 import { Node } from "./Node.js";
 import { Peers } from "./client/Peers.js";
@@ -114,6 +120,7 @@ export class ServerNode<T extends ServerNode.RootEndpoint = ServerNode.RootEndpo
     }
 
     override async prepareRuntimeShutdown() {
+        await this.env.maybeGet(PeerSet)?.disconnect();
         await this.env.get(SessionManager).closeAllSessions();
     }
 
@@ -216,10 +223,9 @@ export namespace ServerNode {
         CommissioningServer,
         NetworkServer,
         ProductDescriptionServer,
-        SubscriptionsBehavior,
+        SubscriptionsServer,
         SessionsBehavior,
         EventsBehavior,
-        ControllerBehavior,
     );
 
     export interface RootEndpoint extends Identity<typeof RootEndpoint> {}

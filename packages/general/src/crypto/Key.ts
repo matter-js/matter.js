@@ -5,14 +5,14 @@
  */
 
 import { Base64 } from "../codec/Base64Codec.js";
-import { DerCodec, DerNode, DerType } from "../codec/DerCodec.js";
+import { DerCodec, DerNode, DerType, ObjectId } from "../codec/DerCodec.js";
 import { MatterError, NotImplementedError } from "../MatterError.js";
 import { Bytes } from "../util/Bytes.js";
 import { ec } from "./Crypto.js";
 import { KeyInputError } from "./CryptoError.js";
+import { Pem } from "./Pem.js";
 
 const {
-    numberToBytesBE,
     p256: { getPublicKey, Point, getSharedSecret },
 } = ec;
 
@@ -59,6 +59,12 @@ const CurveLookup = {
     [Asn1ObjectID.prime256r1]: CurveType.p256,
     [Asn1ObjectID.prime384r1]: CurveType.p384,
     [Asn1ObjectID.prime521r1]: CurveType.p521,
+};
+
+const CurveOidLookup: Record<string, string> = {
+    [CurveType.p256]: Asn1ObjectID.prime256r1,
+    [CurveType.p384]: Asn1ObjectID.prime384r1,
+    [CurveType.p521]: Asn1ObjectID.prime521r1,
 };
 
 export type BinaryKeyPair = {
@@ -128,20 +134,17 @@ export interface Key extends JsonWebKey {
     y?: string;
 
     /**
-     * Binary alias to private key field.  Automatically encodes/decodes the
-     * base-64 private key.
+     * Binary alias to private key field.  Automatically encodes/decodes the base-64 private key.
      */
     privateBits?: Bytes;
 
     /**
-     * Binary alias to the x field.  Automatically encodes/decodes the base-64
-     * x-point on EC public keys.
+     * Binary alias to the x field.  Automatically encodes/decodes the base-64 x-point on EC public keys.
      */
     xBits?: Bytes;
 
     /**
-     * Binary alias to the y field.  Automatically encodes/decodes the base-64
-     * y-point on EC public keys.
+     * Binary alias to the y field.  Automatically encodes/decodes the base-64 y-point on EC public keys.
      */
     yBits?: Bytes;
 
@@ -151,9 +154,14 @@ export interface Key extends JsonWebKey {
     sec1?: Bytes;
 
     /**
-     * Import (write-only) of private keys encoded in PKCS #8 format.
+     * Import of PKCS #8 format as DER or PEM and export as DER.
      */
     pkcs8?: Bytes;
+
+    /**
+     * Import/export of PKCS #8 format as PEM.
+     */
+    pem?: string;
 
     /**
      * Import (write-only) of public keys encoded in SPKI format.
@@ -161,14 +169,12 @@ export interface Key extends JsonWebKey {
     spki?: Bytes;
 
     /**
-     * Import/export of EC public key in SEC1/SPKI format.  Maps to x & y
-     * fields internally.
+     * Import/export of EC public key in SEC1/SPKI format.  Maps to x & y fields internally.
      */
     publicBits?: Bytes;
 
     /**
-     * Import/export of BinaryKeyPair structure used as an alternate
-     * serialization format for legacy reasons.
+     * Import/export of BinaryKeyPair structure used as an alternate serialization format for legacy reasons.
      */
     keyPairBits?: BinaryKeyPair;
 
@@ -287,10 +293,10 @@ namespace Translators {
         },
     };
 
-    // Import PKCS8 private key
+    // Import/export of PKCS#8 private key
     export const pkcs8 = {
         set: function (this: Key, input: Bytes) {
-            const outer = DerCodec.decode(input);
+            const outer = Pem.decode(input);
 
             // Version
             const version = outer?._elements?.[0];
@@ -319,8 +325,50 @@ namespace Translators {
             this.privateBits = key;
         },
 
-        get: function () {
-            throw new NotImplementedError("PKCS #8 export not implemented");
+        get: function (this: Key): Bytes | undefined {
+            if (this.type !== KeyType.EC || !this.d || !this.crv) {
+                return undefined;
+            }
+
+            const curveOid = CurveOidLookup[this.crv];
+            if (!curveOid) {
+                throw new KeyInputError(`Unsupported curve for PKCS #8 export: ${this.crv}`);
+            }
+
+            const privateBits = this.privateBits;
+            if (privateBits === undefined) {
+                return undefined;
+            }
+
+            // Inner SEQUENCE: version 1 + private key octet string
+            const innerSequence = DerCodec.encode({
+                version: 1,
+                privateKey: privateBits,
+            });
+
+            // Outer SEQUENCE: version 0 + algorithm identifier + wrapped inner sequence
+            return DerCodec.encode({
+                version: 0,
+                algorithm: {
+                    algorithmId: ObjectId(Asn1ObjectID.ecPublicKey),
+                    curve: ObjectId(curveOid),
+                },
+                privateKey: { _tag: DerType.OctetString, _bytes: innerSequence } as DerNode,
+            });
+        },
+    };
+
+    // Import/export of PKCS#8 private key as binary
+    export const pem = {
+        set: function (this: Key, input: string) {
+            this.pkcs8 = Pem.asDer(input);
+        },
+
+        get: function (this: Key): string | undefined {
+            const pkcs8 = this.pkcs8;
+            if (pkcs8) {
+                return Pem.encode(pkcs8, "PRIVATE KEY");
+            }
         },
     };
 
@@ -544,8 +592,8 @@ export function Key(properties: Partial<Key>) {
         const ecKey = Point.fromBytes(pubKeyBytes);
 
         // Install
-        that.xBits = numberToBytesBE(ecKey.x, keyLength);
-        that.yBits = numberToBytesBE(ecKey.y, keyLength);
+        that.xBits = Bytes.fromBigInt(ecKey.x, keyLength);
+        that.yBits = Bytes.fromBigInt(ecKey.y, keyLength);
     }
 
     if (that.type === KeyType.EC) {

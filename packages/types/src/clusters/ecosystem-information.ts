@@ -16,9 +16,9 @@ import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvLocationdesc } from "../globals/Locationdesc.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace EcosystemInformation {
@@ -211,8 +211,8 @@ export namespace EcosystemInformation {
 
             /**
              * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory
-             * entries, and shall NOT contain locations which are dynamically generated and removed by anecosystem.
-             * (E.g. a location that is generated and removed based on the user being home is notpermitted. However, an
+             * entries, and shall NOT contain locations which are dynamically generated and removed by an ecosystem.
+             * (E.g. a location that is generated and removed based on the user being home is not permitted. However, an
              * initially generated location name that does not quickly change is acceptable.) An empty list indicates
              * that the information is not available.
              *

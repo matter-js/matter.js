@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ansi, Package, Progress, std } from "#tools";
+import { ansi, Package, Progress, std } from "@matter/tools";
 import debug from "debug";
 import { readFile } from "node:fs/promises";
 import { dirname, relative, resolve } from "node:path";
@@ -73,10 +73,10 @@ export class TestRunner {
         }
     }
 
-    async runNode(format: "esm" | "cjs" = "esm") {
+    async runNode(format: "esm" | "cjs" = "esm", repeat?: number) {
         await this.#configure();
 
-        return await this.#run(this.progress, () => testNodejs(this, format));
+        return await this.#run(this.progress, () => testNodejs(this, format, repeat));
     }
 
     async runWeb(manual = false) {

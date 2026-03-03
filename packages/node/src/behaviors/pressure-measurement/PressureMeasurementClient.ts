@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { PressureMeasurement } from "#clusters/pressure-measurement";
+import { PressureMeasurement } from "@matter/types/clusters/pressure-measurement";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const PressureMeasurementClientConstructor = ClientBehavior(PressureMeasurement.Complete);
 export interface PressureMeasurementClient extends InstanceType<typeof PressureMeasurementClientConstructor> {}

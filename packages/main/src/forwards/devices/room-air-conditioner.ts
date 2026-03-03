@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#devices/room-air-conditioner";
+export * from "@matter/node/devices/room-air-conditioner";

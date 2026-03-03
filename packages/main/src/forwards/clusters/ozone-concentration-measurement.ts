@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/ozone-concentration-measurement";
+export * from "@matter/types/clusters/ozone-concentration-measurement";

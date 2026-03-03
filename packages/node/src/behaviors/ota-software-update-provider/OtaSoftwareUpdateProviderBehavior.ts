@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { OtaSoftwareUpdateProviderInterface } from "./OtaSoftwareUpdateProviderInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * OtaSoftwareUpdateProviderBehavior is the base class for objects that support interaction with

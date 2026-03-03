@@ -10,8 +10,8 @@ import { Invoke } from "#action/request/Invoke.js";
 import { InvokeResult } from "#action/response/InvokeResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
-import { Diagnostic, InternalError, Logger } from "#general";
-import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "#model";
+import { Diagnostic, InternalError, Logger } from "@matter/general";
+import { CommandModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     CommandPath,
     EndpointNumber,
@@ -22,7 +22,7 @@ import {
     TlvSchema,
     TlvStream,
     ValidationError,
-} from "#types";
+} from "@matter/types";
 import { Subject } from "./Subject.js";
 
 const logger = Logger.get("CommandInvokeResponse");
@@ -434,17 +434,18 @@ export class CommandInvokeResponse<
             }
         } catch (error) {
             await this.session.transaction?.rollback();
-            if (StatusResponseError.is(error)) {
+            const sre = StatusResponseError.of(error);
+            if (sre) {
                 this.#errorCount++;
 
-                let errorCode = error.code;
+                let errorCode = sre.code;
                 const errorLogText = `Error ${Diagnostic.hex(errorCode)}${
-                    error.clusterCode !== undefined ? `/${Diagnostic.hex(error.clusterCode)}` : ""
-                } while invoking command: ${error.message}`;
+                    sre.clusterCode !== undefined ? `/${Diagnostic.hex(sre.clusterCode)}` : ""
+                } while invoking command: ${sre.message}`;
 
-                if (error instanceof ValidationError) {
+                if (sre instanceof ValidationError) {
                     logger.info(
-                        `Validation-${errorLogText}${error.fieldName !== undefined ? ` in field ${error.fieldName}` : ""}`,
+                        `Validation-${errorLogText}${sre.fieldName !== undefined ? ` in field ${sre.fieldName}` : ""}`,
                     );
                     if (errorCode === StatusCode.InvalidAction) {
                         errorCode = StatusCode.InvalidCommand;
@@ -453,7 +454,7 @@ export class CommandInvokeResponse<
                     logger.info(errorLogText);
                 }
 
-                this.#addStatus(path, commandRef, errorCode, error.clusterCode);
+                this.#addStatus(path, commandRef, errorCode, sre.clusterCode);
                 return;
             }
             throw error;

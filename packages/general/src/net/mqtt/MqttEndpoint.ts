@@ -37,6 +37,8 @@ export namespace MqttEndpoint {
 
     export interface ConnectionOptions {
         address: AppAddress.Definition;
+        certificate?: string;
+        key?: string;
         environment?: Environment;
         will?: Message;
         onUp?: (endpoint: MqttEndpoint) => MaybePromise<void>;

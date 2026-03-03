@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, MaybePromise } from "#general";
 import { undefinedValue } from "#location.js";
+import { Bytes, MaybePromise } from "@matter/general";
 
 /**
  * An object that does not contain subobjects in our virtual filesystem.

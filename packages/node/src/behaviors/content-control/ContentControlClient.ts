@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ContentControl } from "#clusters/content-control";
+import { ContentControl } from "@matter/types/clusters/content-control";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ContentControlClientConstructor = ClientBehavior(ContentControl.Complete);
 export interface ContentControlClient extends InstanceType<typeof ContentControlClientConstructor> {}

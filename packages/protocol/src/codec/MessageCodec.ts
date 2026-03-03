@@ -5,6 +5,7 @@
  */
 
 import { Mark } from "#common/Mark.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Bytes,
     DataReader,
@@ -15,9 +16,16 @@ import {
     InternalError,
     NotImplementedError,
     UnexpectedDataError,
-} from "#general";
-import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
-import { GroupId, INTERACTION_PROTOCOL_ID, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "#types";
+} from "@matter/general";
+import {
+    BDX_PROTOCOL_ID,
+    BdxMessageType,
+    GroupId,
+    INTERACTION_PROTOCOL_ID,
+    NodeId,
+    SECURE_CHANNEL_PROTOCOL_ID,
+    SecureMessageType,
+} from "@matter/types";
 import { MessageType } from "../interaction/InteractionMessenger.js";
 
 export interface PacketHeader {
@@ -145,7 +153,13 @@ function mapProtocolAndMessageType(protocolId: number, messageType: number): { t
         case INTERACTION_PROTOCOL_ID: {
             return { type, for: `I/${MessageType[messageType] ?? msgTypeHex}` };
         }
-        // TODO Add BDX and UDC once we support it
+
+        case BDX_PROTOCOL_ID: {
+            return { type, for: `BDX/${BdxMessageType[messageType] ?? msgTypeHex}` };
+        }
+
+        // TODO Add UDC once we support it
+
         default:
             return { type };
     }

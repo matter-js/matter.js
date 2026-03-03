@@ -5,11 +5,17 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { camelize } from "#general";
-import type { Schema } from "#model";
-import { Conformance, DataModelPath, FeatureSet, FieldValue, Metatype, ValueModel } from "#model";
-import { AccessControl, ConformanceError, SchemaImplementationError, Val } from "#protocol";
-import { EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
+import { camelize } from "@matter/general";
+import type { Schema } from "@matter/model";
+import { Conformance, DataModelPath, FeatureSet, FieldValue, Metatype, ValueModel } from "@matter/model";
+import {
+    AccessControl,
+    ConformanceError,
+    EnumValueConformanceError,
+    SchemaImplementationError,
+    UnknownEnumValueError,
+    Val,
+} from "@matter/protocol";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { NameResolver } from "../managed/NameResolver.js";
 import {

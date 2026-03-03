@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ModeSelect } from "#clusters/mode-select";
+import { MaybePromise } from "@matter/general";
+import { ModeSelect } from "@matter/types/clusters/mode-select";
 
 export namespace ModeSelectInterface {
     export interface Base {

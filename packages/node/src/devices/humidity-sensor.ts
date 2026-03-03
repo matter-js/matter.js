@@ -12,7 +12,7 @@ import {
 } from "../behaviors/relative-humidity-measurement/RelativeHumidityMeasurementServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A humidity sensor (in most cases a Relative humidity sensor) reports humidity measurements.

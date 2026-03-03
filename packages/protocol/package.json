@@ -33,10 +33,6 @@
         "embed-examples": "embedme **/README.md"
     },
     "imports": {
-        "#general": "@matter/general",
-        "#model": "@matter/model",
-        "#types": "@matter/types",
-        "#clusters/*": "@matter/types/clusters/*",
         "#*": "./src/*"
     },
     "dependencies": {

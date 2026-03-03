@@ -6,6 +6,10 @@
 
 import { Message } from "#codec/MessageCodec.js";
 import { Fabric as RealFabric } from "#fabric/Fabric.js";
+import { MessageType } from "#interaction/InteractionMessenger.js";
+import { NodeSession as RealNodeSession } from "#session/NodeSession.js";
+import { Session } from "#session/Session.js";
+import { SessionParameters } from "#session/SessionParameters.js";
 import {
     AsyncObservable,
     b$,
@@ -17,18 +21,14 @@ import {
     Environment,
     ImplementationError,
     IpNetworkChannel,
-    Lifetime,
     MAX_UDP_MESSAGE_SIZE,
     MaybePromise,
     MockCrypto,
     Observable,
     ServerAddress,
     ServerAddressUdp,
-} from "#general";
-import { MessageType } from "#interaction/InteractionMessenger.js";
-import { NodeSession as RealNodeSession } from "#session/NodeSession.js";
-import { Session } from "#session/Session.js";
-import { SessionParameters } from "#session/SessionParameters.js";
+} from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     FabricId,
     FabricIndex,
@@ -38,8 +38,7 @@ import {
     Status,
     TlvStatusResponse,
     VendorId,
-} from "#types";
-import { Specification } from "@matter/model";
+} from "@matter/types";
 import { MessageChannel as RealMessageChannel } from "./MessageChannel.js";
 import { MessageExchange, MessageExchangeContext } from "./MessageExchange.js";
 
@@ -126,9 +125,6 @@ export namespace ProtocolMocks {
 
             // Initialize with a mocked message channel
             this.channel = new MessageChannel({ channel, session: this });
-
-            // ...and mock lifetime
-            this.lifetime = Lifetime.mock;
         }
 
         static override async create(config: NodeSession.CreateConfig) {
@@ -257,6 +253,7 @@ export namespace ProtocolMocks {
                     localSessionParameters: SessionParameters(
                         context?.localSessionParameters ?? SessionParameters.defaults,
                     ),
+                    async peerLost() {},
                     retry() {},
                 },
             });

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/activated-carbon-filter-monitoring";
+export * from "@matter/node/behaviors/activated-carbon-filter-monitoring";

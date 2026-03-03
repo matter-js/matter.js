@@ -13,7 +13,7 @@ import { Priority } from "../globals/Priority.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Switch {
@@ -497,8 +497,8 @@ export namespace Switch {
 
         attributes: {
             /**
-             * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2positions.
-             * Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
+             * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2
+             * positions. Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.1
              */

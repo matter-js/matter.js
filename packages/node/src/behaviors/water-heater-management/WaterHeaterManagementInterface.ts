@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { WaterHeaterManagement } from "#clusters/water-heater-management";
+import { MaybePromise } from "@matter/general";
+import { WaterHeaterManagement } from "@matter/types/clusters/water-heater-management";
 
 export namespace WaterHeaterManagementInterface {
     export interface Base {

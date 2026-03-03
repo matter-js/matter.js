@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { OperationalState } from "#clusters/operational-state";
+import { OperationalState } from "@matter/types/clusters/operational-state";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { OperationalStateInterface } from "./OperationalStateInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * OperationalStateBehavior is the base class for objects that support interaction with

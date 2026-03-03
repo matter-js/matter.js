@@ -15,7 +15,7 @@ import { RvcCleanModeServer as BaseRvcCleanModeServer } from "../behaviors/rvc-c
 import { ServiceAreaServer as BaseServiceAreaServer } from "../behaviors/service-area/ServiceAreaServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * This defines conformance for the Robotic Vacuum Cleaner device type.

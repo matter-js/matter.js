@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { DeviceEnergyManagementMode } from "#clusters/device-energy-management-mode";
-import { ModeBase } from "#clusters/mode-base";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { DeviceEnergyManagementMode } from "@matter/types/clusters/device-energy-management-mode";
+import { ModeBase } from "@matter/types/clusters/mode-base";
 import { DeviceEnergyManagementModeBehavior } from "./DeviceEnergyManagementModeBehavior.js";
 
 /**

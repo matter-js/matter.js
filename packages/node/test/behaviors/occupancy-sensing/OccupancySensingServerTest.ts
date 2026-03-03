@@ -5,8 +5,8 @@
  */
 
 import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
-import { OccupancySensing } from "#clusters/occupancy-sensing";
 import { Val } from "@matter/protocol";
+import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 
 describe("OccupancySensingServer", () => {

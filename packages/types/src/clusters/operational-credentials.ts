@@ -14,14 +14,14 @@ import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { TlvFabricId } from "../datatype/FabricId.js";
 import { TlvNodeId } from "../datatype/NodeId.js";
 import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvSubjectId } from "../datatype/SubjectId.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace OperationalCredentials {
@@ -890,8 +890,8 @@ export namespace OperationalCredentials {
             ),
 
             /**
-             * Indicates all fabrics to which this Node is commissioned, encoded as a read-only
-             * listofFabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
+             * Indicates all fabrics to which this Node is commissioned, encoded as a read-only list of
+             * FabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
              *
              * The Fabrics attribute is also known as "the fabric table".
              *

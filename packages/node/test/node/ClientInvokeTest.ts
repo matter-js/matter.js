@@ -6,7 +6,10 @@
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { ServerNode } from "#node/ServerNode.js";
-import { ClientInteraction } from "#protocol";
+import { Minutes } from "@matter/general";
+import { ClientInteraction, Invoke } from "@matter/protocol";
+import { EndpointNumber } from "@matter/types";
+import { OnOffCluster } from "@matter/types/clusters/on-off";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientInvoke", () => {
@@ -14,7 +17,7 @@ describe("ClientInvoke", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("executes commands via the batcher", async () => {
@@ -120,7 +123,7 @@ describe("ClientInvoke", () => {
         await MockTime.resolve(cmds.toggle());
 
         // Take the device offline
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
 
         // Bring it back online with different maxPathsPerInvoke
         await device.act(agent => {
@@ -130,7 +133,7 @@ describe("ClientInvoke", () => {
 
         // The peer should have reconnected and the cache should be cleared
         // Next command should see the new maxPathsPerInvoke=1
-        await MockTime.resolve(cmds.toggle());
+        await MockTime.resolve(cmds.toggle(undefined, { connectionTimeout: Minutes(5) }));
     });
 
     it("executes multiple commands sequentially", async () => {
@@ -185,7 +188,7 @@ describe("ClientInvoke", () => {
         const promise2 = cmds.toggle().catch(e => e);
 
         // Close the ClientInteraction directly - this should reject pending commands
-        await peer1.env.get(ClientInteraction).close();
+        await (peer1.interaction as ClientInteraction).close();
 
         // Both promises should have resolved to errors
         const error1 = await MockTime.resolve(promise1);
@@ -193,5 +196,111 @@ describe("ClientInvoke", () => {
 
         expect(error1).instanceOf(Error);
         expect(error2).instanceOf(Error);
+    });
+
+    it("bypasses batching for timed invoke requests", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: {
+                    maxPathsPerInvoke: 10,
+                },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        // Create a timed invoke request for a non-root endpoint command
+        const request = Invoke({
+            commands: [
+                Invoke.ConcreteCommandRequest({
+                    endpoint: EndpointNumber(1),
+                    cluster: OnOffCluster,
+                    command: "toggle",
+                }),
+            ],
+            timed: true,
+        });
+
+        // Timed commands bypass batching and execute directly via #invokeSingle
+        await MockTime.resolve(
+            (async () => {
+                for await (const _chunk of peer1.interaction.invoke(request)) {
+                    // consume
+                }
+            })(),
+        );
+
+        const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(finalState).equals(true);
+    });
+
+    it("batches different commands together while splitting duplicates", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: {
+                    maxPathsPerInvoke: 10,
+                },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const ep1 = peer1.endpoints.for(1);
+        const cmds = ep1.commandsOf(OnOffClient);
+
+        // Initial state is false
+        expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(false);
+
+        // Fire: on, toggle, on in same tick
+        // "on" and "toggle" have different paths — can batch together
+        // second "on" duplicates the first — must go to a separate batch
+        // Batch 1: [on, toggle] → state becomes true, then false
+        // Batch 2: [on] → state becomes true
+        const p1 = cmds.on();
+        const p2 = cmds.toggle();
+        const p3 = cmds.on();
+
+        await MockTime.resolve(Promise.all([p1, p2, p3]));
+
+        // Final state should be true (on → toggle off → on again)
+        expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(true);
+    });
+
+    it("splits duplicate command paths into separate batches", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: {
+                    maxPathsPerInvoke: 10,
+                },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const ep1 = peer1.endpoints.for(1);
+        const cmds = ep1.commandsOf(OnOffClient);
+
+        // Get initial state
+        const initialState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+
+        // Fire two toggles in the same tick — same endpoint/cluster/command path
+        // Without splitting, the server would reject with InvalidAction
+        const p1 = cmds.toggle();
+        const p2 = cmds.toggle();
+
+        await MockTime.resolve(Promise.all([p1, p2]));
+
+        // Two toggles: state should be back to initial (toggled twice)
+        const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(finalState).equals(initialState);
     });
 });

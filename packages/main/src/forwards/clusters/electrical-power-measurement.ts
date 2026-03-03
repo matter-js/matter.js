@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/electrical-power-measurement";
+export * from "@matter/types/clusters/electrical-power-measurement";

@@ -5,10 +5,9 @@
  */
 
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
-import { BasicInformationCluster, BridgedDeviceBasicInformationCluster } from "#clusters";
-import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "#general";
-import { Behavior, Endpoint as ClientEndpoint } from "#node";
-import { ClusterClientObj } from "#protocol";
+import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
+import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
+import { ClusterClientObj, Val } from "@matter/protocol";
 import {
     Attributes,
     BitSchema,
@@ -21,7 +20,8 @@ import {
     Events,
     TypeFromPartialBitSchema,
     getClusterNameById,
-} from "#types";
+} from "@matter/types";
+import { BasicInformationCluster, BridgedDeviceBasicInformationCluster } from "@matter/types/clusters";
 import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
@@ -91,6 +91,37 @@ export class Endpoint {
 
     maybeStateOf<T extends Behavior.Type>(type: T) {
         return this.#endpoint.maybeStateOf(type);
+    }
+
+    /**
+     * Update state values for a single behavior.
+     *
+     * The patch semantics used here are identical to {@link set}.
+     *
+     * This is the recommended way to set state for a single behavior because it provides proper type checking and
+     * enforces the correctness of the used Behavior type including all enabled features.
+     *
+     * @param type the {@link Behavior} to patch
+     * @param values the values to change
+     */
+    setStateOf<T extends Behavior.Type>(type: T, values: Behavior.PatchStateOf<T>): Promise<void>;
+
+    /**
+     * Update state values for a single behavior ID.
+     *
+     * The patch semantics used here are identical to {@link set}.
+     *
+     * Be aware that using a string type does not provide type checking and does not enforce the correctness of the used
+     * Behavior type including all enabled features. Expect runtime errors if the provided values are not compatible
+     * with the actual Behavior type.
+     *
+     * @param type the {@link Behavior} to patch
+     * @param values the values to change
+     */
+    setStateOf(type: string, values: Val.Struct): Promise<void>;
+
+    setStateOf(type: Behavior.Type | string, values: Val.Struct) {
+        return this.#endpoint.setStateOf(<Behavior.Type>type, values);
     }
 
     /**

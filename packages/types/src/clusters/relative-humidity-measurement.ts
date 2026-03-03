@@ -10,7 +10,7 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace RelativeHumidityMeasurement {
@@ -69,7 +69,7 @@ export namespace RelativeHumidityMeasurement {
     });
 
     /**
-     * This is a base cluster. The server cluster provides an interface to water contentmeasurementfunctionality. The
+     * This is a base cluster. The server cluster provides an interface to water content measurement functionality. The
      * measurement is reportable and may be configured for reporting. Water content measurements currently is, but are
      * not limited to relative humidity.
      *

@@ -7,14 +7,20 @@
 import { OtaUpdateAvailableDetails, SoftwareUpdateManager } from "#behavior/system/software-update/index.js";
 import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestorServer } from "#behaviors/ota-software-update-requestor";
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { OtaRequestorEndpoint } from "#endpoints/ota-requestor";
-import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "#general";
 import { ServerNode } from "#node/ServerNode.js";
-import { DclOtaUpdateService, OtaImageWriter, OtaUpdateSource, PeerAddress, PersistedFileDesignator } from "#protocol";
-import { VendorId } from "#types";
+import { Bytes, createPromise, Crypto, MaybePromise, StandardCrypto } from "@matter/general";
+import {
+    DclOtaUpdateService,
+    OtaImageWriter,
+    OtaUpdateSource,
+    PeerAddress,
+    PersistedFileDesignator,
+} from "@matter/protocol";
+import { VendorId } from "@matter/types";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 import { MockSite } from "../../node/mock-site.js";
 
 /**
@@ -172,8 +178,8 @@ export async function addTestOtaImage(device: ServerNode, controller: ServerNode
     const { vendorId, productId, softwareVersion } = device.state.basicInformation;
     const targetSoftwareVersion = softwareVersion + 1;
 
-    // Generate 500KB of test payload data
-    const payload = generateTestPayload(500 * 1024);
+    // Generate 50KB of test payload data
+    const payload = generateTestPayload(50 * 1024);
 
     // Create OTA image for next version, applicable to the current version range
     const otaImage = await createTestOtaImage(new StandardCrypto(), {

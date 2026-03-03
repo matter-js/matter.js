@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNullable } from "#tlv/TlvNullable.js";
 import { TlvString } from "#tlv/TlvString.js";
 import { TlvByteString } from "#tlv/index.js";
+import { Bytes } from "@matter/general";
 
 type CodecVector<I, E> = { [valueDescription: string]: { encoded: E; decoded: I } };
 

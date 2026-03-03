@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { DishwasherMode } from "#clusters/dishwasher-mode";
-import { ModeBase } from "#clusters/mode-base";
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
+import { DishwasherMode } from "@matter/types/clusters/dishwasher-mode";
+import { ModeBase } from "@matter/types/clusters/mode-base";
 import { DishwasherModeBehavior } from "./DishwasherModeBehavior.js";
 
 /**

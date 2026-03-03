@@ -11,8 +11,8 @@ import { WritableAttribute, Attribute, Command, TlvNoResponse, OptionalCommand }
 import { TlvUInt16, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
-import { Identity } from "#general";
+import { AccessLevel } from "@matter/model";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Identify {
@@ -129,7 +129,7 @@ export namespace Identify {
 
         /**
          * This field shall indicate which variant of the effect, indicated in the EffectIdentifier field, SHOULD be
-         * triggered. If a device does not support the given variant, it shall use thedefaultvariant. This field shall
+         * triggered. If a device does not support the given variant, it shall use the default variant. This field shall
          * contain one of the values in EffectVariantEnum.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2.2

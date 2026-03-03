@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { Thermostat } from "#clusters/thermostat";
+import { MaybePromise } from "@matter/general";
+import { Thermostat } from "@matter/types/clusters/thermostat";
 
 export namespace ThermostatInterface {
     export interface Base {

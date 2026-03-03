@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ActivatedCarbonFilterMonitoring } from "#clusters/activated-carbon-filter-monitoring";
+import { ActivatedCarbonFilterMonitoring } from "@matter/types/clusters/activated-carbon-filter-monitoring";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ResourceMonitoringInterface } from "../resource-monitoring/ResourceMonitoringInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ActivatedCarbonFilterMonitoringBehavior is the base class for objects that support interaction with

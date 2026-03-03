@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ColorControl } from "#clusters/color-control";
+import { MaybePromise } from "@matter/general";
+import { ColorControl } from "@matter/types/clusters/color-control";
 
 export namespace ColorControlInterface {
     export interface HueSaturation {

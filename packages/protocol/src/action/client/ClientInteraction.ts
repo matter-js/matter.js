@@ -17,15 +17,23 @@ import { ReadResult } from "#action/response/ReadResult.js";
 import { WriteResult } from "#action/response/WriteResult.js";
 import { BdxMessenger } from "#bdx/BdxMessenger.js";
 import { Mark } from "#common/Mark.js";
+import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
+import { Subscription } from "#interaction/Subscription.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
     Abort,
+    AbortedError,
     AsyncIterator,
     BasicSet,
+    ClosedError,
     createPromise,
     Diagnostic,
     Duration,
     Entropy,
     Environment,
+    Forever,
     ImplementationError,
     Instant,
     isObject,
@@ -36,16 +44,9 @@ import {
     RetrySchedule,
     Seconds,
     Time,
-    TimeoutError,
     Timer,
-} from "#general";
-import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
-import { Subscription } from "#interaction/Subscription.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
-import { SessionClosedError } from "#protocol/index.js";
-import { SecureSession } from "#session/SecureSession.js";
-import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "#types";
+} from "@matter/general";
+import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -61,8 +62,11 @@ const MAX_COMMAND_REF = 0xffff;
 
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
+    pathKey: string;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
+    aborted?: boolean;
+    cleanup?: () => void;
 }
 
 export type SubscriptionResult<T extends ClientSubscribe = ClientSubscribe> = Promise<
@@ -75,6 +79,7 @@ export interface ClientInteractionContext {
     sustainRetries?: RetrySchedule.Configuration;
     exchangeProvider?: ExchangeProvider;
     address?: PeerAddress;
+    network?: string;
 }
 
 export const DEFAULT_MIN_INTERVAL_FLOOR = Seconds(1);
@@ -98,12 +103,13 @@ export class ClientInteraction<
 > implements Interactable<SessionT> {
     protected readonly environment: Environment;
     readonly #lifetime: Lifetime;
-    readonly #exchanges: ExchangeProvider;
+    readonly #exchangeProvider: ExchangeProvider;
     readonly #interactions = new BasicSet<Read | Write | Invoke | Subscribe | ClientBdxRequest>();
     #subscriptions?: ClientSubscriptions;
     readonly #abort: Abort;
     readonly #sustainRetries: RetrySchedule;
     readonly #address?: PeerAddress;
+    readonly #network?: string;
 
     // Command batching state
     readonly #pendingCommands = new Map<number, PendingCommand>();
@@ -111,9 +117,9 @@ export class ClientInteraction<
     #batchTimer?: Timer;
     #nextCommandRef = 1;
 
-    constructor({ environment, abort, sustainRetries, exchangeProvider, address }: ClientInteractionContext) {
+    constructor({ environment, abort, sustainRetries, exchangeProvider, address, network }: ClientInteractionContext) {
         this.environment = environment;
-        this.#exchanges = exchangeProvider ?? environment.get(ExchangeProvider);
+        this.#exchangeProvider = exchangeProvider ?? environment.get(ExchangeProvider);
         if (environment.has(ClientSubscriptions)) {
             this.#subscriptions = environment.get(ClientSubscriptions);
         }
@@ -124,6 +130,7 @@ export class ClientInteraction<
         );
         this.#address = address;
         this.#batchMutex = new Mutex(this);
+        this.#network = network;
 
         this.#lifetime = environment.join("interactions");
         Object.defineProperties(this.#lifetime.details, {
@@ -137,30 +144,31 @@ export class ClientInteraction<
         });
     }
 
-    get exchanges() {
-        return this.#exchanges;
-    }
+    async close(reason?: Error) {
+        if (reason === undefined) {
+            reason = new ClosedError("Interaction component closed");
+        }
 
-    get session() {
-        return this.#exchanges.session;
-    }
-
-    async close() {
         using _closing = this.#lifetime.closing();
 
         // Close batching
         this.#batchTimer?.stop();
         for (const [, pending] of this.#pendingCommands) {
-            pending.reject(new ImplementationError("ClientInteraction closed"));
+            pending.cleanup?.();
+            pending.reject(reason);
         }
         this.#pendingCommands.clear();
         await this.#batchMutex.close();
 
-        this.#abort();
+        this.#abort(reason);
 
         while (this.#interactions.size) {
             await this.#interactions.deleted;
         }
+    }
+
+    async [Symbol.asyncDispose]() {
+        await this.close();
     }
 
     get subscriptions() {
@@ -175,9 +183,6 @@ export class ClientInteraction<
      */
     async *read(request: ClientRead, session?: SessionT): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
-        if (readPathsCount === 0) {
-            throw new ImplementationError("When reading attributes and events, at least one must be specified.");
-        }
         if (readPathsCount > 9) {
             logger.info(
                 "Read interactions with more than 9 paths might be not allowed by the device. Consider splitting them into several read requests.",
@@ -185,22 +190,20 @@ export class ClientInteraction<
         }
 
         await using context = await this.#begin("reading", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
-        logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, request);
-        await messenger.sendReadRequest(request);
-        checkAbort();
+        logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, session?.logContext ?? "", request);
+        await messenger.sendReadRequest(request, { abort });
 
         let attributeReportCount = 0;
         let eventReportCount = 0;
 
         const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-        for await (const report of messenger.readDataReports()) {
-            checkAbort();
+        for await (const report of messenger.readDataReports({ abort })) {
             attributeReportCount += report.attributeReports?.length ?? 0;
             eventReportCount += report.eventReports?.length ?? 0;
             yield InputChunk(report, leftOverData);
-            checkAbort();
+            abort.throwIfAborted();
         }
 
         logger.info(
@@ -221,17 +224,15 @@ export class ClientInteraction<
      */
     async write<T extends ClientWrite>(request: T, session?: SessionT): WriteResult<T> {
         await using context = await this.#begin("writing", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         if (request.timedRequest) {
-            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
-            checkAbort();
+            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
         logger.info("Write", Mark.OUTBOUND, messenger.exchange.via, request);
 
-        const response = await messenger.sendWriteCommand(request);
-        checkAbort();
+        const response = await messenger.sendWriteCommand(request, session);
         if (request.suppressResponse) {
             return undefined as Awaited<WriteResult<T>>;
         }
@@ -286,11 +287,10 @@ export class ClientInteraction<
      */
     async *#invokeSingle(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         await using context = await this.#begin("invoking", request, session);
-        const { checkAbort, messenger } = context;
+        const { abort, messenger } = context;
 
         if (request.timedRequest) {
-            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT);
-            checkAbort();
+            await messenger.sendTimedRequest(request.timeout ?? DEFAULT_TIMED_REQUEST_TIMEOUT, { abort });
         }
 
         logger.info(
@@ -302,14 +302,14 @@ export class ClientInteraction<
         );
 
         const { expectedProcessingTime, useExtendedFailSafeMessageResponseTimeout } = request;
-        const result = await messenger.sendInvokeCommand(
-            request,
-            expectedProcessingTime ??
+        const result = await messenger.sendInvokeCommand(request, {
+            expectedProcessingTime:
+                expectedProcessingTime ??
                 (useExtendedFailSafeMessageResponseTimeout
                     ? DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE
                     : undefined),
-        );
-        checkAbort();
+            abort,
+        });
         if (!request.suppressResponse) {
             if (result && result.invokeResponses?.length) {
                 const chunk: InvokeResult.Chunk = result.invokeResponses
@@ -373,6 +373,19 @@ export class ClientInteraction<
                                 status,
                                 clusterStatus,
                             };
+
+                            const cmd = request.commands.get(commandRef);
+                            if (cmd) {
+                                logger.info(
+                                    "Invoke",
+                                    Mark.INBOUND,
+                                    messenger.exchange.via,
+                                    messenger.exchange.diagnostics,
+                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                    Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
+                                );
+                            }
+
                             return res;
                         } else {
                             // Should not happen but if we ignore the response?
@@ -384,7 +397,7 @@ export class ClientInteraction<
             } else {
                 yield [];
             }
-            checkAbort();
+            abort.throwIfAborted();
         }
     }
 
@@ -418,16 +431,6 @@ export class ClientInteraction<
         yield* AsyncIterator.merge(iterators, "One or more invoke batches failed");
     }
 
-    /** Get the effective MaxPathsPerInvoke parameter from the session, or 1 as a fallback as defined by spec. */
-    get #maxPathsPerInvoke(): number {
-        try {
-            return this.session.parameters.maxPathsPerInvoke;
-        } catch (error) {
-            SessionClosedError.accept(error);
-            return 1;
-        }
-    }
-
     /**
      * Invoke one or more commands.
      *
@@ -438,16 +441,17 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
+
         // Single command with batching support — auto-batch
-        if (request.invokeRequests.length === 1 && request.batchDuration !== false && this.#maxPathsPerInvoke > 1) {
+        if (request.invokeRequests.length === 1 && request.batchDuration !== false && maxPathsPerInvoke) {
             const endpointId = request.invokeRequests[0].commandPath.endpointId;
-            if (endpointId !== undefined && endpointId !== 0) {
-                yield* this.#invokeWithBatching(request);
+            if (endpointId !== undefined && endpointId !== 0 && !request.timedRequest) {
+                yield* this.#invokeWithBatching(request, session);
                 return;
             }
         }
 
-        const maxPathsPerInvoke = this.#maxPathsPerInvoke;
         const commandCount = request.commands.size;
 
         if (commandCount > maxPathsPerInvoke) {
@@ -461,20 +465,49 @@ export class ClientInteraction<
      * Queue a single command for batched execution.
      * Yields the raw response entry when the batch completes.
      */
-    async *#invokeWithBatching(request: ClientInvoke): DecodedInvokeResult {
+    async *#invokeWithBatching(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         if (this.#abort.aborted) {
             throw new ImplementationError("Client interaction unavailable after close");
         }
 
+        // Validate peer connectivity before queuing — respects connectionTimeout and abort
+        await this.#exchangeProvider.connect({
+            connectionTimeout: session?.connectionTimeout,
+            abort: session?.abort,
+        });
+
         const cmd = [...request.commands.values()][0];
         const commandRef = this.#allocateCommandRef();
+        const { endpointId, clusterId, commandId } = request.invokeRequests[0].commandPath;
+        const pathKey = `${endpointId}-${clusterId}-${commandId}`;
         const { promise, resolver, rejecter } = createPromise<InvokeResult.DecodedData | undefined>();
 
-        this.#pendingCommands.set(commandRef, {
+        const pending: PendingCommand = {
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
+            pathKey,
             resolve: resolver,
             reject: rejecter,
-        });
+        };
+
+        this.#pendingCommands.set(commandRef, pending);
+
+        // Register per-command abort listener
+        const abortSignal = session?.abort;
+        if (abortSignal) {
+            if (abortSignal.aborted) {
+                this.#pendingCommands.delete(commandRef);
+                pending.reject(new AbortedError());
+                return;
+            }
+
+            const onAbort = () => {
+                pending.aborted = true;
+                this.#pendingCommands.delete(commandRef);
+                pending.reject(new AbortedError());
+            };
+            abortSignal.addEventListener("abort", onAbort, { once: true });
+            pending.cleanup = () => abortSignal.removeEventListener("abort", onAbort);
+        }
 
         const duration = request.batchDuration || Instant;
 
@@ -495,9 +528,13 @@ export class ClientInteraction<
             this.#batchTimer.start();
         }
 
-        const entry = await promise;
-        if (entry !== undefined) {
-            yield [entry];
+        try {
+            const entry = await promise;
+            if (entry !== undefined) {
+                yield [entry];
+            }
+        } finally {
+            pending.cleanup?.();
         }
     }
 
@@ -525,20 +562,68 @@ export class ClientInteraction<
         const commands = new Map(this.#pendingCommands);
         this.#pendingCommands.clear();
 
-        try {
-            await this.#batchMutex.produce(async () => {
-                await this.#executeBatch(commands);
-            });
-        } catch (error) {
-            // Mutex may be closed during shutdown — reject remaining commands
-            for (const [, pending] of commands) {
-                pending.reject(error as Error);
+        // Partition into sub-batches with unique command paths per batch
+        const batches = this.#partitionBatch(commands);
+
+        for (const batch of batches) {
+            try {
+                await this.#batchMutex.produce(async () => {
+                    await this.#executeBatch(batch);
+                });
+            } catch (error) {
+                // Mutex may be closed during shutdown — reject remaining commands
+                for (const [, pending] of batch) {
+                    pending.reject(error as Error);
+                }
             }
         }
     }
 
+    /**
+     * Partition commands into sub-batches where each sub-batch has unique command paths.
+     * Uses greedy fill: each command goes into the first batch that doesn't already contain its path.
+     */
+    #partitionBatch(commands: Map<number, PendingCommand>): Map<number, PendingCommand>[] {
+        if (commands.size <= 1) {
+            return [commands];
+        }
+
+        const batches: { paths: Set<string>; commands: Map<number, PendingCommand> }[] = [];
+
+        for (const [ref, pending] of commands) {
+            let placed = false;
+            for (const batch of batches) {
+                if (!batch.paths.has(pending.pathKey)) {
+                    batch.paths.add(pending.pathKey);
+                    batch.commands.set(ref, pending);
+                    placed = true;
+                    break;
+                }
+            }
+            if (!placed) {
+                batches.push({
+                    paths: new Set([pending.pathKey]),
+                    commands: new Map([[ref, pending]]),
+                });
+            }
+        }
+
+        return batches.map(b => b.commands);
+    }
+
     async #executeBatch(commands: Map<number, PendingCommand>) {
         try {
+            // Filter out commands aborted between snapshot and send
+            for (const [ref, pending] of commands) {
+                if (pending.aborted) {
+                    commands.delete(ref);
+                }
+            }
+
+            if (commands.size === 0) {
+                return;
+            }
+
             const commandList = [...commands.values()];
 
             // For single commands, don't include commandRef (optimization)
@@ -551,7 +636,7 @@ export class ClientInteraction<
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
             const batchRequest = Invoke({ commands: invokeRequests }) as ClientInvoke;
-            const maxPathsPerInvoke = this.#maxPathsPerInvoke;
+            const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
                     ? this.#invokeWithSplitting(batchRequest, maxPathsPerInvoke)
@@ -567,10 +652,19 @@ export class ClientInteraction<
                     } else {
                         pending = commands.get(entry.commandRef!);
                         if (!pending) {
-                            logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
+                            if (entry.commandRef !== undefined) {
+                                logger.info(`Response for aborted commandRef ${entry.commandRef} discarded`);
+                            } else {
+                                logger.warn(`Received response for unknown commandRef ${entry.commandRef}`);
+                            }
                             continue;
                         }
                         commands.delete(entry.commandRef!);
+                    }
+
+                    if (pending.aborted) {
+                        logger.info(`Response for aborted command discarded`);
+                        continue;
                     }
 
                     pending.resolve(entry);
@@ -579,11 +673,15 @@ export class ClientInteraction<
 
             // Resolve any remaining commands with undefined (valid for suppressResponse)
             for (const [, pending] of commands) {
-                pending.resolve(undefined);
+                if (!pending.aborted) {
+                    pending.resolve(undefined);
+                }
             }
         } catch (error) {
             for (const [, pending] of commands) {
-                pending.reject(error as Error);
+                if (!pending.aborted) {
+                    pending.reject(error as Error);
+                }
             }
         }
     }
@@ -592,6 +690,8 @@ export class ClientInteraction<
      * Subscribe to attribute values and events.
      */
     async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
+        let interactionSession: InteractionSession | undefined = session;
+
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (subscriptionPathsCount === 0) {
             throw new ImplementationError("When subscribing to attributes and events, at least one must be specified.");
@@ -600,8 +700,10 @@ export class ClientInteraction<
             logger.info("Subscribe interactions with more than 3 paths might be not allowed by the device.");
         }
 
-        SecureSession.assert(this.#exchanges.session);
-        const peer = this.#exchanges.session.peerAddress;
+        const peer = this.#exchangeProvider.peerAddress;
+        if (peer === undefined) {
+            throw new ImplementationError("Subscription unavailable because peer is uncommissioned");
+        }
 
         if (!request.keepSubscriptions) {
             for (const subscription of this.subscriptions) {
@@ -630,9 +732,9 @@ export class ClientInteraction<
             );
         }
 
-        const subscribe = async (request: ClientSubscribe) => {
-            await using context = await this.#begin("subscribing", request, session);
-            const { checkAbort, messenger } = context;
+        const subscribe = async (request: ClientSubscribe, extraAbort?: AbortSignal) => {
+            await using context = await this.#begin("subscribing", request, interactionSession, extraAbort);
+            const { abort, messenger } = context;
 
             logger.info(
                 "Subscribe",
@@ -646,17 +748,19 @@ export class ClientInteraction<
                 request,
             );
 
-            await messenger.sendSubscribeRequest({
-                ...request,
-                minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
-                maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
-            });
-            checkAbort();
+            await messenger.sendSubscribeRequest(
+                {
+                    ...request,
+                    minIntervalFloorSeconds: Seconds.of(minIntervalFloor),
+                    maxIntervalCeilingSeconds: Seconds.of(maxIntervalCeiling),
+                },
+                { abort },
+            );
 
-            await this.#handleSubscriptionResponse(request, readChunks(messenger));
-            checkAbort();
+            await this.#handleSubscriptionResponse(request, readChunks(messenger, abort));
+            abort.throwIfAborted();
 
-            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse);
+            const responseMessage = await messenger.nextMessage(MessageType.SubscribeResponse, { abort });
             const response = TlvSubscribeResponse.decode(responseMessage.payload);
 
             const subscription = new PeerSubscription({
@@ -665,8 +769,8 @@ export class ClientInteraction<
                 peer,
                 closed: () => this.subscriptions.delete(subscription),
                 response,
-                abort: session?.abort,
-                maxPeerResponseTime: this.#exchanges.maximumPeerResponseTime(),
+                abort,
+                maxPeerResponseTime: this.maximumPeerResponseTime(),
             });
             this.subscriptions.addPeer(subscription);
 
@@ -685,6 +789,18 @@ export class ClientInteraction<
             return subscription;
         };
 
+        const read = (request: Read, extraAbort?: AbortSignal, logContext?: ExchangeLogContext) => {
+            const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+
+            if (logContext !== undefined) {
+                session = {
+                    ...session,
+                    logContext: session?.logContext ? { ...session.logContext, ...logContext } : logContext,
+                } as unknown as SessionT;
+            }
+            return this.read(request, { ...session, abort } as unknown as SessionT);
+        };
+
         let subscription: ClientSubscription;
         if (request.sustain) {
             subscription = new SustainedSubscription({
@@ -695,7 +811,15 @@ export class ClientInteraction<
                 request,
                 abort: session?.abort,
                 retries: this.#sustainRetries,
+                read,
             });
+
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
+            if (interactionSession === undefined) {
+                interactionSession = { connectionTimeout: Forever };
+            } else {
+                interactionSession = { ...interactionSession, connectionTimeout: Forever };
+            }
         } else {
             subscription = await subscribe(request);
         }
@@ -724,12 +848,12 @@ export class ClientInteraction<
         }
         this.#interactions.add(request);
 
-        const checkAbort = Abort.checkerFor(session);
+        const abort = new Abort({ abort: [session?.abort, this.#abort] });
 
-        const messenger = await BdxMessenger.create(this.#exchanges, request.messageTimeout);
+        const messenger = await BdxMessenger.create(this.#exchangeProvider, request.messageTimeout);
 
         const context: RequestContext<BdxMessenger> = {
-            checkAbort,
+            abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
                 await messenger.close();
@@ -738,38 +862,36 @@ export class ClientInteraction<
         };
 
         try {
-            context.checkAbort();
+            abort.throwIfAborted();
         } catch (e) {
             await context[Symbol.asyncDispose]();
+            throw e;
         }
 
         return { context };
     }
 
-    async #begin(what: string, request: Read | Write | Invoke | Subscribe, session: SessionT | undefined) {
+    async #begin(
+        what: string,
+        request: ClientRead | ClientWrite | ClientInvoke | ClientSubscribe,
+        session: InteractionSession | undefined,
+        extraAbort?: AbortSignal,
+    ) {
         using lifetime = this.#lifetime.join(what);
 
         if (this.#abort.aborted) {
-            throw new ImplementationError("Client interaction unavailable after close");
+            throw new ImplementationError(
+                `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+            );
         }
 
-        const checkAbort = Abort.checkerFor(session);
+        const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
-        const now = Time.nowMs;
-        let messenger: InteractionClientMessenger;
-        try {
-            messenger = await InteractionClientMessenger.create(this.#exchanges);
-        } catch (error) {
-            TimeoutError.accept(error);
-
-            // This logic implements a very basic automatic reconnection mechanism which is a bit like PairedNode
-            // The exchange creation fails only when the node is considered to be unavailable, so in this case we
-            // either try the last addresses again (if existing), or do a short-timed re-discovery. This would block
-            // the execution max 10s. What's missing is that one layer (like Sustained Subscription) would trigger a
-            // FullDiscovery instead of just a timed one, but for the tests and currently this should be enough.
-            await this.exchanges.reconnectChannel({ asOf: now, resetInitialState: true });
-            messenger = await InteractionClientMessenger.create(this.#exchanges);
-        }
+        const messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+            network: request.network ?? this.#network,
+            abort: session?.abort,
+            connectionTimeout: session?.connectionTimeout,
+        });
 
         this.#interactions.add(request);
 
@@ -781,51 +903,53 @@ export class ClientInteraction<
         });
 
         const context: RequestContext = {
-            checkAbort,
+            abort,
             messenger,
             [Symbol.asyncDispose]: async () => {
                 using _closing = lifetime.closing();
                 await messenger.close();
                 this.#interactions.delete(request);
+                abort[Symbol.dispose]();
             },
         };
 
         try {
-            context.checkAbort();
+            abort.throwIfAborted();
         } catch (e) {
             await context[Symbol.asyncDispose]();
+            throw e;
         }
 
         return context;
     }
 
     get channelType() {
-        return this.#exchanges.channelType;
+        return this.#exchangeProvider.channelType;
     }
 
     /** Calculates the current maximum response time for a message use in additional logic like timers. */
-    maximumPeerResponseTime(expectedProcessingTime?: Duration) {
-        return this.#exchanges.maximumPeerResponseTime(expectedProcessingTime);
+    maximumPeerResponseTime(expectedProcessingTime?: Duration, includeMaximumSendingTime = false) {
+        return this.#exchangeProvider.maximumPeerResponseTime(expectedProcessingTime, includeMaximumSendingTime);
     }
 
     get address() {
         if (this.#address === undefined) {
-            throw new ImplementationError("This InteractionClient is not bound to a specific peer.");
+            throw new ImplementationError("Uncommissioned node has no peer address");
         }
         return this.#address;
     }
 }
 
 export interface RequestContext<M extends InteractionClientMessenger | BdxMessenger = InteractionClientMessenger> {
-    checkAbort(): void;
+    abort: Abort;
     messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
 }
 
-async function* readChunks(messenger: InteractionClientMessenger) {
+async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
-    for await (const report of messenger.readDataReports()) {
+    for await (const report of messenger.readDataReports({ abort })) {
         yield InputChunk(report, leftOverData);
     }
 }

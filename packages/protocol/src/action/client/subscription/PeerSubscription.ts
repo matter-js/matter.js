@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Duration, Millis, Seconds, Timestamp } from "#general";
 import { Subscription } from "#interaction/Subscription.js";
-import type { SubscribeResponse } from "#types";
+import { Diagnostic, Duration, Millis, Seconds, Timestamp } from "@matter/general";
+import type { SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
 
 /**

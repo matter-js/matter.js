@@ -23,7 +23,7 @@ import {
     TlvUInt64,
     TlvUInt8,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 import { ExtensionKeyUsageBitmap } from "./base.js";
 
 /**
@@ -167,7 +167,7 @@ export namespace OperationalCertificate {
 
     export const TlvIcac = BaseMatterCertificate({
         subject: {
-            icacId: TlvOptionalField(19, TlvUInt64),
+            icacId: TlvField(19, TlvUInt64),
             fabricId: TlvOptionalField(21, TlvFabricId),
         },
         issuer: AllowedSubjectAndIssuerMatterFields,

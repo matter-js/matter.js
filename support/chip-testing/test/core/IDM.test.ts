@@ -10,6 +10,8 @@ describe("IDM", () => {
         // TODO - we could look at wiring this but would need to select the endpoints to check and manually create runs
         // ...and if I was going to do anything automatically with PICS I would probably generate from device
         "IDM/10.4",
+        // Our AllClustersApp has extra clusters on endpoints for testing; pass fail_on_extra_clusters:False below
+        "IDM/10.5",
     );
     chip("IDM/*/run1").exclude(
         // Spec issues for DoorLock, see https://github.com/CHIP-Specifications/connectedhomeip-spec/issues/11712
@@ -18,4 +20,7 @@ describe("IDM", () => {
         //           have the requests. After Spec fix of conformance, the chip model used in test will match again
         "IDM/10.2/*",
     );
+    // AllClustersApp intentionally adds clusters beyond what OnOffLightDevice requires,
+    // so disable strict extra-cluster checking
+    chip("IDM/10.5").args("--bool-arg", "fail_on_extra_clusters:False");
 });

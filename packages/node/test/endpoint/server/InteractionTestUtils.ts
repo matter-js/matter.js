@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { AsyncObservable, Bytes, DataReadQueue, Lifetime, MAX_UDP_MESSAGE_SIZE } from "#general";
+import { AsyncObservable, Bytes, DataReadQueue, Lifetime, MAX_UDP_MESSAGE_SIZE } from "@matter/general";
 import {
     ExchangeSendOptions,
     MATTER_MESSAGE_OVERHEAD,
@@ -12,7 +12,7 @@ import {
     ProtocolMocks,
     SecureSession,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
 

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { TemperatureControl } from "#clusters/temperature-control";
+import { MaybePromise } from "@matter/general";
+import { TemperatureControl } from "@matter/types/clusters/temperature-control";
 
 export namespace TemperatureControlInterface {
     export interface Base {

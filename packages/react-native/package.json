@@ -28,10 +28,6 @@
         "build-clean": "matter-build --clean"
     },
     "imports": {
-        "#general": "@matter/general",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
-        "#nodejs": "@matter/nodejs",
         "#*": "./src/*"
     },
     "dependencies": {
@@ -39,12 +35,12 @@
         "@matter/general": "*",
         "@matter/nodejs": "*",
         "@matter/protocol": "*",
-        "@react-native-async-storage/async-storage": "^2.2.0",
+        "@react-native-async-storage/async-storage": "^3.0.1",
         "@react-native-community/netinfo": "^12.0.1",
-        "@types/node": "^25.2.2",
-        "react-native-ble-plx": "^3.5.0",
+        "@types/node": "^25.3.3",
+        "react-native-ble-plx": "^3.5.1",
         "react-native-polyfill-globals": "^3.1.0",
-        "react-native-quick-crypto": "^1.0.11",
+        "react-native-quick-crypto": "^1.0.15",
         "react-native-udp": "^4.1.7"
     },
     "devDependencies": {

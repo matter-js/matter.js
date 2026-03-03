@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Binding, BridgedDeviceBasicInformationCluster } from "#clusters";
-import { AtLeastOne, HandlerFunction, ImplementationError, NamedHandler, NotImplementedError } from "#general";
-import { Endpoint as NodeEndpoint } from "#node";
-import { ClusterClientObj } from "#protocol";
-import { Cluster, ClusterType, EndpointNumber } from "#types";
+import { AtLeastOne, HandlerFunction, ImplementationError, NamedHandler, NotImplementedError } from "@matter/general";
+import { Endpoint as NodeEndpoint } from "@matter/node";
+import { ClusterClientObj } from "@matter/protocol";
+import { Cluster, ClusterType, EndpointNumber } from "@matter/types";
+import { Binding, BridgedDeviceBasicInformationCluster } from "@matter/types/clusters";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { ClusterServerHandlers, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceClasses, DeviceTypeDefinition, DeviceTypes } from "./DeviceTypes.js";

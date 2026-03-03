@@ -7,33 +7,38 @@
 import {
     Construction,
     Diagnostic,
+    DnssdNames,
+    Entropy,
     Environment,
     Environmental,
     Logger,
     MatterAggregateError,
-    MaybePromise,
     MdnsSocket,
     Network,
     VariableService,
-} from "#general";
+} from "@matter/general";
 import { MdnsServer } from "../mdns/MdnsServer.js";
 import { MdnsClient } from "./MdnsClient.js";
 
 const logger = Logger.get("MDNS");
 
 export class MdnsService {
-    #socket?: MdnsSocket;
-    #server?: MdnsServer;
-    #client?: MdnsClient;
+    readonly #entropy: Entropy;
     readonly #construction: Construction<MdnsService>;
     readonly #enableIpv4: boolean;
     readonly limitedToNetInterface?: string;
+
+    #socket?: MdnsSocket;
+    #server?: MdnsServer;
+    #client?: MdnsClient;
+    #names?: DnssdNames;
 
     get enableIpv4() {
         return this.#enableIpv4;
     }
 
     constructor(environment: Environment, options?: MdnsService.Options) {
+        this.#entropy = environment.get(Entropy);
         const network = environment.get(Network);
         const rootEnvironment = environment.root;
         rootEnvironment.set(MdnsService, this);
@@ -67,6 +72,25 @@ export class MdnsService {
         return this.#construction.assert("MDNS service", this.#client);
     }
 
+    get names() {
+        if (this.#names === undefined) {
+            this.#names = new DnssdNames({
+                socket: this.#construction.assert("MDNS socket", this.#socket),
+                lifetime: this.#construction,
+                entropy: this.#entropy,
+                filter: ({ name }) => {
+                    // TODO - only accepting operational records here; add commissionable when we remove MdnsClient
+                    if (name.toLowerCase().match(/_matter(?:[cd]\._udp|\._tcp)\.local$/i)) {
+                        return true;
+                    }
+
+                    return false;
+                },
+            });
+        }
+        return this.#names;
+    }
+
     get [Diagnostic.value]() {
         return "MDNS";
     }
@@ -77,24 +101,20 @@ export class MdnsService {
 
     async close() {
         await this.#construction.close(async () => {
-            const broadcasterDisposal = MaybePromise.then(this.#server?.close(), undefined, e =>
-                logger.error("Error disposing of MDNS server", e),
-            );
-
-            const scannerDisposal = MaybePromise.then(this.#client?.close(), undefined, e =>
-                logger.error("Error disposing of MDNS client", e),
-            );
-
-            await MatterAggregateError.allSettled(
-                [broadcasterDisposal, scannerDisposal],
-                "Error disposing MDNS services",
-            ).catch(error => logger.error(error));
+            try {
+                await MatterAggregateError.allSettled(
+                    [this.#server, this.#client, this.#names].map(svc => svc?.close()),
+                    "Error disposing MDNS services",
+                );
+            } catch (e) {
+                logger.error(e);
+            }
 
             if (this.#socket) {
                 await this.#socket?.close();
             }
 
-            this.#server = this.#client = undefined;
+            this.#server = this.#client = this.#names = undefined;
         });
     }
 }

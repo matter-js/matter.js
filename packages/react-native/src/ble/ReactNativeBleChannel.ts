@@ -15,7 +15,7 @@ import {
     ServerAddress,
     Time,
     createPromise,
-} from "#general";
+} from "@matter/general";
 import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
@@ -31,7 +31,7 @@ import {
     BtpCodec,
     BtpFlowError,
     BtpSessionHandler,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     BleErrorCode,
     Characteristic,
@@ -61,9 +61,10 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         }
 
         // Get the peripheral by address and connect to it.
-        const { peripheral, hasAdditionalAdvertisementData } = (this.#ble.scanner as BleScanner).getDiscoveredDevice(
-            address.peripheralAddress,
-        );
+        const { peripheral: blePeripheral, hasAdditionalAdvertisementData } = (
+            this.#ble.scanner as BleScanner
+        ).getDiscoveredDevice(address.peripheralAddress);
+        const peripheral = blePeripheral.device;
         if (this.#openChannels.has(address)) {
             throw new BleError(
                 `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,

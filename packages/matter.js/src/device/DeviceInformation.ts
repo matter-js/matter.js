@@ -4,11 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BasicInformationClient } from "#behaviors/basic-information";
-import { SupportedStorageTypes } from "#general";
-import type { ClientNodeInteraction } from "#node";
-import { ClientNode } from "#node";
-import { PhysicalDeviceProperties } from "#protocol";
+import { SupportedStorageTypes } from "@matter/general";
+import { ClientNode, ClientNodePhysicalProperties } from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
+import { PhysicalDeviceProperties } from "@matter/protocol";
 
 export type DeviceInformationData = {
     basicInformation?: Record<string, SupportedStorageTypes>;
@@ -23,7 +22,7 @@ export class DeviceInformation {
     }
 
     get meta() {
-        return (this.#node.interaction as ClientNodeInteraction).physicalProperties;
+        return ClientNodePhysicalProperties(this.#node);
     }
 
     get basicInformation() {

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Actions } from "#clusters/actions";
+import { Actions } from "@matter/types/clusters/actions";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const ActionsClientConstructor = ClientBehavior(Actions.Complete);
 export interface ActionsClient extends InstanceType<typeof ActionsClientConstructor> {}

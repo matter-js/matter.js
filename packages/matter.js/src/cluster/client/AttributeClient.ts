@@ -4,10 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#general";
-import { FabricIndex as FabricIndexElement } from "#model";
-import { NoAssociatedFabricError } from "#protocol";
-import { Attribute, AttributeError, AttributeId, ClusterId, EndpointNumber, FabricIndex, TlvSchema } from "#types";
+import { ImplementationError } from "@matter/general";
+import { FabricIndex as FabricIndexElement } from "@matter/model";
+import { NoAssociatedFabricError } from "@matter/protocol";
+import {
+    Attribute,
+    AttributeError,
+    AttributeId,
+    ClusterId,
+    EndpointNumber,
+    FabricIndex,
+    TlvSchema,
+} from "@matter/types";
 import { InteractionClient } from "./InteractionClient.js";
 
 /**
@@ -82,16 +90,18 @@ export class AttributeClient<T = any> {
                 existingFieldIndex => existingFieldIndex === FabricIndex.OMIT_FABRIC,
             );
 
-            try {
-                const sessionFabric = this.#interactionClient.session.associatedFabric;
-                // also remove fabric index if it is the same as the session fabric
-                value = this.schema.removeField(
-                    value,
-                    <number>FabricIndexElement.id,
-                    existingFieldIndex => existingFieldIndex.index === sessionFabric.fabricIndex,
-                );
-            } catch (e) {
-                NoAssociatedFabricError.accept(e);
+            if (this.#interactionClient.maybeAddress) {
+                const fabricIndex = this.#interactionClient.maybeAddress.fabricIndex;
+                try {
+                    // also remove fabric index if it is the same as the session fabric
+                    value = this.schema.removeField(
+                        value,
+                        <number>FabricIndexElement.id,
+                        existingFieldIndex => existingFieldIndex.index === fabricIndex,
+                    );
+                } catch (e) {
+                    NoAssociatedFabricError.accept(e);
+                }
             }
         }
 

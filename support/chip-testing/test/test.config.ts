@@ -6,6 +6,7 @@
 
 import { chip, Chip } from "@matter/testing";
 import { log } from "../src/GenericTestApp.js";
+import { startLocalController } from "../src/local-controller.js";
 
 // Disable stdout output required when run within CHIP test harnesses
 log.directive = () => {};
@@ -18,5 +19,11 @@ declare global {
 Object.assign(globalThis, { chip });
 
 await chip.initialize();
+
+if (process.env.MATTER_LOCAL_CONTROLLER) {
+    const port = process.env.MATTER_CONTROLLER_PORT ? parseInt(process.env.MATTER_CONTROLLER_PORT, 10) : 9002;
+    const close = await startLocalController({ port });
+    chip.onClose(close);
+}
 
 await import("./support.js");

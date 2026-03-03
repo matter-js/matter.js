@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { describeList } from "#general";
+import { describeList } from "@matter/general";
 import { ClusterModel } from "../../models/index.js";
 import { InferredComponent, InferredComponents } from "./InferredComponents.js";
 

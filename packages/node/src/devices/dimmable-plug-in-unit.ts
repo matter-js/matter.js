@@ -18,7 +18,7 @@ import {
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Dimmable Plug-In Unit is a device that provides power to another device that is plugged into it, and is capable of
@@ -32,7 +32,7 @@ import { Identity } from "#general";
  * device type (see [ref_MountedDimmableLoadControlServerGuidance]).
  *
  * Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit device type. Clients
- * can encounter devices which were made before or after thesespecificationupdates. Therefore, clients SHOULD use the
+ * can encounter devices which were made before or after these specification updates. Therefore, clients SHOULD use the
  * following heuristic to distinguish the type of physical device based on the device type revision found on an endpoint
  * ("--" means the device type is not listed).
  *

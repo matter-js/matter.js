@@ -11,7 +11,7 @@ import { Attribute, WritableAttribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace LaundryDryerControls {
@@ -55,7 +55,7 @@ export namespace LaundryDryerControls {
 
         attributes: {
             /**
-             * Indicates the list of supported dryness levels available to the appliance in the currentlyselectedmode.
+             * Indicates the list of supported dryness levels available to the appliance in the currently selected mode.
              * The dryness level values are determined by the manufacturer. At least one dryness level value shall be
              * provided in the SupportedDrynessLevels list. The list of dryness levels may change depending on the
              * currently-selected Laundry Dryer mode.

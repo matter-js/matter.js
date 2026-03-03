@@ -4,9 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DerObject, hex, X520 } from "#general";
-import { FabricId, MATTER_EPOCH_OFFSET_S, NodeId, VendorId } from "#types";
-import { InternalError } from "@matter/general";
+import { Bytes, DerObject, hex, InternalError, X520 } from "@matter/general";
+import { FabricId, MATTER_EPOCH_OFFSET_S, NodeId, VendorId } from "@matter/types";
 
 const YEAR_S = 365 * 24 * 60 * 60;
 

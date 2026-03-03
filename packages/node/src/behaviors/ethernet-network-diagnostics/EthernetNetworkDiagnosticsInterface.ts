@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
+import { MaybePromise } from "@matter/general";
 
 export namespace EthernetNetworkDiagnosticsInterface {
     export interface PacketCountsOrErrorCounts {

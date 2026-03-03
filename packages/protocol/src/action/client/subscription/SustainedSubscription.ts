@@ -4,11 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { SustainedClientSubscribe } from "#action/client/subscription/ClientSubscribe.js";
+import { Read } from "#action/request/Read.js";
 import { Subscribe } from "#action/request/Subscribe.js";
+import { ReadResult } from "#action/response/ReadResult.js";
 import type { ActiveSubscription } from "#action/response/SubscribeResult.js";
+import type { ExchangeLogContext } from "#protocol/MessageExchange.js";
 import {
+    AbortedError,
     asError,
     AsyncObservableValue,
+    causedBy,
     Diagnostic,
     Duration,
     Hours,
@@ -17,10 +23,9 @@ import {
     RetrySchedule,
     Seconds,
     Time,
-} from "#general";
-import { Specification } from "#model";
-import { SubscribeResponse } from "#types";
-import type { ClientSubscribe } from "./ClientSubscribe.js";
+} from "@matter/general";
+import { Specification } from "@matter/model";
+import { SubscribeResponse } from "@matter/types";
 import { ClientSubscription } from "./ClientSubscription.js";
 import { PeerSubscription } from "./PeerSubscription.js";
 
@@ -37,21 +42,23 @@ const logger = Logger.get("ClientSubscription");
  *   retries at this level relatively conservative for now
  */
 export class SustainedSubscription extends ClientSubscription {
-    #request: ClientSubscribe;
+    #request: SustainedClientSubscribe;
     #subscription?: ActiveSubscription;
     #retries: RetrySchedule;
-    #subscribe: (request: Subscribe) => Promise<PeerSubscription>;
+    #subscribe: (request: Subscribe, abort: AbortSignal) => Promise<PeerSubscription>;
+    #read: (request: Read, abort: AbortSignal, logContext?: ExchangeLogContext) => ReadResult;
     #active = AsyncObservableValue(false);
     #inactive = AsyncObservableValue(true);
 
     constructor(config: SustainedSubscription.Configuration) {
         super(config);
 
-        const { request, retries, subscribe } = config;
+        const { request, read, retries, subscribe } = config;
 
         this.#request = request;
         this.#retries = retries;
         this.#subscribe = subscribe;
+        this.#read = read;
         this.done = this.#run();
     }
 
@@ -70,11 +77,17 @@ export class SustainedSubscription extends ClientSubscription {
     }
 
     async #run() {
+        // Do we trust the session to work? Initially yes
+        let sessionTrusted = true;
+
         const updated = this.#request.updated?.bind(this.#request);
+
+        let { bootstrapWithRead, refreshRequest } = this.#request;
+        let needToRefreshRequest = false;
 
         while (true) {
             // Create a request and promise that will inform us when the underlying subscription closes
-            const request = { ...this.#request, updated };
+            let request: SustainedClientSubscribe = { ...this.#request, updated };
             if (this.#request.updated) {
                 request.updated = this.#request.updated.bind(request);
             }
@@ -82,25 +95,76 @@ export class SustainedSubscription extends ClientSubscription {
                 request.closed = () => {
                     this.#subscription = undefined;
                     this.subscriptionId = ClientSubscription.NO_SUBSCRIPTION;
+                    sessionTrusted = false;
                     resolve();
                 };
             });
 
+            if (!sessionTrusted) {
+                try {
+                    const response = this.#read(
+                        Read({
+                            fabricFilter: false,
+                        }),
+                        this.abort,
+                        Diagnostic.asFlags({ probe: true }),
+                    );
+                    for await (const _chunk of response);
+                } catch (e) {
+                    if (!causedBy(e, AbortedError) || !this.abort.aborted) {
+                        // Probing failed, so we get a new session anyway
+                        sessionTrusted = true;
+                        logger.error(
+                            `Failed to probe reachability of peer ${this.peer}, resubscribe with new session:`,
+                            Diagnostic.errorMessage(asError(e)),
+                        );
+                    }
+                }
+                if (this.abort.aborted) {
+                    return;
+                }
+            }
+
             // Subscribe
             for (const retry of this.#retries) {
                 try {
-                    this.#subscription = await this.#subscribe(request);
+                    if (bootstrapWithRead) {
+                        const response = this.#read(request, this.abort, Diagnostic.asFlags({ bootstrap: true }));
+                        needToRefreshRequest = true; // We potentially got data, so request dataVersions are stale
+                        if (request.updated) {
+                            await request.updated(response);
+                        } else {
+                            for await (const _chunk of response);
+                        }
+
+                        if (this.abort.aborted) {
+                            return;
+                        }
+
+                        bootstrapWithRead = false;
+                    }
+                    if (needToRefreshRequest && refreshRequest !== undefined) {
+                        // Update request
+                        request = refreshRequest(request);
+                    }
+                    needToRefreshRequest = true; // We do a subscription request now so we might have got data, even partial
+                    this.#subscription = await this.#subscribe(request, this.abort);
                     this.subscriptionId = this.#subscription.subscriptionId;
+                    sessionTrusted = true;
                     break;
                 } catch (e) {
+                    if (!causedBy(e, AbortedError) || !this.abort.aborted) {
+                        // Subscription failed not by timeout but because could not be established, so we have a new session anyway
+                        sessionTrusted = true;
+                        logger.error(
+                            `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
+                            Diagnostic.errorMessage(asError(e)),
+                        );
+                    }
+
                     if (this.abort.aborted) {
                         return;
                     }
-
-                    logger.error(
-                        `Failed to establish subscription to ${this.peer}, retry in ${Duration.format(retry)}:`,
-                        Diagnostic.errorMessage(asError(e)),
-                    );
                 }
 
                 const readyForRetry = Time.sleep("subscription retry", retry);
@@ -151,11 +215,18 @@ export namespace SustainedSubscription {
     /**
      * Configuration for {@link SustainedSubscription}.
      */
-    export interface Configuration extends ClientSubscription.Configuration {
+    export interface Configuration extends Omit<ClientSubscription.Configuration, "request"> {
+        request: SustainedClientSubscribe;
+
         /**
          * Function to establish underlying subscription.
          */
-        subscribe: (request: Subscribe) => Promise<PeerSubscription>;
+        subscribe: (request: Subscribe, abort: AbortSignal) => Promise<PeerSubscription>;
+
+        /**
+         * Performs bootstrap read.
+         */
+        read: (request: Read, abort: AbortSignal) => ReadResult;
 
         /**
          * The schedule we use for retrying subscription connections.

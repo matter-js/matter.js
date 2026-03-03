@@ -10,8 +10,8 @@ import { Write } from "#action/request/Write.js";
 import { WriteResult } from "#action/response/WriteResult.js";
 import { AccessControl, hasRemoteActor } from "#action/server/AccessControl.js";
 import { DataResponse, FallbackLimits } from "#action/server/DataResponse.js";
-import { Diagnostic, InternalError, Logger, serialize, toHex } from "#general";
-import { AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "#model";
+import { Diagnostic, InternalError, Logger, serialize, toHex } from "@matter/general";
+import { AttributeModel, DataModelPath, ElementTag, FabricIndex as FabricIndexField } from "@matter/model";
 import {
     ArraySchema,
     AttributePath,
@@ -22,7 +22,7 @@ import {
     StatusResponseError,
     TlvSchema,
     TlvStream,
-} from "#types";
+} from "@matter/types";
 import { Subject } from "./Subject.js";
 
 const logger = Logger.get("AttributeWriteResponse");
@@ -421,9 +421,10 @@ export class AttributeWriteResponse<
             }
         } catch (error) {
             await this.session.transaction?.rollback();
-            if (StatusResponseError.is(error)) {
+            const sre = StatusResponseError.of(error);
+            if (sre) {
                 this.#errorCount++;
-                return this.#asStatus(path, error.code, error.clusterCode);
+                return this.#asStatus(path, sre.code, sre.clusterCode);
             }
             throw error;
         }

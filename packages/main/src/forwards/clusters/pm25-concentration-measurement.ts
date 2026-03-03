@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/pm25-concentration-measurement";
+export * from "@matter/types/clusters/pm25-concentration-measurement";

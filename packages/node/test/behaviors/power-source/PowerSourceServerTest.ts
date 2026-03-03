@@ -5,9 +5,9 @@
  */
 
 import { PowerSourceServer } from "#behaviors/power-source";
-import { PowerSource } from "#clusters/power-source";
 import { HumiditySensorDevice } from "#devices/humidity-sensor";
-import { PowerSourceDt } from "#model";
+import { PowerSourceDt } from "@matter/model";
+import { PowerSource } from "@matter/types/clusters/power-source";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 import { MockServerNode } from "../../node/mock-server-node.js";
 

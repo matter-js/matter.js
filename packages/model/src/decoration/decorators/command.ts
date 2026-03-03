@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Decorator } from "#general";
 import { CommandModel } from "#models/CommandModel.js";
+import { Decorator } from "@matter/general";
 import { element } from "./element.js";
 
 /**

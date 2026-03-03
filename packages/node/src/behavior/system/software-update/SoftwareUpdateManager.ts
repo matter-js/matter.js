@@ -7,9 +7,10 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
-import { OtaSoftwareUpdateProvider } from "#clusters/ota-software-update-provider";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import type { ClientNode } from "#node/ClientNode.js";
+import { Node } from "#node/Node.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     Diagnostic,
@@ -29,10 +30,7 @@ import {
     Time,
     Timer,
     Timestamp,
-} from "#general";
-import type { ClientNode } from "#node/ClientNode.js";
-import { Node } from "#node/Node.js";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
 import {
     BdxProtocol,
     DclOtaUpdateService,
@@ -41,8 +39,10 @@ import {
     OtaUpdateError,
     OtaUpdateSource,
     PeerAddress,
-} from "#protocol";
-import { VendorId } from "#types";
+} from "@matter/protocol";
+import { VendorId } from "@matter/types";
+import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
 
 const logger = Logger.get("SoftwareUpdateManager");
 
@@ -307,7 +307,7 @@ export class SoftwareUpdateManager extends Behavior {
                     softwareVersion < candidateSoftwareVersion &&
                     softwareVersion >= minApplicableSoftwareVersion &&
                     softwareVersion <= maxApplicableSoftwareVersion &&
-                    (this.state.allowTestOtaImages || mode !== "test"),
+                    (mode === "prod" || this.state.allowTestOtaImages),
             )
             .sort((a, b) => b.softwareVersion - a.softwareVersion);
 
@@ -366,6 +366,61 @@ export class SoftwareUpdateManager extends Behavior {
     /** Triggered by a Timer to call the update with different parameters */
     async #checkAvailableUpdates() {
         await this.queryUpdates();
+        await this.#cleanupObsoleteUpdates();
+    }
+
+    /**
+     * Clean up stored OTA files that no node in the system needs anymore.
+     * A stored version is obsolete when ALL nodes with that vendor/product ID are already at or above that version.
+     * Only cleans "prod" and "test" mode files; "local" files are user-managed.
+     */
+    async #cleanupObsoleteUpdates() {
+        const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;
+
+        // Collect minimum software version per vendor/product across all nodes
+        const nodeVersions = new Map<string, number>();
+        for (const peer of rootNode.peers) {
+            const basicInfo = peer.maybeStateOf(BasicInformationClient);
+            if (basicInfo === undefined) {
+                continue;
+            }
+            const { vendorId, productId, softwareVersion } = basicInfo;
+            const key = `${vendorId}-${productId}`;
+            const existing = nodeVersions.get(key);
+            if (existing === undefined || softwareVersion < existing) {
+                nodeVersions.set(key, softwareVersion);
+            }
+        }
+
+        if (nodeVersions.size === 0) {
+            return;
+        }
+
+        // Check all stored updates against node versions
+        const storedUpdates = await this.internal.otaService.find({});
+        for (const update of storedUpdates) {
+            if (update.mode === "local") {
+                continue; // Never auto-delete user-added files
+            }
+
+            const key = `${update.vendorId}-${update.productId}`;
+            const minNodeVersion = nodeVersions.get(key);
+            if (minNodeVersion === undefined) {
+                continue; // No known nodes for this vid/pid, keep the file
+            }
+
+            // If all nodes are at or above this stored version, it's obsolete
+            if (update.softwareVersion <= minNodeVersion) {
+                try {
+                    await this.internal.otaService.delete({ filename: update.filename });
+                    logger.info(
+                        `Cleaned up obsolete OTA file ${update.filename} (all nodes at version >= ${minNodeVersion})`,
+                    );
+                } catch (error) {
+                    logger.warn(`Failed to clean up OTA file ${update.filename}:`, error);
+                }
+            }
+        }
     }
 
     /**
@@ -468,7 +523,7 @@ export class SoftwareUpdateManager extends Behavior {
                 productId,
                 softwareVersion,
                 file: `ota/${fd.text}`,
-                peers: [...otaEndpoints.values()].map(({ endpoint }) => Node.forEndpoint(endpoint).id),
+                peers: [...otaEndpoints.values()].map(({ peerAddress }) => peerAddress.toString()),
             }),
         );
 
@@ -877,9 +932,7 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.consents = consents;
 
         if (otaEndpoint === undefined) {
-            logger.info(
-                `Node ${peerAddress.toString()} has no OTA requestor and is currently not applicable for OTA updates, update delayed`,
-            );
+            logger.info(`Node ${peerAddress.toString()} is currently not applicable for OTA updates, try again later`);
             return false;
         }
 

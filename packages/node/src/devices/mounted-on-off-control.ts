@@ -18,7 +18,7 @@ import {
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Mounted On/Off Control is a fixed device that provides power to another device or power circuit that is connected

@@ -5,8 +5,9 @@
  */
 
 import { Message } from "#codec/MessageCodec.js";
+import { ExchangeProvider } from "#protocol/index.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
 import {
-    Bytes,
     Diagnostic,
     Duration,
     ImplementationError,
@@ -14,10 +15,8 @@ import {
     Logger,
     Minutes,
     UnexpectedDataError,
-} from "#general";
-import { ExchangeProvider } from "#protocol/index.js";
-import { MessageExchange } from "#protocol/MessageExchange.js";
-import { BDX_PROTOCOL_ID, BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "#types";
+} from "@matter/general";
+import { BDX_PROTOCOL_ID, BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
 import { BdxError, BdxStatusResponseError } from "./BdxError.js";
 import { BdxReceiveAccept, BdxSendAccept } from "./schema/BdxAcceptMessagesSchema.js";
 import {
@@ -43,7 +42,7 @@ export class BdxMessenger {
 
     /** Creates a new BdxMessenger instance by initiating a new MessageExchange from the given ExchangeProvider. */
     static async create(exchangeProvider: ExchangeProvider, messageTimeout = BDX_TRANSFER_IDLE_TIMEOUT) {
-        const exchange = await exchangeProvider.initiateExchange(BDX_PROTOCOL_ID);
+        const exchange = await exchangeProvider.initiateExchange({ protocol: BDX_PROTOCOL_ID });
         return new this(exchange, messageTimeout);
     }
 
@@ -97,20 +96,11 @@ export class BdxMessenger {
                 `Received unexpected message type: ${BdxMessageType[messageType] ?? "unknown"}#${messageType}, expected: ${expectedMessageInfo}`,
             );
 
-        logger.debug(
-            `Received Bdx ${BdxMessageType[messageType]}${message.payload.byteLength > 0 ? ` with ${message.payload.byteLength}bytes` : ""}`,
-            Diagnostic.dict(message),
-        );
         return BdxMessage.decode(messageType, message.payload);
     }
 
     async send(bdxMessage: BdxMessage<any>) {
-        const { kind: messageType, message } = bdxMessage;
-        logger.debug(
-            `Sending Bdx ${BdxMessageType[messageType]}${"data" in message && Bytes.isBytes(message.data) ? ` with ${message.data.byteLength}bytes` : ""}`,
-            message,
-        );
-        await this.exchange.send(messageType, BdxMessage.encode(bdxMessage));
+        await this.exchange.send(bdxMessage.kind, BdxMessage.encode(bdxMessage));
     }
 
     /** Sends a Bdx SendInit message and waits for the SendAccept message as a response and returns it decoded. */

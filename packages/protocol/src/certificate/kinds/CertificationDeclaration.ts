@@ -3,8 +3,8 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Bytes, ContextTaggedBytes, Crypto, DerCodec, DerError, EcdsaSignature, Pkcs7, PrivateKey, Shs, X962 } from "#general";
-import { TypeFromBitmapSchema, VendorId } from "#types";
+import { Bytes, ContextTaggedBytes, Crypto, DerCodec, DerError, EcdsaSignature, Pkcs7, PrivateKey, Shs, X962 } from "@matter/general";
+import { TypeFromBitmapSchema, VendorId } from "@matter/types";
 import { assertCertificateDerSize } from "./common.js";
 import { CertificationDeclaration as CertificationDeclarationDef } from "./definitions/certification-declaration.js";
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto } from "#general";
+import { Bytes, Crypto } from "@matter/general";
 import { Certificate } from "./Certificate.js";
 import { AttestationCertificate } from "./definitions/attestation.js";
 import { MatterCertificate } from "./definitions/base.js";

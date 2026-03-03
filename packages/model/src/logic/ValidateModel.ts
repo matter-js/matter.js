@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Logger } from "#general";
+import { Diagnostic, Logger } from "@matter/general";
 import { DefinitionError } from "../common/index.js";
 import { Model } from "../models/index.js";
 import { ModelTraversal } from "./ModelTraversal.js";

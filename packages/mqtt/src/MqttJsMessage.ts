@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, MqttEndpoint } from "#general";
+import { Bytes, MqttEndpoint } from "@matter/general";
 import { IClientPublishOptions, IPublishPacket } from "mqtt";
 import { Buffer as SafeBuffer } from "safe-buffer";
 

@@ -59,7 +59,7 @@ export namespace Pem {
         }
 
         const base64 = lines
-            .slice(startPos + 1, endPos - startPos - 1)
+            .slice(startPos + 1, endPos)
             .join("")
             .replace(/\s/g, "");
 

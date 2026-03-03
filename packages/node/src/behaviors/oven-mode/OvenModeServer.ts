@@ -5,9 +5,9 @@
  */
 
 import { ModeUtils } from "#behaviors/mode-base";
-import { ModeBase } from "#clusters/mode-base";
-import { OvenMode } from "#clusters/oven-mode";
-import { ImplementationError, MaybePromise } from "#general";
+import { ImplementationError, MaybePromise } from "@matter/general";
+import { ModeBase } from "@matter/types/clusters/mode-base";
+import { OvenMode } from "@matter/types/clusters/oven-mode";
 import { OvenModeBehavior } from "./OvenModeBehavior.js";
 
 /**

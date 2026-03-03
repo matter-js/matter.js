@@ -8,6 +8,12 @@ import { Certificate } from "#certificate/kinds/Certificate.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
+import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
+import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
+import { PeerAddress } from "#peer/PeerAddress.js";
+import { FabricChangedError, FabricRemovedError } from "#peer/PeerCommunicationError.js";
+import { MessageExchange } from "#protocol/MessageExchange.js";
+import { SecureSession } from "#session/SecureSession.js";
 import {
     AsyncObservable,
     BinaryKeyPair,
@@ -25,12 +31,7 @@ import {
     MaybePromise,
     PrivateKey,
     StorageContext,
-} from "#general";
-import { FabricGroups, GROUP_SECURITY_INFO } from "#groups/FabricGroups.js";
-import { FabricAccessControl } from "#interaction/FabricAccessControl.js";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { MessageExchange } from "#protocol/MessageExchange.js";
-import { SecureSession } from "#session/SecureSession.js";
+} from "@matter/general";
 import {
     CaseAuthenticatedTag,
     FabricId,
@@ -40,7 +41,7 @@ import {
     NodeId,
     StatusResponse,
     VendorId,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("Fabric");
 
@@ -295,17 +296,6 @@ export class Fabric {
     }
 
     async verifyCredentials(operationalCert: Bytes, intermediateCACert?: Bytes) {
-        if (intermediateCACert !== undefined && intermediateCACert.byteLength === 0) {
-            intermediateCACert = undefined;
-        }
-
-        // Workaround for an issue with the Ikea hub where the root certificate was also provided as ICAC
-        // see https://github.com/project-chip/connectedhomeip/issues/42479
-        if (intermediateCACert !== undefined && Bytes.areEqual(this.rootCert, intermediateCACert)) {
-            logger.info("Intermediate CA certificate is identical to root certificate; omitting ICAC");
-            intermediateCACert = undefined;
-        }
-
         const rootCert = Rcac.fromTlv(this.rootCert);
         const nocCert = Noc.fromTlv(operationalCert);
         const icaCert = intermediateCACert !== undefined ? Icac.fromTlv(intermediateCACert) : undefined;
@@ -387,7 +377,7 @@ export class Fabric {
             await session.initiateClose(async () => {
                 await session.closeSubscriptions(true);
             });
-            await session.initiateForceClose(currentExchange);
+            await session.initiateForceClose({ cause: new FabricChangedError(), currentExchange });
         }
     }
 
@@ -420,7 +410,7 @@ export class Fabric {
         await this.#deleting.emit();
 
         for (const session of [...this.#sessions]) {
-            await session.initiateForceClose(currentExchange);
+            await session.initiateForceClose({ cause: new FabricRemovedError(), currentExchange });
         }
 
         await this.#deleted.emit();
@@ -522,13 +512,6 @@ export class FabricBuilder {
 
         if (this.#rootCert === undefined) {
             throw new MatterFlowError("Root certificate needs to be set first");
-        }
-
-        // Workaround for an issue with the Ikea hub where the root certificate was also provided as ICAC
-        // see https://github.com/project-chip/connectedhomeip/issues/42479
-        if (intermediateCACert !== undefined && Bytes.areEqual(this.#rootCert, intermediateCACert)) {
-            logger.info("Intermediate CA certificate is identical to root certificate; omitting ICAC");
-            intermediateCACert = undefined;
         }
 
         const rootCert = Rcac.fromTlv(this.#rootCert);

@@ -23,19 +23,14 @@ import {
     StorageService,
     Time,
     Timer,
-} from "#general";
+} from "@matter/general";
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "#types";
 import { Paa } from "../certificate/kinds/AttestationCertificates.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
+import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
 
 const logger = Logger.get("DclCertificateService");
-
-// GitHub repository for development/test certificates
-const GITHUB_OWNER = "project-chip";
-const GITHUB_REPO = "connectedhomeip";
-const GITHUB_BRANCH = "master";
-const GITHUB_CERT_PATH = "credentials/development/paa-root-certs";
 
 /**
  * Implements a service to manage DCL root certificates as a singleton in the environment and so will be shared by
@@ -211,7 +206,10 @@ export class DclCertificateService {
         try {
             const isProduction = options?.isProduction ?? true;
             // Fetch the root certificate list to find the certificate reference
-            const dclClient = new DclClient(isProduction);
+            const config = isProduction
+                ? (this.#options.dclConfig ?? DclConfig.production)
+                : (this.#options.testDclConfig ?? DclConfig.test);
+            const dclClient = new DclClient(config);
             const certRefs = await dclClient.fetchRootCertificateList(options);
 
             // Find the certificate reference with matching subject key ID (with colons for comparison)
@@ -378,18 +376,19 @@ export class DclCertificateService {
                 return;
             }
 
-            // Also fetch certificates from GitHub
-            await this.#fetchGitHubCertificates(storage, force);
+            // Also fetch certificates from GitHub (unless explicitly disabled)
+            if (this.#options.fetchGithubCertificates !== false) {
+                await this.#fetchGitHubCertificates(storage, force);
+            }
         }
 
         if (this.#closed) {
             return;
         }
 
-        // Store the index if anything changed
+        await this.#saveIndex();
         const newCerts = this.#certificateIndex.size - initialSize;
         if (newCerts > 0) {
-            await this.#saveIndex();
             logger.info(`Downloaded and stored ${newCerts} new certificates (total: ${this.#certificateIndex.size})`);
         } else {
             logger.info(`All certificates up to date (${this.#certificateIndex.size} total)`);
@@ -406,7 +405,10 @@ export class DclCertificateService {
         const environment = isProduction ? "production" : "test";
         logger.debug(`Fetching PAA certificates from DCL (${environment})`);
 
-        const dclClient = new DclClient(isProduction);
+        const config = isProduction
+            ? (this.#options.dclConfig ?? DclConfig.production)
+            : (this.#options.testDclConfig ?? DclConfig.test);
+        const dclClient = new DclClient(config);
         const certRefs = await dclClient.fetchRootCertificateList(this.#options);
         logger.debug(`Found ${certRefs.length} ${environment} root certificates in DCL`);
 
@@ -445,7 +447,20 @@ export class DclCertificateService {
 
             // Check if certificate already exists before fetching details (skip check if force is true)
             if (!force && this.#certificateIndex.has(normalizedSubjectKeyId)) {
-                logger.debug(`Certificate already exists, skipping`, Diagnostic.dict({ skid: normalizedSubjectKeyId }));
+                // If the existing certificate was stored as test but is now found in production DCL, upgrade it
+                const existing = this.#certificateIndex.get(normalizedSubjectKeyId)!;
+                if (isProduction && !existing.isProduction) {
+                    existing.isProduction = true;
+                    logger.debug(
+                        `Upgraded certificate to production`,
+                        Diagnostic.dict({ skid: normalizedSubjectKeyId }),
+                    );
+                } else {
+                    logger.debug(
+                        `Certificate already exists, skipping`,
+                        Diagnostic.dict({ skid: normalizedSubjectKeyId }),
+                    );
+                }
                 return;
             }
 
@@ -494,8 +509,9 @@ export class DclCertificateService {
             logger.debug("Fetching development certificates from GitHub");
 
             // Create GitHub repo client with timeout option
-            const repo = new Repo(GITHUB_OWNER, GITHUB_REPO, GITHUB_BRANCH, this.#options);
-            const certDir = await repo.cd(GITHUB_CERT_PATH);
+            const { owner, repo, branch, certPath } = this.#options.githubConfig ?? DclGithubConfig.defaults;
+            const repoClient = new Repo(owner, repo, branch, this.#options);
+            const certDir = await repoClient.cd(certPath);
 
             // List files in the certificate directory
             const files = await certDir.ls();
@@ -562,6 +578,12 @@ export class DclCertificateService {
         derBytes: Bytes,
         metadata: DclCertificateService.CertificateMetadata,
     ) {
+        // Never downgrade isProduction from true to false
+        const existing = this.#certificateIndex.get(subjectKeyId);
+        if (existing?.isProduction && !metadata.isProduction) {
+            metadata = { ...metadata, isProduction: true };
+        }
+
         // Store the DER certificate
         await storage.set(subjectKeyId, derBytes);
 
@@ -760,6 +782,9 @@ export namespace DclCertificateService {
         /** Whether to fetch test certificates in addition to production ones. Default is false. */
         fetchTestCertificates?: boolean;
 
+        /** Whether to fetch development certificates from GitHub. Default is true (when fetchTestCertificates is true). */
+        fetchGithubCertificates?: boolean;
+
         /**
          * Interval for periodic certificate updates. Default is 1 day. Set to null to disable automatic certificate
          * updates
@@ -768,6 +793,15 @@ export namespace DclCertificateService {
 
         /** Timeout for DCL requests. Default is 5s. */
         timeout?: Duration;
+
+        /** DCL config for production endpoint. Defaults to DclConfig.production. */
+        dclConfig?: DclConfig;
+
+        /** DCL config for test endpoint. Defaults to DclConfig.test. */
+        testDclConfig?: DclConfig;
+
+        /** GitHub config for development certificates. Programmatic override only. Defaults to DclGithubConfig.defaults. */
+        githubConfig?: DclGithubConfig;
     }
 
     /**

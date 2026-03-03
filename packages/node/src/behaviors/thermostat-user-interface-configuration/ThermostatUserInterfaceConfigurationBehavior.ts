@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ThermostatUserInterfaceConfiguration } from "#clusters/thermostat-user-interface-configuration";
+import { ThermostatUserInterfaceConfiguration } from "@matter/types/clusters/thermostat-user-interface-configuration";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ThermostatUserInterfaceConfigurationBehavior is the base class for objects that support interaction with

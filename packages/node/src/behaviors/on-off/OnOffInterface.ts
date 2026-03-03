@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { OnOff } from "#clusters/on-off";
+import { MaybePromise } from "@matter/general";
+import { OnOff } from "@matter/types/clusters/on-off";
 
 export namespace OnOffInterface {
     export interface Base {

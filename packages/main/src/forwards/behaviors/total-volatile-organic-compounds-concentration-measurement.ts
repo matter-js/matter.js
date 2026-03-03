@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/total-volatile-organic-compounds-concentration-measurement";
+export * from "@matter/node/behaviors/total-volatile-organic-compounds-concentration-measurement";

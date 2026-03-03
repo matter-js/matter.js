@@ -18,7 +18,7 @@ import { DishwasherModeServer as BaseDishwasherModeServer } from "../behaviors/d
 import { DishwasherAlarmServer as BaseDishwasherAlarmServer } from "../behaviors/dishwasher-alarm/DishwasherAlarmServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A dishwasher is a device that is generally installed in residential homes and is capable of washing dishes, cutlery,

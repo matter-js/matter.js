@@ -6,8 +6,8 @@
 
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
-import { hex } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
+import { hex } from "@matter/general";
 import { Endpoints } from "./Endpoints.js";
 
 /**

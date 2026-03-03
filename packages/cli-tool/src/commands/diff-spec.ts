@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { LogFormat, MatterError } from "#general";
-import { AnyElement, ElementTag, Model, ModelDiff, Specification } from "#model";
+import { LogFormat, MatterError } from "@matter/general";
+import { AnyElement, ElementTag, Model, ModelDiff, Specification } from "@matter/model";
 import { Command } from "./command.js";
 
 Command({

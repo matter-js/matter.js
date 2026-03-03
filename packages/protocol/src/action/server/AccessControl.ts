@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ImplementationError } from "#general";
-import { Access, AccessLevel, DataModelPath, ElementTag, Schema, ValueModel } from "#model";
-import { ClusterId, EndpointNumber, FabricIndex, Status } from "#types";
+import { ImplementationError } from "@matter/general";
+import { Access, AccessLevel, DataModelPath, ElementTag, Schema, ValueModel } from "@matter/model";
+import { ClusterId, EndpointNumber, FabricIndex, Status } from "@matter/types";
 import { InvokeError, ReadError, SchemaImplementationError, WriteError } from "../errors.js";
 import { Subject } from "./Subject.js";
 

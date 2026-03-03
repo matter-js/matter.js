@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded } from "#general";
+import { Branded } from "@matter/general";
 import { ValidationOutOfBoundsError } from "../common/ValidationError.js";
 import { TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";

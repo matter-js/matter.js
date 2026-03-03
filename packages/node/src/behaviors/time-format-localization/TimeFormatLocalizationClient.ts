@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { TimeFormatLocalization } from "#clusters/time-format-localization";
+import { TimeFormatLocalization } from "@matter/types/clusters/time-format-localization";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const TimeFormatLocalizationClientConstructor = ClientBehavior(TimeFormatLocalization.Complete);
 export interface TimeFormatLocalizationClient extends InstanceType<typeof TimeFormatLocalizationClientConstructor> {}

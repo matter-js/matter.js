@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Environment, ServiceBundle } from "#general";
-import { Ble } from "#protocol";
+import { Environment, ServiceBundle } from "@matter/general";
+import { Ble } from "@matter/protocol";
 import { NodeJsBle } from "./NodeJsBle.js";
 
 function nodejsBle(env: Environment) {

@@ -52,5 +52,6 @@ export namespace RequirementElement {
         Event = "event",
         CommandField = "commandField",
         DeviceType = "deviceType",
+        Condition = "condition",
     }
 }

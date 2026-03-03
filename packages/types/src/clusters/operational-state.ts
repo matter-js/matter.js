@@ -16,7 +16,7 @@ import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace OperationalState {
@@ -74,8 +74,8 @@ export namespace OperationalState {
         operationalStateId: TlvField(0, TlvEnum<OperationalStateEnum>()),
 
         /**
-         * This field is present when the OperationalStateID is from the set reserved for ManufacturerSpecificStates. If
-         * present, this shall contain a human-readable description of the operational state.
+         * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
+         * If present, this shall contain a human-readable description of the operational state.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
          */
@@ -144,7 +144,7 @@ export namespace OperationalState {
         errorStateId: TlvField(0, TlvEnum<ErrorState>()),
 
         /**
-         * This field is present when the ErrorStateID is from the set reserved for ManufacturerSpecificerrors. If
+         * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
          * present, this shall contain a human-readable description of the error state.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.2

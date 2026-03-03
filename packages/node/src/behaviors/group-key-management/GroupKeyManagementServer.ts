@@ -5,12 +5,18 @@
  */
 
 import { ActionContext } from "#behavior/context/ActionContext.js";
-import { GroupKeyManagement } from "#clusters/group-key-management";
-import { deepCopy, ImplementationError, Logger } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import { assertRemoteActor, Fabric, FabricManager, hasRemoteActor, IPK_DEFAULT_EPOCH_START_TIME } from "#protocol";
-import { EndpointNumber, FabricIndex, GroupId, StatusCode, StatusResponseError } from "#types";
+import { deepCopy, ImplementationError, Logger } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
+import {
+    assertRemoteActor,
+    Fabric,
+    FabricManager,
+    hasRemoteActor,
+    IPK_DEFAULT_EPOCH_START_TIME,
+} from "@matter/protocol";
+import { EndpointNumber, FabricIndex, GroupId, StatusCode, StatusResponseError } from "@matter/types";
+import { GroupKeyManagement } from "@matter/types/clusters/group-key-management";
 import { GroupKeyManagementBehavior } from "./GroupKeyManagementBehavior.js";
 
 const logger = Logger.get("GroupKeyManagementServer");

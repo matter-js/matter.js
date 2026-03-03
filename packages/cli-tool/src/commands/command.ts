@@ -5,9 +5,9 @@
  */
 
 import { Domain } from "#domain.js";
-import { decamelize, FormattedText, ImplementationError, MaybePromise } from "#general";
 import { bin } from "#globals.js";
-import { FieldValue, Metatype } from "#model";
+import { decamelize, FormattedText, ImplementationError, MaybePromise } from "@matter/general";
+import { FieldValue, Metatype } from "@matter/model";
 import colors from "ansi-colors";
 
 export interface CommandDefinition<

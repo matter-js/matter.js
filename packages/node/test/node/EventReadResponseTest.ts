@@ -5,15 +5,15 @@
  */
 
 import { MessagesServer } from "#behaviors/messages";
-import { BasicInformation, BasicInformationCluster } from "#clusters/basic-information";
-import { Messages } from "#clusters/messages";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
-import { Bytes, Seconds } from "#general";
 import { ServerNode } from "#index.js";
-import { AccessLevel, Specification } from "#model";
-import { EventReadResponse, Read, ReadResult } from "#protocol";
-import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "#types";
+import { Bytes, Seconds } from "@matter/general";
+import { AccessLevel, Specification } from "@matter/model";
+import { EventReadResponse, Read, ReadResult } from "@matter/protocol";
+import { ClusterId, EndpointNumber, EventId, EventNumber, FabricIndex, StatusCode } from "@matter/types";
+import { BasicInformation, BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { Messages } from "@matter/types/clusters/messages";
 import { MockServerNode } from "./mock-server-node.js";
 import { MockSite } from "./mock-site.js";
 
@@ -135,7 +135,7 @@ describe("EventReadResponse", () => {
 
             it(`reads fabric-scoped concrete event with payload`, async () => {
                 const node = await MockServerNode.createOnline(
-                    ServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
+                    MockServerNode.RootEndpoint.with(MessagesServer.with("ReceivedConfirmation")),
                 );
                 await node.act(agent =>
                     node.events.messages.messageComplete.emit(
@@ -347,7 +347,7 @@ describe("EventReadResponse", () => {
             MockTime.init();
 
             // Required for crypto to succeed
-            MockTime.macrotasks = true;
+            MockTime.forceMacrotasks = true;
         });
 
         it("Reads startup event via remote read", async () => {
@@ -380,11 +380,17 @@ describe("EventReadResponse", () => {
             );
 
             let asExpected = false;
-            for await (const chunks of read) {
-                expect(chunks).deep.equals([]);
-                expect(asExpected).equals(false);
-                asExpected = true;
-            }
+
+            await MockTime.resolve(
+                (async () => {
+                    for await (const chunks of read) {
+                        expect(chunks).deep.equals([]);
+                        expect(asExpected).equals(false);
+                        asExpected = true;
+                    }
+                })(),
+            );
+
             expect(asExpected).equals(true);
         });
     });

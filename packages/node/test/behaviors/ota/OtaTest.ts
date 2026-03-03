@@ -10,10 +10,13 @@ import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
 } from "#behaviors/ota-software-update-requestor";
-import { OtaSoftwareUpdateRequestor } from "#clusters/ota-software-update-requestor";
-import { Bytes, createPromise, MockFetch } from "#general";
-import { FabricAuthority, PeerAddress } from "#protocol";
-import { FabricIndex, VendorId } from "#types";
+import { OtaProviderEndpoint } from "#endpoints/ota-provider";
+import { ServerNode } from "#node/ServerNode.js";
+import { Bytes, createPromise, MockFetch } from "@matter/general";
+import { FabricAuthority, PeerAddress } from "@matter/protocol";
+import { FabricIndex, VendorId } from "@matter/types";
+import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
+import { MockSite } from "../../node/mock-site.js";
 import {
     addTestOtaImage,
     initOtaSite,
@@ -26,9 +29,6 @@ describe("Ota", () => {
 
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.macrotasks = true;
     });
 
     beforeEach(() => {
@@ -57,7 +57,7 @@ describe("Ota", () => {
         fetchMock.uninstall();
     });
 
-    it("Successfully process a software update", async () => {
+    it("Successfully processes a software update", async () => {
         // *** COMMISSIONING ***
 
         // Shared variable to hold expected OTA image for verification
@@ -143,7 +143,7 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Shutdown node because our test node does not restart automatically and simulate update applied
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: 1 });
 
         await MockTime.resolve(device.start());
@@ -308,8 +308,12 @@ describe("Ota", () => {
 
         await MockTime.resolve(announceOtaProviderPromise);
 
+        // Messages may still be in flight; ensure they find a home before continuing
+        await MockTime.macrotasks;
+
         // After announcement, verify queue shows in-progress
         const queue2 = await otaProvider.act(agent => agent.get(SoftwareUpdateManager).queuedUpdates);
+
         expect(queue2).length(1);
         expect(queue2[0].status).equals("in-progress");
 
@@ -319,7 +323,7 @@ describe("Ota", () => {
         await MockTime.resolve(applyUpdatePromise);
 
         // Simulate device restart with new version
-        await MockTime.resolve(device.cancel());
+        await MockTime.resolve(device.stop());
         await device.setStateOf(BasicInformationServer, { softwareVersion: targetSoftwareVersion });
         await MockTime.resolve(device.start());
 
@@ -330,6 +334,62 @@ describe("Ota", () => {
         expect(queue3).length(0);
 
         await site[Symbol.asyncDispose]();
+    }).timeout(10_000);
+
+    it("Does not report updates for nodes without OTA requestor", async () => {
+        const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
+            requestUserConsentForUpdate: false,
+        });
+
+        const site = new MockSite();
+        const { controller, device } = await site.addCommissionedPair({
+            controller: {
+                type: ServerNode.RootEndpoint,
+                parts: [{ id: "ota-provider", type: OtaProviderEndpoint.with(TestOtaProviderServer) }],
+            },
+        });
+        await using _localSite = site;
+
+        const otaProvider = controller.parts.get("ota-provider")!;
+        await otaProvider.act(agent => {
+            const su = agent.get(SoftwareUpdateManager);
+            su.state.allowTestOtaImages = true;
+        });
+
+        const { otaImage } = await addTestOtaImage(device, controller);
+        let checkForUpdateCalls = 0;
+        let downloadUpdateCalls = 0;
+
+        const updatesAvailable = await otaProvider.act(async agent => {
+            const su = agent.get(SoftwareUpdateManager);
+            const otaService = su.internal.otaService;
+
+            const originalCheckForUpdate = otaService.checkForUpdate.bind(otaService);
+            const originalDownloadUpdate = otaService.downloadUpdate.bind(otaService);
+
+            otaService.checkForUpdate = async () => {
+                checkForUpdateCalls++;
+                // Simulate DCL returning an available update.
+                return {
+                    ...otaImage.updateInfo,
+                    source: "dcl-test",
+                };
+            };
+            otaService.downloadUpdate = async () => {
+                downloadUpdateCalls++;
+                return { text: "mocked-ota-file" } as any;
+            };
+
+            try {
+                return await su.queryUpdates({ includeStoredUpdates: false });
+            } finally {
+                otaService.checkForUpdate = originalCheckForUpdate;
+                otaService.downloadUpdate = originalDownloadUpdate;
+            }
+        });
+        expect(updatesAvailable).deep.equals([]);
+        expect(checkForUpdateCalls).equals(0);
+        expect(downloadUpdateCalls).equals(0);
     }).timeout(10_000);
 
     // TODO Add more test cases for edge cases and error cases, also split out setup into helpers

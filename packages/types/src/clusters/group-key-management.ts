@@ -21,12 +21,12 @@ import { TlvGroupId } from "../datatype/GroupId.js";
 import { TlvUInt16, TlvEnum, TlvEpochUs } from "../tlv/TlvNumber.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace GroupKeyManagement {
@@ -268,8 +268,8 @@ export namespace GroupKeyManagement {
     export interface KeySetReadRequest extends TypeFromSchema<typeof TlvKeySetReadRequest> {}
 
     /**
-     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Setwasfound. It shall
-     * contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
+     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
+     * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
@@ -277,8 +277,8 @@ export namespace GroupKeyManagement {
     export const TlvKeySetReadResponse = TlvObject({ groupKeySet: TlvField(0, TlvGroupKeySet) });
 
     /**
-     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Setwasfound. It shall
-     * contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
+     * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
+     * shall contain the configuration of the requested Group Key Set, with the EpochKey0, EpochKey1 and EpochKey2 key
      * contents replaced by null.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3

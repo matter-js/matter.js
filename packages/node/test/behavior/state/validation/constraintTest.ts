@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ConstraintError } from "#protocol";
+import { ConstraintError } from "@matter/protocol";
 import { Fields, Tests, testValidation } from "./validation-test-utils.js";
 
 const AllTests = Tests({

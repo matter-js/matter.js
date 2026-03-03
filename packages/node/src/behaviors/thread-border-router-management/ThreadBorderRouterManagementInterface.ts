@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { ThreadBorderRouterManagement } from "#clusters/thread-border-router-management";
+import { MaybePromise } from "@matter/general";
+import { ThreadBorderRouterManagement } from "@matter/types/clusters/thread-border-router-management";
 
 export namespace ThreadBorderRouterManagementInterface {
     export interface Base {
@@ -60,9 +60,9 @@ export namespace ThreadBorderRouterManagementInterface {
          * If the command is not executed via a CASE session, the command shall fail with a status code of
          * UNSUPPORTED_ACCESS.
          *
-         * This PendingDataset field shall contain the pending dataset to which the Thread network shouldbeupdated. The
-         * format of the data shall be an octet string containing the raw Thread TLV value of the pending dataset, as
-         * defined in the Thread specification.
+         * This PendingDataset field shall contain the pending dataset to which the Thread network should be updated.
+         * The format of the data shall be an octet string containing the raw Thread TLV value of the pending dataset,
+         * as defined in the Thread specification.
          *
          * If any of the parameters in the PendingDataset is invalid, the command shall fail with a status of
          * INVALID_COMMAND.

@@ -9,7 +9,7 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, TlvNoResponse } from "../cluster/Cluster.js";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvNodeId } from "../datatype/NodeId.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { TlvArray } from "../tlv/TlvArray.js";
@@ -23,7 +23,7 @@ import { TlvGroupId } from "../datatype/GroupId.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
 import { TlvSubjectId } from "../datatype/SubjectId.js";
 import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace JointFabricDatastore {
@@ -566,9 +566,9 @@ export namespace JointFabricDatastore {
     export interface DatastoreAclEntry extends TypeFromSchema<typeof TlvDatastoreAclEntry> {}
 
     /**
-     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed bytheDatastore. Only
-     * Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to the
-     * Joint Fabric.
+     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
+     * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
+     * the Joint Fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */
@@ -605,9 +605,9 @@ export namespace JointFabricDatastore {
     });
 
     /**
-     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed bytheDatastore. Only
-     * Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to the
-     * Joint Fabric.
+     * The DatastoreEndpointEntryStruct represents an Endpoint on a specific Node which is managed by the Datastore.
+     * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
+     * the Joint Fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
      */

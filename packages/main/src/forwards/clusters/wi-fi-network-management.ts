@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/wi-fi-network-management";
+export * from "@matter/types/clusters/wi-fi-network-management";

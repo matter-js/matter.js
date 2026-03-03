@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { AdministratorCommissioning } from "#clusters/administrator-commissioning";
+import { MaybePromise } from "@matter/general";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 
 export namespace AdministratorCommissioningInterface {
     export interface Base {
@@ -25,10 +25,11 @@ export namespace AdministratorCommissioningInterface {
          *
          * The parameters for OpenCommissioningWindow command are as follows:
          *
-         * A current Administrator may invoke this command to put a node in commissioning mode for thenextAdministrator.
-         * On completion, the command shall return a cluster specific status code from the Section 11.19.6, “Status
-         * Codes” below reflecting success or reasons for failure of the operation. The new Administrator shall discover
-         * the Node on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.
+         * A current Administrator may invoke this command to put a node in commissioning mode for the next
+         * Administrator. On completion, the command shall return a cluster specific status code from the Section
+         * 11.19.6, “Status Codes” below reflecting success or reasons for failure of the operation. The new
+         * Administrator shall discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) for
+         * commissioning.
          *
          * If any format or validity errors related to the PAKEPasscodeVerifier, Iterations or Salt arguments arise,
          * this command shall fail with a cluster specific status code of PAKEParameterError.

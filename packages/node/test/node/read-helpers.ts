@@ -1,6 +1,6 @@
-import { AccessLevel, Specification } from "#model";
-import { AttributeReadResponse, Read, ReadResult } from "#protocol";
-import { ClusterId, EndpointNumber } from "#types";
+import { AccessLevel, Specification } from "@matter/model";
+import { AttributeReadResponse, Read, ReadResult } from "@matter/protocol";
+import { ClusterId, EndpointNumber } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
 
 export function readAttr(node: MockServerNode, ...args: Parameters<typeof Read>) {

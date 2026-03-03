@@ -11,10 +11,10 @@ import { OnlineEvent } from "#behavior/Events.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Agent } from "#endpoint/index.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
-import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "#general";
-import { ClusterModel, FeatureSet, FieldValue, Schema } from "#model";
-import { Val } from "#protocol";
-import { ClusterType, TlvNoResponse } from "#types";
+import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "@matter/general";
+import { ClusterModel, FeatureSet, FieldValue, Schema } from "@matter/model";
+import { Val } from "@matter/protocol";
+import { ClusterType, TlvNoResponse } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { Datasource } from "../state/managed/Datasource.js";
 import { BehaviorBacking } from "./BehaviorBacking.js";
@@ -103,17 +103,17 @@ export class ServerBehaviorBacking extends BehaviorBacking {
 
         // Update attribute list
         const attributeDefs = behavior.cluster.attributes as ClusterType.ElementSet<ClusterType.Attribute>;
-        globals.attributeList = [...validation.attributes].map(name => attributeDefs[name].id);
+        globals.attributeList = [...validation.attributes].map(name => attributeDefs[name].id).sort((a, b) => a - b);
 
         // Update accepted & generated command lists
         const commandDefs = behavior.cluster.commands as ClusterType.ElementSet<ClusterType.Command>;
         const commands = [...validation.commands].map(name => commandDefs[name]);
-        globals.acceptedCommandList = commands.map(command => command.requestId);
+        globals.acceptedCommandList = commands.map(command => command.requestId).sort((a, b) => a - b);
         globals.generatedCommandList = [
             ...new Set(
                 commands.filter(command => command.responseSchema !== TlvNoResponse).map(command => command.responseId),
             ),
-        ];
+        ].sort((a, b) => a - b);
 
         // Validate the feature map
         const schema = Schema(behavior.type) as ClusterModel;

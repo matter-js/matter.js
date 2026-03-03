@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { DeviceEnergyManagement } from "#clusters/device-energy-management";
+import { MaybePromise } from "@matter/general";
+import { DeviceEnergyManagement } from "@matter/types/clusters/device-energy-management";
 
 export namespace DeviceEnergyManagementInterface {
     export interface PowerAdjustment {

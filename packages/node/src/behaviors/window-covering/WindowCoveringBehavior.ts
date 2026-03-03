@@ -6,11 +6,11 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { WindowCovering } from "#clusters/window-covering";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { WindowCoveringInterface } from "./WindowCoveringInterface.js";
-import { ClusterType } from "#types";
-import { Identity } from "#general";
+import { ClusterType } from "@matter/types";
+import { Identity } from "@matter/general";
 
 /**
  * WindowCoveringBehavior is the base class for objects that support interaction with {@link WindowCovering.Cluster}.

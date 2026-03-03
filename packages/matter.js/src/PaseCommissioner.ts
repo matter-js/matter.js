@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Environment, ImplementationError, Logger, Minutes, SharedEnvironmentServices } from "#general";
+import { Environment, ImplementationError, Logger, Minutes, SharedEnvironmentServices } from "@matter/general";
 import {
     CertificateAuthority,
     CommissionableDevice,
@@ -13,8 +13,8 @@ import {
     Fabric,
     MdnsService,
     Scanner,
-} from "#protocol";
-import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema } from "#types";
+} from "@matter/protocol";
+import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema } from "@matter/types";
 import {
     CommissioningControllerOptions,
     ControllerEnvironmentOptions,

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "#general";
+import { MatterError } from "@matter/general";
 
 /**
  * Error that throws when Commissioning fails and a process cannot be continued, and no more specific error

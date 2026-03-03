@@ -7,14 +7,31 @@
 import { basename } from "node:path";
 import { Subject } from "../device/subject.js";
 import { BaseTest } from "../device/test.js";
+import { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
+import { TestFileDescriptor } from "../test-descriptor.js";
 import { deansify } from "../util/text.js";
 import { parseStep } from "./chip-test-common.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
 
 export class YamlTest extends BaseTest {
+    #localControllerPort?: number;
+
+    constructor(descriptor: TestFileDescriptor, container: Container, localControllerPort?: number) {
+        super(descriptor, container);
+        this.#localControllerPort = localControllerPort;
+    }
+
     async initializeSubject(subject: Subject) {
+        if (this.#localControllerPort !== undefined) {
+            await this.#initializeSubjectViaWebSocket(subject);
+        } else {
+            await this.#initializeSubjectViaChipTool(subject);
+        }
+    }
+
+    async #initializeSubjectViaChipTool(subject: Subject) {
         const command = ["chip-tool", "pairing"];
 
         const { kind, passcode, discriminator, network } = subject.commissioning;
@@ -55,20 +72,50 @@ export class YamlTest extends BaseTest {
         }
     }
 
-    async invoke(subject: Subject, step: (title: string) => void, args: string[]) {
-        if (!args.includes("--PICS")) {
-            args.push("--PICS", await PicsSource.install(subject.pics));
-        }
+    /**
+     * Commission via the local matter.js WebSocket controller.  The YAML runner's WebSocketRunner connects to the
+     * host-side controller, which handles the `pairing code <nodeId> <qrCode>` text command.
+     */
+    async #initializeSubjectViaWebSocket(subject: Subject) {
+        const { qrPairingCode } = subject.commissioning;
 
         const terminal = await this.container.exec(
             [
                 "python3",
                 ContainerPaths.yamlRunner,
-                "tests",
-                basename(this.descriptor.path),
-                ...Constants.YamlRunnerArgs,
-                ...args,
+                "pairing",
+                "code",
+                "0x12344321",
+                qrPairingCode,
+                "--server_path",
+                ContainerPaths.dummyWsServer,
             ],
+            Terminal.Line,
+        );
+
+        try {
+            for await (const line of terminal) {
+                MockLogger.injectExternalMessage("PAIR", line);
+            }
+        } catch (e) {
+            throw new Error("Error pairing test app via WebSocket controller", { cause: e });
+        }
+    }
+
+    async invoke(subject: Subject, step: (title: string) => void, args: string[]) {
+        if (!args.includes("--PICS")) {
+            args.push("--PICS", await PicsSource.install(subject.pics));
+        }
+
+        const runnerArgs =
+            this.#localControllerPort !== undefined
+                ? Constants.YamlRunnerArgs.map((arg, i, arr) =>
+                      arr[i - 1] === "--server_path" ? ContainerPaths.dummyWsServer : arg,
+                  )
+                : Constants.YamlRunnerArgs;
+
+        const terminal = await this.container.exec(
+            ["python3", ContainerPaths.yamlRunner, "tests", basename(this.descriptor.path), ...runnerArgs, ...args],
             Terminal.Line,
         );
 

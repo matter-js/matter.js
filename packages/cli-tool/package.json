@@ -31,12 +31,6 @@
         "matter": "bin/matter.js"
     },
     "imports": {
-        "#tools": "@matter/tools",
-        "#general": "@matter/general",
-        "#model": "@matter/model",
-        "#types": "@matter/types",
-        "#protocol": "@matter/protocol",
-        "#node": "@matter/node",
         "#package": "./package.json",
         "#*": "./src/*"
     },
@@ -49,7 +43,7 @@
         "@matter/types": "*",
         "@matter/nodejs": "*",
         "@types/escodegen": "^0.0.10",
-        "acorn": "^8.15.0",
+        "acorn": "^8.16.0",
         "ansi-colors": "^4.1.3",
         "escodegen": "^2.1.0"
     },

@@ -6,6 +6,7 @@
 
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
+import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import {
     asError,
     AsyncObservable,
@@ -22,11 +23,10 @@ import {
     QuietObservable,
     Time,
     type Observer,
-} from "#general";
-import { ElementTag, EventElement, EventModel, type AttributeElement, type ValueModel } from "#model";
-import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import { NumberedOccurrence, Occurrence, OccurrenceManager, Val } from "#protocol";
-import { ClusterId, EventId, Priority } from "#types";
+} from "@matter/general";
+import { ElementTag, EventElement, EventModel, type AttributeElement, type ValueModel } from "@matter/model";
+import { NumberedOccurrence, Occurrence, OccurrenceManager, Val } from "@matter/protocol";
+import { ClusterId, EventId, Priority } from "@matter/types";
 import type { Behavior } from "./Behavior.js";
 import { NodeActivity } from "./context/NodeActivity.js";
 

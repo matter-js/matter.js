@@ -5,7 +5,7 @@
  */
 
 import { WindowCoveringServer } from "#behaviors/window-covering";
-import { WindowCovering } from "#clusters/window-covering";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 
 class TestWindowCoveringServer extends WindowCoveringServer.with(

@@ -19,10 +19,10 @@ import {
 import { TlvInt16, TlvUInt16, TlvBitmap, TlvEnum, TlvUInt24, TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { Priority } from "../globals/Priority.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace PumpConfigurationAndControl {
@@ -118,8 +118,8 @@ export namespace PumpConfigurationAndControl {
          * Device control is overridden by hardware, such as an external STOP button or via a local HMI.
          *
          * While this bit is set, the EffectiveOperationMode is adjusted to Local. Any request changing OperationMode
-         * shall generate a FAILURE error status until LocalOverride is cleared on thephysicaldevice. When LocalOverride
-         * is cleared, the device shall return to the operation mode set in OperationMode.
+         * shall generate a FAILURE error status until LocalOverride is cleared on the physical device. When
+         * LocalOverride is cleared, the device shall return to the operation mode set in OperationMode.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.2.6.1.3
          */

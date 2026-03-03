@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { NotImplementedError, ReedSolomon, UnexpectedDataError } from "#general";
+import { NotImplementedError, ReedSolomon, UnexpectedDataError } from "@matter/general";
 import { Schema } from "./Schema.js";
 
 const QR_MASK = [

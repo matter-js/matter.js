@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     AddressLifespan,
     BasicMultiplex,
@@ -35,9 +36,8 @@ import {
     Timespan,
     createPromise,
     isIPv6,
-} from "#general";
-import { PeerAddress } from "#peer/PeerAddress.js";
-import { GlobalFabricId, NodeId, VendorId } from "#types";
+} from "@matter/general";
+import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
 import {
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
@@ -146,6 +146,8 @@ interface WaiterRecord {
 /**
  * This class implements the Scanner interface for a MDNS scanner via UDP messages in a IP based network. It sends out
  * queries to discover various types of Matter device types and listens for announcements.
+ *
+ * TODO - convert commissioning logic to use MdnsNames and remove this class
  */
 export class MdnsClient implements Scanner {
     readonly #lifetime: Lifetime;
@@ -863,10 +865,7 @@ export class MdnsClient implements Scanner {
         cancelSignal?.then(
             () => {
                 canceled = true;
-                if (queryResolver === undefined) {
-                    // Always finish when the cancelSignal parameter was used, else cancelling is done separately
-                    this.#finishWaiter(queryId, true);
-                }
+                this.#finishWaiter(queryId, true);
             },
             cause => {
                 logger.warn("Unexpected error canceling commissioning", cause);

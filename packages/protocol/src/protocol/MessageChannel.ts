@@ -6,6 +6,9 @@
 
 import { Message, MessageCodec } from "#codec/MessageCodec.js";
 import { Mark } from "#common/Mark.js";
+import type { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
+import type { Session } from "#session/Session.js";
+import type { SessionParameters } from "#session/SessionParameters.js";
 import {
     Bytes,
     Channel,
@@ -19,10 +22,7 @@ import {
     sameIpNetworkChannel,
     ServerAddress,
     ServerAddressUdp,
-} from "#general";
-import type { ExchangeLogContext, MessageExchange } from "#protocol/MessageExchange.js";
-import type { Session } from "#session/Session.js";
-import type { SessionParameters } from "#session/SessionParameters.js";
+} from "@matter/general";
 import { MRP } from "./MRP.js";
 
 const logger = new Logger("MessageChannel");
@@ -153,9 +153,10 @@ export class MessageChannel implements Channel<Message> {
         peerSessionParameters: SessionParameters,
         localSessionParameters: SessionParameters,
         expectedProcessingTime?: Duration,
+        includeMaximumSendingTime?: boolean,
     ): Duration {
         return MRP.maxPeerResponseTimeOf({
-            peerSessionParameters,
+            peerSessionParameters: includeMaximumSendingTime ? peerSessionParameters : undefined,
             localSessionParameters,
             channelType: this.#channel.type,
             isPeerActive: this.session.isPeerActive,
@@ -170,13 +171,22 @@ export class MessageChannel implements Channel<Message> {
      * If session parameters are provided, the method can be used to calculate the maximum backoff time for the other
      * side of the exchange.
      *
+     * When `calculateMaximum` is set to true, we calculate the maximum time without any randomness.
+     *
      * @see {@link MatterSpecification.v10.Core}, section 4.11.2.1
      */
-    getMrpResubmissionBackOffTime(retransmissionCount: number, sessionParameters?: SessionParameters) {
-        return MRP.maxRetransmissionIntervalOf({
-            transmissionNumber: retransmissionCount,
-            sessionParameters: sessionParameters ?? this.session.parameters,
-            isPeerActive: this.session.isPeerActive,
-        });
+    getMrpResubmissionBackOffTime(
+        retransmissionCount: number,
+        sessionParameters?: SessionParameters,
+        calculateMaximum = false,
+    ) {
+        return MRP.retransmissionIntervalOf(
+            {
+                transmissionNumber: retransmissionCount,
+                sessionParameters: sessionParameters ?? this.session.parameters,
+                isPeerActive: this.session.isPeerActive,
+            },
+            calculateMaximum,
+        );
     }
 }

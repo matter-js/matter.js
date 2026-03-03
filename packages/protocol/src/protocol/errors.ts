@@ -6,13 +6,13 @@
 
 import { Message } from "#codec/MessageCodec.js";
 import type { Session } from "#session/Session.js";
-import { Status, StatusResponseError } from "#types";
 import { MatterError, NoResponseTimeoutError } from "@matter/general";
+import { Status, StatusResponseError } from "@matter/types";
 
 /**
  * Indicates MRP retries were exhausted without a response from the client.
  *
- * TODO - we use this error far too broadly and throw in places that do not involve MRP
+ * @deprecated
  */
 export class RetransmissionLimitReachedError extends NoResponseTimeoutError {}
 

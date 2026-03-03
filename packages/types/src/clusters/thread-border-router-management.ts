@@ -11,13 +11,13 @@ import { Command, TlvNoResponse, Attribute, FixedAttribute } from "../cluster/Cl
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvUInt16, TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ThreadBorderRouterManagement {
@@ -126,9 +126,9 @@ export namespace ThreadBorderRouterManagement {
              * If the command is not executed via a CASE session, the command shall fail with a status code of
              * UNSUPPORTED_ACCESS.
              *
-             * This PendingDataset field shall contain the pending dataset to which the Thread network shouldbeupdated.
-             * The format of the data shall be an octet string containing the raw Thread TLV value of the pending
-             * dataset, as defined in the Thread specification.
+             * This PendingDataset field shall contain the pending dataset to which the Thread network should be
+             * updated. The format of the data shall be an octet string containing the raw Thread TLV value of the
+             * pending dataset, as defined in the Thread specification.
              *
              * If any of the parameters in the PendingDataset is invalid, the command shall fail with a status of
              * INVALID_COMMAND.
@@ -195,8 +195,8 @@ export namespace ThreadBorderRouterManagement {
             /**
              * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
              *
-             * The format shall match the value mapping defined in the "Version TLV" section of theThreadspecification.
-             * For example, Thread 1.3.0 would have ThreadVersion set to 4.
+             * The format shall match the value mapping defined in the "Version TLV" section of the Thread
+             * specification. For example, Thread 1.3.0 would have ThreadVersion set to 4.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.3
              */

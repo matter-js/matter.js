@@ -15,8 +15,8 @@ import {
     Environmental,
     ImplementationError,
     Logger,
-} from "#general";
-import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, VendorId } from "#types";
+} from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId, VendorId } from "@matter/types";
 import { Fabric, FabricBuilder } from "./Fabric.js";
 import { FabricManager } from "./FabricManager.js";
 
@@ -68,6 +68,10 @@ export class FabricAuthority {
 
     get construction() {
         return this.#construction;
+    }
+
+    close() {
+        return this.#construction.close();
     }
 
     /**

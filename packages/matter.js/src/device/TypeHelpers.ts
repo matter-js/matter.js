@@ -5,8 +5,8 @@
  */
 
 import { ClusterServerObj } from "#cluster/server/ClusterServerTypes.js";
-import { ClusterClientObj, ClusterClientObjInternal } from "#protocol";
-import { ClusterType } from "#types";
+import { ClusterClientObj, ClusterClientObjInternal } from "@matter/protocol";
+import { ClusterType } from "@matter/types";
 
 export function isClusterClient<const T extends ClusterType>(
     obj: ClusterClientObj<T> | ClusterServerObj<T>,

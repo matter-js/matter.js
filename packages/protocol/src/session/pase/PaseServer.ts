@@ -5,12 +5,13 @@
  */
 
 import { Mark } from "#common/Mark.js";
+import { SessionManager } from "#session/SessionManager.js";
 import {
     Bytes,
+    causedBy,
     Channel,
     Crypto,
     Diagnostic,
-    ec,
     Logger,
     MatterFlowError,
     PbkdfParameters,
@@ -19,15 +20,12 @@ import {
     Time,
     Timer,
     UnexpectedDataError,
-} from "#general";
-import { SessionManager } from "#session/SessionManager.js";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "#types";
+} from "@matter/general";
+import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { ProtocolHandler } from "../../protocol/ProtocolHandler.js";
 import { ChannelStatusResponseError } from "../../securechannel/SecureChannelMessenger.js";
 import { DEFAULT_PASSCODE_ID, PaseServerMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
-
-const { bytesToNumberBE } = ec;
 
 const logger = Logger.get("PaseServer");
 
@@ -56,7 +54,7 @@ export class PaseServer implements ProtocolHandler {
         pbkdfParameters?: PbkdfParameters,
     ) {
         const verificationData = Bytes.of(verificationValue);
-        const w0 = bytesToNumberBE(verificationData.slice(0, 32));
+        const w0 = Bytes.asBigInt(verificationData.slice(0, 32));
         const L = verificationData.slice(32, 32 + 65);
         return new PaseServer(sessions, w0, L, pbkdfParameters);
     }
@@ -95,13 +93,13 @@ export class PaseServer implements ProtocolHandler {
             } catch (error) {
                 this.#pairingErrors++;
                 logger.error(
-                    `An error occurred during the PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
+                    `An error occurred during PASE commissioning (${this.#pairingErrors}/${PASE_COMMISSIONING_MAX_ERRORS}):`,
                     this.#pairingMessenger?.exchange.diagnostics,
                     error,
                 );
 
                 // If we received a ChannelStatusResponseError we do not need to send one back, so just cancel pairing
-                const sendError = !(error instanceof ChannelStatusResponseError);
+                const sendError = !causedBy(error, ChannelStatusResponseError);
                 await this.cancelPairing(messenger, sendError);
 
                 if (this.#pairingErrors >= PASE_COMMISSIONING_MAX_ERRORS) {

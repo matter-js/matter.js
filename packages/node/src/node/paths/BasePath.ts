@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterId, EndpointNumber, GroupId, NodeId } from "#types";
+import { ClusterId, EndpointNumber, GroupId, NodeId } from "@matter/types";
 
 export namespace BasePath {
     /**

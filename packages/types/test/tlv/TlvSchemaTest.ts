@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import { TlvAny } from "#tlv/TlvAny.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvBoolean } from "#tlv/TlvBoolean.js";
@@ -24,6 +23,7 @@ import { TlvField, TlvObject } from "#tlv/TlvObject.js";
 import { TlvSchema } from "#tlv/TlvSchema.js";
 import { TlvString } from "#tlv/TlvString.js";
 import { TlvWrapper } from "#tlv/TlvWrapper.js";
+import { Bytes } from "@matter/general";
 
 type TestEntry<T> = {
     name: string;

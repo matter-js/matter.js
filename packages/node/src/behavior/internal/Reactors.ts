@@ -5,9 +5,17 @@
  */
 
 import type { Endpoint } from "#endpoint/Endpoint.js";
-import type { Observable, Observer, Transaction } from "#general";
-import { asError, ImplementationError, InternalError, Logger, MatterAggregateError, MaybePromise } from "#general";
-import { hasRemoteActor } from "#protocol";
+import type { Observable, Observer, Transaction } from "@matter/general";
+import {
+    asError,
+    ImplementationError,
+    InternalError,
+    Logger,
+    MatterAggregateError,
+    MatterError,
+    MaybePromise,
+} from "@matter/general";
+import { hasRemoteActor } from "@matter/protocol";
 import type { Reactor } from "../Reactor.js";
 import { ActionContext } from "../context/ActionContext.js";
 import { Contextual } from "../context/Contextual.js";
@@ -427,7 +435,7 @@ class ReactorBacking<T extends any[], R> {
     #augmentError(cause: unknown): Error {
         const error = asError(cause);
 
-        error.message = `Error in ${this}: ${error.message}`;
+        MatterError.replaceMessage(error, `Error in ${this}: ${error.message}`);
 
         return error;
     }

@@ -16,8 +16,8 @@ import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
-import { Identity } from "#general";
+import { AccessLevel } from "@matter/model";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace Binding {
@@ -109,8 +109,8 @@ export namespace Binding {
      * on the interaction.
      *
      * A binding is either a unicast binding, where the target is a single endpoint on a single node, or a groupcast
-     * binding, where the target is a group, which may indicate multiple endpoints onmultiplenodes. The binding may also
-     * target a single cluster on the target endpoint(s).
+     * binding, where the target is a group, which may indicate multiple endpoints on multiple nodes. The binding may
+     * also target a single cluster on the target endpoint(s).
      *
      * When a client cluster requires a target for an interaction, the Binding cluster shall exist on the same endpoint.
      *

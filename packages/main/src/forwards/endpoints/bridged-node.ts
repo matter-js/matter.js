@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#endpoints/bridged-node";
+export * from "@matter/node/endpoints/bridged-node";

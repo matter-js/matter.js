@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/joint-fabric-administrator";
+export * from "@matter/types/clusters/joint-fabric-administrator";

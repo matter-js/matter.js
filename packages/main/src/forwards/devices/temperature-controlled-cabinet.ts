@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#devices/temperature-controlled-cabinet";
+export * from "@matter/node/devices/temperature-controlled-cabinet";

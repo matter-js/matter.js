@@ -9,7 +9,7 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvUInt16, TlvUInt32, TlvEnum, TlvUInt64 } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
@@ -17,7 +17,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace GeneralCommissioning {
@@ -374,7 +374,7 @@ export namespace GeneralCommissioning {
 
             /**
              * Indicates the user’s response to the presented terms. Each bit position corresponds to a user response
-             * for the associated index of matching text, such that bit 0 (bit value 1) is for text index0. Bit 15 (bit
+             * for the associated index of matching text, such that bit 0 (bit value 1) is for text index 0. Bit 15 (bit
              * value 0x8000) is for text index 15. A bit value of 1 indicates acceptance and a value of 0 indicates
              * non-acceptance. For example, if there are two texts that were presented where the first (bit 0, value 1)
              * was declined and the second accepted (bit 1, value 2), we would expect the resulting value of the map to

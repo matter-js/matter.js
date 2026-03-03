@@ -15,8 +15,9 @@ import {
     StorageService,
     Time,
     Timer,
-} from "#general";
+} from "@matter/general";
 import { DclClient } from "./DclClient.js";
+import { DclConfig } from "./DclConfig.js";
 import { DclVendorInfo } from "./DclRestApiTypes.js";
 
 const logger = Logger.get("DclVendorInfoService");
@@ -131,7 +132,7 @@ export class DclVendorInfoService {
     async #fetchVendorsFromDcl(storage: StorageContext) {
         logger.info("Fetching vendor information from DCL...");
 
-        const dclClient = new DclClient(true); // Production only
+        const dclClient = new DclClient(this.#options.dclConfig ?? DclConfig.production);
         const vendors = await dclClient.fetchAllVendors(this.#options);
 
         logger.info(`Fetched ${vendors.length} vendors from DCL`);
@@ -215,5 +216,8 @@ export namespace DclVendorInfoService {
          * Default is 1 day. Set to null to disable periodic updates.
          */
         updateInterval?: Duration | null;
+
+        /** DCL config for production endpoint. Defaults to DclConfig.production. */
+        dclConfig?: DclConfig;
     }
 }

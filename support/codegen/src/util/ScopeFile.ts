@@ -144,10 +144,10 @@ export class ScopeFile extends TsFile {
         }
 
         if (model instanceof ClusterModel) {
-            return `#clusters/${decamelize(model.name)}`;
+            return `@matter/types/clusters/${decamelize(model.name)}`;
         }
 
-        return `#types`;
+        return `@matter/types`;
     }
 }
 

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/rvc-clean-mode";
+export * from "@matter/node/behaviors/rvc-clean-mode";

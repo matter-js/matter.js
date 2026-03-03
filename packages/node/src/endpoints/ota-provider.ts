@@ -13,9 +13,9 @@ import {
     OtaSoftwareUpdateRequestorBehavior as BaseOtaSoftwareUpdateRequestorBehavior
 } from "../behaviors/ota-software-update-requestor/OtaSoftwareUpdateRequestorBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
-import { DeviceClassification } from "#model";
+import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * An OTA Provider is a node that is capable of providing an OTA software update to other nodes on the same fabric.

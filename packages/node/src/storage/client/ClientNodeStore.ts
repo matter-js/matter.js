@@ -5,9 +5,9 @@
  */
 
 import { Endpoint } from "#endpoint/Endpoint.js";
-import { InternalError, StorageContext, StorageContextFactory } from "#general";
 import type { ClientNode } from "#node/ClientNode.js";
-import { EndpointNumber } from "#types";
+import { InternalError, StorageContext, StorageContextFactory } from "@matter/general";
+import { EndpointNumber } from "@matter/types";
 import { NodeStore } from "../NodeStore.js";
 import { ClientEndpointStore } from "./ClientEndpointStore.js";
 import type { RemoteWriter } from "./RemoteWriter.js";

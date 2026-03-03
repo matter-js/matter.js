@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/activated-carbon-filter-monitoring";
+export * from "@matter/types/clusters/activated-carbon-filter-monitoring";

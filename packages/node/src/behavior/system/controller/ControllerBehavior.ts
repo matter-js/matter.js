@@ -6,8 +6,15 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { ConnectionlessTransportSet, ImplementationError, Logger, SharedEnvironmentServices } from "#general";
 import { Node } from "#node/Node.js";
+import { IdentityService } from "#node/server/IdentityService.js";
+import {
+    ConnectionlessTransportSet,
+    Crypto,
+    ImplementationError,
+    Logger,
+    SharedEnvironmentServices,
+} from "@matter/general";
 import {
     Ble,
     ClientSubscriptions,
@@ -18,10 +25,12 @@ import {
     MdnsClient,
     MdnsScannerTargetCriteria,
     MdnsService,
+    PeerAddress,
+    PeerSet,
     Scanner,
     ScannerSet,
-} from "#protocol";
-import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
+} from "@matter/protocol";
+import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
 import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
@@ -91,6 +100,64 @@ export class ControllerBehavior extends Behavior {
             await this.#nodeOnline();
         }
         this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
+
+        // Mark addresses in use (or not) based on known peers
+        const identity = this.env.get(IdentityService);
+        const peers = this.env.get(PeerSet);
+        this.reactTo(peers.added, peer => identity.reservePeerAddress(peer.address));
+        this.reactTo(peers.deleted, peer => identity.releasePeerAddress(peer.address));
+    }
+
+    /**
+     * Allocate a new node address in the given fabric.
+     */
+    async allocatePeerAddress(fabricIndex: FabricIndex, nodeId?: NodeId) {
+        const identity = this.env.get(IdentityService);
+        let address: PeerAddress | undefined;
+
+        try {
+            // Allocate address in a separate transaction we can commit as soon as it's reserved
+            return await this.endpoint.act(async function (agent) {
+                const controller = agent.get(ControllerBehavior);
+
+                // Lock early to act as semaphor for address assignment
+                await agent.context.transaction.addResources(controller);
+                await agent.context.transaction.begin();
+
+                const useSequentialIds = controller.state.nodeIdAssignment !== "random";
+                let nextNodeId: NodeId = controller.state.nextNodeId ?? NodeId(1);
+
+                while (nodeId === undefined) {
+                    if (useSequentialIds) {
+                        nodeId = nextNodeId;
+                        nextNodeId++;
+                    } else {
+                        nodeId = NodeId.randomOperationalNodeId(controller.env.get(Crypto));
+                    }
+                    if (identity.peerAddressInUse({ fabricIndex, nodeId })) {
+                        nodeId = undefined;
+                    }
+                }
+
+                address = PeerAddress({ fabricIndex, nodeId });
+
+                // Reserve prior to commit.  We then release below if commit fails
+                identity.reservePeerAddress(address);
+
+                if (useSequentialIds) {
+                    controller.state.nextNodeId = nextNodeId;
+                }
+
+                return address;
+            });
+        } catch (e) {
+            // If there's an error but we have an address, ensure it's not allocated
+            if (address) {
+                identity.releasePeerAddress(address);
+            }
+
+            throw e;
+        }
     }
 
     override async [Symbol.asyncDispose]() {
@@ -144,6 +211,7 @@ export class ControllerBehavior extends Behavior {
                 scanner.targetCriteriaProviders.delete(this.internal.mdnsTargetCriteria);
             }
         }
+
         // Clear operational targets
         this.internal.mdnsTargetCriteria.operationalTargets.length = 0;
 

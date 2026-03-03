@@ -5,16 +5,25 @@
  */
 
 import { Mark } from "#common/Mark.js";
-import { Bytes, Channel, Crypto, ec, Logger, PbkdfParameters, Spake2p, UnexpectedDataError } from "#general";
 import { SessionManager } from "#session/SessionManager.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "#types";
+import {
+    Bytes,
+    Channel,
+    Crypto,
+    InternalError,
+    Logger,
+    PbkdfParameters,
+    Spake2p,
+    UnexpectedDataError,
+} from "@matter/general";
+import { CommissioningOptions, NodeId, SecureChannelStatusCode } from "@matter/types";
 import { MessageExchange } from "../../protocol/MessageExchange.js";
 import { DEFAULT_PASSCODE_ID, PaseClientMessenger, SPAKE_CONTEXT } from "./PaseMessenger.js";
 
-const { numberToBytesBE } = ec;
-
 const logger = Logger.get("PaseClient");
+
+const MAX_PASSCODE_GENERATION_ATTEMPTS = 100;
 
 export class PaseClient {
     #sessions: SessionManager;
@@ -25,16 +34,25 @@ export class PaseClient {
 
     static async generatePakePasscodeVerifier(crypto: Crypto, setupPinCode: number, pbkdfParameters: PbkdfParameters) {
         const { w0, L } = await Spake2p.computeW0L(crypto, pbkdfParameters, setupPinCode);
-        return Bytes.concat(numberToBytesBE(w0, 32), L);
+        return Bytes.concat(Bytes.fromBigInt(w0, 32), L);
     }
 
     static generateRandomPasscode(crypto: Crypto) {
-        let passcode: number;
-        passcode = (crypto.randomUint32 % 99999998) + 1; // prevents 00000000 and 99999999
-        if (CommissioningOptions.FORBIDDEN_PASSCODES.includes(passcode)) {
-            passcode += 1; // With current forbidden passcode list can never collide
+        // Generate 27-bit random candidates and reject invalid values to avoid modulo bias.
+        for (let i = 0; i < MAX_PASSCODE_GENERATION_ATTEMPTS; i++) {
+            const passcode = crypto.randomUint32 & 0x07ff_ffff;
+            if (
+                passcode >= 1 &&
+                passcode <= 99_999_998 &&
+                !CommissioningOptions.FORBIDDEN_PASSCODES.includes(passcode)
+            ) {
+                return passcode;
+            }
         }
-        return passcode;
+
+        throw new InternalError(
+            `Unable to generate valid passcode in ${MAX_PASSCODE_GENERATION_ATTEMPTS} tries; entropy source is broken`,
+        );
     }
 
     static generateRandomDiscriminator(crypto: Crypto) {
@@ -104,7 +122,7 @@ export class PaseClient {
         await messenger.sendPasePake3({ verifier: hAY });
 
         // All good! Creating the secure session
-        await messenger.waitForSuccess("PasePake3-Success");
+        await messenger.waitForSuccess({ description: "PasePake3-Success" });
         const secureSession = await this.#sessions.createSecureSession({
             channel,
             id: initiatorSessionId,

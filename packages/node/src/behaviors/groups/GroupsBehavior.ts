@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Groups } from "#clusters/groups";
+import { Groups } from "@matter/types/clusters/groups";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { GroupsInterface } from "./GroupsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * GroupsBehavior is the base class for objects that support interaction with {@link Groups.Cluster}.

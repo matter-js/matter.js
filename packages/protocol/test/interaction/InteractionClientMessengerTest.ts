@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#general";
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
-import { ExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
+import { Bytes } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     EndpointNumber,
     ReadRequest,
@@ -18,8 +18,7 @@ import {
     TlvStatusResponse,
     TlvSubscribeRequest,
     TlvSubscribeResponse,
-} from "#types";
-import { Specification } from "@matter/model";
+} from "@matter/types";
 import { createDummyMessageExchange } from "./interaction-utils.js";
 
 function handleReadRequest(exchange: MessageExchange, messageType: number, payload: Bytes) {
@@ -88,7 +87,7 @@ describe("InteractionClientMessenger", () => {
             }
             return response;
         });
-        const messenger = new InteractionClientMessenger(exchange, {} as ExchangeProvider);
+        const messenger = new InteractionClientMessenger(exchange);
 
         const requestData = {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
@@ -112,7 +111,7 @@ describe("InteractionClientMessenger", () => {
             }
             return response;
         });
-        const messenger = new InteractionClientMessenger(exchange, {} as ExchangeProvider);
+        const messenger = new InteractionClientMessenger(exchange);
 
         const dataVersionFilters = [];
         for (let i = 0; i < 70; i++) {
@@ -159,7 +158,7 @@ describe("InteractionClientMessenger", () => {
             }
             return response;
         });
-        const messenger = new InteractionClientMessenger(exchange, {} as ExchangeProvider);
+        const messenger = new InteractionClientMessenger(exchange);
 
         const requestData = {
             interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
@@ -199,7 +198,7 @@ describe("InteractionClientMessenger", () => {
             }
             return response;
         });
-        const messenger = new InteractionClientMessenger(exchange, {} as ExchangeProvider);
+        const messenger = new InteractionClientMessenger(exchange);
 
         const dataVersionFilters = [];
         for (let i = 0; i < 70; i++) {

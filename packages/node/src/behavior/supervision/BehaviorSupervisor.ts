@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
-import { Access, FieldModel, Schema, Scope } from "#model";
-import type { Val } from "#protocol";
+import { camelize } from "@matter/general";
+import { Access, FieldModel, Schema, Scope } from "@matter/model";
+import type { Val } from "@matter/protocol";
 import type { Behavior } from "../Behavior.js";
 import type { StateType } from "../state/StateType.js";
 import { RootSupervisor } from "./RootSupervisor.js";

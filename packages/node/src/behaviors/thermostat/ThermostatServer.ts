@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { OccupancySensingServer } from "#behaviors/occupancy-sensing";
 import { TemperatureMeasurementServer } from "#behaviors/temperature-measurement";
-import { OccupancySensing } from "#clusters/occupancy-sensing";
-import { Thermostat } from "#clusters/thermostat";
 import { Endpoint } from "#endpoint/Endpoint.js";
+import { Node } from "#node/Node.js";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     cropValueRange,
@@ -20,12 +21,12 @@ import {
     InternalError,
     Logger,
     Observable,
-} from "#general";
-import { FieldElement } from "#model";
-import { Node } from "#node/Node.js";
-import { ServerNode } from "#node/ServerNode.js";
-import { hasLocalActor, Val } from "#protocol";
-import { ClusterType, StatusResponse, TypeFromPartialBitSchema } from "#types";
+} from "@matter/general";
+import { FieldElement } from "@matter/model";
+import { hasLocalActor, Val } from "@matter/protocol";
+import { ClusterType, StatusResponse, TypeFromPartialBitSchema } from "@matter/types";
+import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
+import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
 import { ThermostatBehavior } from "./ThermostatBehavior.js";
 
@@ -105,6 +106,10 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         }
         if (this.features.matterScheduleConfiguration) {
             logger.warn("MatterScheduleConfiguration feature is not yet implemented. Please do not activate it");
+        }
+
+        if (!this.features.presets && !this.features.matterScheduleConfiguration) {
+            this.atomicRequest = Behavior.unimplemented;
         }
 
         // Initialize persisted presets from defaults if not already set

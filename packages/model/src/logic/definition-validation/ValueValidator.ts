@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
 import { ModelTraversal } from "#logic/ModelTraversal.js";
+import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
 import { ClusterModel, Globals, ValueModel } from "../../models/index.js";

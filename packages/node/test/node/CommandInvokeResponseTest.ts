@@ -4,10 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OnOffCluster } from "#clusters/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
-import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "#protocol";
+import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
+import { OnOffCluster } from "@matter/types/clusters/on-off";
 import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {

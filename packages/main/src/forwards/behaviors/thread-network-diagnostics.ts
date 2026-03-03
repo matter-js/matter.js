@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/thread-network-diagnostics";
+export * from "@matter/node/behaviors/thread-network-diagnostics";

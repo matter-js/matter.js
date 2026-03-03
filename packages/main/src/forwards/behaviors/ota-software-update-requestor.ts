@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/ota-software-update-requestor";
+export * from "@matter/node/behaviors/ota-software-update-requestor";

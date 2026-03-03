@@ -8,8 +8,8 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
-import { Bytes, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "#general";
-import { CaseAuthenticatedTag, FabricId, NodeId } from "#types";
+import { Bytes, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "@matter/general";
+import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 
 const crypto = new StandardCrypto();
 
@@ -71,7 +71,7 @@ describe("CertificateAuthority", () => {
             const icac = Icac.fromTlv(icacCert!);
 
             expect(BigInt(rcac.cert.subject.rcacId)).equal(BigInt(0));
-            expect(BigInt(icac.cert.subject.icacId!)).equal(BigInt(1));
+            expect(BigInt(icac.cert.subject.icacId)).equal(BigInt(1));
             expect(BigInt(icac.cert.issuer.rcacId!)).equal(BigInt(0));
         });
 

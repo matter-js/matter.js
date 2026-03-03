@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FanControl } from "#clusters/fan-control";
+import { FanControl } from "@matter/types/clusters/fan-control";
 import { FanControlBehavior } from "./FanControlBehavior.js";
 
 /**

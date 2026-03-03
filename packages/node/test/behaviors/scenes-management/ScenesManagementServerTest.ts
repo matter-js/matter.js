@@ -6,10 +6,10 @@
 
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { ScenesManagementClient } from "#behaviors/scenes-management";
-import { OnOff } from "#clusters/on-off";
 import { ServerNode } from "#node/index.js";
-import { Read } from "#protocol";
-import { AttributeId, ClusterId, EndpointNumber, GroupId } from "#types";
+import { Read } from "@matter/protocol";
+import { AttributeId, ClusterId, EndpointNumber, GroupId } from "@matter/types";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { MockSite } from "../../node/mock-site.js";
 
 describe("ScenesManagementServer", () => {
@@ -17,7 +17,7 @@ describe("ScenesManagementServer", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
     it("add and recall onoff boolean scene value", async () => {
@@ -81,18 +81,22 @@ describe("ScenesManagementServer", () => {
 
         await waiter;
 
-        const read = peer1.interaction.read(
-            Read(
-                Read.Attribute({
-                    endpoint: EndpointNumber(1),
-                    cluster: OnOff.Complete,
-                    attributes: ["onOff"],
-                }),
-            ),
-        );
+        await MockTime.resolve(
+            (async () => {
+                const read = peer1.interaction.read(
+                    Read(
+                        Read.Attribute({
+                            endpoint: EndpointNumber(1),
+                            cluster: OnOff.Complete,
+                            attributes: ["onOff"],
+                        }),
+                    ),
+                );
 
-        for await (const chunks of read) {
-            expect((chunks as Array<any>)[0].value).equals(true);
-        }
+                for await (const chunks of read) {
+                    expect((chunks as Array<any>)[0].value).equals(true);
+                }
+            })(),
+        );
     });
 });

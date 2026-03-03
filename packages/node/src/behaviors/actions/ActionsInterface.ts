@@ -6,15 +6,15 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { Actions } from "#clusters/actions";
+import { MaybePromise } from "@matter/general";
+import { Actions } from "@matter/types/clusters/actions";
 
 export namespace ActionsInterface {
     export interface Base {
         /**
          * This command is used to trigger an instantaneous action.
          *
-         * This command triggers an action (state change) on the involved endpoints, in a "fire and forget"manner.
+         * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
          * Afterwards, the action’s state shall be Inactive.
          *
          * Example: recall a scene on a number of lights.
@@ -142,7 +142,7 @@ export namespace ActionsInterface {
         /**
          * This command is used to enable an action with a duration.
          *
-         * This command enables a certain action or automation, and shall change the action’s state tobeActive. After
+         * This command enables a certain action or automation, and shall change the action’s state to be Active. After
          * the specified Duration, the action or automation will stop, and the action’s state shall change to Disabled.
          *
          * Example: enable a "presence mimicking" behavior for the lights in your home during a vacation; the Duration
@@ -167,7 +167,7 @@ export namespace ActionsInterface {
         /**
          * This command is used to disable an action with a duration.
          *
-         * This command disables a certain action or automation, and shall change the action’s statetoDisabled. After
+         * This command disables a certain action or automation, and shall change the action’s state to Disabled. After
          * the specified Duration, the action or automation will re-start, and the action’s state shall change to either
          * Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up routine” and Section
          * 9.14.8.6, “Example 6: Alarm system”).

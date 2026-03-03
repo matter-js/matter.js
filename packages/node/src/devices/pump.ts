@@ -37,7 +37,7 @@ import {
 } from "../behaviors/occupancy-sensing/OccupancySensingBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Pump device is a pump that may have variable speed. It may have optional built-in sensors and a regulation

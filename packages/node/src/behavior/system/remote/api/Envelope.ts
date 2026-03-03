@@ -6,9 +6,9 @@
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
-import { asJson, Bytes } from "#general";
-import { DataModelPath } from "#model";
-import { StatusResponse, TlvOfModel } from "#types";
+import { asJson, Bytes } from "@matter/general";
+import { DataModelPath } from "@matter/model";
+import { StatusResponse, TlvOfModel } from "@matter/types";
 
 /**
  * Api data envelope packages used for request and response.

@@ -7,9 +7,9 @@
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { DatasourceCache } from "#endpoint/index.js";
 import { SupportedElements } from "#endpoint/properties/Behaviors.js";
-import { camelize, MaybePromise } from "#general";
-import { ClusterModel } from "#model";
-import { AttributeId, CommandId } from "#types";
+import { camelize, MaybePromise } from "@matter/general";
+import { ClusterModel } from "@matter/model";
+import { AttributeId, CommandId } from "@matter/types";
 import { BehaviorBacking } from "./BehaviorBacking.js";
 
 /**

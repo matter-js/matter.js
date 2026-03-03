@@ -6,6 +6,8 @@
 
 import { config } from "#config.js";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
+import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
+import { StorageFactory } from "#storage/index.js";
 import {
     asError,
     Boot,
@@ -21,9 +23,7 @@ import {
     StandardCrypto,
     StorageService,
     VariableService,
-} from "#general";
-import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
-import { StorageFactory } from "#storage/index.js";
+} from "@matter/general";
 
 import { isBunjs } from "#util/runtimeChecks.js";
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { deepCopy, serialize, UnexpectedDataError } from "#general";
+import { deepCopy, serialize, UnexpectedDataError } from "@matter/general";
 import {
     ValidationDatatypeMismatchError,
     ValidationError,

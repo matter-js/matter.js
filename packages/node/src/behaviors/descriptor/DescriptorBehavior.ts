@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Descriptor } from "#clusters/descriptor";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * DescriptorBehavior is the base class for objects that support interaction with {@link Descriptor.Cluster}.

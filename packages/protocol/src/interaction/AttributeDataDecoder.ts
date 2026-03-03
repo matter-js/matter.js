@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Logger, UnexpectedDataError } from "#general";
+import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
 import {
     ArraySchema,
     Attribute,
@@ -24,7 +24,7 @@ import {
     TlvSchema,
     TlvType,
     TypeFromSchema,
-} from "#types";
+} from "@matter/types";
 
 const logger = Logger.get("AttributeDataDecoder");
 
@@ -148,7 +148,7 @@ export function expandPathsInAttributeData(
 }
 
 /**
- * Normalizes (e.g. prepare data for array un-chinking and resolve Tag compression if used) the attribute details from
+ * Normalizes (e.g. prepare data for array un-chunking and resolve Tag compression if used) the attribute details from
  * a received DataReport.
  */
 export function normalizeAttributeData(
@@ -255,7 +255,7 @@ export function normalizeAndDecodeAttributeData(
                 value,
             });
         } catch (error: any) {
-            logger.error(
+            logger.warn(
                 `Error decoding attribute ${endpointId}/${Diagnostic.hex(clusterId)}/${Diagnostic.hex(attributeId)}: ${
                     error.message
                 }`,

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/joint-fabric-datastore";
+export * from "@matter/types/clusters/joint-fabric-datastore";

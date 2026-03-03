@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger, LogLevel, Millis } from "@matter/general";
+import { Bytes, causedBy, Diagnostic, Logger, LogLevel, Millis } from "@matter/general";
 import {
     AttributeId,
     camelize,
@@ -40,7 +40,11 @@ import {
     MatterModel,
     ValueModel,
 } from "@matter/model";
-import { CommissionableDeviceIdentifiers, RetransmissionLimitReachedError } from "@matter/protocol";
+import {
+    CommissionableDeviceIdentifiers,
+    RetransmissionLimitReachedError,
+    TransientPeerCommunicationError,
+} from "@matter/protocol";
 import { NodeNotConnectedError } from "@project-chip/matter.js/device";
 import { WebSocketServer } from "ws";
 import { log } from "./GenericTestApp.js";
@@ -1270,15 +1274,16 @@ export class ChipToolWebSocketHandler {
             arguments: { "destination-id": destinationId, "commissioner-name": commissionerName },
             command_specifier: commandSpecifier,
         } = data;
-        if (error instanceof StatusResponseError) {
+        const sre = StatusResponseError.of(error);
+        if (sre) {
             return {
                 results: [
-                    { error: decamelize(StatusCode[error.code], "_").toUpperCase(), clusterError: error.clusterCode },
+                    { error: decamelize(StatusCode[sre.code], "_").toUpperCase(), clusterError: sre.clusterCode },
                     { error: "FAILURE" },
                 ],
             };
         }
-        if (error instanceof RetransmissionLimitReachedError || error instanceof NodeNotConnectedError) {
+        if (causedBy(error, TransientPeerCommunicationError, NodeNotConnectedError, RetransmissionLimitReachedError)) {
             // Needed because Chip tests expect a failure and not an automatic reconnection
             await (await this.#commandHandlerFor(commissionerName)).disconnectNode(NodeId(parseNumber(destinationId)));
         }

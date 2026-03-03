@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/rvc-clean-mode";
+export * from "@matter/types/clusters/rvc-clean-mode";

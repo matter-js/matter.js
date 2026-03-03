@@ -10,7 +10,7 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, Command, TlvNoResponse } from "../cluster/Cluster.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvByteString } from "../tlv/TlvString.js";
@@ -19,7 +19,7 @@ import { TlvEnum, TlvUInt16, TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status } from "../globals/Status.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace JointFabricAdministrator {
@@ -331,7 +331,7 @@ export namespace JointFabricAdministrator {
         attributes: {
             /**
              * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
-             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated withtheJointFabric. This field
+             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field
              * shall have the value of null if there is no fabric associated with the JointFabric.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.25.6.1

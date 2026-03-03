@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/nitrogen-dioxide-concentration-measurement";
+export * from "@matter/types/clusters/nitrogen-dioxide-concentration-measurement";

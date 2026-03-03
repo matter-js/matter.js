@@ -10,12 +10,12 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, Attribute, FixedAttribute, Command, TlvNoResponse } from "../cluster/Cluster.js";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvUInt16, TlvUInt64, TlvUInt8 } from "../tlv/TlvNumber.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace ThreadNetworkDirectory {

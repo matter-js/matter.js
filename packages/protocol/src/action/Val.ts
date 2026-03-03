@@ -18,6 +18,13 @@ export namespace Val {
     export type Struct = Record<string, Val>;
 
     /**
+     * An ordered map representation of {@link Struct} that preserves insertion order of keys.
+     *
+     * Used when attribute-change ordering must be maintained across the processing pipeline.
+     */
+    export type StructMap = Map<string | number, Val>;
+
+    /**
      * Type for Matter structs encoded using protocol semantics.  In JS this is an object with "numeric" keys.
      */
     export type ProtocolStruct = Record<number, Val>;

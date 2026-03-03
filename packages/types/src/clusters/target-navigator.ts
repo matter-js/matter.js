@@ -16,7 +16,7 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace TargetNavigator {
@@ -227,7 +227,7 @@ export namespace TargetNavigator {
      * This cluster provides an interface for UX navigation within a set of targets on a device or endpoint.
      *
      * This cluster would be supported on Video Player devices or devices with navigable user interfaces. This cluster
-     * would also be supported on endpoints with navigable user interfaces such as aContentApp. It supports listing a
+     * would also be supported on endpoints with navigable user interfaces such as a Content App. It supports listing a
      * set of navigation targets, tracking and changing the current target.
      *
      * The cluster server for Target Navigator is implemented by endpoints on a device that support UX navigation.

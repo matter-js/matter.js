@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/ota-software-update-provider";
+export * from "@matter/types/clusters/ota-software-update-provider";

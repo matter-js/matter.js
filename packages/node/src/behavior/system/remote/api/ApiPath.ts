@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AppAddress, isDeepEqual } from "#general";
+import { AppAddress, isDeepEqual } from "@matter/general";
 
 /**
  * A logical path in the API.

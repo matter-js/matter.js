@@ -5,7 +5,7 @@
  */
 
 import { Agent } from "#endpoint/Agent.js";
-import { camelize } from "#general";
+import { camelize } from "@matter/general";
 import { ApiResource } from "../ApiResource.js";
 import { BehaviorResource } from "./BehaviorResource.js";
 import { EndpointContainerResource } from "./EndpointContainerResource.js";

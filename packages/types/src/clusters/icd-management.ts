@@ -23,10 +23,10 @@ import { TlvSubjectId } from "../datatype/SubjectId.js";
 import { TlvEnum, TlvUInt32, TlvUInt16, TlvBitmap } from "../tlv/TlvNumber.js";
 import { TlvFabricIndex } from "../datatype/FabricIndex.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "#model";
+import { AccessLevel } from "@matter/model";
 import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
 export namespace IcdManagement {
@@ -176,7 +176,7 @@ export namespace IcdManagement {
          * server. The verification key provided in this field shall be used by the server to guarantee that a client
          * with manage permissions can only modify entries that contain a Key equal to the verification key. The
          * verification key shall be provided for clients with manage permissions. The verification key SHOULD NOT be
-         * provided by clients with administrator permissions for theservercluster. The verification key shall be
+         * provided by clients with administrator permissions for the server cluster. The verification key shall be
          * ignored by the server if it is provided by a client with administrator permissions for the server cluster.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.4
@@ -293,7 +293,7 @@ export namespace IcdManagement {
         checkInNodeId: TlvField(0, TlvNodeId),
 
         /**
-         * This field shall provide the verification key associated with the CheckInNodeID to removefromstorage. The
+         * This field shall provide the verification key associated with the CheckInNodeID to remove from storage. The
          * verification key represents the key already stored on the server. The verification key provided in this field
          * shall be used by the server to guarantee that a client with manage permissions can only remove entries that
          * contain a Key equal to the stored key. The verification key shall be provided for clients with manage
@@ -535,10 +535,10 @@ export namespace IcdManagement {
     export const CheckInProtocolSupportComponent = MutableCluster.Component({
         attributes: {
             /**
-             * This attribute shall contain all clients registered to receive notification if their subscriptionislost.
-             * The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric
-             * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
-             * Credentials cluster.
+             * This attribute shall contain all clients registered to receive notification if their subscription is
+             * lost. The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each
+             * fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in the
+             * Operational Credentials cluster.
              *
              * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
              */

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#devices/network-infrastructure-manager";
+export * from "@matter/node/devices/network-infrastructure-manager";

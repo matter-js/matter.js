@@ -4,10 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
-import { InteractionClient } from "#cluster/client/InteractionClient.js";
-import { BasicInformation } from "#clusters";
-import { OtaProviderEndpoint } from "#endpoints/ota-provider";
+import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import {
     ClassExtends,
     Crypto,
@@ -19,9 +16,10 @@ import {
     Minutes,
     Observable,
     ObserverGroup,
+    Seconds,
     Time,
     UnexpectedDataError,
-} from "#general";
+} from "@matter/general";
 import {
     ChangeNotificationService,
     ClusterState,
@@ -31,7 +29,9 @@ import {
     Node,
     ServerNode,
     SoftwareUpdateManager,
-} from "#node";
+} from "@matter/node";
+import { OperationalCredentialsClient } from "@matter/node/behaviors/operational-credentials";
+import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
 import {
     ActiveSessionInformation,
     Ble,
@@ -44,13 +44,12 @@ import {
     DiscoveryData,
     Fabric,
     FabricGroups,
-    NodeDiscoveryType,
     NodeSession,
     PeerSet,
     SecureSession,
     Session,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
     DiscoveryCapabilitiesBitmap,
@@ -59,7 +58,8 @@ import {
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { BasicInformation } from "@matter/types/clusters";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -193,7 +193,6 @@ export class CommissioningController {
     readonly #initializedNodes = new Map<string, PairedNode>();
     readonly #nodeChangeObservers = new Map<string, Observable<[changes: ChangeNotificationService.Change]>>();
     readonly #nodeUpdateLabelHandlers = new Map<NodeId, (nodeState: NodeStates) => Promise<void>>();
-    readonly #sessionDisconnectedHandler = new Map<NodeId, () => Promise<void>>();
     readonly #observers = new ObserverGroup();
     readonly #endpointsToPeers = new WeakMap<Endpoint, string>();
 
@@ -303,16 +302,19 @@ export class CommissioningController {
             logger.warn("BLE is not enabled on this platform");
         }
 
-        // Start all peers, they should normally not connect automatically
-        // TODO adjust/remove once we have this in Peers
+        // Sync state for all peers before start
         for (const peer of controller.node.peers) {
             if (!peer.lifecycle.isCommissioned) {
                 continue;
             }
-            if (peer.stateOf(NetworkClient).isDisabled) {
-                await peer.enable();
-            } else {
-                await peer.start();
+            const networkState = peer.stateOf(NetworkClient);
+            const desiredDisabled = !!this.#options.autoConnect;
+            if (desiredDisabled !== networkState.isDisabled) {
+                await peer.set({ network: { isDisabled: desiredDisabled } });
+            }
+            const desiredAutoSubscribe = !!this.#options.autoSubscribe;
+            if (desiredAutoSubscribe !== networkState.autoSubscribe) {
+                await peer.set({ network: { autoSubscribe: desiredAutoSubscribe } });
             }
         }
 
@@ -350,9 +352,11 @@ export class CommissioningController {
 
         // Ensure we have the peer added to the node because commissioning runs aside for now
         await controller.node.peers.forAddress(controller.fabric.addressOf(nodeId), {
+            commissioning: {
+                caseAuthenticatedTags: nodeOptions.caseAuthenticatedTags ?? this.#options.caseAuthenticatedTags,
+            },
             network: {
                 autoSubscribe: false,
-                caseAuthenticatedTags: nodeOptions.caseAuthenticatedTags ?? this.#options.caseAuthenticatedTags,
             },
         });
 
@@ -459,8 +463,12 @@ export class CommissioningController {
         }
         await this.#controllerInstance?.disconnect(nodeId);
         if (force) {
-            const peer = this.node.env.get(PeerSet).for(this.fabric.addressOf(nodeId));
-            await peer.delete();
+            const address = this.fabric.addressOf(nodeId);
+            const peer = this.node.env.get(PeerSet).for(address);
+            await peer.disconnect();
+            for (const session of [...this.node.env.get(SessionManager).sessionsFor(address)]) {
+                await session.initiateClose();
+            }
         }
     }
 
@@ -515,10 +523,12 @@ export class CommissioningController {
         if (peerNode === undefined) {
             if (allowUnknownNode) {
                 peerNode = await this.node.peers.forAddress(peerAddress, {
-                    network: {
-                        autoSubscribe: false,
+                    commissioning: {
                         caseAuthenticatedTags:
                             connectOptions?.caseAuthenticatedTags ?? this.#options.caseAuthenticatedTags,
+                    },
+                    network: {
+                        autoSubscribe: false,
                     },
                 });
             } else {
@@ -532,6 +542,20 @@ export class CommissioningController {
             await peerNode.start();
         }
 
+        // Configure NetworkClient subscription parameters from connectOptions so that when
+        // PairedNode later activates autoSubscribe, NetworkClient uses the right intervals
+        const { subscribeMinIntervalFloorSeconds, subscribeMaxIntervalCeilingSeconds } = connectOptions ?? {};
+        if (subscribeMinIntervalFloorSeconds !== undefined || subscribeMaxIntervalCeilingSeconds !== undefined) {
+            const subscriptionOptions: Record<string, unknown> = {};
+            if (subscribeMinIntervalFloorSeconds !== undefined) {
+                subscriptionOptions.minIntervalFloor = Seconds(subscribeMinIntervalFloorSeconds);
+            }
+            if (subscribeMaxIntervalCeilingSeconds !== undefined) {
+                subscriptionOptions.maxIntervalCeiling = Seconds(subscribeMaxIntervalCeilingSeconds);
+            }
+            await peerNode.set({ network: { defaultSubscription: subscriptionOptions } });
+        }
+
         const changeObserver = new Observable<[changes: ChangeNotificationService.Change]>();
         const { caseAuthenticatedTags = this.#options.caseAuthenticatedTags } = connectOptions ?? {};
         const pairedNode = await PairedNode.create(
@@ -543,15 +567,7 @@ export class CommissioningController {
                 forcedConnection: false,
                 caseAuthenticatedTags,
             }), // First, connect without discovery to the last known address
-            async (discoveryType?: NodeDiscoveryType) => {
-                await controller.connect(nodeId, {
-                    discoveryOptions: { discoveryType },
-                    allowUnknownPeer: false,
-                    caseAuthenticatedTags,
-                });
-            },
-            handler => this.#sessionDisconnectedHandler.set(nodeId, handler),
-            controller.sessions,
+            controller.peers.for(peerAddress),
             this.#crypto,
             changeObserver,
         );
@@ -701,18 +717,6 @@ export class CommissioningController {
         }
 
         await this.#controllerInstance.start();
-
-        this.#controllerInstance.node.env.get(SessionManager).sessions.deleted.on(session => {
-            if (!session.isSecure) {
-                return;
-            }
-            const { peerNodeId } = session;
-            logger.info(`Session for peer node ${this.fabric.addressOf(peerNodeId).toString()} disconnected ...`);
-            const handler = this.#sessionDisconnectedHandler.get(peerNodeId);
-            if (handler !== undefined) {
-                handler().catch(error => logger.warn(`Error while handling session disconnect: ${error}`));
-            }
-        });
 
         const changeNotifications = this.#controllerInstance.node.env.get(ChangeNotificationService);
         this.#observers.on(changeNotifications.change, this.#handleNodeChange.bind(this));

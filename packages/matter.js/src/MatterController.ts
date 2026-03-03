@@ -10,14 +10,15 @@
  * @deprecated
  */
 
-import { BasicInformationClient } from "#behaviors/basic-information";
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
-import { InteractionClientProvider } from "#cluster/client/InteractionClient.js";
-import { BasicInformation, GeneralCommissioning } from "#clusters";
+import {
+    InteractionClientProvider,
+    NodeDiscoveryType,
+    PeerConnectionOptions,
+} from "#cluster/client/InteractionClient.js";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
-import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import {
     BasicMultiplex,
     Bytes,
@@ -43,10 +44,10 @@ import {
     StorageService,
     SupportedStorageTypes,
     Time,
-} from "#general";
-import type { ClientNodeInteraction } from "#node";
+} from "@matter/general";
 import {
     ClientNode,
+    ClientNodePhysicalProperties,
     ClusterState,
     CommissioningClient,
     ControllerBehavior,
@@ -57,7 +58,9 @@ import {
     RemoteDescriptor,
     ServerNode,
     ServerNodeStore,
-} from "#node";
+} from "@matter/node";
+import { BasicInformationClient } from "@matter/node/behaviors/basic-information";
+import { OtaProviderEndpoint } from "@matter/node/endpoints/ota-provider";
 import {
     CertificateAuthority,
     CommissioningError,
@@ -68,10 +71,6 @@ import {
     Fabric,
     FabricAuthority,
     FabricManager,
-    NodeDiscoveryType,
-    PeerAddress,
-    PeerAddressStore,
-    PeerConnectionOptions,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -79,7 +78,7 @@ import {
     ScannerSet,
     SecureSession,
     SessionManager,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     CaseAuthenticatedTag,
     DiscoveryCapabilitiesBitmap,
@@ -90,7 +89,8 @@ import {
     NodeId,
     TypeFromPartialBitSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { BasicInformation, GeneralCommissioning } from "@matter/types/clusters";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;
@@ -314,7 +314,7 @@ export class MatterController {
 
         this.#construction = Construction(this, async () => {
             // Now after all Legacy stuff is prepared, initialize the ServerNode
-            this.#node = await ServerNode.create({
+            this.#node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
                 environment,
                 id,
                 network: {
@@ -408,6 +408,12 @@ export class MatterController {
         });
     }
 
+    get peers() {
+        this.construction.assert();
+
+        return this.#peers!;
+    }
+
     #enableOtaProvider() {
         if (!this.#node) {
             throw new ImplementationError("Node is not initialized yet");
@@ -419,7 +425,7 @@ export class MatterController {
     }
 
     get ble() {
-        return this.node.state.controller.ble ?? false;
+        return this.node.stateOf(ControllerBehavior).ble ?? false;
     }
 
     get fabric() {
@@ -620,9 +626,9 @@ export class MatterController {
         }
         if (
             options.caseAuthenticatedTags !== undefined &&
-            !isDeepEqual(options.caseAuthenticatedTags, node.state.network.caseAuthenticatedTags)
+            !isDeepEqual(options.caseAuthenticatedTags, node.state.commissioning.caseAuthenticatedTags)
         ) {
-            await node.setStateOf(NetworkClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
+            await node.setStateOf(CommissioningClient, { caseAuthenticatedTags: options.caseAuthenticatedTags });
         }
         await node.enable();
         return this.#clients!.connect(this.fabric.addressOf(peerNodeId), options);
@@ -647,6 +653,7 @@ export class MatterController {
         await this.#legacyPeerStore?.close();
         await this.#node?.close();
         this.#clients = undefined;
+        await this.#construction.close();
     }
 
     getActiveSessionInformation() {
@@ -670,8 +677,7 @@ export class MatterController {
         // Note that we're assuming this is invoked prior to the node initializing peers
         const baseNodeStorage = baseStorage.createContext("nodes");
 
-        // Initialize a custom PeerAddressStore to manage commissioned nodes storage in legacy storage format
-        // Data migration needed
+        // Initialize component to manage commissioned nodes storage in legacy storage format data migration needed
         const controllerStore = new ControllerStore(server.id, baseStorage);
         if (!(await controllerStore.nodesStorage.has("commissionedNodes"))) {
             logger.debug("No former commissioned nodes to migrate.");
@@ -792,14 +798,13 @@ export namespace MatterController {
 /**
  * Only used for Node data migration
  */
-class CommissionedNodeStore extends PeerAddressStore {
+class CommissionedNodeStore {
     #peers: Peers;
     #controllerStore: ControllerStoreInterface;
     #fabric: Fabric;
     #saves = new BasicMultiplex();
 
     constructor(controllerStore: ControllerStoreInterface, fabric: Fabric, peers: Peers) {
-        super();
         this.#controllerStore = controllerStore;
         this.#fabric = fabric;
         this.#peers = peers;
@@ -828,17 +833,6 @@ class CommissionedNodeStore extends PeerAddressStore {
         return nodes;
     }
 
-    async updatePeer() {
-        this.save();
-        return this.#saves;
-    }
-
-    async deletePeer(address: PeerAddress) {
-        await (await this.#controllerStore.clientNodeStore(address.nodeId.toString())).clearAll();
-        this.save();
-        return this.#saves;
-    }
-
     save(ignorePeer?: string) {
         this.#saves.add(
             this.#controllerStore.nodesStorage.set(
@@ -856,7 +850,7 @@ class CommissionedNodeStore extends PeerAddressStore {
                                 ? RemoteDescriptor.fromLongForm(commissioningState)
                                 : undefined;
                         const deviceData = {
-                            meta: (peer.interaction as ClientNodeInteraction).physicalProperties,
+                            meta: ClientNodePhysicalProperties(peer),
                             basicInformation: peer.maybeStateOf(BasicInformationClient),
                         };
 

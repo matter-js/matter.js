@@ -5,6 +5,11 @@
  */
 
 import type { SupportedTransportsBitmap } from "#common/SupportedTransportsBitmap.js";
+import { PeerLossContext } from "#peer/PeerLossContext.js";
+import { SessionClosedError } from "#protocol/errors.js";
+import { MessageChannel } from "#protocol/MessageChannel.js";
+import type { MessageExchange } from "#protocol/MessageExchange.js";
+import { SessionIntervals } from "#session/SessionIntervals.js";
 import {
     AsyncObservable,
     Bytes,
@@ -21,12 +26,8 @@ import {
     Time,
     Timespan,
     Timestamp,
-} from "#general";
-import { SessionClosedError } from "#protocol/errors.js";
-import { MessageChannel } from "#protocol/MessageChannel.js";
-import type { MessageExchange } from "#protocol/MessageExchange.js";
-import { SessionIntervals } from "#session/SessionIntervals.js";
-import type { NodeId, TypeFromPartialBitSchema } from "#types";
+} from "@matter/general";
+import type { NodeId, TypeFromPartialBitSchema } from "@matter/types";
 import type {
     DecodedMessage,
     DecodedPacket,
@@ -126,7 +127,7 @@ export abstract class Session {
     notifyActivity(messageReceived: boolean) {
         this.timestamp = Time.nowMs;
         if (messageReceived) {
-            // only update active timestamp if we received a message
+            // only update the active timestamp if we received a message
             this.activeTimestamp = this.timestamp;
         }
     }
@@ -268,21 +269,19 @@ export abstract class Session {
      * This terminates (potentially) subscriptions and exchanges without notifying peers.  It places the session in a
      * closing state so no further exchanges are accepted.
      *
-     * @param except an exchange that should not be forced close; this allows the current exchange to remain open
-     * @param keepSubscriptions whether to keep the subscriptions open after force-closing the session.
-     *  TODO refactor when moving subscriptions away from sessions
+     * TODO refactor when moving subscriptions away from sessions
      */
-    async initiateForceClose(except?: MessageExchange, keepSubscriptions = false) {
+    async initiateForceClose(context: PeerLossContext) {
         await this.initiateClose(async () => {
-            if (!keepSubscriptions) {
+            if (!context.keepSubscriptions) {
                 await this.closeSubscriptions();
             }
             for (const exchange of this.#exchanges) {
-                if (exchange === except) {
+                if (exchange === context.currentExchange) {
                     this.deferredClose = true;
                     continue;
                 }
-                await exchange.close(true);
+                await exchange.close(context.cause);
             }
         });
     }
@@ -334,6 +333,10 @@ export abstract class Session {
         }
     }
 
+    async [Symbol.asyncDispose]() {
+        await this.close();
+    }
+
     protected get manager() {
         return this.#manager;
     }
@@ -371,6 +374,11 @@ export abstract class Session {
 export namespace Session {
     export interface CommonConfig {
         manager?: SessionManager;
+
+        /**
+         * When setting this to true the session is not automatically registered to a provided session manager.
+         * You need to do this yourself.
+         */
         delayManagerRegistration?: true;
         channel?: Channel<Bytes>;
     }

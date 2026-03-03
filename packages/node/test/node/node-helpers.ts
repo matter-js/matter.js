@@ -5,10 +5,9 @@
  */
 
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import { GeneralCommissioning } from "#clusters/general-commissioning";
-import { Bytes, Crypto, InternalError } from "#general";
-import { CommissioningServer, InteractionServer } from "#index.js";
-import { Specification } from "#model";
+import { CommissioningServer, InteractionServer, NetworkClient, ServerNode } from "#index.js";
+import { Bytes, Crypto, InternalError } from "@matter/general";
+import { Specification } from "@matter/model";
 import {
     Certificate,
     Fabric,
@@ -18,10 +17,11 @@ import {
     Message,
     MessageType,
     SessionType,
+    SustainedSubscription,
     TestFabric,
     TlvCertSigningRequest,
     WriteResponse,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     AttributeReport,
     EventReport,
@@ -37,7 +37,8 @@ import {
     TlvWriteRequest,
     TypeFromSchema,
     VendorId,
-} from "#types";
+} from "@matter/types";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { MockServerNode } from "./mock-server-node.js";
 
 export const FAILSAFE_LENGTH_S = 60;
@@ -59,7 +60,7 @@ export async function testFactoryReset(
     node.lifecycle.offline.on(() => void changes.push("offline"));
 
     if (mode === "offline-after-commission") {
-        await node.cancel();
+        await node.stop();
     }
     if (mode !== "offline") {
         expectedChanges.push("offline");
@@ -76,7 +77,7 @@ export async function testFactoryReset(
     if (mode === "offline-during-reset") {
         // Wait a tick to ensure erase has started
         await MockTime.yield();
-        offlinePromise = node.cancel();
+        offlinePromise = node.stop();
         expect(node.lifecycle.shouldBeOffline).equals(true);
     } else if (mode !== "offline-after-commission" && mode !== "offline") {
         expectedChanges.push("online");
@@ -393,4 +394,16 @@ export namespace interaction {
 
         return { attributes, events };
     }
+}
+
+export async function subscribedPeer(controller: ServerNode, id: string) {
+    const peer = controller.peers.get(id);
+    expect(peer).not.undefined;
+
+    const subscription = peer!.behaviors.internalsOf(NetworkClient).activeSubscription as SustainedSubscription;
+    expect(subscription).not.undefined;
+
+    await MockTime.resolve(subscription.active);
+
+    return peer!;
 }

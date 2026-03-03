@@ -15,7 +15,7 @@ import {
     StorageBackendMemory,
     StorageManager,
     StorageService,
-} from "#general";
+} from "@matter/general";
 import { buildTestCrl, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
@@ -894,6 +894,357 @@ describe("DclCertificateService", () => {
 
             const countAfter = service.certificates.length;
             expect(countAfter).to.equal(1);
+
+            await service.close();
+        });
+    });
+
+    describe("custom DCL config", () => {
+        it("uses custom production URL when dclConfig provided", async () => {
+            fetchMock.addResponse("custom-prod.dcl/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, {
+                dclConfig: { url: "https://custom-prod.dcl" },
+            });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("custom-prod.dcl"))).to.be.true;
+            expect(callLog.some(call => call.url.includes("on.dcl.csa-iot.org"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("uses custom test URL when testDclConfig provided", async () => {
+            // Production DCL (default)
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Custom test DCL
+            fetchMock.addResponse("custom-test.dcl/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // GitHub (empty)
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, {
+                fetchTestCertificates: true,
+                testDclConfig: { url: "https://custom-test.dcl" },
+            });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("custom-test.dcl"))).to.be.true;
+            expect(callLog.some(call => call.url.includes("on.test-net.dcl.csa-iot.org"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("uses defaults when no config provided", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment);
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("on.dcl.csa-iot.org"))).to.be.true;
+
+            await service.close();
+        });
+    });
+
+    describe("fetchGithubCertificates option", () => {
+        it("fetches GitHub certs by default when test certs enabled", async () => {
+            // Production DCL
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Test DCL
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // GitHub
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("api.github.com"))).to.be.true;
+
+            await service.close();
+        });
+
+        it("skips GitHub when fetchGithubCertificates is false", async () => {
+            // Production DCL
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Test DCL
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, {
+                fetchTestCertificates: true,
+                fetchGithubCertificates: false,
+            });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            // Test DCL should still be fetched
+            expect(callLog.some(call => call.url.includes("on.test-net.dcl.csa-iot.org"))).to.be.true;
+            // GitHub should NOT be fetched
+            expect(callLog.some(call => call.url.includes("api.github.com"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("GitHub option has no effect when fetchTestCertificates is false", async () => {
+            fetchMock.addResponse("/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, {
+                fetchTestCertificates: false,
+                fetchGithubCertificates: true,
+            });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("test-net.dcl"))).to.be.false;
+            expect(callLog.some(call => call.url.includes("api.github.com"))).to.be.false;
+
+            await service.close();
+        });
+    });
+
+    describe("custom githubConfig", () => {
+        it("uses custom GitHub repo when githubConfig provided", async () => {
+            // Production DCL
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Test DCL
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Custom GitHub repo
+            fetchMock.addResponse("api.github.com/repos/my-org/my-repo/contents/certs/paa", []);
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, {
+                fetchTestCertificates: true,
+                githubConfig: {
+                    owner: "my-org",
+                    repo: "my-repo",
+                    branch: "main",
+                    certPath: "certs/paa",
+                },
+            });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("my-org/my-repo"))).to.be.true;
+            expect(callLog.some(call => call.url.includes("project-chip/connectedhomeip"))).to.be.false;
+
+            await service.close();
+        });
+
+        it("uses defaults when githubConfig not provided", async () => {
+            // Production DCL
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Test DCL
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // Default GitHub
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            const callLog = fetchMock.getCallLog();
+            expect(callLog.some(call => call.url.includes("project-chip/connectedhomeip"))).to.be.true;
+
+            await service.close();
+        });
+    });
+
+    describe("isProduction flag protection", () => {
+        it("upgrades test certificate to production when found in production DCL", async () => {
+            // Step 1: First run - production DCL empty, test DCL has certs -> stored as test
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service1 = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service1.construction;
+
+            // Verify certs are stored as test
+            expect(service1.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5")?.isProduction).to.be.false;
+            expect(service1.getCertificate("6AFD22771F511FECBF1641976710DCDC31A1717E")?.isProduction).to.be.false;
+
+            await service1.close();
+
+            // Step 2: Second run - production DCL now has the certs
+            fetchMock.uninstall();
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service2 = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service2.construction;
+
+            // Verify certs are now upgraded to production
+            expect(service2.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5")?.isProduction).to.be.true;
+            expect(service2.getCertificate("6AFD22771F511FECBF1641976710DCDC31A1717E")?.isProduction).to.be.true;
+
+            await service2.close();
+        });
+
+        it("preserves isProduction flag when force-updating with test certificates", async () => {
+            // Set up production and test DCL with same certs
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.test-net.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                [],
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            // Both certs should be production (fetched from production DCL first)
+            expect(service.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5")?.isProduction).to.be.true;
+            expect(service.getCertificate("6AFD22771F511FECBF1641976710DCDC31A1717E")?.isProduction).to.be.true;
+
+            // Force update - test DCL also returns same certs with isProduction=false
+            await service.update(true);
+
+            // Certs should still be marked as production
+            expect(service.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5")?.isProduction).to.be.true;
+            expect(service.getCertificate("6AFD22771F511FECBF1641976710DCDC31A1717E")?.isProduction).to.be.true;
+
+            await service.close();
+        });
+
+        it("does not downgrade production cert when same cert loaded from GitHub", async () => {
+            // Production DCL has the certs
+            fetchMock.addResponse("on.dcl.csa-iot.org/dcl/pki/root-certificates", mockDclRootCertificateList);
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAxGDAWBgNVBAMMD01hdHRlciBUZXN0IFBBQQ%3D%3D/78%3A5C%3AE7%3A05%3AB8%3A6B%3A8F%3A4E%3A6F%3AC7%3A93%3AAA%3A60%3ACB%3A43%3AEA%3A69%3A68%3A82%3AD5",
+                mockDclCertificateNoVID,
+            );
+            fetchMock.addResponse(
+                "on.dcl.csa-iot.org/dcl/pki/certificates/MDAEFjAUBgorBgEEAYKefAIBDARGRkYx/6A%3AFD%3A22%3A77%3A1F%3A51%3A1F%3AEC%3ABF%3A16%3A41%3A97%3A67%3A10%3ADC%3ADC%3A31%3AA1%3A71%3A7E",
+                mockDclCertificateFFF1,
+            );
+
+            // Test DCL empty
+            fetchMock.addResponse("on.test-net.dcl.csa-iot.org/dcl/pki/root-certificates", {
+                approvedRootCertificates: { schemaVersion: 0, certs: [] },
+            });
+
+            // GitHub has same certs (always non-production)
+            fetchMock.addResponse(
+                "api.github.com/repos/project-chip/connectedhomeip/contents/credentials/development/paa-root-certs",
+                mockGitHubFileList,
+            );
+            fetchMock.addResponse(
+                "raw.githubusercontent.com/project-chip/connectedhomeip/master/credentials/development/paa-root-certs/Chip-Test-PAA-NoVID-Cert.der",
+                TestCert_PAA_NoVID_Cert,
+                { binary: true },
+            );
+            fetchMock.addResponse(
+                "raw.githubusercontent.com/project-chip/connectedhomeip/master/credentials/development/paa-root-certs/Chip-Test-PAA-FFF1-Cert.der",
+                TestCert_PAA_FFF1_Cert,
+                { binary: true },
+            );
+            fetchMock.install();
+
+            const service = new DclCertificateService(environment, { fetchTestCertificates: true });
+            await service.construction;
+
+            // Certs from production DCL should remain production even though GitHub also has them
+            expect(service.getCertificate("785CE705B86B8F4E6FC793AA60CB43EA696882D5")?.isProduction).to.be.true;
+            expect(service.getCertificate("6AFD22771F511FECBF1641976710DCDC31A1717E")?.isProduction).to.be.true;
 
             await service.close();
         });

@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SubscriptionsBehavior } from "#behavior/system/subscriptions/SubscriptionsServer.js";
+import { SubscriptionsServer } from "#behavior/system/subscriptions/SubscriptionsServer.js";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointType } from "#endpoint/type/EndpointType.js";
+import type { Node } from "#node/Node.js";
+import { NodeLifecycle } from "#node/NodeLifecycle.js";
+import type { ServerNode } from "#node/ServerNode.js";
 import {
     AsyncObservable,
     Bytes,
@@ -20,11 +23,8 @@ import {
     Mutex,
     MutexClosedError,
     Observable,
-} from "#general";
-import { DatatypeModel, FieldElement } from "#model";
-import type { Node } from "#node/Node.js";
-import { NodeLifecycle } from "#node/NodeLifecycle.js";
-import type { ServerNode } from "#node/ServerNode.js";
+} from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
 import {
     BleAdvertiser,
     CommissioningConfigProvider,
@@ -36,7 +36,7 @@ import {
     MdnsAdvertiser,
     PaseClient,
     Val,
-} from "#protocol";
+} from "@matter/protocol";
 import {
     CommissioningFlowType,
     CommissioningOptions,
@@ -45,7 +45,7 @@ import {
     ManualPairingCodeCodec,
     QrCode,
     QrPairingCodeCodec,
-} from "#types";
+} from "@matter/types";
 import { BasicInformationBehavior } from "../../../behaviors/basic-information/BasicInformationBehavior.js";
 import { OperationalCredentialsBehavior } from "../../../behaviors/operational-credentials/OperationalCredentialsBehavior.js";
 import { Behavior } from "../../Behavior.js";
@@ -206,7 +206,7 @@ export class CommissioningServer extends Behavior {
         // If already commissioned, trigger operational announcement
         if ((this.endpoint.lifecycle as NodeLifecycle).isCommissioned) {
             // Restore subscriptions if we have some persisted
-            await this.endpoint.act(agent => agent.get(SubscriptionsBehavior).reestablishFormerSubscriptions());
+            await this.endpoint.act(agent => agent.get(SubscriptionsServer).reestablishFormerSubscriptions());
 
             this.enterOperationalMode();
             return;

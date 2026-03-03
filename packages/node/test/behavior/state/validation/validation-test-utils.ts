@@ -6,9 +6,17 @@
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { Properties } from "#general";
-import { AttributeModel, ClusterModel, DataModelPath, FeatureMap, FeatureSet, FieldElement, FieldModel } from "#model";
-import { StatusResponseError } from "#types";
+import { Properties } from "@matter/general";
+import {
+    AttributeModel,
+    ClusterModel,
+    DataModelPath,
+    FeatureMap,
+    FeatureSet,
+    FieldElement,
+    FieldModel,
+} from "@matter/model";
+import { StatusResponseError } from "@matter/types";
 
 export function Fields(
     ...definition: {

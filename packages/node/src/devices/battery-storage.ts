@@ -9,7 +9,7 @@
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * A Battery Storage device is a device that allows a DC battery, which can optionally be comprised of a set parallel

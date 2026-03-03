@@ -14,9 +14,9 @@ import {
     NotImplementedError,
     Observable,
     Transaction,
-} from "#general";
-import { ClassSemantics, Schema, Semantics } from "#model";
-import type { ClusterType } from "#types";
+} from "@matter/general";
+import { ClassSemantics, Schema, Semantics } from "@matter/model";
+import type { ClusterType } from "@matter/types";
 import { Reactor } from "./Reactor.js";
 import type { BehaviorBacking } from "./internal/BehaviorBacking.js";
 import { DerivedState, EmptyState } from "./state/StateType.js";
@@ -235,7 +235,7 @@ export abstract class Behavior {
 
         this.reactTo(observable, reactor, options);
 
-        return observable.emit.bind(observable);
+        return observable.emit.bind(observable) as (...args: A) => R;
     }
 
     /**

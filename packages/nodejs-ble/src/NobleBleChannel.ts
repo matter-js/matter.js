@@ -19,7 +19,7 @@ import {
     Timer,
     asError,
     createPromise,
-} from "#general";
+} from "@matter/general";
 import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
@@ -30,11 +30,12 @@ import {
     BTP_MAXIMUM_WINDOW_SIZE,
     BTP_SUPPORTED_VERSIONS,
     BleChannel,
+    BleDisconnectedError,
     BleError,
     BtpCodec,
     BtpFlowError,
     BtpSessionHandler,
-} from "#protocol";
+} from "@matter/protocol";
 import type { Characteristic, Peripheral } from "@stoprocent/noble";
 import { BleScanner } from "./BleScanner.js";
 
@@ -344,6 +345,15 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             return;
                         }
                     }
+                } catch (error) {
+                    // Noble operations (discoverServicesAsync, discoverCharacteristicsAsync, readAsync)
+                    // are wrapped in noble's _withDisconnectHandler, which rejects the promise when the
+                    // peripheral disconnects. If reTryHandler was already called from the disconnect event,
+                    // the connectionGuard is already cleared. Otherwise, handle the error.
+                    if (this.#connectionGuards.has(connectionGuard)) {
+                        reTryHandler(error);
+                    }
+                    return;
                 } finally {
                     this.#connectionsInProgress.delete(address);
                     clearConnectionGuard();
@@ -485,9 +495,17 @@ export class NobleBleChannel extends BleChannel<Bytes> {
 
         const btpSession = await BtpSessionHandler.createAsCentral(
             new Uint8Array(handshakeResponse),
-            // callback to write data to characteristic C1
+            // callback to write data to characteristic C1; translates noble's generic disconnect
+            // error into BleDisconnectedError so BtpSessionHandler can handle it specifically
             async (data: Bytes) => {
-                return await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(data)), false);
+                try {
+                    return await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(data)), false);
+                } catch (error) {
+                    if (error instanceof Error && error.message.startsWith("Disconnected")) {
+                        throw new BleDisconnectedError(error.message, { cause: error });
+                    }
+                    throw error;
+                }
             },
             // callback to disconnect the BLE connection
             async () => {

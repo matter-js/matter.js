@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { Actions } from "#clusters/actions";
+import { Actions } from "@matter/types/clusters/actions";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ActionsInterface } from "./ActionsInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * ActionsBehavior is the base class for objects that support interaction with {@link Actions.Cluster}.

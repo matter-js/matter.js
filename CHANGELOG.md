@@ -11,15 +11,82 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- @matter/model
+    - Enhancement: First Model preparations for Matter 1.5
+
+- @matter/node
+    - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
+    - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
+    - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
+    - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
+
+- @matter/protocol
+    - Breaking: Removed automatic retry-logic for interactions on node-reachabiloity issues, new session will be initialized automatically afterwards
+    - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
+    - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
+    - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
+    - Feature: matter.js now responds immediately to IP changes advertised via MDNS
+    - Feature: (@adeepn) `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints
+    - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
+    - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
+    - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
+    - Fix: Better handle errors when the BLE connection is disconnected during a write action
+
+- @matter/react-native
+    - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
+
+- @project-chip/matter.js
+    - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
+
+## 0.16.10 (2026-02-22)
+
+- @matter/create
+    - Fix: Fixes generated `npm run app` entrypoint path (`dist/src/...` → `dist/...`) (#3228)
+
+- @matter/model
+    - Fix: Constraint evaluation for expressions with negative exponentiation bases (e.g. `-2^62 to 2^62`) and improves precision for large exponent arithmetic by using BigInt when results exceed the safe integer range
+
+- @matter/node
+    - Breaking: `ControllerBehavior` is no longer present in the `EndpointType` of `ServerNode` by default
+
+- @matter/nodejs-ble
+    - Fix: Fix crash when BLE peripheral disconnects during service/characteristic discovery
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the discovery callback
+
+- @matter/nodejs-shell
+    - Adjustment: `ota add` stores files as "local" mode; `ota list`, `ota delete`, and `ota copy` support "local" mode filter
+
+- @matter/protocol
+    - Enhancement: Ignore known addresses when current MDNS results do not include them anymore
+    - Adjustment: OTA update files are now stored per software version, allowing different updates to be served to different nodes simultaneously. Former files are migrated.
+    - Enhancement: Optimize MRP timings when sending retransmissions to address expected network congestion
+    - Adjustment: Remove ICAC workaround added in 0.16.0
+    - Fix: Ensures that production certificates are always stored correctly
+    - Fix: Ensures trying different IPs when we have a timeout-based reconnection process
+    - Fix: Fix cancelCommissionableDeviceDiscovery not working when called from the MDNS discovery callback
+    - Fix: Ensure correct random MRP retransmission intervals are used
+    - Fix: Ensure we do not batch the same command path twice in the same invoke-request
+    - Fix: Ensures that queued interactions are done before releasing the slot 
+
+- @matter/react-native
+    - Fix: Bring BleScanner cancel support in line with nodejs-ble, fixing cancelCommissionableDeviceDiscovery not working when called from the discovery callback
+
+- @project-chip/matter.js
+    - Fix: Fixes crash when decommissioning a node while a reconnection is in progress
+    - Fix: Keep an active reconnection timer running when we detect a node shutdown
+
+## 0.16.9 (2026-02-16)
+
 - @matter/general
     - Fix: Fixes Duration string parsing
 
 - @matter/model
-    - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes
+    - Enhancement: Re-parsed the Matter 1.4.2 specification to improve captured details. No functional changes
     - Enhancement: Adds "writable" as decorator to mark attributes writable
 
 - @matter/node
     - Feature: We now allocate node IDs as sequential numbers; the old behavior of randomized node behavior is available if you set `ControllerBehavior` state property `nodeIdAssignment` to `"random"`
+    - Feature: HttpServer and WebSocketServer now optionally support SSL; matter.js will generate a self-signed certificate if you do not provide one
     - Enhancement: Also export Matter events via ChangeNotificationService
     - Enhancement: Added updateFailed event to the OTA behavior
     - Enhancement: Allows to access the update queue 
@@ -34,13 +101,19 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs
     - Fix: Also handle ENETUNREACH as a non-critical network error that triggers the retry logic and MDNS lookup
 
+- @matter/nodejs-ble
+    - Fix: Fixes the parsing of combined "VendorId+ProductId" discovery keys
+
 - @matter/protocol
     - Enhancement: Added some jitter to the subscription max ceiling to spread out subscription responses from devices
     - Fix: Initializes the Message Reception state counter correctly as defined by the Matter specification
     - Fix: Ensures that BDX sessions inform upper layers correctly in all canceled cases
     - Fix: Fixes Session mapping for PASE/CASE messages
     - Fix: When we have sent out the success for a session resumption ensure the session is registered even if we do not get the ack
-    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages 
+    - Fix: Ensures processing of received messages that lead to earlier Standalone Acks for previous messages
+
+- @matter/react-native
+  - Dependency: Updated to @react-native-community/netinfo which requires "Access Wi-Fi Information Entitlement" for iOS!
 
 - @matter/types
     - Enhancement: Re-Parsed the Matter 1.4.2 specification to improve captured details. No functional changes

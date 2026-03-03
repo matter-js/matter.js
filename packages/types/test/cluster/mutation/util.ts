@@ -18,14 +18,14 @@ import { TlvEndpointNumber } from "#datatype/EndpointNumber.js";
 import { TlvFabricIndex } from "#datatype/FabricIndex.js";
 import { TlvGroupId } from "#datatype/GroupId.js";
 import { TlvNodeId } from "#datatype/NodeId.js";
-import { isObject } from "#general";
 import { Priority } from "#globals/Priority.js";
-import { AccessLevel } from "#model";
 import { BitFlag } from "#schema/BitmapSchema.js";
 import { TlvArray } from "#tlv/TlvArray.js";
 import { TlvNoArguments } from "#tlv/TlvNoArguments.js";
 import { TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvField, TlvObject, TlvOptionalField } from "#tlv/TlvObject.js";
+import { isObject } from "@matter/general";
+import { AccessLevel } from "@matter/model";
 
 // Metadata
 

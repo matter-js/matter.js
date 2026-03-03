@@ -5,9 +5,9 @@
  */
 
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { Abort, InternalError } from "#general";
 import { StateStream } from "#node/integration/StateStream.js";
 import { ServerNode } from "#node/ServerNode.js";
+import { Abort, InternalError } from "@matter/general";
 import { ApiResource } from "../ApiResource.js";
 import { Envelope } from "../Envelope.js";
 import { LocalResponse } from "../LocalResponse.js";

@@ -5,6 +5,7 @@
  */
 
 import { AbortedError, ClosedError } from "#MatterError.js";
+import { Millis } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { Semaphore } from "#util/Semaphore.js";
 
@@ -556,6 +557,116 @@ describe("Semaphore", () => {
             expect(rejected).equals(true);
 
             slot1.close();
+        });
+    });
+
+    describe("slot timeout", () => {
+        before(() => MockTime.enable());
+
+        it("auto-releases slot after timeout", async () => {
+            const queue = new Semaphore("test", 1, 0, Millis(100));
+
+            const slot = await queue.obtainSlot();
+            expect(queue.running).equals(1);
+
+            // Advance time past the timeout
+            await MockTime.advance(101);
+            await MockTime.yield();
+
+            expect(queue.running).equals(0);
+
+            // Manual close after auto-release should be a no-op
+            slot.close();
+            expect(queue.running).equals(0);
+        });
+
+        it("manual release before timeout cancels the timer", async () => {
+            const queue = new Semaphore("test", 1, 0, Millis(100));
+
+            const slot = await queue.obtainSlot();
+            expect(queue.running).equals(1);
+
+            // Release manually before timeout
+            slot.close();
+            expect(queue.running).equals(0);
+
+            // Advance past timeout - should not cause issues
+            await MockTime.advance(200);
+            await MockTime.yield();
+
+            expect(queue.running).equals(0);
+        });
+
+        it("queued task gets slot after timeout auto-release", async () => {
+            const queue = new Semaphore("test", 1, 0, Millis(100));
+
+            // Take the only slot
+            await queue.obtainSlot();
+            expect(queue.running).equals(1);
+
+            // Queue a second request
+            let slot2Obtained = false;
+            const slot2Promise = queue.obtainSlot().then(slot => {
+                slot2Obtained = true;
+                return slot;
+            });
+
+            await MockTime.yield();
+            expect(slot2Obtained).equals(false);
+            expect(queue.count).equals(1);
+
+            // Advance past timeout - slot1 auto-releases, slot2 should get granted
+            await MockTime.advance(101);
+            await MockTime.yield();
+
+            const slot2 = await slot2Promise;
+            expect(slot2Obtained).equals(true);
+            expect(queue.running).equals(1);
+            expect(queue.count).equals(0);
+
+            slot2.close();
+        });
+
+        it("each slot gets its own timeout", async () => {
+            const queue = new Semaphore("test", 2, 0, Millis(100));
+
+            const slot1 = await queue.obtainSlot();
+            expect(queue.running).equals(1);
+
+            // Advance 50ms, then obtain second slot
+            await MockTime.advance(50);
+            const slot2 = await queue.obtainSlot();
+            expect(queue.running).equals(2);
+
+            // At 101ms, slot1 should timeout but slot2 still active
+            await MockTime.advance(51);
+            await MockTime.yield();
+
+            expect(queue.running).equals(1);
+
+            // At 151ms, slot2 should also timeout
+            await MockTime.advance(50);
+            await MockTime.yield();
+
+            expect(queue.running).equals(0);
+
+            slot1.close();
+            slot2.close();
+        });
+
+        it("no timeout when not configured", async () => {
+            const queue = new Semaphore("test", 1);
+
+            const slot = await queue.obtainSlot();
+            expect(queue.running).equals(1);
+
+            // Advance a lot of time - slot should remain
+            await MockTime.advance(10000);
+            await MockTime.yield();
+
+            expect(queue.running).equals(1);
+
+            slot.close();
         });
     });
 

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Destructable, Environment, Logger, RuntimeService, type VariableService } from "#general";
+import { Destructable, Environment, Logger, RuntimeService, type VariableService } from "@matter/general";
 import type { NodeJsEnvironment } from "./NodeJsEnvironment.js";
 
 const logger = Logger.get("ProcessManager");

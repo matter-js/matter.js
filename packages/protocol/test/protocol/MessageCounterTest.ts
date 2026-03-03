@@ -4,8 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { b$, InternalError, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "#general";
 import { MAX_COUNTER_VALUE_32BIT, MessageCounter, PersistedMessageCounter } from "#protocol/MessageCounter.js";
+import {
+    b$,
+    InternalError,
+    StandardCrypto,
+    StorageBackendMemory,
+    StorageContext,
+    StorageManager,
+} from "@matter/general";
 
 describe("MessageCounter", () => {
     const crypto = new StandardCrypto();

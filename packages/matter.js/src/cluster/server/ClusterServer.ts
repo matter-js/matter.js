@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, Diagnostic, ImplementationError, InternalError, Logger, MaybePromise } from "#general";
-import { AccessLevel } from "#model";
-import { Fabric } from "#protocol";
+import { capitalize, Diagnostic, ImplementationError, InternalError, Logger, MaybePromise } from "@matter/general";
+import { AccessLevel } from "@matter/model";
+import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
     BitSchema,
@@ -17,7 +17,7 @@ import {
     EventId,
     TlvNoResponse,
     TypeFromPartialBitSchema,
-} from "#types";
+} from "@matter/types";
 import { Endpoint } from "../../device/Endpoint.js";
 import { createAttributeServer } from "./AttributeServer.js";
 import { ClusterDatasource } from "./ClusterDatasource.js";

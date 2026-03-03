@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { BooleanStateConfiguration } from "#clusters/boolean-state-configuration";
+import { MaybePromise } from "@matter/general";
+import { BooleanStateConfiguration } from "@matter/types/clusters/boolean-state-configuration";
 
 export namespace BooleanStateConfigurationInterface {
     export interface VisualOrAudible {

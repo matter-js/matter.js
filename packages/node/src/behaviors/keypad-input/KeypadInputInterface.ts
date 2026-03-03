@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MaybePromise } from "#general";
-import { KeypadInput } from "#clusters/keypad-input";
+import { MaybePromise } from "@matter/general";
+import { KeypadInput } from "@matter/types/clusters/keypad-input";
 
 export namespace KeypadInputInterface {
     export interface Base {

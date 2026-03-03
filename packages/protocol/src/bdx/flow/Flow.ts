@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { InternalError, Observable } from "#general";
-import { BdxStatusCode } from "#types";
+import { InternalError, Observable } from "@matter/general";
+import { BdxStatusCode } from "@matter/types";
 import { BdxError } from "../BdxError.js";
 import { BdxMessenger } from "../BdxMessenger.js";
 import { PersistedFileDesignator } from "../PersistedFileDesignator.js";

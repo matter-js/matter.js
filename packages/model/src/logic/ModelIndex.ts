@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "#general";
+import { camelize } from "@matter/general";
 import { Model } from "../models/Model.js";
 
 /**

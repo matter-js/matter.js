@@ -17,7 +17,8 @@ import { TlvGroupId } from "#datatype/GroupId.js";
 import { TlvNodeId } from "#datatype/NodeId.js";
 import { TlvSubjectId } from "#datatype/SubjectId.js";
 import { TlvVendorId } from "#datatype/VendorId.js";
-import { camelize, ImplementationError, InternalError } from "#general";
+import { BitField, BitFlag } from "#schema/BitmapSchema.js";
+import { camelize, ImplementationError, InternalError } from "@matter/general";
 import {
     attribId,
     clusterId,
@@ -52,8 +53,7 @@ import {
     uint8,
     ValueModel,
     vendorId,
-} from "#model";
-import { BitField, BitFlag } from "#schema/BitmapSchema.js";
+} from "@matter/model";
 import { TlvAny } from "./TlvAny.js";
 import { TlvArray } from "./TlvArray.js";
 import { TlvBoolean } from "./TlvBoolean.js";

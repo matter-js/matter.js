@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { JointFabricDatastore } from "#clusters/joint-fabric-datastore";
+import { JointFabricDatastore } from "@matter/types/clusters/joint-fabric-datastore";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { JointFabricDatastoreInterface } from "./JointFabricDatastoreInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * JointFabricDatastoreBehavior is the base class for objects that support interaction with

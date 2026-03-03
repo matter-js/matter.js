@@ -50,10 +50,8 @@ export namespace X509 {
     export function certificateToDer(cert: Certificate | UnsignedCertificate) {
         const { serialNumber, signatureAlgorithm, issuer, validity, subject, publicKey, extensions } = cert;
 
-        const {
-            basicConstraints: { isCa, pathLen },
-        } = extensions;
-        if (!isCa && pathLen !== undefined) {
+        const { basicConstraints } = extensions;
+        if (basicConstraints && !basicConstraints.isCa && basicConstraints.pathLen !== undefined) {
             throw new CertificateError("Path length must be undefined for non-CA certificates.");
         }
 
@@ -95,19 +93,19 @@ export namespace X509 {
 
     export interface DistinguishedName extends Record<string, DerNodeDefinition> {}
 
-    export interface Extension {
-        basicConstraints: {
+    export interface Extensions {
+        basicConstraints?: {
             isCa: boolean;
             pathLen?: number;
         };
-        subjectKeyIdentifier: Bytes;
-        keyUsage: KeyUsage;
+        subjectKeyIdentifier?: Bytes;
+        keyUsage?: KeyUsage;
         extendedKeyUsage?: number[];
-        authorityKeyIdentifier: Bytes;
+        authorityKeyIdentifier?: Bytes;
         futureExtension?: Bytes[];
     }
 
-    export namespace Extension {
+    export namespace Extensions {
         export const BASIC_CONSTRAINTS = 0x551d13n;
         export const KEY_USAGE = 0x551d0fn;
         export const EXTENDED_KEY_USAGE = 0x551d25n;
@@ -135,7 +133,7 @@ export namespace X509 {
         validity: ValidityWindow;
         subject: DistinguishedName;
         publicKey: EcPublicKey;
-        extensions: Extension;
+        extensions: Extensions;
     }
 
     export interface Certificate extends UnsignedCertificate {
@@ -143,11 +141,11 @@ export namespace X509 {
     }
 
     export function SubjectKeyIdentifier(identifier: Bytes) {
-        return DerObject(Extension.SUBJECT_KEY_IDENTIFIER, { value: DerCodec.encode(identifier) });
+        return DerObject(Extensions.SUBJECT_KEY_IDENTIFIER, { value: DerCodec.encode(identifier) });
     }
 
     export function AuthorityKeyIdentifier(identifier: Bytes) {
-        return DerObject(Extension.AUTHORITY_KEY_IDENTIFIER, {
+        return DerObject(Extensions.AUTHORITY_KEY_IDENTIFIER, {
             value: DerCodec.encode({ id: ContextTaggedBytes(0, identifier) }),
         });
     }
@@ -159,7 +157,7 @@ export namespace X509 {
             // https://datatracker.ietf.org/doc/html/rfc5280#appendix-B
             delete toEncode.isCa;
         }
-        return DerObject(Extension.BASIC_CONSTRAINTS, { critical: true, value: DerCodec.encode(toEncode) });
+        return DerObject(Extensions.BASIC_CONSTRAINTS, { critical: true, value: DerCodec.encode(toEncode) });
     }
 
     export function ExtendedKeyUsage(values: number[] | undefined) {
@@ -192,7 +190,7 @@ export namespace X509 {
             }
         });
 
-        return DerObject(Extension.EXTENDED_KEY_USAGE, {
+        return DerObject(Extensions.EXTENDED_KEY_USAGE, {
             critical: true,
             value: DerCodec.encode(data),
         });
@@ -212,7 +210,7 @@ export namespace X509 {
             value = encodeKeyUsage(value);
         }
 
-        return DerObject(Extension.KEY_USAGE, {
+        return DerObject(Extensions.KEY_USAGE, {
             critical: true,
             value: DerCodec.encode(DatatypeOverride(DerType.BitString, value)),
         });
@@ -231,16 +229,21 @@ const ExtensionEncoders = {
 /**
  * Convert X509.Extension to DER input AST.
  */
-function extensionsToAst(extensions: X509.Extension) {
+function extensionsToAst(extensions: X509.Extensions) {
     const ast: DerSequenceDefinition = {};
 
     for (const key in extensions) {
-        const encoder = ExtensionEncoders[key as keyof X509.Extension];
+        const value = extensions[key as keyof X509.Extensions];
+        if (value === undefined) {
+            continue;
+        }
+
+        const encoder = ExtensionEncoders[key as keyof X509.Extensions];
         if (encoder === undefined) {
             throw new ImplementationError(`Unsupported X.509 certificate extension ${key}`);
         }
 
-        ast[key] = encoder(extensions[key as keyof X509.Extension]);
+        ast[key] = encoder(value);
     }
 
     return ast;

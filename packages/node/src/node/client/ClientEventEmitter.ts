@@ -6,12 +6,12 @@
 
 import type { ElementEvent, Events } from "#behavior/Events.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
-import { camelize, Diagnostic, isObject, Logger, Timestamp } from "#general";
-import { ClusterModel, EventModel, MatterModel } from "#model";
 import type { ClientNode } from "#node/ClientNode.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
-import type { ReadResult, Val } from "#protocol";
-import type { ClusterId, EventId } from "#types";
+import { camelize, Diagnostic, isObject, Logger, Timestamp } from "@matter/general";
+import { ClusterModel, EventModel, MatterModel } from "@matter/model";
+import type { ReadResult, Val } from "@matter/protocol";
+import type { ClusterId, EventId } from "@matter/types";
 import type { ClientStructure } from "./ClientStructure.js";
 
 const logger = Logger.get("ClientEventEmitter");

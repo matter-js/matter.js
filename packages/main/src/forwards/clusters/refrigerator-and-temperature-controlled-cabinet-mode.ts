@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/refrigerator-and-temperature-controlled-cabinet-mode";
+export * from "@matter/types/clusters/refrigerator-and-temperature-controlled-cabinet-mode";

@@ -6,9 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { EcosystemInformation } from "#clusters/ecosystem-information";
+import { EcosystemInformation } from "@matter/types/clusters/ecosystem-information";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 export const EcosystemInformationClientConstructor = ClientBehavior(EcosystemInformation.Complete);
 export interface EcosystemInformationClient extends InstanceType<typeof EcosystemInformationClientConstructor> {}

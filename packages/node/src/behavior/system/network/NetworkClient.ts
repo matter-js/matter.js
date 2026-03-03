@@ -5,14 +5,14 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { BasicInformationClient } from "#behaviors/basic-information";
-import { Observable, ServerAddress, ServerAddressUdp } from "#general";
-import { DatatypeModel, FieldElement } from "#model";
 import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
+import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "#protocol";
-import { CaseAuthenticatedTag, EventNumber } from "#types";
+import { Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
+import { DatatypeModel, FieldElement } from "@matter/model";
+import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
+import { EventNumber } from "@matter/types";
 import { ClientNetworkRuntime } from "./ClientNetworkRuntime.js";
 import { NetworkBehavior } from "./NetworkBehavior.js";
 
@@ -27,7 +27,7 @@ export class NetworkClient extends NetworkBehavior {
             this.state.autoSubscribe = false;
             this.state.defaultSubscription = undefined;
         } else {
-            this.reactTo(this.events.autoSubscribe$Changed, this.#handleAutoSubscribeChanged, { offline: true });
+            this.reactTo(this.events.autoSubscribe$Changed, this.#syncAutoSubscribe, { offline: true });
             this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange);
         }
     }
@@ -39,38 +39,49 @@ export class NetworkClient extends NetworkBehavior {
             if (!peerSet.has(peerAddress)) {
                 const udpAddresses = this.#node.state.commissioning.addresses?.filter(a => a.type === "udp") ?? [];
                 if (udpAddresses.length) {
-                    const latestUdpAddress = ServerAddress(udpAddresses[udpAddresses.length - 1]) as ServerAddressUdp;
+                    const operationalAddress = ServerAddress(udpAddresses[0]) as ServerAddressUdp;
                     // Make sure the PeerSet knows about this peer now too
-                    await peerSet.addKnownPeer(
-                        peerAddress,
-                        latestUdpAddress,
-                        RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
-                    );
+                    peerSet.addKnownPeer({
+                        address: peerAddress,
+                        operationalAddress,
+                        discoveryData: RemoteDescriptor.fromLongForm(this.#node.state.commissioning),
+                    });
                 }
             }
-            if (!this.#node.lifecycle.isCommissioned) {
-                const capabilityMinima = this.#node.maybeStateOf(BasicInformationClient)?.capabilityMinima;
-                if (capabilityMinima !== undefined) {
-                    peerSet.for(peerAddress).limits = capabilityMinima;
-                }
+
+            const peer = peerSet.get(peerAddress);
+            if (peer) {
+                peer.protocol = this.#node.protocol;
+                peer.physicalProperties = ClientNodePhysicalProperties(this.#node);
             }
         }
 
-        await this.#handleAutoSubscribeChanged();
+        await this.#syncAutoSubscribe();
+
+        this.internal.runtime!.isReady = true;
     }
 
     async #handleDefaultSubscriptionChange() {
         // Terminate any existing subscription
-        await this.#handleAutoSubscribeChanged(false);
+        await this.#syncAutoSubscribe(false);
 
         if (this.state.autoSubscribe && !this.state.isDisabled) {
-            await this.#handleAutoSubscribeChanged(true);
+            await this.#syncAutoSubscribe(true);
         }
     }
 
-    async #handleAutoSubscribeChanged(desiredState = this.state.autoSubscribe) {
+    async #syncAutoSubscribe(desiredState = this.state.autoSubscribe) {
+        if (!this.internal.runtime) {
+            return;
+        }
+
         const { isDisabled } = this.state;
         const subscriptionDesired = desiredState && !isDisabled;
+
+        const isNewlyCommissioned = this.internal.isNewlyCommissioned;
+        if (isNewlyCommissioned) {
+            this.internal.isNewlyCommissioned = false;
+        }
 
         if (subscriptionDesired === !!this.internal.activeSubscription) {
             return;
@@ -85,23 +96,32 @@ export class NetworkClient extends NetworkBehavior {
                 ...this.state.defaultSubscription,
             });
 
-            // First, read.  This allows us to retrieve attributes that do not support subscription and gives us
-            // physical device information required to optimize subscription parameters
-            for await (const _chunk of this.#node.interaction.read({
-                ...subscribe,
-                eventFilters: undefined,
-                eventRequests: undefined,
-            }));
+            let bootstrapWithRead;
+            if (isNewlyCommissioned) {
+                // For startup as part of commissioning process, read here so that any read error throws from the
+                // commissioning function and attributes are otherwise available immediately
+                for await (const _chunk of this.#node.interaction.read(subscribe));
+                bootstrapWithRead = false;
+            } else {
+                // For non-commissioning startup we also perform an initial read but we do it in the context of the
+                // sustained subscription so network errors don't interfere with subscription establishment
+                bootstrapWithRead = true;
+            }
 
-            // Now subscribe for subsequent updates
             this.internal.activeSubscription = await (this.#node.interaction as ClientNodeInteraction).subscribe({
-                sustain: true,
                 ...subscribe,
+                sustain: true,
                 eventFilters: [{ eventMin: this.state.maxEventNumber + 1n }],
+                bootstrapWithRead,
                 updated: async update => {
                     // Read over all changes
                     for await (const _chunk of update);
-                    this.events.subscriptionAlive.emit(); // Inform that subscription is alive
+
+                    // Trigger subscription alive event but ensure we actually have a subscription and this isn't just
+                    // the bootstrap read
+                    if (this.internal.activeSubscription?.subscriptionId !== ClientSubscription.NO_SUBSCRIPTION) {
+                        this.events.subscriptionAlive.emit(); // Inform that subscription is alive
+                    }
                 },
                 closed: () => {
                     if (!(this.internal.activeSubscription instanceof SustainedSubscription)) {
@@ -110,9 +130,11 @@ export class NetworkClient extends NetworkBehavior {
                     this.internal.activeSubscription = undefined;
                 },
             });
+
             if (this.internal.activeSubscription instanceof SustainedSubscription) {
-                this.internal.activeSubscription.active.on(() => this.events.subscriptionStatusChanged.emit(true));
-                this.internal.activeSubscription.inactive.on(() => this.events.subscriptionStatusChanged.emit(false));
+                this.internal.activeSubscription.active.on(isActive =>
+                    this.events.subscriptionStatusChanged.emit(isActive),
+                );
             } else {
                 this.events.subscriptionStatusChanged.emit(true);
             }
@@ -181,19 +203,6 @@ export class NetworkClient extends NetworkBehavior {
                 quality: "N",
                 default: EventNumber(0),
             }),
-
-            FieldElement({
-                name: "caseAuthenticatedTags",
-                type: "list",
-                quality: "N",
-                conformance: "O",
-                children: [
-                    FieldElement({
-                        name: "entry",
-                        type: "uint32",
-                    }),
-                ],
-            }),
         ],
     });
 }
@@ -206,6 +215,15 @@ export namespace NetworkClient {
          * The active default subscription.
          */
         activeSubscription?: ClientSubscription;
+
+        /**
+         * Indicates the node is newly commissioned.
+         *
+         * When newly commissioned, if automatic subscription is enabled we perform a read before returning from
+         * {@link NetworkClient#startup}.  This ensures we have a complete snapshot of the node's state when
+         * commissioning logic is complete.
+         */
+        isNewlyCommissioned = false;
     }
 
     export class State extends NetworkBehavior.State {
@@ -238,15 +256,6 @@ export namespace NetworkClient {
          * Newly commissioned nodes default to true.
          */
         autoSubscribe = false;
-
-        /**
-         * Case Authenticated Tags (CATs) to use for operational CASE sessions with this node.
-         *
-         * CATs provide additional authentication context for Matter operational sessions. They are only used
-         * for operational CASE connections after commissioning is complete, not during the initial PASE
-         * commissioning process.
-         */
-        caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
         /**
          * The highest event number seen from this node for the default read/subscription.

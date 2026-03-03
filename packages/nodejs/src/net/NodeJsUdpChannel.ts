@@ -6,6 +6,7 @@
 
 import {
     AddressInUseError,
+    AddressUnreachableError,
     BindError,
     Bytes,
     ChannelType,
@@ -19,6 +20,7 @@ import {
     MAX_UDP_MESSAGE_SIZE,
     Millis,
     NetworkError,
+    NetworkUnreachableError,
     NoAddressAvailableError,
     repackErrorAs,
     Seconds,
@@ -26,8 +28,7 @@ import {
     UdpChannel,
     UdpChannelOptions,
     UdpSocketType,
-} from "#general";
-import { RetransmissionLimitReachedError } from "#protocol";
+} from "@matter/general";
 import * as dgram from "node:dgram";
 import { NodeJsNetwork } from "./NodeJsNetwork.js";
 
@@ -86,6 +87,7 @@ export class NodeJsUdpChannel implements UdpChannel {
     readonly #type: UdpSocketType;
     readonly #socket: dgram.Socket;
     readonly #netInterface: string | undefined;
+    #observedInterface?: string;
 
     static async create({
         lifetime: lifetimeOwner,
@@ -131,6 +133,9 @@ export class NodeJsUdpChannel implements UdpChannel {
 
         socket.setBroadcast(true);
         let netInterfaceZone: string | undefined;
+        if (netInterface === undefined && listeningAddress !== undefined) {
+            netInterfaceZone = NodeJsNetwork.getNetInterfaceForIp(listeningAddress) || undefined;
+        }
         if (netInterface !== undefined) {
             netInterfaceZone = NodeJsNetwork.getNetInterfaceZoneIpv6(netInterface);
             let multicastInterface: string | undefined;
@@ -215,6 +220,9 @@ export class NodeJsUdpChannel implements UdpChannel {
     onData(listener: (netInterface: string | undefined, peerAddress: string, peerPort: number, data: Bytes) => void) {
         const messageListener = (data: Bytes, { address, port }: dgram.RemoteInfo) => {
             const netInterface = this.#netInterface ?? NodeJsNetwork.getNetInterfaceForIp(address);
+            if (netInterface && this.#observedInterface === undefined) {
+                this.#observedInterface = netInterface;
+            }
             listener(netInterface, address, port, data);
         };
 
@@ -260,25 +268,48 @@ export class NodeJsUdpChannel implements UdpChannel {
             if (!error) {
                 resolver();
             } else {
-                const netError =
-                    "code" in error && (error.code === "EHOSTUNREACH" || error.code === "ENETUNREACH")
-                        ? repackErrorAs(
-                              error,
-                              // TODO - this is a routing error; current error indicates timeout and is defined
-                              //        in higher-level module (MessageExchange)
-                              RetransmissionLimitReachedError,
-                          )
-                        : repackErrorAs(error, NetworkError);
-                rejecter(netError);
+                let repackAs;
+                if ("code" in error) {
+                    switch (error.code) {
+                        case "EHOSTUNREACH":
+                            repackAs = AddressUnreachableError;
+                            break;
+
+                        case "ENETUNREACH":
+                            repackAs = NetworkUnreachableError;
+                            break;
+
+                        default:
+                            repackAs = NetworkError;
+                            break;
+                    }
+                } else {
+                    repackAs = NetworkError;
+                }
+                rejecter(repackErrorAs(error, repackAs));
             }
         };
+
+        // IPv6 multicast addresses require interface scoping for the kernel to route them correctly
+        let sendHost = host;
+        if (host.startsWith("ff") && !host.includes("%")) {
+            const effectiveInterface = this.#netInterface ?? this.#observedInterface;
+            if (effectiveInterface) {
+                sendHost = `${host}%${effectiveInterface}`;
+            } else {
+                throw new NetworkError(
+                    `Cannot send to multicast address ${host} without a known network interface. ` +
+                        `Configure network.listeningAddressIpv6 to bind to a specific interface.`,
+                );
+            }
+        }
 
         this.#sendsInProgress.set(promise, { sendMs: Time.nowMs, rejecter });
         if (!this.#sendTimer.isRunning) {
             this.#sendTimer.start();
         }
         try {
-            this.#socket.send(Bytes.of(data), port, host, error => rejectOrResolve(error));
+            this.#socket.send(Bytes.of(data), port, sendHost, error => rejectOrResolve(error));
         } catch (error) {
             rejectOrResolve(repackErrorAs(error, NetworkError));
         }
@@ -288,6 +319,7 @@ export class NodeJsUdpChannel implements UdpChannel {
 
     async close() {
         using _closing = this.#lifetime.closing();
+        this.#sendTimer.stop();
         try {
             await new Promise<void>(resolve => this.#socket.close(resolve));
         } catch (error) {

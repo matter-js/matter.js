@@ -5,7 +5,7 @@
  */
 
 import { UnitLocalizationServer } from "#behaviors/unit-localization";
-import { UnitLocalization } from "#clusters/unit-localization";
+import { UnitLocalization } from "@matter/types/clusters/unit-localization";
 import { MockServerNode } from "../../node/mock-server-node.js";
 
 describe("UnitLocalizationServer", () => {

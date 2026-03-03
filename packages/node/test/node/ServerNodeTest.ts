@@ -6,8 +6,6 @@
 
 import { DescriptorBehavior } from "#behaviors/descriptor";
 import { PumpConfigurationAndControlServer } from "#behaviors/pump-configuration-and-control";
-import { BasicInformationCluster } from "#clusters/basic-information";
-import { PumpConfigurationAndControl } from "#clusters/pump-configuration-and-control";
 import { ColorTemperatureLightDevice } from "#devices/color-temperature-light";
 import { ExtendedColorLightDevice } from "#devices/extended-color-light";
 import { LightSensorDevice } from "#devices/light-sensor";
@@ -16,6 +14,9 @@ import { PumpDevice } from "#devices/pump";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointBehaviorsError, EndpointPartsError } from "#endpoint/errors.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
+import { LocalActorContext } from "#index.js";
+import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
+import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     CrashedDependenciesError,
@@ -32,14 +33,19 @@ import {
     StorageBackendMemory,
     StorageManager,
     StorageService,
-} from "#general";
-import { LocalActorContext } from "#index.js";
-import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "#model";
-import { ServerEnvironment } from "#node/server/ServerEnvironment.js";
-import { ServerNode } from "#node/ServerNode.js";
-import { AttestationCertificateManager, CertificationDeclaration, NodeSession, ProtocolMocks, Val } from "#protocol";
-import { FabricIndex, VendorId } from "#types";
-import { OccurrenceManager } from "@matter/protocol";
+} from "@matter/general";
+import { AccessLevel, BasicInformation, ElementTag, FeatureMap } from "@matter/model";
+import {
+    AttestationCertificateManager,
+    CertificationDeclaration,
+    NodeSession,
+    OccurrenceManager,
+    ProtocolMocks,
+    Val,
+} from "@matter/protocol";
+import { FabricIndex, VendorId } from "@matter/types";
+import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { PumpConfigurationAndControl } from "@matter/types/clusters/pump-configuration-and-control";
 import { MockServerNode } from "./mock-server-node.js";
 import { CommissioningHelper, FAILSAFE_LENGTH_S, testFactoryReset } from "./node-helpers.js";
 
@@ -165,7 +171,7 @@ describe("ServerNode", () => {
         );
 
         const node = await MockServerNode.createOnline({
-            type: ServerNode.RootEndpoint,
+            type: MockServerNode.RootEndpoint,
             network: { port: 0 },
             commissioning: { discriminator: 2002 },
             basicInformation: { vendorId: VendorId(65501) },
@@ -202,7 +208,7 @@ describe("ServerNode", () => {
         expect(answer("_T")).equals("256");
         expect(answer("_CM")).equals("");
 
-        expect(additional(DnsRecordType.AAAA)).equals("1111:2222:3333:4444:5555:6666:7777:8880");
+        expect(additional(DnsRecordType.AAAA)).equals("abcd::80");
         expect(additional(DnsRecordType.A)).equals("10.10.10.128");
         expect(additional(DnsRecordType.SRV)?.port).equals(operationalPort);
 
@@ -219,7 +225,7 @@ describe("ServerNode", () => {
     it("commissions", async () => {
         const { node } = await commissioning.commission();
 
-        await MockTime.resolve(node.cancel());
+        await MockTime.resolve(node.stop());
 
         await node.close();
     });
@@ -251,7 +257,7 @@ describe("ServerNode", () => {
         const productId = 0x8000;
         let commissioningServer2CertificateProviderCalled = false;
         const node = await MockServerNode.createOnline({
-            type: ServerNode.RootEndpoint,
+            type: MockServerNode.RootEndpoint,
             operationalCredentials: {
                 certification: async () => {
                     const paa = await AttestationCertificateManager.create(MockCrypto(), vendorId);

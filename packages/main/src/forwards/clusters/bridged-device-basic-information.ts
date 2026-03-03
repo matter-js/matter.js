@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/bridged-device-basic-information";
+export * from "@matter/types/clusters/bridged-device-basic-information";

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#clusters/water-tank-level-monitoring";
+export * from "@matter/types/clusters/water-tank-level-monitoring";

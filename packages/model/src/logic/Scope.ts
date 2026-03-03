@@ -7,7 +7,7 @@
 import { Conformance } from "#aspects/Conformance.js";
 import { ElementTag } from "#common/ElementTag.js";
 import { SchemaImplementationError } from "#common/errors.js";
-import { ImplementationError } from "#general";
+import { ImplementationError } from "@matter/general";
 import { ModelIndex, MutableModelIndex } from "./ModelIndex.js";
 import { ModelTraversal } from "./ModelTraversal.js";
 

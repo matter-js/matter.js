@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { HepaFilterMonitoring } from "#clusters/hepa-filter-monitoring";
+import { HepaFilterMonitoring } from "@matter/types/clusters/hepa-filter-monitoring";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
 import { ResourceMonitoringInterface } from "../resource-monitoring/ResourceMonitoringInterface.js";
-import { Identity } from "#general";
+import { Identity } from "@matter/general";
 
 /**
  * HepaFilterMonitoringBehavior is the base class for objects that support interaction with

@@ -6,6 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import "#platform";
+import "@matter/main/platform";
 
-export * from "#behaviors/device-energy-management-mode";
+export * from "@matter/node/behaviors/device-energy-management-mode";

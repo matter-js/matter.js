@@ -8,6 +8,7 @@ import { ImplementationError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { Crypto, ec } from "./Crypto.js";
 import { CurveType, Key, KeyType, PrivateKey } from "./Key.js";
+import { NodeJsStyleCrypto } from "./NodeJsStyleCrypto.js";
 import { StandardCrypto } from "./StandardCrypto.js";
 
 /**
@@ -32,7 +33,10 @@ export interface MockCrypto extends Crypto {
     entropic: boolean;
 }
 
-export function MockCrypto(index: number = 0x80, implementation: new () => Crypto = StandardCrypto) {
+export function MockCrypto(
+    index: number = 0x80,
+    implementation: new () => Crypto = NodeJsStyleCrypto.detectedCrypto ? NodeJsStyleCrypto : StandardCrypto,
+) {
     if (index < 0 || index > 255) {
         throw new ImplementationError(`Index for stable crypto must be 0-255`);
     }
@@ -40,6 +44,13 @@ export function MockCrypto(index: number = 0x80, implementation: new () => Crypt
     const crypto = new implementation();
 
     const { randomBytes, createKeyPair } = crypto;
+
+    // Use a single PBKDF2 iteration to avoid ~200ms of real idle time per call waiting on libuv's thread pool.
+    // Both sides derive the same key so protocol correctness is preserved.
+    const origCreatePbkdf2Key = crypto.createPbkdf2Key;
+    crypto.createPbkdf2Key = function (secret: Bytes, salt: Bytes, _iteration: number, keyLength: number) {
+        return origCreatePbkdf2Key.call(crypto, secret, salt, 1, keyLength);
+    } as typeof crypto.createPbkdf2Key;
 
     Object.defineProperties(crypto, {
         index: {

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterError } from "#general";
-import { BdxStatusCode, GeneralStatusCode } from "#types";
+import { MatterError } from "@matter/general";
+import { BdxStatusCode, GeneralStatusCode } from "@matter/types";
 
 /** Error class used by the BDX protocol. */
 export class BdxError extends MatterError {

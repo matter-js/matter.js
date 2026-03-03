@@ -5,8 +5,8 @@
  */
 
 import { GroupKeyManagementClient } from "#behaviors/group-key-management";
-import { Bytes } from "#general";
 import { ServerNode } from "#node/index.js";
+import { Bytes } from "@matter/general";
 import { MockSite } from "../../node/mock-site.js";
 
 describe("GroupKeyManagementServer", () => {
@@ -14,10 +14,10 @@ describe("GroupKeyManagementServer", () => {
         MockTime.init();
 
         // Required for crypto to succeed
-        MockTime.macrotasks = true;
+        MockTime.forceMacrotasks = true;
     });
 
-    it("tries to add too many group keys", async () => {
+    it("prevents too many group keys", async () => {
         await using site = new MockSite();
         // Device is automatically configured with vendorId 0xfff1 and productId 0x8000
         const { controller } = await site.addCommissionedPair({
