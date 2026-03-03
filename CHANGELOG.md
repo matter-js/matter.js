@@ -18,6 +18,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
+    - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
 
 - @matter/protocol
     - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient and offers more knobs for tuning
