@@ -92,7 +92,15 @@ export class BasicInformationServer extends Base {
             this.state.serialNumber !== undefined &&
             this.state.uniqueId === this.state.serialNumber
         ) {
-            logger.warn("uniqueId and serialNumber shall not be the same.");
+            logger.warn("uniqueId and serialNumber shall not be the same");
+        }
+
+        if (this.state.productLabel !== undefined && this.state.productLabel.includes(this.state.vendorName)) {
+            logger.warn("productLabel should not include vendorName");
+        }
+
+        if (this.state.manufacturingDate === "20200101") {
+            logger.warn("manufacturingDate should not be 20200101");
         }
     }
 
