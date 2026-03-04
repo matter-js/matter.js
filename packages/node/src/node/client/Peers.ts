@@ -8,7 +8,8 @@ import { type ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
+import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
+import type { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
@@ -145,8 +146,16 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Find a specific commissionable node and commission.
      */
-    commission(options: CommissioningDiscovery.Options) {
-        return new CommissioningDiscovery(this.owner, options);
+    async commission(options: CommissioningDiscovery.Options) {
+        this.owner.behaviors.require(ControllerBehavior);
+        if (!this.owner.lifecycle.isOnline) {
+            throw new ImplementationError("Cannot commission while the controller node is offline");
+        }
+
+        return await this.owner.act("commission", async agent => {
+            await agent.load(ControllerBehavior);
+            return await agent.get(ControllerBehavior).commission(options);
+        });
     }
 
     /**

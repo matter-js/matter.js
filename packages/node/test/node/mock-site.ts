@@ -133,6 +133,10 @@ export class MockSite {
         // We end up with session collisions without entropy so enable during pairing
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
+        if (!controller.lifecycle.isOnline) {
+            await controller.start();
+        }
+
         const { passcode, discriminator } = device.state.commissioning;
         await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
             macrotasks: true,

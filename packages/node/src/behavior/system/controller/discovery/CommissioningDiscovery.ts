@@ -12,10 +12,8 @@ import { InstanceDiscovery } from "./InstanceDiscovery.js";
 /**
  * Discovers a specific node and commissions it.
  *
- * This class still follows "discover one node, then invoke commissioning" behavior at the node layer.
- * Multi-candidate selection for ambiguous discriminator matches is handled in protocol code during
- * discovery + PASE establishment (`ControllerCommissioner.commissionWithDiscovery`), which is used
- * by `CommissioningClient` when only discovery identifiers are available.
+ * This class is a convenience for unambiguous discovery criteria and commissions the first resolved candidate.
+ * Use {@link Peers#commission} for the controller-level multi-node commissioning path.
  */
 export class CommissioningDiscovery extends InstanceDiscovery {
     #options: CommissioningDiscovery.Options;
@@ -38,7 +36,6 @@ export class CommissioningDiscovery extends InstanceDiscovery {
 
         // TODO - add commissioning flow cancellation once lower-level APIs support it
         await node.act("commission", agent => agent.commissioning.commission(this.#options));
-
         return node;
     }
 }
