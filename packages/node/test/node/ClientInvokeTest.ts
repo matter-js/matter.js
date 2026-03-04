@@ -15,9 +15,6 @@ import { MockSite } from "./mock-site.js";
 describe("ClientInvoke", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("executes commands via the batcher", async () => {
