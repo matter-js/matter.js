@@ -12,7 +12,7 @@
  * * NodeJsCryptoTest.ts also implements some of these tests
  */
 
-import { HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm } from "#crypto/index.js";
+import { EcdsaSignature, HASH_ALGORITHM_OUTPUT_LENGTHS, HashAlgorithm } from "#crypto/index.js";
 import { Key, PrivateKey, PublicKey } from "#crypto/Key.js";
 import { StandardCrypto } from "#crypto/StandardCrypto.js";
 import { b$, Bytes } from "#util/Bytes.js";
@@ -33,6 +33,7 @@ const PRIVATE_KEY = b$`727F1005CBA47ED7822A9D930943621617CFD3B79D9AF528B801ECF9F
 const PUBLIC_KEY = b$`0462e2b6e1baff8d74a6fd8216c4cb67a3363a31e691492792e61aee610261481396725ef95e142686ba98f339b0ff65bc338bec7b9e8be0bdf3b2774982476220`;
 
 const SEC1_KEY = b$`30770201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075a00a06082a8648ce3d030107a144034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba`;
+const PKCS8_KEY = b$`308141020100301306072a8648ce3d020106082a8648ce3d030107042730250201010420aef3484116e9481ec57be0472df41bf499064e5024ad869eca5e889802d48075`;
 const SPKI_KEY = b$`3059301306072a8648ce3d020106082a8648ce3d030107034200043c398922452b55caf389c25bd1bca4656952ccb90e8869249ad8474653014cbf95d687965e036b521c51037e6b8cedefca1eb44046694fa08882eed6519decba`;
 
 const crypto = new StandardCrypto();
@@ -59,6 +60,20 @@ describe("StandardCrypto", () => {
     it("signs & verifies with SEC1/SPKI keys", async () => {
         const result = await crypto.signEcdsa(Key({ sec1: Bytes.of(SEC1_KEY) }), ENCRYPTED_DATA);
         await crypto.verifyEcdsa(Key({ spki: Bytes.of(SPKI_KEY) }), ENCRYPTED_DATA, result);
+    });
+
+    it("signs & verifies with PKCS8/SPKI keys", async () => {
+        const result = await crypto.signEcdsa(Key({ pkcs8: Bytes.of(PKCS8_KEY) }), ENCRYPTED_DATA);
+        await crypto.verifyEcdsa(Key({ spki: Bytes.of(SPKI_KEY) }), ENCRYPTED_DATA, result);
+    });
+
+    it("verifies DER-encoded ECDSA signatures", async () => {
+        const signature = await crypto.signEcdsa(PrivateKey(Bytes.of(PRIVATE_KEY)), ENCRYPTED_DATA);
+        await crypto.verifyEcdsa(
+            PublicKey(Bytes.of(PUBLIC_KEY)),
+            ENCRYPTED_DATA,
+            new EcdsaSignature(signature.der, EcdsaSignature.DER),
+        );
     });
 
     it("generates a working DSA key pair", async () => {
