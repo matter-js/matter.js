@@ -12,8 +12,8 @@ import { AttributeModel, EventModel, Schema, Specification } from "@matter/model
 import { Fabric, FabricManager } from "@matter/protocol";
 import { DEFAULT_MAX_PATHS_PER_INVOKE, VendorId } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { BasicInformationBehavior } from "./BasicInformationBehavior.js";
 import { validateBasicInfoAttributes } from "./basic-information-validators.js";
+import { BasicInformationBehavior } from "./BasicInformationBehavior.js";
 
 const logger = Logger.get("BasicInformationServer");
 
