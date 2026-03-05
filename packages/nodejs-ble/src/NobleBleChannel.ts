@@ -484,12 +484,19 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         logger.debug(
             `Peripheral ${peripheralAddress}: Sending BTP handshake request: ${Diagnostic.json(btpHandshakeRequest)}`,
         );
-        await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(btpHandshakeRequest)), false);
 
-        characteristicC2ForSubscribe.once("data", handshakeHandler);
+        try {
+            await characteristicC1ForWrite.writeAsync(Buffer.from(Bytes.of(btpHandshakeRequest)), false);
 
-        logger.debug(`Peripheral ${peripheralAddress}: Subscribing to C2 characteristic`);
-        await characteristicC2ForSubscribe.subscribeAsync();
+            characteristicC2ForSubscribe.once("data", handshakeHandler);
+
+            logger.debug(`Peripheral ${peripheralAddress}: Subscribing to C2 characteristic`);
+            await characteristicC2ForSubscribe.subscribeAsync();
+        } catch (error) {
+            btpHandshakeTimeout.stop();
+            characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
+            throw error;
+        }
 
         const handshakeResponse = await handshakeResponseReceivedPromise;
 
