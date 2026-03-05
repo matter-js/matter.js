@@ -302,7 +302,7 @@ describe("ClientInvoke", () => {
 
         await MockTime.resolve(Promise.all([p1, p2]));
 
-        // Two toggles: state should be back to initial
+        // on() (false→true) then toggle() (true→false) — final state is back to initial
         const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
         expect(finalState).equals(initialState);
     });
