@@ -9,3 +9,4 @@
 export * from "./BasicInformationBehavior.js";
 export * from "./BasicInformationServer.js";
 export * from "./BasicInformationClient.js";
+export * from "./basic-information-validators.js"
