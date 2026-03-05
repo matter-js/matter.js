@@ -17,7 +17,19 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { b$, Bytes, Crypto, deepCopy, Entropy, Minutes, MockCrypto, Observable, Seconds, Time, Timestamp } from "@matter/general";
+import {
+    b$,
+    Bytes,
+    Crypto,
+    deepCopy,
+    Entropy,
+    Minutes,
+    MockCrypto,
+    Observable,
+    Seconds,
+    Time,
+    Timestamp,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import { FabricManager, PeerSet, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
