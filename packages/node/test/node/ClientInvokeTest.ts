@@ -285,8 +285,9 @@ describe("ClientInvoke", () => {
         const ep1 = peer1.endpoints.for(1);
         const cmds = ep1.commandsOf(OnOffClient);
 
-        // Get initial state
+        // Get initial state, normally off, thats why rest relies on that
         const initialState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(initialState).equals(false);
 
         // Issue two different commands in the same tick — they have different path keys so
         // #partitionBatch puts them in the same sub-batch.
@@ -301,7 +302,7 @@ describe("ClientInvoke", () => {
 
         await MockTime.resolve(Promise.all([p1, p2]));
 
-        // Two toggles: state should be back to initial (toggled twice)
+        // Two toggles: state should be back to initial
         const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
         expect(finalState).equals(initialState);
     });
