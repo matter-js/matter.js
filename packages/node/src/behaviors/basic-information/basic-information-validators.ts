@@ -18,7 +18,7 @@ export interface BasicInfoValidationState {
 
 /**
  * Validates common BasicInformation attributes and logs warnings for known problematic values.
- * {@code vendorName} may be undefined (optional on bridged devices); related checks are skipped when absent.
+ * `vendorName` may be undefined (optional on bridged devices); related checks are skipped when absent.
  */
 export function validateBasicInfoAttributes(state: BasicInfoValidationState, log: Logger) {
     const { uniqueId, serialNumber, vendorName, productLabel, manufacturingDate } = state;
