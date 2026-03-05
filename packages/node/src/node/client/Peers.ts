@@ -27,6 +27,7 @@ import {
     Duration,
     ImplementationError,
     Logger,
+    MatterError,
     Minutes,
     Mutex,
     Observable,
@@ -110,7 +111,15 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     async #nodeOnline() {
         for (const peer of this) {
-            await peer.start();
+            if (!peer.lifecycle.isCommissioned) {
+                continue;
+            }
+            try {
+                await peer.start();
+            } catch (e) {
+                MatterError.accept(e);
+                logger.error(`Error starting peer ${peer}:`, e);
+            }
         }
         this.#manageExpiration();
     }

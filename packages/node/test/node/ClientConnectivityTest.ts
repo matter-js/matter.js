@@ -399,6 +399,27 @@ describe("ClientConnectivityTest", () => {
         expect(ep1.stateOf(OnOffClient).onOff).true;
     });
 
+    it("does not crash on restart when uncommissioned peer exists", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        // Stop the controller so we can manipulate peer state before restart
+        await MockTime.resolve(controller.stop());
+
+        // Simulate a peer that lost its commissioning (e.g. device factory reset) by clearing
+        // peerAddress while the node still exists in storage
+        const peer = controller.peers.get("peer1")!;
+        await peer.act(agent => {
+            agent.commissioning.state.peerAddress = undefined;
+        });
+        expect(peer.lifecycle.isCommissioned).false;
+
+        // Restart the controller — the uncommissioned peer should be silently skipped
+        await controller.start();
+
+        expect(peer.lifecycle.isCommissioned).false;
+    });
+
     it("shuts down without errors whilst establishing exchange", async () => {
         await using site = new MockSite();
         let { controller, device } = await site.addCommissionedPair();
