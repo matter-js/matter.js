@@ -19,7 +19,6 @@ import { StorageMigration } from "./StorageMigration.js";
 const logger = Logger.get("StorageService");
 
 const DRIVER_JSON = "driver.json";
-
 /**
  * Service adapter for the Matter.js storage API.
  */
@@ -100,8 +99,7 @@ export class StorageService {
         }
 
         const fs = this.#environment.get(Filesystem);
-        const parentDir = fs.directory(namespace);
-        const dir = parentDir;
+        let dir = fs.directory(namespace);
 
         // Detect existing driver
         let descriptor = await this.#readDescriptor(dir);
@@ -126,7 +124,7 @@ export class StorageService {
         // Migration: if we detected an existing driver that differs from the target, migrate
         if (detectedKind !== undefined && detectedKind !== targetKind) {
             await this.#migrate(fs, namespace, dir, detectedKind, targetKind);
-            // After migration, re-read descriptor
+            dir = fs.directory(namespace);
             descriptor = await this.#readDescriptor(dir);
         }
 
@@ -208,13 +206,7 @@ export class StorageService {
         await file.write(JSON.stringify(descriptor, undefined, 2));
     }
 
-    async #migrate(
-        fs: Filesystem,
-        namespace: string,
-        dir: Directory,
-        fromKind: string,
-        toKind: string,
-    ) {
+    async #migrate(fs: Filesystem, namespace: string, sourceDir: Directory, fromKind: string, toKind: string) {
         const fromImpl = this.#drivers.get(fromKind);
         const toImpl = this.#drivers.get(toKind);
         if (!fromImpl || !toImpl) {
@@ -224,45 +216,82 @@ export class StorageService {
 
         logger.notice(`Migrating storage "${namespace}" from "${fromKind}" to "${toKind}"`);
 
+        // Phase 1 — Setup: create temp target in .migrations/
+        const migrationsDir = fs.directory(".migrations");
+        await migrationsDir.mkdir();
+
+        const tempDir = migrationsDir.directory(`${namespace}-new`);
+        if (await tempDir.exists()) {
+            await tempDir.delete();
+        }
+        await tempDir.mkdir();
+
+        // Phase 2 — Migrate data
         const fromDescriptor: StorageDriver.Descriptor = { kind: fromKind };
         const toDescriptor: StorageDriver.Descriptor = { kind: toKind };
 
         try {
-            // Preinitialize source if needed
-            if (fromImpl.preinitialize) {
-                await fromImpl.preinitialize(fs, fromDescriptor);
+            let sourceStorage: StorageDriver | undefined;
+            let targetStorage: StorageDriver | undefined;
+
+            try {
+                if (fromImpl.preinitialize) {
+                    await fromImpl.preinitialize(fs, fromDescriptor);
+                }
+
+                sourceStorage = await fromImpl.create(sourceDir, fromDescriptor);
+                await sourceStorage.initialize();
+
+                if (toImpl.preinitialize) {
+                    await toImpl.preinitialize(fs, toDescriptor);
+                }
+
+                targetStorage = await toImpl.create(tempDir, toDescriptor);
+                await targetStorage.initialize();
+
+                const result = await StorageMigration.migrate(sourceStorage, targetStorage);
+
+                if (result.success) {
+                    logger.info(
+                        `Migration complete: ${result.migratedCount} items migrated, ${result.skippedCount} skipped`,
+                    );
+                } else {
+                    logger.warn(
+                        `Migration had issues: ${result.migratedCount} items migrated, ${result.skippedCount} skipped`,
+                    );
+                }
+            } finally {
+                if (targetStorage) {
+                    try {
+                        await targetStorage.close();
+                    } catch (e) {
+                        logger.warn("Error closing target storage during migration:", e);
+                    }
+                }
+                if (sourceStorage) {
+                    try {
+                        await sourceStorage.close();
+                    } catch (e) {
+                        logger.warn("Error closing source storage during migration:", e);
+                    }
+                }
             }
 
-            // Create and initialize source
-            const sourceStorage = await fromImpl.create(dir, fromDescriptor);
-            await sourceStorage.initialize();
+            // Phase 3 — Metadata: write driver.json to temp dir
+            await this.#writeDescriptor(tempDir, toDescriptor);
 
-            // Preinitialize target if needed
-            if (toImpl.preinitialize) {
-                await toImpl.preinitialize(fs, toDescriptor);
-            }
-
-            // Create and initialize target
-            const targetStorage = await toImpl.create(dir, toDescriptor);
-            await targetStorage.initialize();
-
-            // Migrate data
-            const result = await StorageMigration.migrate(sourceStorage, targetStorage);
-
-            await sourceStorage.close();
-            await targetStorage.close();
-
-            if (result.success) {
-                logger.info(
-                    `Migration complete: ${result.migratedCount} items migrated, ${result.skippedCount} skipped`,
-                );
-            } else {
-                logger.warn(
-                    `Migration had issues: ${result.migratedCount} items migrated, ${result.skippedCount} skipped`,
-                );
-            }
+            // Phase 4 — Swap: rename source → backup, temp → namespace
+            const ts = new Date().toISOString().replace(/[:.]/g, "-");
+            const backupDir = migrationsDir.directory(`${namespace}-old-${fromKind}-${ts}`);
+            await sourceDir.rename(backupDir.path);
+            await tempDir.rename(fs.directory(namespace).path);
         } catch (e) {
-            logger.error(`Migration from "${fromKind}" to "${toKind}" failed:`, e);
+            try {
+                await tempDir.delete();
+            } catch (cleanupError) {
+                logger.warn("Error cleaning up migration temp directory:", cleanupError);
+            }
+            throw e;
         }
     }
 }
