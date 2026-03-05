@@ -18,7 +18,7 @@ LocalMatter.children.push({
             tag: "event",
             name: "OperationCompletion",
             asOf: "1.2",
-            children: [{ tag: "field", name: "CompletionErrorCode", type: "ErrorState" }],
+            children: [{ tag: "field", name: "CompletionErrorCode", type: "ErrorStateEnum" }],
         },
     ],
 });

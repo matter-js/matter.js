@@ -11,6 +11,9 @@ LocalMatter.children.push({
     name: "LevelControl",
 
     children: [
+        // Bump to revision 7
+        { tag: "attribute", id: 0xfffd, name: "ClusterRevision", default: 7 },
+
         // Documentation for "on/off" variants is in prose.  They have the same structure as non-on/off commands
         { tag: "command", id: 4, name: "MoveToLevelWithOnOff", type: "MoveToLevel" },
         { tag: "command", id: 5, name: "MoveWithOnOff", type: "Move" },

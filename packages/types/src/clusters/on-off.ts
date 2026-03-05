@@ -350,7 +350,7 @@ export namespace OnOff {
     export const Base = MutableCluster.Component({
         id: 0x6,
         name: "OnOff",
-        revision: 6,
+        revision: 7,
 
         features: {
             /**

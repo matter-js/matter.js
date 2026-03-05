@@ -92,7 +92,6 @@ Resource.add({
         },
 
         { tag: "attribute", name: "CapabilityMinima", xref: "core§9.13.5" },
-        { tag: "attribute", name: "ProductAppearance", xref: "core§9.13.5" },
         { tag: "attribute", name: "SpecificationVersion", xref: "core§9.13.5" },
         { tag: "attribute", name: "MaxPathsPerInvoke", xref: "core§9.13.5" },
 

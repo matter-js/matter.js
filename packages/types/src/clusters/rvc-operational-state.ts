@@ -297,6 +297,47 @@ export namespace RvcOperationalState {
     export interface OperationalErrorEvent extends TypeFromSchema<typeof TlvOperationalErrorEvent> {}
 
     /**
+     * Body of the RvcOperationalState operationCompletion event
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+     */
+    export const TlvOperationCompletionEvent = TlvObject({
+        /**
+         * This field provides an indication of the state at the end of the operation. This field shall have a value
+         * from the ErrorStateEnum set. A value of NoError indicates success, that is, no error has been detected.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.1
+         */
+        completionErrorCode: TlvField(0, TlvEnum<ErrorState | OperationalStateNamespace.ErrorState>()),
+
+        /**
+         * The total operational time, in seconds, from when the operation was started via an initial Start command or
+         * autonomous/manual starting action, until the operation completed. This includes any time spent while paused.
+         * There may be cases whereby the total operational time exceeds the maximum value that can be conveyed by this
+         * attribute, in such instances, this attribute shall be populated with null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.2
+         */
+        totalOperationalTime: TlvOptionalField(1, TlvNullable(TlvUInt32)),
+
+        /**
+         * The total time spent in the paused state, in seconds. There may be cases whereby the total paused time
+         * exceeds the maximum value that can be conveyed by this attribute, in such instances, this attribute shall be
+         * populated with null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.3
+         */
+        pausedTime: TlvOptionalField(2, TlvNullable(TlvUInt32))
+    });
+
+    /**
+     * Body of the RvcOperationalState operationCompletion event
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+     */
+    export interface OperationCompletionEvent extends TypeFromSchema<typeof TlvOperationCompletionEvent> {}
+
+    /**
      * @see {@link Cluster}
      */
     export const ClusterInstance = MutableCluster({
@@ -458,11 +499,7 @@ export namespace RvcOperationalState {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
              */
-            operationCompletion: OptionalEvent(
-                0x1,
-                Priority.Info,
-                OperationalStateNamespace.TlvOperationCompletionEvent
-            )
+            operationCompletion: OptionalEvent(0x1, Priority.Info, TlvOperationCompletionEvent)
         }
     });
 

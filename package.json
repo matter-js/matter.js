@@ -23,6 +23,7 @@
         "examples/controller-shared-fabric",
         "examples/device-air-quality-sensor",
         "examples/device-bridge-onoff",
+        "examples/device-sve-bridge",
         "examples/device-composed-onoff",
         "examples/device-composed-wc-light",
         "examples/device-measuring-socket",

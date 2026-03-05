@@ -65,6 +65,9 @@
             "path": "examples/device-bridge-onoff"
         },
         {
+            "path": "examples/device-sve-bridge"
+        },
+        {
             "path": "examples/device-composed-onoff"
         },
         {

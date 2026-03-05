@@ -215,7 +215,7 @@ export namespace BridgedDeviceBasicInformation {
     export const Base = MutableCluster.Component({
         id: 0x39,
         name: "BridgedDeviceBasicInformation",
-        revision: 5,
+        revision: 6,
 
         features: {
             /**
@@ -328,7 +328,10 @@ export namespace BridgedDeviceBasicInformation {
             uniqueId: FixedAttribute(0x12, TlvString.bound({ maxLength: 32 })),
 
             /**
-             * @see {@link MatterSpecification.v142.Core} § 9.13.5
+             * This attribute shall provide information about the appearance of the product, which could be useful to a
+             * user trying to locate or identify the node.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
              */
             productAppearance: OptionalFixedAttribute(0x14, BasicInformation.TlvProductAppearance),
 

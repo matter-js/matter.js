@@ -17,7 +17,7 @@ export const RootNodeDt = DeviceType(
     { name: "RootNode", id: 0x16, classification: "node" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 22, revision: 5 } ], element: "attribute" })
     ),
     Requirement({ name: "BasicInformation", id: 0x28, conformance: "M", element: "serverCluster", quality: "I" }),
     Requirement(

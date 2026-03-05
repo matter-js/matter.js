@@ -49,7 +49,7 @@ export const OperationalState = Cluster(
 
     Event(
         { name: "OperationCompletion", id: 0x1, access: "V", conformance: "O", priority: "info" },
-        Field({ name: "CompletionErrorCode", id: 0x0, type: "enum8", conformance: "M" }),
+        Field({ name: "CompletionErrorCode", id: 0x0, type: "ErrorStateEnum", conformance: "M" }),
         Field({ name: "TotalOperationalTime", id: 0x1, type: "elapsed-s", conformance: "O", quality: "X" }),
         Field({ name: "PausedTime", id: 0x2, type: "elapsed-s", conformance: "O", quality: "X" })
     ),

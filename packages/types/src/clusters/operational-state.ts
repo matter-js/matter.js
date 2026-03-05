@@ -223,7 +223,7 @@ export namespace OperationalState {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.1
          */
-        completionErrorCode: TlvField(0, TlvUInt8),
+        completionErrorCode: TlvField(0, TlvEnum<ErrorState>()),
 
         /**
          * The total operational time, in seconds, from when the operation was started via an initial Start command or

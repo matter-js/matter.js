@@ -40,14 +40,11 @@ export namespace Groups {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.5.1
+     * The value of the Groups nameSupport attribute
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
      */
-    export const NameSupport = {
-        /**
-         * The ability to store a name for a group.
-         */
-        groupNames: BitFlag(7)
-    };
+    export const NameSupportAttribute = { groupNames: BitFlag(7) };
 
     /**
      * Input to the Groups addGroup command
@@ -293,12 +290,22 @@ export namespace Groups {
     export interface AddGroupIfIdentifyingRequest extends TypeFromSchema<typeof TlvAddGroupIfIdentifyingRequest> {}
 
     /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.5.1
+     */
+    export const NameSupport = {
+        /**
+         * The ability to store a name for a group.
+         */
+        groupNames: BitFlag(7)
+    };
+
+    /**
      * These elements and properties are present in all Groups clusters.
      */
     export const Base = MutableCluster.Component({
         id: 0x4,
         name: "Groups",
-        revision: 4,
+        revision: 5,
 
         features: {
             /**
@@ -317,7 +324,7 @@ export namespace Groups {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
              */
-            nameSupport: FixedAttribute(0x0, TlvBitmap(TlvUInt8, NameSupport))
+            nameSupport: FixedAttribute(0x0, TlvBitmap(TlvUInt8, NameSupportAttribute))
         },
 
         commands: {
@@ -397,7 +404,7 @@ export namespace Groups {
     /**
      * @see {@link Cluster}
      */
-    export const ClusterInstance = MutableCluster(Base);
+    export const ClusterInstance = MutableCluster({ ...Base, supportedFeatures: { groupNames: true } });
 
     /**
      * The Groups cluster manages, per endpoint, the content of the node-wide Group Table that is part of the underlying

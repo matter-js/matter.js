@@ -17,7 +17,7 @@ import {
 
 export const BridgedDeviceBasicInformation = Cluster(
     { name: "BridgedDeviceBasicInformation", id: 0x39, type: "BasicInformation", classification: "endpoint" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "BIS", conformance: "O", constraint: "20", title: "BridgedIcdSupport" })
@@ -42,7 +42,6 @@ export const BridgedDeviceBasicInformation = Cluster(
     Attribute({ name: "Reachable", id: 0x11, conformance: "M" }),
     Attribute({ name: "UniqueId", id: 0x12, conformance: "M" }),
     Attribute({ name: "CapabilityMinima", id: 0x13, conformance: "X" }),
-    Attribute({ name: "ProductAppearance", id: 0x14, conformance: "O" }),
     Attribute({ name: "SpecificationVersion", id: 0x15, conformance: "X" }),
     Attribute({ name: "MaxPathsPerInvoke", id: 0x16, conformance: "X" }),
     Attribute({ name: "ConfigurationVersion", id: 0x18, conformance: "P, O" }),

@@ -364,7 +364,7 @@ export namespace LevelControl {
     export const Base = MutableCluster.Component({
         id: 0x8,
         name: "LevelControl",
-        revision: 6,
+        revision: 7,
 
         features: {
             /**

@@ -59,7 +59,7 @@ export namespace Specification {
      *
      * Currently spec says least significant octet is "reserved", so it should remain zero.
      */
-    export const SPECIFICATION_VERSION = 0x01040200;
+    export const SPECIFICATION_VERSION = 0x01060000;
 
     /**
      * Data model revision associated with the default revision of Matter.
