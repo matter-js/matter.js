@@ -29,9 +29,6 @@ import { subscribedPeer } from "./node-helpers.js";
 describe("ClientNode", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("times out commissioning discovery", async () => {
