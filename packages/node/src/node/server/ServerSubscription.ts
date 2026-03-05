@@ -246,8 +246,14 @@ export class ServerSubscription implements Subscription {
     async handlePeerCancel() {
         this.#isCanceledByPeer = true;
         // Force-close any in-flight send exchange so MRP retransmissions stop immediately.
-        await this.#currentSendExchange?.close(new ClosedError("Subscription cancelled by peer"));
-        await this.close();
+        // Use try/finally so this.close() always runs even if the exchange close throws.
+        try {
+            await this.#currentSendExchange?.close(new ClosedError("Subscription cancelled by peer"));
+        } catch (error) {
+            logger.debug("Error closing in-flight send exchange on peer cancel:", error);
+        } finally {
+            await this.close();
+        }
     }
 
     #determineSendingIntervals(
