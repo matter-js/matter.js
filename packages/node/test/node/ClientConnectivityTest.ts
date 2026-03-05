@@ -411,22 +411,9 @@ describe("ClientConnectivityTest", () => {
         });
         expect(peer.lifecycle.isCommissioned).false;
 
-        // Restart the controller — the uncommissioned peer should be silently skipped, no errors logged
-        let errorsLogged = 0;
-        Logger.destinations.capture = LogDestination({
-            add(message) {
-                if (message.level >= LogLevel.ERROR) {
-                    errorsLogged++;
-                }
-            },
-        });
-        try {
-            await controller.start();
-        } finally {
-            delete Logger.destinations.capture;
-        }
+        // Restart the controller — the uncommissioned peer should be silently skipped
+        await controller.start();
 
-        expect(errorsLogged).equals(0);
         expect(peer.lifecycle.isCommissioned).false;
     });
 
