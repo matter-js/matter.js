@@ -12,9 +12,6 @@ import { MockSite } from "../../node/mock-site.js";
 describe("GroupKeyManagementServer", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("prevents too many group keys", async () => {

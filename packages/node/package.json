@@ -28,7 +28,7 @@
         "build-clean": "matter-build --clean",
         "test": "matter-test -w",
         "coverage": "c8 matter-test esm",
-        "embed-examples": "embedme **/README.md"
+        "embed-examples": "matter-embed-examples **/README.md"
     },
     "imports": {
         "#behaviors/*": "./src/behaviors/*/index.js",

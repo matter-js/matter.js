@@ -81,7 +81,6 @@
     },
     "devDependencies": {
         "c8": "^11.0.0",
-        "embedme": "^1.22.1",
         "oxlint": "^1.49.0",
         "oxlint-tsgolint": "^0.15.0",
         "prettier": "^3.8.0",
@@ -90,7 +89,11 @@
         "typescript": "~5.9.3"
     },
     "overrides": {
-        "brorand": "npm:@matter.js/brorand@1.1.0"
+        "brorand": "npm:@matter.js/brorand@1.1.0",
+        "mocha": {
+            "diff": "^8.0.3",
+            "serialize-javascript": "^7.0.4"
+        }
     },
     "dependencies": {
         "memlab": "^2.0.0"

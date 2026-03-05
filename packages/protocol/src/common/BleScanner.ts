@@ -275,16 +275,6 @@ export class BleScanner implements Scanner {
         return foundRecords;
     }
 
-    async findOperationalDevice(): Promise<undefined> {
-        logger.info(`skip BLE scan because scanning for operational devices is not supported`);
-        return undefined;
-    }
-
-    getDiscoveredOperationalDevice(): undefined {
-        logger.info(`skip BLE scan because scanning for operational devices is not supported`);
-        return undefined;
-    }
-
     async findCommissionableDevices(
         identifier: CommissionableDeviceIdentifiers,
         timeout = Seconds(10),

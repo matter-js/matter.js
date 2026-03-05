@@ -15,9 +15,6 @@ import { MockSite } from "../../node/mock-site.js";
 describe("ScenesManagementServer", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("add and recall onoff boolean scene value", async () => {
