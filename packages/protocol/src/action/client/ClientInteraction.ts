@@ -424,6 +424,7 @@ export class ClientInteraction<
             const batchRequest: ClientInvoke = {
                 ...request,
                 commands: batchCommands,
+                invokeRequests: request.invokeRequests.filter(ir => batchCommands.has(ir.commandRef)),
             };
             return this.#invokeSingle(batchRequest, session);
         });
