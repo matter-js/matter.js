@@ -391,7 +391,7 @@ export class CommissioningClient extends Behavior {
         const node = this.endpoint as ClientNode;
         let peer = node.env.maybeGet(Peer);
         if (peer) {
-            if (peer.address === addr && node.env.get(PeerSet).has(peer)) {
+            if (PeerAddress.is(peer.address, addr) && node.env.get(PeerSet).has(peer)) {
                 // Already bound and present in PeerSet
                 return;
             }
@@ -448,7 +448,7 @@ export class CommissioningClient extends Behavior {
     #unbindPeer(addr: PeerAddress, remove = false) {
         const node = this.endpoint as ClientNode;
         const peer = node.env.maybeGet(Peer);
-        if (!peer || peer.address !== addr) {
+        if (!peer || !PeerAddress.is(peer.address, addr)) {
             return;
         }
         node.env.delete(Peer, peer);

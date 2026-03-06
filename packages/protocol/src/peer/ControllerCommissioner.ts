@@ -9,6 +9,7 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, ScannerSet } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { MdnsClient } from "#mdns/MdnsClient.js";
+import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { CommissioningError } from "#peer/CommissioningError.js";
 import {
     ControllerCommissioningFlow,
@@ -43,6 +44,7 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
+    UnexpectedDataError,
 } from "@matter/general";
 import {
     DiscoveryCapabilitiesBitmap,
@@ -52,11 +54,7 @@ import {
 } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { PeerAddress } from "./PeerAddress.js";
-import {
-    CommissioningTransitionError,
-    PeerCommunicationError,
-    TransientPeerCommunicationError,
-} from "./PeerCommunicationError.js";
+import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerSet } from "./PeerSet.js";
 
 const logger = Logger.get("ControllerCommissioner");
@@ -181,29 +179,28 @@ export class ControllerCommissioner {
     async commission(options: LocatedNodeCommissioningOptions): Promise<PeerAddress> {
         const { passcode, addresses, discoveryData, fabric, nodeId } = options;
 
-        // If a NodeId is set verify that this nodeId is not already used
-        if (nodeId !== undefined) {
-            this.#assertPeerAddress(fabric.addressOf(nodeId));
-        }
+        this.#assertRequestedNodeIdAvailable(fabric, nodeId);
 
         // Prioritize UDP
-        addresses.sort(a => (a.type === "udp" ? -1 : 1));
+        const sortedAddresses = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
 
-        // Attempt a connection on each known address
-        let session: NodeSession | undefined;
-        for (const address of addresses) {
-            try {
-                session = await this.#establishEphemeralNodeSession(address, passcode, discoveryData);
-                break;
-            } catch (e) {
-                TransientPeerCommunicationError.accept(e);
-                logger.warn(`Could not connect to ${ServerAddress.urlFor(address)}: ${e.message}`);
-            }
-        }
+        // For known-address commissioning we still run candidate selection over all provided addresses.
+        // We model each address as an independent candidate because addresses may come from mixed devices.
+        const addressCandidates = sortedAddresses.map((address, index) => ({
+            ...(discoveryData ?? {}),
+            addresses: [address],
+            deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
+            D: 0,
+            CM: 1,
+        }));
 
-        if (session === undefined) {
-            throw new PeerCommunicationError("Could not connect to device");
-        }
+        const { session } = await this.#establishPaseFromCandidates({
+            devices: addressCandidates,
+            timeout: Seconds(30),
+            discoveredDevices: async () => [],
+            passcode,
+            retryFailureAsPeerCommunication: "Could not connect to device",
+        });
 
         return await this.#commissionConnectedNode(session, options, discoveryData);
     }
@@ -267,7 +264,9 @@ export class ControllerCommissioner {
             try {
                 session = await this.#establishEphemeralNodeSession(knownAddress, passcode);
             } catch (error) {
-                NoResponseTimeoutError.accept(error);
+                if (!causedBy(error, UnexpectedDataError, NoResponseTimeoutError)) {
+                    throw error;
+                }
             }
         }
         if (session === undefined) {
@@ -276,21 +275,17 @@ export class ControllerCommissioner {
                 identifierData,
                 timeout,
             );
-
-            const { result } = await ControllerDiscovery.iterateServerAddresses(
-                discoveredDevices,
-                NoResponseTimeoutError,
-                async () =>
-                    scannersToUse.flatMap(scanner => scanner.getDiscoveredCommissionableDevices(identifierData)),
-                async (address, device) => {
-                    const channel = await this.#establishEphemeralNodeSession(address, passcode, device);
-                    discoveryData = device;
-                    return channel;
+            const { session: connectedSession, discoveryData: winningDevice } = await this.#establishPaseFromCandidates(
+                {
+                    devices: discoveredDevices,
+                    timeout,
+                    discoveredDevices: async () =>
+                        scannersToUse.flatMap(scanner => scanner.getDiscoveredCommissionableDevices(identifierData)),
+                    passcode,
                 },
             );
-
-            // Pairing was successful, so store the address and assign the established secure channel
-            session = result;
+            session = connectedSession;
+            discoveryData = winningDevice;
         }
 
         return { paseSession: session, discoveryData };
@@ -301,16 +296,40 @@ export class ControllerCommissioner {
      */
     async commissionWithDiscovery(options: DiscoveryAndCommissioningOptions): Promise<PeerAddress> {
         const { fabric, nodeId } = options;
-        // If a NodeId is set verify that this nodeId is not already used
-        if (nodeId !== undefined) {
-            this.#assertPeerAddress(fabric.addressOf(nodeId));
-        }
+        this.#assertRequestedNodeIdAvailable(fabric, nodeId);
 
         // Establish PASE channel
         const { paseSession, discoveryData } = await this.discoverAndEstablishPase(options);
 
         // Commission the node
         return await this.#commissionConnectedNode(paseSession, options, discoveryData);
+    }
+
+    async #establishPaseFromCandidates(options: {
+        devices: CommissionableDevice[];
+        timeout: Duration;
+        discoveredDevices: () => Promise<CommissionableDevice[]>;
+        passcode: number;
+        retryFailureAsPeerCommunication?: string;
+    }) {
+        try {
+            const conn = new CommissioningConnection({
+                devices: options.devices,
+                timeout: options.timeout,
+                discoveredDevices: options.discoveredDevices,
+                establishSession: (address, device) =>
+                    this.#establishEphemeralNodeSession(address, options.passcode, device),
+            });
+            return await conn.connect();
+        } catch (error) {
+            if (
+                options.retryFailureAsPeerCommunication !== undefined &&
+                causedBy(error, PairRetransmissionLimitReachedError)
+            ) {
+                throw new PeerCommunicationError(options.retryFailureAsPeerCommunication);
+            }
+            throw error;
+        }
     }
 
     /**
@@ -407,6 +426,12 @@ export class ControllerCommissioner {
     #assertPeerAddress(address: PeerAddress) {
         if (this.#context.peers.has(address)) {
             throw new NodeIdConflictError(`Node ID ${address.nodeId} is already commissioned and can not be reused`);
+        }
+    }
+
+    #assertRequestedNodeIdAvailable(fabric: Fabric, nodeId?: NodeId) {
+        if (nodeId !== undefined) {
+            this.#assertPeerAddress(fabric.addressOf(nodeId));
         }
     }
 

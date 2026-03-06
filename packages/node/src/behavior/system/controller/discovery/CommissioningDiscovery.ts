@@ -11,6 +11,9 @@ import { InstanceDiscovery } from "./InstanceDiscovery.js";
 
 /**
  * Discovers a specific node and commissions it.
+ *
+ * This class is a convenience for unambiguous discovery criteria and commissions the first resolved candidate.
+ * Use {@link Peers#commission} for the controller-level multi-node commissioning path.
  */
 export class CommissioningDiscovery extends InstanceDiscovery {
     #options: CommissioningDiscovery.Options;
@@ -33,7 +36,6 @@ export class CommissioningDiscovery extends InstanceDiscovery {
 
         // TODO - add commissioning flow cancellation once lower-level APIs support it
         await node.act("commission", agent => agent.commissioning.commission(this.#options));
-
         return node;
     }
 }

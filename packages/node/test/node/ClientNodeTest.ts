@@ -6,6 +6,7 @@
 
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
+import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { DiscoveryError } from "#behavior/system/controller/discovery/DiscoveryError.js";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import { IdentifyClient } from "#behaviors/identify";
@@ -31,7 +32,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { Specification } from "@matter/model";
-import { FabricManager, PeerSet, Val } from "@matter/protocol";
+import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -43,9 +44,20 @@ describe("ClientNode", () => {
         MockTime.init();
     });
 
+    it("rejects commissioning discovery when controller is offline", async () => {
+        await using site = new MockSite();
+        const controller = await site.addNode(undefined, { online: false, device: undefined });
+        await MockTime.resolve(
+            expect(
+                controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(90) }),
+            ).rejectedWith("Cannot commission while the controller node is offline"),
+        );
+    });
+
     it("times out commissioning discovery", async () => {
         await using site = new MockSite();
         const controller = await site.addNode(undefined, { online: false, device: undefined });
+        await controller.start();
         await MockTime.resolve(
             expect(
                 controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(90) }),
@@ -104,10 +116,21 @@ describe("ClientNode", () => {
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
         for (const key in peer1.state) {
+            if (key === "commissioning") {
+                continue;
+            }
             const actual = (peer1.state as Record<string, unknown>)[key] as Val.Struct;
             const expected = (PEER1_STATE as Record<string, unknown>)[key];
             expect(deepCopy(actual)).deep.equals(expected);
         }
+        expect(peer1.state.commissioning.discriminator).equals(0x202);
+        expect(peer1.state.commissioning.deviceName).equals("Matter.js Test Product");
+        expect(peer1.state.commissioning.deviceType).equals(0x100);
+        expect(peer1.state.commissioning.vendorId).equals(0xfff1);
+        expect(peer1.state.commissioning.productId).equals(0x8000);
+        expect(peer1.state.commissioning.longIdleTimeOperatingMode).equals(false);
+        expect(peer1.state.commissioning.peerAddress?.fabricIndex).equals(1);
+        expect(typeof peer1.state.commissioning.peerAddress?.nodeId).equals("bigint");
         const expectedPeer1State = deepCopy(peer1.state);
 
         // Validate the light endpoint
@@ -160,6 +183,7 @@ describe("ClientNode", () => {
             agent.endpoint.eventsOf(BasicInformationServer).leave.emit({ fabricIndex: FabricIndex(1) }, agent.context),
         );
 
+        await controller.start();
         const { passcode, discriminator } = device.state.commissioning;
         await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
             macrotasks: true,
@@ -193,6 +217,7 @@ describe("ClientNode", () => {
         const deviceCrypto = device.env.get(Crypto) as MockCrypto;
         controllerCrypto.entropic = deviceCrypto.entropic = true;
 
+        await controller.start();
         const { passcode, discriminator } = device.state.commissioning;
         expect(passcode).equals(1);
         await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
@@ -203,6 +228,162 @@ describe("ClientNode", () => {
 
         expect(device.state.commissioning.commissioned).equals(true);
         expect(controller.peers.size).equals(1);
+    });
+
+    it("rejects node-level commissioning without known addresses", async () => {
+        await using site = new MockSite();
+        const { controller, device } = await site.addUncommissionedPair();
+
+        const { passcode, discriminator } = device.state.commissioning;
+        const discovered = await MockTime.resolve(
+            controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(30) }),
+            { macrotasks: true },
+        );
+        const candidate = discovered[0];
+        expect(candidate).not.undefined;
+
+        await candidate.set({
+            commissioning: {
+                addresses: undefined,
+            },
+        });
+
+        await MockTime.resolve(
+            expect(candidate.commission({ passcode, discriminator })).rejectedWith("has not been located"),
+        );
+    });
+
+    it("falls back to discovery when knownAddress fails with invalid credentials during PASE", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const wrongPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 20202021,
+            },
+        });
+        const matchingPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 22223333,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const wrongDeviceCrypto = wrongPasscodeDevice.env.get(Crypto) as MockCrypto;
+        const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
+
+        await controller.start();
+        await controller.act(agent => agent.load(ControllerBehavior));
+        const fabricConfig = await controller.act(agent => agent.get(ControllerBehavior).fabricAuthorityConfig);
+        const fabric = await controller.env.get(FabricAuthority).defaultFabric(fabricConfig);
+
+        const wrongKnownAddress = { type: "udp", ip: "abcd::2", port: 5540 } as const;
+
+        const commissioner = controller.env.get(ControllerCommissioner);
+        const { paseSession, discoveryData } = await MockTime.resolve(
+            commissioner.discoverAndEstablishPase({
+                fabric,
+                passcode: 22223333,
+                discovery: {
+                    identifierData: { longDiscriminator: 1234 },
+                    knownAddress: wrongKnownAddress!,
+                    timeout: Seconds(30),
+                },
+            }),
+            { macrotasks: true },
+        );
+
+        await paseSession.initiateForceClose({ cause: new Error("test cleanup") });
+
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
+
+        expect(discoveryData).not.undefined;
+    });
+
+    it("commissions the correct node with same-discriminator devices and mixed passcodes", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const wrongPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 20202021,
+            },
+        });
+        const matchingPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 22223333,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const wrongDeviceCrypto = wrongPasscodeDevice.env.get(Crypto) as MockCrypto;
+        const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
+
+        await controller.start();
+        const commissioned = await MockTime.resolve(
+            controller.peers.commission({
+                passcode: 22223333,
+                discriminator: 1234,
+                timeout: Seconds(90),
+            }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
+
+        expect(commissioned).not.undefined;
+        expect(wrongPasscodeDevice.state.commissioning.commissioned).equals(false);
+        expect(matchingPasscodeDevice.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).at.least(1);
+    });
+
+    it("commissions via known-address flow even when first address has invalid credentials", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const wrongPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 20202021,
+            },
+        });
+        const matchingPasscodeDevice = await site.addDevice({
+            commissioning: {
+                discriminator: 1234,
+                passcode: 22223333,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const wrongDeviceCrypto = wrongPasscodeDevice.env.get(Crypto) as MockCrypto;
+        const matchingDeviceCrypto = matchingPasscodeDevice.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = true;
+
+        await controller.start();
+        await controller.act(agent => agent.load(ControllerBehavior));
+        const fabricConfig = await controller.act(agent => agent.get(ControllerBehavior).fabricAuthorityConfig);
+        const fabric = await controller.env.get(FabricAuthority).defaultFabric(fabricConfig);
+
+        const commissioner = controller.env.get(ControllerCommissioner);
+        await MockTime.resolve(
+            commissioner.commission({
+                fabric,
+                passcode: 22223333,
+                addresses: [
+                    { type: "udp", ip: "abcd::2", port: 5540 },
+                    { type: "udp", ip: "abcd::3", port: 5540 },
+                ],
+            }),
+            { macrotasks: true },
+        );
+
+        controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
+
+        expect(wrongPasscodeDevice.state.commissioning.commissioned).equals(false);
+        expect(matchingPasscodeDevice.state.commissioning.commissioned).equals(true);
     });
 
     it("invokes, receives state updates and emits changed events", async () => {
