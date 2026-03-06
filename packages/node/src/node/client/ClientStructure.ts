@@ -443,7 +443,7 @@ export class ClientStructure {
                 if (endpoint.lifecycle.isInstalled) {
                     cluster.pendingBehavior = behaviorType;
                     if (cluster.pendingDelete) {
-                        // Peer sent data for a cluster absent from its descriptor server list; device is buggy, but
+                        // Peer sent data for a cluster absent from its descriptor server list; the device is buggy, but
                         // we tolerate it by cancelling the pending deletion, aka "Schrödinger's cluster".
                         logger.warn(
                             `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from` +
@@ -531,20 +531,20 @@ export class ClientStructure {
             }
 
             if (currentlySupported.size) {
+                let anyPendingDelete = false;
                 for (const id of currentlySupported) {
                     const clusterStructure = this.#clusterFor(structure, id);
-                    if (clusterStructure.pendingBehavior) {
-                        // Peer already sent attribute data for this cluster in the same interaction despite it not
-                        // being in the server list; device is buggy but we tolerate it by skipping the deletion.
-                        logger.warn(
-                            `Cluster 0x${hex.fixed(id, 8)} on ${endpoint} is absent from` +
-                                " descriptor server list but peer sent attribute data for it; keeping cluster",
-                        );
-                    } else {
+                    // Only delete when peer did not sent attribute data for this cluster in the same interaction
+                    // despite it not being in the server list; a device is buggy but we tolerate it by skipping the
+                    // deletion, aka "Schrödinger's cluster"
+                    if (!clusterStructure.pendingBehavior) {
                         clusterStructure.pendingDelete = true;
+                        anyPendingDelete = true;
                     }
                 }
-                this.#scheduleStructureChange(structure, "rebuild");
+                if (anyPendingDelete) {
+                    this.#scheduleStructureChange(structure, "rebuild");
+                }
             }
         }
 
