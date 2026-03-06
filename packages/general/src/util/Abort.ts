@@ -255,7 +255,7 @@ export class Abort
         options?: boolean | EventListenerOptions,
     ): void;
     removeEventListener(type: any, listener: any, options?: any) {
-        this.signal.addEventListener(type, listener, options);
+        this.signal.removeEventListener(type, listener, options);
     }
 
     dispatchEvent(event: Event) {
@@ -334,6 +334,10 @@ export namespace Abort {
         if (signal) {
             if ("signal" in signal) {
                 signal = signal.signal;
+            }
+
+            if (signal.aborted) {
+                return undefined;
             }
 
             let off: () => void;

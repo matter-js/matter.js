@@ -966,5 +966,6 @@ async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) 
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
     for await (const report of messenger.readDataReports({ abort })) {
         yield InputChunk(report, leftOverData);
+        abort.throwIfAborted();
     }
 }
