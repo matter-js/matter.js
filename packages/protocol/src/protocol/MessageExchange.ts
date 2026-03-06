@@ -578,7 +578,7 @@ export class MessageExchange {
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         if (isStandaloneAck) {
-            await this.channel.send(message, this, logContext);
+            await this.channel.send(message, this);
         } else {
             await abort.attempt(this.channel.send(message, this, logContext));
         }
