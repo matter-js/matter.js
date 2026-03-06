@@ -219,6 +219,8 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
     async prepareRuntimeShutdown() {}
 
     protected override async cancelWithMutex() {
+        // TODO Revisit this blocking mechanism because we might need it more general?
+        //  Maybe let it be created but have a check in ClientNodeInteraction which decided if allowed or not?
         this.#blockInteractions = true;
         try {
             const interaction = this.#interaction;
