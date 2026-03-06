@@ -18,7 +18,7 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { Construction, Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "@matter/general";
+import { Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
@@ -209,6 +209,13 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     async prepareRuntimeShutdown() {}
 
+    protected override async cancelWithMutex() {
+        const interaction = this.#interaction;
+        this.#interaction = undefined;
+        await interaction?.close();
+        await super.cancelWithMutex();
+    }
+
     protected override get container() {
         return this.owner?.peers;
     }
@@ -273,10 +280,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         logger.info(Diagnostic.strong(this.toString()), message);
     }
 
-    override async [Construction.destruct]() {
-        await this.#interaction?.close();
-        await super[Construction.destruct]();
-    }
 }
 
 export namespace ClientNode {
