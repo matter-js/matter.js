@@ -534,7 +534,7 @@ export class ClientStructure {
                 let anyPendingDelete = false;
                 for (const id of currentlySupported) {
                     const clusterStructure = this.#clusterFor(structure, id);
-                    // Only delete when peer did not sent attribute data for this cluster in the same interaction
+                    // Only delete it when peer did not sent attribute data for this cluster in the same interaction
                     // despite it not being in the server list; a device is buggy but we tolerate it by skipping the
                     // deletion, aka "Schrödinger's cluster"
                     if (!clusterStructure.pendingBehavior) {
