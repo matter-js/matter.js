@@ -35,10 +35,10 @@ import { finished } from "node:stream/promises";
  * Filesystem backed by the local OS filesystem via Node.js APIs.
  */
 export class NodeJsFilesystem extends Filesystem {
-    readonly #rootPath: string;
+    readonly #rootPath: string | (() => string);
     #tempCounter = 0;
 
-    constructor(workingDirectory: string) {
+    constructor(workingDirectory: string | (() => string)) {
         super();
         this.#rootPath = workingDirectory;
     }
@@ -48,15 +48,15 @@ export class NodeJsFilesystem extends Filesystem {
     }
 
     override get path() {
-        return this.#rootPath;
+        return typeof this.#rootPath === "function" ? this.#rootPath() : this.#rootPath;
     }
 
     async exists(): Promise<boolean> {
-        return nodeExists(this.#rootPath);
+        return nodeExists(this.path);
     }
 
     stat(): Promise<FilesystemNode.Stat> {
-        return nodeStat(this.#rootPath);
+        return nodeStat(this.path);
     }
 
     rename(): Promise<void> {
@@ -64,27 +64,27 @@ export class NodeJsFilesystem extends Filesystem {
     }
 
     async delete(): Promise<void> {
-        await rm(this.#rootPath, { recursive: true, force: true });
+        await rm(this.path, { recursive: true, force: true });
     }
 
     async *entries(): AsyncIterable<Directory.Entry> {
-        yield* nodeEntries(this, this.#rootPath);
+        yield* nodeEntries(this, this.path);
     }
 
     file(name: string): File {
-        return new NodeJsFile(this, resolve(this.#rootPath, name), name);
+        return new NodeJsFile(this, resolve(this.path, name), name);
     }
 
     directory(name: string): Directory {
-        return new NodeJsDirectory(this, resolve(this.#rootPath, name), name);
+        return new NodeJsDirectory(this, resolve(this.path, name), name);
     }
 
     async mkdir(): Promise<void> {
-        await mkdir(this.#rootPath, { recursive: true });
+        await mkdir(this.path, { recursive: true });
     }
 
     async copy(source: string | FilesystemNode, target: string | FilesystemNode): Promise<void> {
-        await nodeCopy(this.#rootPath, source, target);
+        await nodeCopy(this.path, source, target);
     }
 
     tempFilename(): string {

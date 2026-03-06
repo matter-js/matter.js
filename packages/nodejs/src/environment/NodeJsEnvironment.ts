@@ -247,7 +247,7 @@ function configureStorage(env: Environment) {
 function configureFilesystem(env: Environment) {
     Boot.init(() => {
         if (env.vars.boolean("nodejs.filesystem")) {
-            env.set(Filesystem, new NodeJsFilesystem(env.vars.get("storage.path", rootDirOf(env))));
+            env.set(Filesystem, new NodeJsFilesystem(() => env.vars.get("storage.path", rootDirOf(env))));
             return;
         }
         // Extends default Filesystem

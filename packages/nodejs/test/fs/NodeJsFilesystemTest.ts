@@ -342,4 +342,36 @@ describe("NodeJsFilesystem", () => {
             expect(fs.kind).equal("directory");
         });
     });
+
+    describe("Dynamic root path", () => {
+        it("resolves path from getter function", async () => {
+            const dir1 = await mkdtemp(join(tmpdir(), "matterjs-fs-dyn1-"));
+            const dir2 = await mkdtemp(join(tmpdir(), "matterjs-fs-dyn2-"));
+
+            try {
+                let currentPath = dir1;
+                const dynFs = new NodeJsFilesystem(() => currentPath);
+
+                // Write a file using the initial path
+                await dynFs.file("test.txt").write("hello");
+                expect(await dynFs.file("test.txt").readAllText()).equal("hello");
+                expect(dynFs.path).equal(dir1);
+
+                // Switch the root path
+                currentPath = dir2;
+                expect(dynFs.path).equal(dir2);
+
+                // File operations now target the new root
+                await dynFs.file("test.txt").write("world");
+                expect(await dynFs.file("test.txt").readAllText()).equal("world");
+
+                // Original file is still in the old directory
+                const oldFs = new NodeJsFilesystem(dir1);
+                expect(await oldFs.file("test.txt").readAllText()).equal("hello");
+            } finally {
+                await rm(dir1, { recursive: true, force: true });
+                await rm(dir2, { recursive: true, force: true });
+            }
+        });
+    });
 });
