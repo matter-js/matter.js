@@ -444,7 +444,7 @@ export class ClientStructure {
                     cluster.pendingBehavior = behaviorType;
                     if (cluster.pendingDelete) {
                         // Peer sent data for a cluster absent from its descriptor server list; device is buggy, but
-                        // we tolerate it by cancelling the pending deletion. aka "Schroedingers Cluster"
+                        // we tolerate it by cancelling the pending deletion, aka "Schrödinger's cluster".
                         delete cluster.pendingDelete;
                     }
                     this.#scheduleStructureChange(
