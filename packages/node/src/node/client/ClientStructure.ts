@@ -445,6 +445,10 @@ export class ClientStructure {
                     if (cluster.pendingDelete) {
                         // Peer sent data for a cluster absent from its descriptor server list; device is buggy, but
                         // we tolerate it by cancelling the pending deletion, aka "Schrödinger's cluster".
+                        logger.warn(
+                            `Cluster 0x${hex.fixed(cluster.id, 8)} on ${endpoint} is absent from` +
+                                " descriptor server list but peer sent attribute data for it; keeping cluster",
+                        );
                         delete cluster.pendingDelete;
                     }
                     this.#scheduleStructureChange(
@@ -533,7 +537,7 @@ export class ClientStructure {
                         // Peer already sent attribute data for this cluster in the same interaction despite it not
                         // being in the server list; device is buggy but we tolerate it by skipping the deletion.
                         logger.warn(
-                            `Cluster 0x${id.toString(16).padStart(8, "0")} on ${endpoint} is absent from` +
+                            `Cluster 0x${hex.fixed(id, 8)} on ${endpoint} is absent from` +
                                 " descriptor server list but peer sent attribute data for it; keeping cluster",
                         );
                     } else {
