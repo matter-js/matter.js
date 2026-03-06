@@ -442,7 +442,11 @@ export class ClientStructure {
 
                 if (endpoint.lifecycle.isInstalled) {
                     cluster.pendingBehavior = behaviorType;
-                    // TODO Should we somehow validate that against descriptor serverList because we might load data not in there
+                    if (cluster.pendingDelete) {
+                        // Peer sent data for a cluster absent from its descriptor server list; device is buggy, but
+                        // we tolerate it by cancelling the pending deletion. aka "Schroedingers Cluster"
+                        delete cluster.pendingDelete;
+                    }
                     this.#scheduleStructureChange(
                         structure,
                         endpoint.behaviors.supported[behaviorType.id] ? "rebuild" : "install",
@@ -524,7 +528,17 @@ export class ClientStructure {
 
             if (currentlySupported.size) {
                 for (const id of currentlySupported) {
-                    this.#clusterFor(structure, id).pendingDelete = true;
+                    const clusterStructure = this.#clusterFor(structure, id);
+                    if (clusterStructure.pendingBehavior) {
+                        // Peer already sent attribute data for this cluster in the same interaction despite it not
+                        // being in the server list; device is buggy but we tolerate it by skipping the deletion.
+                        logger.warn(
+                            `Cluster 0x${id.toString(16).padStart(8, "0")} on ${endpoint} is absent from` +
+                                " descriptor server list but peer sent attribute data for it; keeping cluster",
+                        );
+                    } else {
+                        clusterStructure.pendingDelete = true;
+                    }
                 }
                 this.#scheduleStructureChange(structure, "rebuild");
             }
