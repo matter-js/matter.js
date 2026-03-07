@@ -281,7 +281,8 @@ describe("InteractionClientMessenger", () => {
         expect(closeFinished).to.be.false;
         expect(exchangeClosed).to.be.false;
 
-        resolveStatusSend?.();
+        expect(resolveStatusSend, "StatusResponse send was never initiated").to.be.a("function");
+        resolveStatusSend!();
         await closePromise;
 
         expect(closeFinished).to.be.true;
