@@ -15,6 +15,7 @@ import {
     Duration,
     InternalError,
     Logger,
+    MatterAggregateError,
     MatterFlowError,
     Millis,
     NoResponseTimeoutError,
@@ -100,6 +101,8 @@ const DATA_REPORT_MIN_AVAILABLE_BYTES_BEFORE_SENDING = 40;
 
 class InteractionMessenger {
     #exchange: MessageExchange;
+    #pendingSends = new Set<Promise<unknown>>();
+    #pendingSendsClosed = false;
 
     constructor(exchange: MessageExchange) {
         this.#exchange = exchange;
@@ -115,6 +118,16 @@ class InteractionMessenger {
 
     send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
         return this.exchange.send(messageType, payload, options);
+    }
+
+    protected trackPendingSend(promise: Promise<unknown>) {
+        if (this.#pendingSendsClosed) {
+            return;
+        }
+        this.#pendingSends.add(promise);
+        promise.finally(() => this.#pendingSends.delete(promise)).catch(() => {
+            // Errors are handled by the creator of the promise.
+        });
     }
 
     sendStatus(status: Status, options?: ExchangeSendOptions) {
@@ -164,6 +177,11 @@ class InteractionMessenger {
     }
 
     async close() {
+        this.#pendingSendsClosed = true;
+        if (this.#pendingSends.size) {
+            // allSettled intentionally never throws because pending sends here are best-effort by design.
+            await MatterAggregateError.allSettled(this.#pendingSends);
+        }
         await this.exchange.close();
     }
 
@@ -879,16 +897,17 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
             } else if (!report.suppressResponse) {
                 // We don't need to wait for this promise to succeed and any error is non-fatal.  But we do need to
                 // track the promise and thus prevent the session from closing prematurely to prevent errors in the logs
-                // if a dependent process closes its session after the read
-                // TODO - could create separate mechanism for this type of "fire-and-forget" status response
+                // if a dependent process closes its session after the read.
                 try {
-                    await this.sendStatus(Status.Success, {
-                        multipleMessageInteraction: true,
-                        logContext: this.#logContextOf(report),
-                    }).catch(error =>
-                        logger.info(
-                            "Error sending success after final data report chunk",
-                            Diagnostic.errorMessage(error),
+                    this.trackPendingSend(
+                        this.sendStatus(Status.Success, {
+                            multipleMessageInteraction: true,
+                            logContext: this.#logContextOf(report),
+                        }).catch(error =>
+                            logger.info(
+                                "Error sending success after final data report chunk",
+                                Diagnostic.errorMessage(error),
+                            ),
                         ),
                     );
                 } catch (e) {
