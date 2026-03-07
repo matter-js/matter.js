@@ -127,12 +127,12 @@ export class SustainedSubscription extends ClientSubscription {
 
             // Subscribe
             for (const retry of this.#retries) {
-                if (needToRefreshRequest && refreshRequest !== undefined) {
-                    // Update request
-                    request = refreshRequest(request);
-                }
-                needToRefreshRequest = true; // We do a read or subscription request now, so we might have got data, even partial
                 try {
+                    if (needToRefreshRequest && refreshRequest !== undefined) {
+                        // Update request
+                        request = refreshRequest(request);
+                    }
+                    needToRefreshRequest = true; // We do a read or subscription request now, so we might have got data, even partial
                     if (bootstrapWithRead) {
                         const response = this.#read(request, this.abort, Diagnostic.asFlags({ bootstrap: true }));
                         if (request.updated) {
