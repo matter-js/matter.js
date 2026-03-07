@@ -29,6 +29,8 @@ export function CommandId(commandId: number, validate = true): CommandId {
 }
 
 export namespace CommandId {
+    export const NONE = CommandId(-1, false);
+
     export const isValid = validatorOf(CommandId);
 
     export const isGlobalCommand = (commandId: CommandId): boolean => {
