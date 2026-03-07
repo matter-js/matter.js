@@ -170,25 +170,22 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
         supportedFeatures = {};
     }
 
-    // If there are features supported, customize the ClusterModel and ClusterType accordingly.
-    // Note that we do not validate feature combinations; what the device sends we work with.
+    // If there are features supported, customize the ClusterModel and ClusterType accordingly
     const featureNames = Object.entries(supportedFeatures)
         .filter(([, v]) => v)
         .map(([k]) => k);
     if (featureNames.length) {
         extendSchema();
+
+        // Update the cluster.  Note that we do not validate feature combinations.  What the device sends we work with
         cluster = new ClusterComposer(cluster, true).compose(featureNames.map(capitalize));
     }
 
     // Always include all events regardless of detected features.  Unlike attributes and commands
     // (reported via attributeList/acceptedCommandList), there is no EventList global attribute to
-    // discover which events a device supports, so we copy them from the full-feature cluster.
-    const allFeatureNames = Object.keys(cluster.features).map(capitalize);
-    if (allFeatureNames.length) {
-        const allEvents = new ClusterComposer((baseType as ClusterBehavior.Type).cluster, true).compose(
-            allFeatureNames,
-        ).events;
-        cluster = { ...cluster, events: allEvents };
+    // discover which events a device supports, so we copy them from the complete cluster definition
+    if (baseType !== ClusterBehavior) {
+        cluster = { ...cluster, events: (baseType as ClusterBehavior.Type).cluster.events };
     }
 
     // If the schema does not match what the device actually returned, further augment both the ClusterModel and
