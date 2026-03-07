@@ -15,7 +15,6 @@ import {
     Duration,
     InternalError,
     Logger,
-    MatterAggregateError,
     MatterFlowError,
     Millis,
     NoResponseTimeoutError,
@@ -101,7 +100,7 @@ const DATA_REPORT_MIN_AVAILABLE_BYTES_BEFORE_SENDING = 40;
 
 class InteractionMessenger {
     #exchange: MessageExchange;
-    #pendingSends = new Set<Promise<unknown>>();
+    #endMessagePromise?: Promise<unknown>;
 
     constructor(exchange: MessageExchange) {
         this.#exchange = exchange;
@@ -119,10 +118,13 @@ class InteractionMessenger {
         return this.exchange.send(messageType, payload, options);
     }
 
-    protected trackPendingSend(promise: Promise<unknown>, errorMessage: string) {
-        promise = promise.catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)));
-        const tracked = promise.finally(() => this.#pendingSends.delete(tracked));
-        this.#pendingSends.add(tracked);
+    protected trackEndMessage(promise: Promise<unknown>, errorMessage: string) {
+        if (this.#endMessagePromise !== undefined) {
+            throw new InternalError("An interaction can only have one end message");
+        }
+        this.#endMessagePromise = promise
+            .catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)))
+            .finally(() => (this.#endMessagePromise = undefined));
     }
 
     sendStatus(status: Status, options?: ExchangeSendOptions) {
@@ -172,17 +174,8 @@ class InteractionMessenger {
     }
 
     async close() {
-        let drainingIterations = 0;
-        while (this.#pendingSends.size) {
-            if (drainingIterations++ >= 10) {
-                logger.warn(
-                    "Abandoning pending status-send drain after 10 iterations",
-                    Diagnostic.dict({ pending: this.#pendingSends.size }),
-                );
-                break;
-            }
-            // All promises have pre-installed catch clauses, so will effectively never throw
-            await MatterAggregateError.allSettled(this.#pendingSends);
+        if (this.#endMessagePromise !== undefined) {
+            await this.#endMessagePromise;
         }
         await this.exchange.close();
     }
@@ -901,7 +894,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                 // track the promise and thus prevent the session from closing prematurely to prevent errors in the logs
                 // if a dependent process closes its session after the read.
                 try {
-                    this.trackPendingSend(
+                    this.trackEndMessage(
                         this.sendStatus(Status.Success, {
                             multipleMessageInteraction: true,
                             logContext: this.#logContextOf(report),
