@@ -96,7 +96,7 @@ describe("DeviceAdvertiser", () => {
             advertiser.advertiseCalls.length = 0;
 
             // PASE session: fabric is undefined, isPase is true (peerNodeId is UNSPECIFIED)
-            await sessionsDeleted.emit({
+            sessionsDeleted.emit({
                 fabric: undefined,
                 isPase: true,
                 peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
@@ -119,7 +119,7 @@ describe("DeviceAdvertiser", () => {
             // CASE session for a fabric that was already removed from FabricManager
             // (decommissioning teardown scenario).  The fabric property references an object
             // but maybeFor() returns undefined because the fabric was deleted.
-            await sessionsDeleted.emit({
+            sessionsDeleted.emit({
                 fabric: { fabricIndex: FabricIndex(1) },
                 isPase: false,
                 peerNodeId: NodeId(1n),
