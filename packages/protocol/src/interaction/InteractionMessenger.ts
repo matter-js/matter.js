@@ -120,13 +120,15 @@ class InteractionMessenger {
         return this.exchange.send(messageType, payload, options);
     }
 
-    protected trackPendingSend(promise: Promise<unknown>) {
+    protected trackPendingSend(promise: Promise<unknown>, errorMessage: string) {
+        promise.catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)));
+
         if (this.#pendingSendsClosed) {
             return;
         }
         this.#pendingSends.add(promise);
         promise.finally(() => this.#pendingSends.delete(promise)).catch(() => {
-            // Errors are handled by the creator of the promise.
+            // Errors are logged by trackPendingSend's catch above.
         });
     }
 
@@ -903,12 +905,8 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                         this.sendStatus(Status.Success, {
                             multipleMessageInteraction: true,
                             logContext: this.#logContextOf(report),
-                        }).catch(error =>
-                            logger.info(
-                                "Error sending success after final data report chunk",
-                                Diagnostic.errorMessage(error),
-                            ),
-                        ),
+                        }),
+                        "Error sending success after final data report chunk",
                     );
                 } catch (e) {
                     // This error is non-fatal
