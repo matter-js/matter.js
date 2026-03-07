@@ -102,7 +102,6 @@ const DATA_REPORT_MIN_AVAILABLE_BYTES_BEFORE_SENDING = 40;
 class InteractionMessenger {
     #exchange: MessageExchange;
     #pendingSends = new Set<Promise<unknown>>();
-    #pendingSendsClosed = false;
 
     constructor(exchange: MessageExchange) {
         this.#exchange = exchange;
@@ -121,15 +120,9 @@ class InteractionMessenger {
     }
 
     protected trackPendingSend(promise: Promise<unknown>, errorMessage: string) {
-        promise.catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)));
-
-        if (this.#pendingSendsClosed) {
-            return;
-        }
-        this.#pendingSends.add(promise);
-        promise.finally(() => this.#pendingSends.delete(promise)).catch(() => {
-            // Errors are logged by trackPendingSend's catch above.
-        });
+        promise = promise.catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)));
+        const tracked = promise.finally(() => this.#pendingSends.delete(tracked));
+        this.#pendingSends.add(tracked);
     }
 
     sendStatus(status: Status, options?: ExchangeSendOptions) {
@@ -179,9 +172,16 @@ class InteractionMessenger {
     }
 
     async close() {
-        this.#pendingSendsClosed = true;
-        if (this.#pendingSends.size) {
-            // allSettled intentionally never throws because pending sends here are best-effort by design.
+        let drainingIterations = 0;
+        while (this.#pendingSends.size) {
+            if (drainingIterations++ >= 10) {
+                logger.warn(
+                    "Abandoning pending status-send drain after 10 iterations",
+                    Diagnostic.dict({ pending: this.#pendingSends.size }),
+                );
+                break;
+            }
+            // All promises have pre-installed catch clauses, so will effectively never throw
             await MatterAggregateError.allSettled(this.#pendingSends);
         }
         await this.exchange.close();
