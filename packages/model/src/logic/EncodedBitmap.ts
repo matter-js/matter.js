@@ -41,11 +41,11 @@ export function EncodedBitmap(model: ValueModel, value: number | bigint | Decode
         }
 
         if (bitval === true) {
-            bitmap &= 1n << BigInt(min);
+            bitmap |= 1n << BigInt(min);
         } else if (typeof bitval === "number") {
-            bitmap &= BigInt(bitval & (2 ** (max - min) - 1)) << BigInt(min);
+            bitmap |= BigInt(bitval & (2 ** (max - min) - 1)) << BigInt(min);
         } else {
-            bitmap &= bitval & ((2n ** BigInt(max - min - 1)) << BigInt(min));
+            bitmap |= bitval & ((2n ** BigInt(max - min)) << BigInt(min));
         }
     }
 

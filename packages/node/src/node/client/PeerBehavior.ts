@@ -170,16 +170,16 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
         supportedFeatures = {};
     }
 
-    // If there are features supported, customize the ClusterModel and ClusterType accordingly
-    const featureNames = Object.entries(supportedFeatures)
-        .filter(([, v]) => v)
-        .map(([k]) => k);
-    if (featureNames.length) {
-        // Update ClusterModel
+    // Customize the ClusterModel and ClusterType for the device's features.  We compose with ALL features
+    // (not just detected ones) so that all events are present in the cluster type.  Unlike attributes and
+    // commands (which are reported via attributeList/acceptedCommandList), there is no EventList global
+    // attribute to discover which events a device supports.  Afterward we restore supportedFeatures to
+    // accurately reflect what the device actually declared.
+    const allFeatureNames = Object.keys(cluster.features).map(capitalize);
+    if (allFeatureNames.length) {
         extendSchema();
-
-        // Update the cluster.  Note that we do not validate feature combinations.  What the device sends we work with
-        cluster = new ClusterComposer(cluster, true).compose(featureNames.map(capitalize));
+        cluster = new ClusterComposer(cluster, true).compose(allFeatureNames);
+        cluster = { ...cluster, supportedFeatures };
     }
 
     // If the schema does not match what the device actually returned, further augment both the ClusterModel and
