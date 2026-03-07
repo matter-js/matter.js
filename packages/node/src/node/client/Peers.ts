@@ -443,6 +443,18 @@ export class Peers extends EndpointContainer<ClientNode> {
         if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
             return;
         }
+
+        // Ignore shutdown events received during initial subscription establishment as they may be stale events
+        // from before the device was restarted.  This mirrors the same guard in #onLeave.
+        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+            logger.debug(
+                "Shutdown event for peer",
+                Diagnostic.strong(node.id),
+                "received without active subscription. Ignoring.",
+            );
+            return;
+        }
+
         const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
         if (peerAddress !== undefined) {
             // Shutdown event means the device reboots, handle it like a peer loss and remove all sessions
