@@ -100,6 +100,7 @@ const DATA_REPORT_MIN_AVAILABLE_BYTES_BEFORE_SENDING = 40;
 
 class InteractionMessenger {
     #exchange: MessageExchange;
+    #endMessagePromise?: Promise<unknown>;
 
     constructor(exchange: MessageExchange) {
         this.#exchange = exchange;
@@ -115,6 +116,15 @@ class InteractionMessenger {
 
     send(messageType: number, payload: Bytes, options?: ExchangeSendOptions) {
         return this.exchange.send(messageType, payload, options);
+    }
+
+    protected trackEndMessage(promise: Promise<unknown>, errorMessage: string) {
+        if (this.#endMessagePromise !== undefined) {
+            throw new InternalError("An interaction can only have one end message");
+        }
+        this.#endMessagePromise = promise
+            .catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)))
+            .finally(() => (this.#endMessagePromise = undefined));
     }
 
     sendStatus(status: Status, options?: ExchangeSendOptions) {
@@ -164,6 +174,9 @@ class InteractionMessenger {
     }
 
     async close() {
+        if (this.#endMessagePromise !== undefined) {
+            await this.#endMessagePromise;
+        }
         await this.exchange.close();
     }
 
@@ -879,17 +892,14 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
             } else if (!report.suppressResponse) {
                 // We don't need to wait for this promise to succeed and any error is non-fatal.  But we do need to
                 // track the promise and thus prevent the session from closing prematurely to prevent errors in the logs
-                // if a dependent process closes its session after the read
-                // TODO - could create separate mechanism for this type of "fire-and-forget" status response
+                // if a dependent process closes its session after the read.
                 try {
-                    await this.sendStatus(Status.Success, {
-                        multipleMessageInteraction: true,
-                        logContext: this.#logContextOf(report),
-                    }).catch(error =>
-                        logger.info(
-                            "Error sending success after final data report chunk",
-                            Diagnostic.errorMessage(error),
-                        ),
+                    this.trackEndMessage(
+                        this.sendStatus(Status.Success, {
+                            multipleMessageInteraction: true,
+                            logContext: this.#logContextOf(report),
+                        }),
+                        "Error sending success after final data report chunk",
                     );
                 } catch (e) {
                     // This error is non-fatal
