@@ -8,7 +8,7 @@ import { GroupKeySet, KeySets, OperationalKeySet } from "#groups/KeySets.js";
 import { MessagingState } from "#groups/MessagingState.js";
 import { BasicMap, Bytes, hex, InternalError, MatterFlowError, StorageContext } from "@matter/general";
 import { GroupId, MATTER_EPOCH_OFFSET_US } from "@matter/types";
-import { Groups } from "./Groups.js";
+import { GroupMulticastPolicy, Groups } from "./Groups.js";
 
 export const GROUP_SECURITY_INFO = Bytes.fromString("GroupKey v1.0");
 
@@ -93,6 +93,16 @@ export class FabricGroups {
 
     multicastAddressFor(groupId: GroupId): string {
         return this.#groups.multicastAddress(groupId);
+    }
+
+    /** Sets the multicast address policy for a specific group (Groupcast cluster, Matter 1.6). */
+    setGroupMulticastPolicy(groupId: GroupId, policy: GroupMulticastPolicy) {
+        this.#groups.setGroupMulticastPolicy(groupId, policy);
+    }
+
+    /** Removes the multicast address policy for a specific group. */
+    removeGroupMulticastPolicy(groupId: GroupId) {
+        this.#groups.removeGroupMulticastPolicy(groupId);
     }
 
     /*

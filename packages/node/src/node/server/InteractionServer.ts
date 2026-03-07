@@ -85,6 +85,13 @@ export interface PeerSubscription {
     operationalAddress?: ServerAddressUdp;
 }
 
+/** Cumulative counters tracked by the interaction server since startup. */
+export interface InteractionCounters {
+    totalSubscriptionsEstablished: number;
+    totalInteractionModelMessagesSent: number;
+    totalInteractionModelMessagesReceived: number;
+}
+
 function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {
     if (isGroupSession) {
         throw new StatusResponseError("Illegal read request with group session", StatusCode.InvalidAction);
@@ -141,6 +148,11 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
     #newActivityBlocked = false;
     #aclServer?: AccessControlServer;
     #serverInteraction: OnlineServerInteraction;
+    #counters: InteractionCounters = {
+        totalSubscriptionsEstablished: 0,
+        totalInteractionModelMessagesSent: 0,
+        totalInteractionModelMessagesReceived: 0,
+    };
 
     constructor(node: ServerNode, sessions: SessionManager) {
         this.#lifetime = node.construction.join("interaction server");
@@ -184,6 +196,10 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         return this.#subscriptionEstablishmentStarted;
     }
 
+    get counters(): InteractionCounters {
+        return this.#counters;
+    }
+
     async onNewExchange(exchange: MessageExchange, message: Message) {
         // When closing, ignore anything newly incoming
         if (this.#newActivityBlocked || this.isClosing) {
@@ -196,14 +212,25 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
             return await this.clientHandler.onNewExchange(exchange, message);
         }
 
+        this.#counters.totalInteractionModelMessagesReceived++;
+
         // Activity tracking.  This provides diagnostic information and prevents the server from shutting down whilst
         // the exchange is active
         using activity = this.#activity.begin(`session#${exchange.session.id.toString(16)}`);
         (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey] = activity;
 
+        // Count all subsequent IM messages received on this exchange (e.g. StatusResponse acks for ReportData)
+        exchange.onReceive = (_, duplicate) => {
+            if (!duplicate) {
+                this.#counters.totalInteractionModelMessagesReceived++;
+            }
+        };
+
         // Delegate to InteractionServerMessenger
         try {
-            return await new InteractionServerMessenger(exchange).handleRequest(this);
+            const result = await new InteractionServerMessenger(exchange).handleRequest(this);
+            this.#counters.totalInteractionModelMessagesSent++;
+            return result;
         } finally {
             delete (exchange as NodeActivity.WithActivity)[NodeActivity.activityKey];
         }
@@ -683,6 +710,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
 
         // When an error occurs while sending the response, the subscription is not yet active and will be cleaned up by GC
         subscription.activate();
+        this.#counters.totalSubscriptionsEstablished++;
     }
 
     #initiateSubscriptionExchange(addressOrSession: PeerAddress | Session, protocolId: number) {
@@ -751,7 +779,13 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
         }: PeerSubscription,
         session: NodeSession,
     ) {
-        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID);
+        const exchange = this.#context.exchangeManager.initiateExchange(session.peerAddress, INTERACTION_PROTOCOL_ID, {
+            onReceive: (_, duplicate) => {
+                if (!duplicate) {
+                    this.#counters.totalInteractionModelMessagesReceived++;
+                }
+            },
+        });
 
         logger.info(
             `Reestablish subscription`,
@@ -796,6 +830,7 @@ export class InteractionServer implements ProtocolHandler, InteractionRecipient 
                 true, // Do not send status responses because we simulate that the subscription is still established
             );
             subscription.activate();
+            this.#counters.totalSubscriptionsEstablished++;
 
             logger.info(
                 `Subscription successfully reestablished`,

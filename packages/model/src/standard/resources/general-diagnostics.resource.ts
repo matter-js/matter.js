@@ -117,6 +117,10 @@ Resource.add({
         },
 
         { tag: "attribute", name: "DoNotUse", xref: "core§11.12.6" },
+        {
+            tag: "attribute", name: "DeviceLoadStatus",
+            details: "This attribute shall indicate the status of various resources used."
+        },
 
         {
             tag: "event", name: "HardwareFaultChange", xref: "core§11.12.8.1",
@@ -546,6 +550,38 @@ Resource.add({
                 {
                     tag: "field", name: "Type", xref: "core§11.12.5.6.8",
                     details: "This field shall indicate the type of the interface using the InterfaceTypeEnum."
+                }
+            ]
+        },
+
+        {
+            tag: "datatype", name: "DeviceLoadStruct",
+
+            children: [
+                {
+                    tag: "field", name: "CurrentSubscriptions",
+                    details: "This field shall indicate the number of currently-active Interaction Model subscriptions across all " +
+                        "fabrics on the node."
+                },
+                {
+                    tag: "field", name: "CurrentSubscriptionsForFabric",
+                    details: "This field shall indicate the number of currently-active Interaction Model subscriptions for the " +
+                        "accessing fabric only. If no accessing fabric is available, this field shall be set to zero."
+                },
+                {
+                    tag: "field", name: "TotalSubscriptionsEstablished",
+                    details: "This field shall indicate the total number of Interaction Model subscriptions successfully " +
+                        "established across all fabrics on the node since start-up."
+                },
+                {
+                    tag: "field", name: "TotalInteractionModelMessagesSent",
+                    details: "This field shall indicate the number of outgoing Interaction Model protocol messages sent since " +
+                        "start-up, excluding any retries of such messages."
+                },
+                {
+                    tag: "field", name: "TotalInteractionModelMessagesReceived",
+                    details: "This field shall indicate the number of incoming Interaction Model protocol messages received since " +
+                        "start-up, excluding any retries of such messages."
                 }
             ]
         }

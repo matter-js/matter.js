@@ -17,10 +17,11 @@ import {
 
 export const GroupKeyManagement = Cluster(
     { name: "GroupKeyManagement", id: 0x3f, classification: "node" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
-        Field({ name: "CS", conformance: "P", constraint: "0", title: "CacheAndSync" })
+        Field({ name: "CS", conformance: "P", constraint: "0", title: "CacheAndSync" }),
+        Field({ name: "GCAST", conformance: "M", constraint: "1", title: "Groupcast" })
     ),
 
     Attribute(
@@ -44,6 +45,15 @@ export const GroupKeyManagement = Cluster(
         name: "MaxGroupKeysPerFabric", id: 0x3, type: "uint16", access: "R V", conformance: "M",
         constraint: "1 to 65535", default: 1, quality: "F"
     }),
+
+    Attribute(
+        {
+            name: "GroupcastAdoption", id: 0x4, type: "list", access: "RW F A", conformance: "GCAST",
+            constraint: "desc", quality: "N"
+        },
+        Field({ name: "entry", type: "GroupcastAdoptionStruct" })
+    ),
+
     Command(
         { name: "KeySetWrite", id: 0x0, access: "F A", conformance: "M", direction: "request", response: "status" },
         Field({ name: "GroupKeySet", id: 0x0, type: "GroupKeySetStruct", conformance: "M" })
@@ -124,6 +134,12 @@ export const GroupKeyManagement = Cluster(
             Field({ name: "entry", type: "endpoint-no" })
         ),
         Field({ name: "GroupName", id: 0x3, type: "string", access: "F", conformance: "O", constraint: "max 16" }),
+        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
+    ),
+
+    Datatype(
+        { name: "GroupcastAdoptionStruct", type: "struct" },
+        Field({ name: "GroupcastAdopted", id: 0x0, type: "bool", access: "F", conformance: "M" }),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     )
 );

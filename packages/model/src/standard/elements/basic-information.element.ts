@@ -17,7 +17,7 @@ import {
 
 export const BasicInformation = Cluster(
     { name: "BasicInformation", id: 0x28, classification: "node" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
     Attribute({
         name: "DataModelRevision", id: 0x0, type: "uint16", access: "R V", conformance: "M",
         constraint: "desc", quality: "F"
@@ -155,10 +155,18 @@ export const BasicInformation = Cluster(
         Field({ name: "Finish", id: 0x0, type: "ProductFinishEnum", conformance: "M" }),
         Field({ name: "PrimaryColor", id: 0x1, type: "ColorEnum", conformance: "M", quality: "X" })
     ),
+
     Datatype(
         { name: "CapabilityMinimaStruct", type: "struct" },
         Field({ name: "CaseSessionsPerFabric", id: 0x0, type: "uint16", conformance: "M", constraint: "min 3", default: 3 }),
-        Field({ name: "SubscriptionsPerFabric", id: 0x1, type: "uint16", conformance: "M", constraint: "min 3", default: 3 })
+        Field({ name: "SubscriptionsPerFabric", id: 0x1, type: "uint16", conformance: "M", constraint: "min 3", default: 3 }),
+        Field({
+            name: "SimultaneousInvocationsSupported", id: 0x2, type: "uint16", conformance: "desc",
+            constraint: "1 to 10000"
+        }),
+        Field({ name: "SimultaneousWritesSupported", id: 0x3, type: "uint16", conformance: "desc", constraint: "1 to 10000" }),
+        Field({ name: "ReadPathsSupported", id: 0x4, type: "uint16", conformance: "desc", constraint: "9 to 10000" }),
+        Field({ name: "SubscribePathsSupported", id: 0x5, type: "uint16", conformance: "desc", constraint: "3 to 10000" })
     )
 );
 

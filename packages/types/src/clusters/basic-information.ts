@@ -22,7 +22,7 @@ import { TlvString } from "../tlv/TlvString.js";
 import { TlvVendorId } from "../datatype/VendorId.js";
 import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { TlvField, TlvObject } from "../tlv/TlvObject.js";
+import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Priority } from "../globals/Priority.js";
@@ -58,7 +58,33 @@ export namespace BasicInformation {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.1.4.4.2
          */
-        subscriptionsPerFabric: TlvField(1, TlvUInt16.bound({ min: 3 }))
+        subscriptionsPerFabric: TlvField(1, TlvUInt16.bound({ min: 3 })),
+
+        /**
+         * This field shall indicate the actual maximum number of concurrent Invoke interactions that can be processed
+         * simultaneously by the node before possibly returning a BUSY status code.
+         */
+        simultaneousInvocationsSupported: TlvOptionalField(2, TlvUInt16.bound({ min: 1, max: 10000 })),
+
+        /**
+         * This field shall indicate the actual minimum number of concurrent Write interactions that can be processed
+         * simultaneously by the node before possibly returning a BUSY status code.
+         */
+        simultaneousWritesSupported: TlvOptionalField(3, TlvUInt16.bound({ min: 1, max: 10000 })),
+
+        /**
+         * This field shall indicate the actual maximum number of read paths (i.e. the sum of lengths of the lists of
+         * AttributePathIB and EventPathIB in the action) which a node guarantees being able to process in any Read
+         * Request Action.
+         */
+        readPathsSupported: TlvOptionalField(4, TlvUInt16.bound({ min: 9, max: 10000 })),
+
+        /**
+         * This field shall indicate the actual maximum number of subscription paths (i.e. the sum of lengths of the
+         * lists of AttributePathIB and EventPathIB in the action) which a node guarantees being able to process in any
+         * Subscribe Request Action.
+         */
+        subscribePathsSupported: TlvOptionalField(5, TlvUInt16.bound({ min: 3, max: 10000 }))
     });
 
     /**
@@ -316,7 +342,7 @@ export namespace BasicInformation {
     export const ClusterInstance = MutableCluster({
         id: 0x28,
         name: "BasicInformation",
-        revision: 5,
+        revision: 6,
 
         attributes: {
             /**
@@ -545,11 +571,7 @@ export namespace BasicInformation {
              *
              * @see {@link MatterSpecification.v142.Core} § 11.1.5.20
              */
-            capabilityMinima: FixedAttribute(
-                0x13,
-                TlvCapabilityMinima,
-                { default: { caseSessionsPerFabric: 3, subscriptionsPerFabric: 3 } }
-            ),
+            capabilityMinima: FixedAttribute(0x13, TlvCapabilityMinima),
 
             /**
              * This attribute shall provide information about the appearance of the product, which could be useful to a
