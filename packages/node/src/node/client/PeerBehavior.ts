@@ -185,7 +185,9 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
     // discover which events a device supports, so we copy them from the full-feature cluster.
     const allFeatureNames = Object.keys(cluster.features).map(capitalize);
     if (allFeatureNames.length) {
-        const allEvents = new ClusterComposer((baseType as ClusterBehavior.Type).cluster, true).compose(allFeatureNames).events;
+        const allEvents = new ClusterComposer((baseType as ClusterBehavior.Type).cluster, true).compose(
+            allFeatureNames,
+        ).events;
         cluster = { ...cluster, events: allEvents };
     }
 
