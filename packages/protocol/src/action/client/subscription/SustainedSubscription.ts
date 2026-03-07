@@ -128,9 +128,13 @@ export class SustainedSubscription extends ClientSubscription {
             // Subscribe
             for (const retry of this.#retries) {
                 try {
+                    if (needToRefreshRequest && refreshRequest !== undefined) {
+                        // Update request
+                        request = refreshRequest(request);
+                    }
+                    needToRefreshRequest = true; // We do a read or subscription request now, so we might have got data, even partial
                     if (bootstrapWithRead) {
                         const response = this.#read(request, this.abort, Diagnostic.asFlags({ bootstrap: true }));
-                        needToRefreshRequest = true; // We potentially got data, so request dataVersions are stale
                         if (request.updated) {
                             await request.updated(response);
                         } else {
@@ -142,12 +146,11 @@ export class SustainedSubscription extends ClientSubscription {
                         }
 
                         bootstrapWithRead = false;
+                        if (refreshRequest !== undefined) {
+                            // Update request because read was successful
+                            request = refreshRequest(request);
+                        }
                     }
-                    if (needToRefreshRequest && refreshRequest !== undefined) {
-                        // Update request
-                        request = refreshRequest(request);
-                    }
-                    needToRefreshRequest = true; // We do a subscription request now so we might have got data, even partial
                     this.#subscription = await this.#subscribe(request, this.abort);
                     this.subscriptionId = this.#subscription.subscriptionId;
                     sessionTrusted = true;

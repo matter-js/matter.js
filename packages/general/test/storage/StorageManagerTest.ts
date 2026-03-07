@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageError } from "#storage/Storage.js";
 import { StorageBackendMemory } from "#storage/StorageBackendMemory.js";
+import { StorageError } from "#storage/StorageDriver.js";
 import { StorageManager } from "#storage/StorageManager.js";
 
 describe("StorageManager", () => {

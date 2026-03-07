@@ -9,7 +9,8 @@ import {
     type CloneableStorage,
     type SupportedStorageTypes,
     fromJson,
-    Storage,
+    StorageDriver,
+    StorageTransaction,
     toJson,
 } from "@matter/general";
 
@@ -52,7 +53,7 @@ type SqlRunnableKV<
  *
  * Supports `node:sqlite`, `bun:sqlite`. (maybe also `better-sqlite3` support)
  */
-export class SqliteStorage extends Storage implements CloneableStorage {
+export class SqliteStorage extends StorageDriver implements CloneableStorage {
     public static readonly memoryPath = ":memory:";
     public static readonly defaultTableName = "kvstore";
 
@@ -76,7 +77,6 @@ export class SqliteStorage extends Storage implements CloneableStorage {
     readonly #queryKeys: SqlRunnableKV<"context", "key">;
     readonly #queryValues: SqlRunnable<{ context: string }, { key: string; value_json: string }>;
     readonly #queryContextSub: SqlRunnable<{ contextGlob: string }, { context: string }>;
-    readonly #queryClear: SqlRunnable<void, void>;
     readonly #queryClearAll: SqlRunnable<{ context: string; contextGlob: string }, void>;
     readonly #queryHas: SqlRunnable<{ context: string; key: string }, { has_record: 1 }>;
     readonly #queryOpenBlob: SqlRunnable<
@@ -178,10 +178,6 @@ export class SqliteStorage extends Storage implements CloneableStorage {
       DELETE FROM ${this.tableName} WHERE
         context=$context AND
         key=$key
-    `);
-
-        this.#queryClear = this.database.prepare(`
-      DELETE FROM ${this.tableName}
     `);
 
         this.#queryClearAll = this.database.prepare(`
@@ -288,12 +284,12 @@ export class SqliteStorage extends Storage implements CloneableStorage {
 
     override async initialize(): Promise<void> {
         if (this.clearOnInit) {
-            await this.clear(false);
+            this.database.prepare(`DELETE FROM ${this.tableName}`).run();
         }
         this.isInitialized = true;
     }
 
-    public clone(): Storage {
+    public clone(): StorageDriver {
         const clonedStorage = new SqliteStorage({
             databaseCreator: this.databaseCreator,
             path: null,
@@ -507,16 +503,6 @@ export class SqliteStorage extends Storage implements CloneableStorage {
         return [...new Set(subContexts.filter(c => c != null && c.trim().length > 0))];
     }
 
-    /**
-     * Should be implement to platform specific class
-     * when `completely = true`
-     *
-     * basic cleanup query for here.
-     */
-    public async clear(_completely?: boolean) {
-        this.#queryClear.run();
-    }
-
     override clearAll(contexts: string[]) {
         // Match StorageBackendDisk behavior: if contexts is empty, do nothing
         if (contexts.length === 0) {
@@ -568,5 +554,26 @@ export class SqliteStorage extends Storage implements CloneableStorage {
                 `Something went wrong! Value wasn't changed.`,
             );
         }
+    }
+
+    override begin(): StorageTransaction {
+        return new SqliteStorageTransaction(this);
+    }
+}
+
+class SqliteStorageTransaction extends StorageTransaction {
+    constructor(private readonly sqliteStorage: SqliteStorage) {
+        super(sqliteStorage);
+        sqliteStorage.transaction(Transaction.BEGIN);
+    }
+
+    override commit() {
+        this.assertActive();
+        this.sqliteStorage.transaction(Transaction.COMMIT);
+        super.commit();
+    }
+
+    protected override rollback() {
+        this.sqliteStorage.transaction(Transaction.ROLLBACK);
     }
 }

@@ -18,7 +18,15 @@ import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { RemoteWriter } from "#storage/client/RemoteWriter.js";
 import { ServerNodeStore } from "#storage/server/ServerNodeStore.js";
-import { Construction, Diagnostic, Identity, InternalError, Lifecycle, Logger, MaybePromise } from "@matter/general";
+import {
+    Diagnostic,
+    Identity,
+    ImplementationError,
+    InternalError,
+    Lifecycle,
+    Logger,
+    MaybePromise,
+} from "@matter/general";
 import { Matter, MatterModel } from "@matter/model";
 import { Interactable, OccurrenceManager, PeerAddress, PeerSet } from "@matter/protocol";
 import { ClientEndpointInitializer } from "./client/ClientEndpointInitializer.js";
@@ -37,6 +45,7 @@ const logger = Logger.get("ClientNode");
 export class ClientNode extends Node<ClientNode.RootEndpoint> {
     #matter: MatterModel;
     #interaction?: ClientNodeInteraction;
+    #blockInteractions = false;
 
     constructor(options: ClientNode.Options) {
         const opts = {
@@ -209,6 +218,20 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     async prepareRuntimeShutdown() {}
 
+    protected override async cancelWithMutex() {
+        // TODO Revisit this blocking mechanism because we might need it more general?
+        //  Maybe let it be created but have a check in ClientNodeInteraction which decided if allowed or not?
+        this.#blockInteractions = true;
+        try {
+            const interaction = this.#interaction;
+            this.#interaction = undefined;
+            await interaction?.close();
+            await super.cancelWithMutex();
+        } finally {
+            this.#blockInteractions = false;
+        }
+    }
+
     protected override get container() {
         return this.owner?.peers;
     }
@@ -237,6 +260,9 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
     get interaction(): Interactable<ActionContext> {
         if (this.#interaction === undefined) {
+            if (this.#blockInteractions) {
+                throw new ImplementationError("Cannot access interaction of a shutting-down node");
+            }
             this.#interaction = new ClientNodeInteraction(this);
         }
 
@@ -271,11 +297,6 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
         // Log client node status updates as info rather than notice and change the log facility to make clear it's a
         // client
         logger.info(Diagnostic.strong(this.toString()), message);
-    }
-
-    override async [Construction.destruct]() {
-        await this.#interaction?.close();
-        await super[Construction.destruct]();
     }
 }
 

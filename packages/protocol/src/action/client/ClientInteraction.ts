@@ -421,9 +421,24 @@ export class ClientInteraction<
 
         // Create async iterators for each batch and merge results as they arrive
         const iterators = batches.map(batchCommands => {
+            const batchInvokeRequests = request.invokeRequests.filter(ir => batchCommands.has(ir.commandRef));
             const batchRequest: ClientInvoke = {
                 ...request,
                 commands: batchCommands,
+                invokeRequests: batchInvokeRequests,
+                [Diagnostic.value]: () =>
+                    Diagnostic.list(
+                        [...batchCommands.values()].map(cmd => {
+                            const { commandRef } = cmd;
+                            const fields = "fields" in cmd ? cmd.fields : undefined;
+                            return [
+                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                "with",
+                                isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
+                                commandRef !== undefined ? `(ref ${commandRef})` : "",
+                            ];
+                        }),
+                    ),
             };
             return this.#invokeSingle(batchRequest, session);
         });
@@ -951,5 +966,6 @@ async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) 
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
     for await (const report of messenger.readDataReports({ abort })) {
         yield InputChunk(report, leftOverData);
+        abort.throwIfAborted();
     }
 }

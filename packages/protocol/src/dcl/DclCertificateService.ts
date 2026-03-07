@@ -9,12 +9,11 @@ import {
     Construction,
     Days,
     Diagnostic,
-    Directory,
     Duration,
     Environment,
+    Github,
     Logger,
     Pem,
-    Repo,
     StorageContext,
     StorageManager,
     StorageService,
@@ -443,7 +442,7 @@ export class DclCertificateService {
 
             // Create GitHub repo client with timeout option
             const { owner, repo, branch, certPath } = this.#options.githubConfig ?? DclGithubConfig.defaults;
-            const repoClient = new Repo(owner, repo, branch, this.#options);
+            const repoClient = new Github.Repo(owner, repo, branch, this.#options);
             const certDir = await repoClient.cd(certPath);
 
             // List files in the certificate directory
@@ -467,7 +466,12 @@ export class DclCertificateService {
     /**
      * Fetch a single certificate from GitHub by filename.
      */
-    async #fetchGitHubCertificate(storage: StorageContext, certDir: Directory, filename: string, force: boolean) {
+    async #fetchGitHubCertificate(
+        storage: StorageContext,
+        certDir: Github.Directory,
+        filename: string,
+        force: boolean,
+    ) {
         try {
             // Download DER certificate directly as binary using GitHub client
             const derBytes = await certDir.getBinary(filename);

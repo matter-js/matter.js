@@ -27,6 +27,7 @@ import {
     Duration,
     ImplementationError,
     Logger,
+    MatterError,
     Minutes,
     Mutex,
     Observable,
@@ -110,7 +111,15 @@ export class Peers extends EndpointContainer<ClientNode> {
 
     async #nodeOnline() {
         for (const peer of this) {
-            await peer.start();
+            if (!peer.lifecycle.isCommissioned) {
+                continue;
+            }
+            try {
+                await peer.start();
+            } catch (e) {
+                MatterError.accept(e);
+                logger.error(`Error starting peer ${peer}:`, e);
+            }
         }
         this.#manageExpiration();
     }
@@ -331,7 +340,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
                 // Shortcut for conditions we know no change is possible
                 if (addresses === undefined || (isCommissioned && addresses.length === 1)) {
-                    return;
+                    continue;
                 }
 
                 // Remove expired addresses
@@ -355,7 +364,7 @@ export class Peers extends EndpointContainer<ClientNode> {
                 // If the node is commissioned, do not remove the last address.  Instead keep the "least expired" addresses
                 if (isCommissioned && addresses.length && !newAddresses.length) {
                     if (addresses.length === 1) {
-                        return;
+                        continue;
                     }
                     const freshestExp = addresses.reduce((freshestExp, addr) => {
                         return Math.max(freshestExp, expirationOf(addr)!);
@@ -366,7 +375,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
                 // Apply new addresses if changed
                 if (addresses.length !== newAddresses.length) {
-                    await node.set({ commissioning: { addresses } });
+                    await node.set({ commissioning: { addresses: newAddresses } });
                 }
             }
         } finally {
