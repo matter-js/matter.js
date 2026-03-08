@@ -11,6 +11,7 @@ import { IdentityService } from "#node/server/IdentityService.js";
 import {
     ConnectionlessTransportSet,
     Crypto,
+    DnsRecordType,
     ImplementationError,
     Logger,
     SharedEnvironmentServices,
@@ -29,6 +30,7 @@ import {
     PeerSet,
     Scanner,
     ScannerSet,
+    getFabricQname,
 } from "@matter/protocol";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
 import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
@@ -212,9 +214,6 @@ export class ControllerBehavior extends Behavior {
             }
         }
 
-        // Clear operational targets
-        this.internal.mdnsTargetCriteria.operationalTargets.length = 0;
-
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
             netTransports.delete(this.env.get(Ble).centralInterface);
@@ -222,7 +221,15 @@ export class ControllerBehavior extends Behavior {
     }
 
     #enableScanningForFabric(fabric: Fabric) {
-        this.internal.mdnsTargetCriteria.operationalTargets.push({ fabricId: fabric.globalId });
+        // Send a one-time wildcard query via DnssdNames so existing operational nodes on this fabric respond and
+        // populate IpService for known peers
+        if (this.internal.services) {
+            const names = this.env.get(MdnsService).names;
+            names.solicitor.solicit({
+                name: names.get(getFabricQname(fabric.globalId)),
+                recordTypes: [DnsRecordType.PTR],
+            });
+        }
     }
 
     #enableScanningForScanner(scanner: Scanner) {
@@ -240,7 +247,6 @@ export namespace ControllerBehavior {
          */
         mdnsTargetCriteria: MdnsScannerTargetCriteria = {
             commissionable: true,
-            operationalTargets: [],
         };
 
         services?: SharedEnvironmentServices;

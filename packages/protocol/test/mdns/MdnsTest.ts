@@ -15,12 +15,10 @@ import {
     ServiceDescription,
 } from "#index.js";
 import {
-    Bytes,
     ConnectionlessTransport,
     DnsCodec,
     DnsMessage,
     DnsMessageType,
-    DnsMessageTypeFlag,
     DnsRecordType,
     Duration,
     Instant,
@@ -34,7 +32,6 @@ import {
     NetworkSimulator,
     Seconds,
     Time,
-    TxtRecord,
     UdpChannel,
 } from "@matter/general";
 import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
@@ -206,11 +203,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
         function advertise(service: ServiceDescription, port = PORT) {
             const ad = getAdvertiser(port).advertise({ ...service, port }, "startup")!;
-            expect(ad).not.undefined;
-        }
-
-        async function serve(service: ServiceDescription, port = PORT) {
-            const ad = getAdvertiser(port).getAdvertisement({ ...service, port });
             expect(ad).not.undefined;
         }
 
@@ -947,17 +939,11 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 await collection;
 
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(undefined);
-
                 // No commissionable devices because never queried
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
 
                 // And expire the announcement
                 await closeAll();
-
-                // And removed after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
 
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });
@@ -966,12 +952,11 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         describe("Only commissionable discovery", () => {
             const criteria: MdnsScannerTargetCriteria = {
                 commissionable: true,
-                operationalTargets: [],
             };
             beforeEach(() => client.targetCriteriaProviders.add(criteria));
             afterEach(() => client.targetCriteriaProviders.delete(criteria));
 
-            it("the client do not know announced operational records if scanning is not enabled by criteria", async () => {
+            it("the client discovers commissionable records when scanning is enabled by criteria", async () => {
                 const collection = waitForMessages({ count: 2 });
 
                 advertise(COMMISSIONABLE_SERVICE);
@@ -979,10 +964,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 await collection;
 
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(undefined);
-
-                // No commissionable devices because never queried
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([
                     {
                         CM: 1,
@@ -1009,9 +990,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
                 // And expire the announcement
                 await closeAll();
-
-                // And removed after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
 
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });
@@ -1085,715 +1063,16 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             });
         });
 
-        describe("Operational discovery", () => {
-            const criteria: MdnsScannerTargetCriteria = {
-                commissionable: false,
-                operationalTargets: [{ fabricId: GLOBAL_ID }],
-            };
-            beforeEach(() => client.targetCriteriaProviders.add(criteria));
-            afterEach(() => client.targetCriteriaProviders.delete(criteria));
-
-            it("the client directly returns server record if it has been announced before and records are removed on cancel", async () => {
-                const collection = waitForMessages(Seconds(10));
-                advertise(OPERATIONAL_SERVICE);
-
-                const messages = await collection;
-
-                const result = await client.findOperationalDevice(FABRIC, NODE_ID, Seconds.one);
-
-                // Ensure no additional queries sent (only the initial PTR query from criteria add should exist)
-                // findOperationalDevice should use cached data from the broadcast
-                expect(
-                    messages.filter(
-                        m => m?.messageType === DnsMessageType.Query && m.queries[0]?.recordType === DnsRecordType.SRV,
-                    ).length,
-                ).equals(0);
-
-                expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
-
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort1,
-                );
-
-                // And expire the announcement
-                await close();
-                await MockTime.yield3();
-
-                // And empty result after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-            });
-
-            it("the client queries the server record if it has not been announced before", async () => {
-                const sentData = new Array<Bytes>();
-                const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) =>
-                    sentData.push(data),
-                );
-
-                advertise(OPERATIONAL_SERVICE);
-
-                const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
-
-                await MockTime.resolve(findPromise);
-
-                // Find the SRV query (not the initial PTR query from criteria add)
-                const srvQueryData = sentData.find(data => {
-                    const msg = DnsCodec.decode(data);
-                    return msg?.queries[0]?.recordType === DnsRecordType.SRV;
-                });
-                expect(srvQueryData).not.undefined;
-                expectMessage(DnsCodec.decode(srvQueryData!), {
-                    additionalRecords: [],
-                    answers: [],
-                    authorities: [],
-                    messageType: 0,
-                    queries: [
-                        {
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordClass: 1,
-                            recordType: 33,
-                            uniCastResponse: false,
-                        },
-                    ],
-                    transactionId: 0,
-                });
-
-                const result = await findPromise;
-
-                expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
-                await listener.close();
-
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort1,
-                );
-
-                // And expire the announcement
-                await close();
-
-                // And empty result after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-            });
-
-            it("the client queries the server record and get correct response also with multiple announced instances", async () => {
-                // Wait for 4 messages: 1 initial PTR query + 1 PTR response + 1 SRV query + 1 SRV response
-                const messages = waitForMessages({ count: 4 });
-
-                await serve(COMMISSIONABLE_SERVICE, PORT);
-                await serve(OPERATIONAL_SERVICE, PORT2);
-
-                const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
-
-                const allMessages = await MockTime.resolve(messages);
-
-                // Find the SRV query and SRV response (skip the initial PTR query/response)
-                const query = allMessages.find(
-                    m => m?.messageType === DnsMessageType.Query && m.queries[0]?.recordType === DnsRecordType.SRV,
-                );
-                // Find response that contains an SRV answer (not the PTR response from initial query)
-                const response = allMessages.find(
-                    m =>
-                        DnsMessageType.isResponse(m?.messageType ?? 0) &&
-                        m?.answers.some(a => a.recordType === DnsRecordType.SRV),
-                );
-
-                expectMessage(query, {
-                    additionalRecords: [],
-                    answers: [],
-                    authorities: [],
-                    messageType: 0,
-                    queries: [
-                        {
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordClass: 1,
-                            recordType: 33,
-                            uniCastResponse: false,
-                        },
-                    ],
-                    transactionId: 0,
-                });
-                expectMessage(response, {
-                    additionalRecords: [
-                        {
-                            flushCache: false,
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordClass: 1,
-                            recordType: 16,
-                            ttl: Seconds(120),
-                            value: ["SII=500", "SAI=300", "SAT=4000"],
-                        },
-                        ...IPDnsRecords,
-                    ],
-                    answers: [
-                        {
-                            flushCache: false,
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordClass: 1,
-                            recordType: 33,
-                            ttl: Seconds(120),
-                            value: { port: PORT2, priority: 0, target: "00B0D063C2260000.local", weight: 0 },
-                        },
-                    ],
-                    authorities: [],
-                    messageType: 0x8400,
-                    queries: [],
-                    transactionId: 0,
-                });
-
-                const result = await findPromise;
-
-                expect(result?.addresses).deep.equal(IPIntegrationResultsPort2);
-
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort2,
-                );
-
-                // No commissionable devices because never queried
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
-
-                // And expire the announcement
-                await closeAll();
-
-                // And empty result after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-            });
-
-            it("the client queries the server record and also accepts unauthoritative responses", async () => {
-                const sentData = new Array<Bytes>();
-                const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) =>
-                    sentData.push(data),
-                );
-                let packetManipulated = false;
-                scannerInterceptor = (packet, route) => {
-                    const message = DnsCodec.decode(packet.payload);
-                    if (message) {
-                        // If Authoritative response turn into unauthoritative answer
-                        if (message.messageType === DnsMessageType.Response) {
-                            message.messageType &= ~DnsMessageTypeFlag.AA;
-                            packet.payload = DnsCodec.encode(message);
-                            packetManipulated = true;
-                        }
-                    }
-                    route(packet);
-                };
-
-                advertise(OPERATIONAL_SERVICE);
-
-                const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
-
-                await MockTime.resolve(findPromise);
-
-                expect(packetManipulated).to.equal(true);
-
-                // Find the SRV query (not the initial PTR query from criteria add)
-                const srvQueryData = sentData.find(data => {
-                    const msg = DnsCodec.decode(data);
-                    return msg?.queries[0]?.recordType === DnsRecordType.SRV;
-                });
-                expect(srvQueryData).not.undefined;
-                expectMessage(DnsCodec.decode(srvQueryData!), {
-                    additionalRecords: [],
-                    answers: [],
-                    authorities: [],
-                    messageType: 0,
-                    queries: [
-                        {
-                            name: "0000000000000018-0000000000000001._matter._tcp.local",
-                            recordClass: 1,
-                            recordType: 33,
-                            uniCastResponse: false,
-                        },
-                    ],
-                    transactionId: 0,
-                });
-
-                const result = await findPromise;
-
-                expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
-                await listener.close();
-
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort1,
-                );
-
-                // And expire the announcement
-                await close();
-
-                // And empty result after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-            });
-
-            describe("Multiple concurrent waiters for the same query", () => {
-                it("two timed discoveries with different timeouts resolve in the correct order", async () => {
-                    // Start two findOperationalDevice calls with different timeouts
-                    // Neither will find a device (not advertised), so they should timeout and return undefined
-                    const shortTimeout = Millis(500);
-                    const longTimeout = Millis(1000);
-
-                    const shortPromise = client.findOperationalDevice(FABRIC, NODE_ID, shortTimeout);
-                    const longPromise = client.findOperationalDevice(FABRIC, NODE_ID, longTimeout);
-
-                    const results: Array<{
-                        which: string;
-                        result: typeof shortPromise extends Promise<infer T> ? T : never;
-                    }> = [];
-
-                    // Track which promise resolves first
-
-                    shortPromise.then(result => results.push({ which: "short", result })).catch(() => {});
-                    longPromise.then(result => results.push({ which: "long", result })).catch(() => {});
-
-                    // Advance past the short timeout
-                    await MockTime.advance(600);
-                    await MockTime.yield3();
-
-                    // Short timeout should have resolved first with undefined
-                    expect(results.length).equals(1);
-                    expect(results[0].which).equals("short");
-                    expect(results[0].result).equals(undefined);
-
-                    // Advance past the long timeout
-                    await MockTime.advance(500);
-                    await MockTime.yield3();
-
-                    // Long timeout should now also have resolved with undefined
-                    expect(results.length).equals(2);
-                    expect(results[1].which).equals("long");
-                    expect(results[1].result).equals(undefined);
-                });
-
-                it("two concurrent queries both resolve when a matching record is found", async () => {
-                    // Start two findOperationalDevice calls for the same device
-                    const timeout = Seconds(10);
-
-                    const promise1 = client.findOperationalDevice(FABRIC, NODE_ID, timeout);
-                    const promise2 = client.findOperationalDevice(FABRIC, NODE_ID, timeout);
-
-                    // Now advertise the device - both waiters should be notified
-                    advertise(OPERATIONAL_SERVICE);
-
-                    // Wait for the broadcast to be processed
-                    const [result1, result2] = await MockTime.resolve(Promise.all([promise1, promise2]));
-
-                    // Both should have found the device
-                    expect(result1?.addresses).deep.equal(IPIntegrationResultsPort1);
-                    expect(result2?.addresses).deep.equal(IPIntegrationResultsPort1);
-
-                    // Cleanup
-                    await close();
-                });
-            });
-        });
-
-        it("the client queries the server record with a truncated query", async () => {
-            const sentData = new Array<Bytes>();
-            const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
-                if (DnsMessageType.isResponse(DnsCodec.decode(data)?.messageType ?? DnsMessageType.Response)) return;
-                if (sentData.some(d => Bytes.areEqual(d, data))) return; // Sort out duplicates
-                sentData.push(data);
-            });
-
-            // Intercept the message to be sent and make it bigger to generate a truncated query
-            const DUMMY_TRX_ID = 0x1234;
-            MockTime.interceptOnce(
-                MdnsSocket.prototype,
-                "send",
-                async res => res,
-                args => {
-                    const message = args[0];
-                    if (message.messageType === DnsMessageType.Query) {
-                        message.transactionId = DUMMY_TRX_ID;
-                        message.answers = [];
-                        for (let i = 0; i < 50; i++) {
-                            message.answers.push(TxtRecord("a.b.c.d", [`A=${i}`]));
-                        }
-                    }
-                    return args;
-                },
-            );
-
-            advertise(OPERATIONAL_SERVICE);
-
-            const findPromise = client.findOperationalDevice(FABRIC, NODE_ID);
-
-            await MockTime.resolve(findPromise);
-
-            const initialQuery = DnsCodec.decode(sentData[0]);
-            expect(initialQuery?.transactionId).equal(DUMMY_TRX_ID);
-            expect(initialQuery?.queries).deep.equal([
-                {
-                    name: "0000000000000018-0000000000000001._matter._tcp.local",
-                    recordClass: 1,
-                    recordType: 33,
-                    uniCastResponse: false,
-                },
-            ]);
-            expect(initialQuery?.answers.length).equal(48);
-            expect(initialQuery?.messageType).equal(DnsMessageType.Query | DnsMessageTypeFlag.TC);
-
-            const secondQuery = DnsCodec.decode(sentData[1]);
-            expect(secondQuery?.messageType).equal(DnsMessageType.Query);
-            expect(secondQuery?.transactionId).equal(DUMMY_TRX_ID);
-            expect(secondQuery?.queries).deep.equal([]);
-            expect(secondQuery?.answers.length).equal(2);
-
-            const result = await findPromise;
-
-            expect(result?.addresses).deep.equal(IPIntegrationResultsPort1);
-            await listener.close();
-            await close();
-        });
-
-        describe("Initial query on new operational targets", () => {
-            function waitForQuery(): Promise<DnsMessage> {
-                return new Promise((resolve, reject) => {
-                    const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
-                        const message = DnsCodec.decode(data);
-                        if (message && DnsMessageType.isQuery(message.messageType)) {
-                            listener.close().then(
-                                () => resolve(message),
-                                err => reject(err as Error),
-                            );
-                        }
-                    });
-                });
-            }
-
-            it("sends initial PTR query when a new operational target is added", async () => {
-                const queryPromise = waitForQuery();
-
-                // Add criteria with operational target - should trigger initial query
-                const criteria: MdnsScannerTargetCriteria = {
-                    commissionable: false,
-                    operationalTargets: [{ fabricId: GLOBAL_ID, nodeId: NODE_ID }],
-                };
-
-                client.targetCriteriaProviders.add(criteria);
-
-                const query = await queryPromise;
-
-                expect(query.messageType).equals(DnsMessageType.Query);
-                expect(query.queries).deep.includes({
-                    name: "0000000000000018-0000000000000001._matter._tcp.local",
-                    recordClass: 1,
-                    recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
-                });
-
-                client.targetCriteriaProviders.delete(criteria);
-            });
-
-            it("sends initial PTR query for fabric-only target", async () => {
-                const queryPromise = waitForQuery();
-
-                // Add criteria with fabric-only operational target (no nodeId)
-                const criteria: MdnsScannerTargetCriteria = {
-                    commissionable: false,
-                    operationalTargets: [{ fabricId: GLOBAL_ID }],
-                };
-
-                client.targetCriteriaProviders.add(criteria);
-
-                const query = await queryPromise;
-
-                expect(query.messageType).equals(DnsMessageType.Query);
-                expect(query.queries).deep.includes({
-                    name: "_I0000000000000018._sub._matter._tcp.local",
-                    recordClass: 1,
-                    recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
-                });
-
-                client.targetCriteriaProviders.delete(criteria);
-            });
-
-            it("does not send initial query for already known targets", async () => {
-                // First add a criteria to establish a known target
-                const queryPromise1 = waitForQuery();
-
-                const criteria1: MdnsScannerTargetCriteria = {
-                    commissionable: false,
-                    operationalTargets: [{ fabricId: GLOBAL_ID, nodeId: NODE_ID }],
-                };
-
-                client.targetCriteriaProviders.add(criteria1);
-                await queryPromise1; // Wait for initial query
-
-                // Now add same target again via different criteria - should NOT trigger new query
-                let queryReceived = false;
-                const listener = scanListener.onData((_netInterface, _peerAddress, _peerPort, data) => {
-                    const message = DnsCodec.decode(data);
-                    if (message && DnsMessageType.isQuery(message.messageType)) {
-                        queryReceived = true;
-                    }
-                });
-
-                const criteria2: MdnsScannerTargetCriteria = {
-                    commissionable: false,
-                    operationalTargets: [{ fabricId: GLOBAL_ID, nodeId: NODE_ID }],
-                };
-
-                client.targetCriteriaProviders.add(criteria2);
-
-                // Wait a bit for any potential query
-                await MockTime.resolve(Time.sleep("wait", Millis(10)));
-
-                // No new queries should be sent for already known target
-                expect(queryReceived).equals(false);
-
-                await listener.close();
-                client.targetCriteriaProviders.delete(criteria1);
-                client.targetCriteriaProviders.delete(criteria2);
-            });
-
-            it("sends initial queries for multiple new targets in one message", async () => {
-                const queryPromise = waitForQuery();
-
-                const GLOBAL_ID_2 = GlobalFabricId(0x19);
-                const NODE_ID_2 = NodeId(2);
-
-                // Add criteria with multiple operational targets
-                const criteria: MdnsScannerTargetCriteria = {
-                    commissionable: false,
-                    operationalTargets: [
-                        { fabricId: GLOBAL_ID, nodeId: NODE_ID },
-                        { fabricId: GLOBAL_ID_2, nodeId: NODE_ID_2 },
-                    ],
-                };
-
-                client.targetCriteriaProviders.add(criteria);
-
-                const query = await queryPromise;
-
-                expect(query.messageType).equals(DnsMessageType.Query);
-                expect(query.queries.length).equals(2);
-                expect(query.queries).deep.includes({
-                    name: "0000000000000018-0000000000000001._matter._tcp.local",
-                    recordClass: 1,
-                    recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
-                });
-                expect(query.queries).deep.includes({
-                    name: "0000000000000019-0000000000000002._matter._tcp.local",
-                    recordClass: 1,
-                    recordType: DnsRecordType.PTR,
-                    uniCastResponse: false,
-                });
-
-                client.targetCriteriaProviders.delete(criteria);
-            });
-        });
-
-        describe("Operational and commissionable discovery", () => {
-            const criteria: MdnsScannerTargetCriteria = {
-                commissionable: true,
-                operationalTargets: [{ fabricId: GLOBAL_ID }],
-            };
-            beforeEach(() => client.targetCriteriaProviders.add(criteria));
-            afterEach(() => client.targetCriteriaProviders.delete(criteria));
-
-            it("the client knows announced records if scanning is enabled by criteria", async () => {
-                // Wait for 3 messages: 1 initial PTR query (from criteria add) + 2 broadcast responses
-                const messages = waitForMessages({ count: 3 });
-                advertise(COMMISSIONABLE_SERVICE);
-                advertise(OPERATIONAL_SERVICE, PORT2);
-
-                await messages;
-
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort2,
-                );
-
-                // No commissionable devices because never queried
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([
-                    {
-                        CM: 1,
-                        D: 1234,
-                        DN: "Test Device",
-                        DT: 1,
-                        P: 32768,
-                        PH: 33,
-                        SAI: Millis(300),
-                        SD: 4,
-                        SII: Millis(500),
-                        SAT: Seconds(4),
-                        T: 0,
-                        ICD: 0,
-                        V: 1,
-                        VP: "1+32768",
-                        addresses: IPIntegrationResultsPort1,
-                        deviceIdentifier: "8080808080808080",
-                        discoveredAt: undefined,
-                        ttl: undefined,
-                        instanceId: "8080808080808080",
-                    },
-                ]);
-
-                // And expire the announcement
-                await closeAll();
-
-                // And removed after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
-            });
-
-            it("the client queries the server record and get correct response when announced before", async () => {
-                const collection = waitForMessages(Seconds(10));
-
-                advertise(COMMISSIONABLE_SERVICE);
-                advertise(OPERATIONAL_SERVICE, PORT2);
-
-                const messages = await collection;
-
-                const result = await client.findOperationalDevice(FABRIC, NODE_ID, Seconds(10));
-
-                // Ensure no additional SRV queries sent (only the initial PTR query from criteria add should exist)
-                // findOperationalDevice should use cached data from the broadcast
-                expect(
-                    messages.filter(
-                        m => m?.messageType === DnsMessageType.Query && m.queries[0]?.recordType === DnsRecordType.SRV,
-                    ).length,
-                ).equals(0);
-
-                expect(result?.addresses).deep.equal(IPIntegrationResultsPort2);
-
-                // Same result when we just get the records
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort2,
-                );
-
-                // Also commissionable devices known now
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([
-                    {
-                        CM: 1,
-                        D: 1234,
-                        DN: "Test Device",
-                        DT: 1,
-                        P: 32768,
-                        PH: 33,
-                        SAI: Millis(300),
-                        SD: 4,
-                        SII: Millis(500),
-                        SAT: Seconds(4),
-                        T: 0,
-                        ICD: 0,
-                        V: 1,
-                        VP: "1+32768",
-                        addresses: IPIntegrationResultsPort1,
-                        deviceIdentifier: "8080808080808080",
-                        discoveredAt: undefined,
-                        ttl: undefined,
-                        instanceId: "8080808080808080",
-                    },
-                ]);
-
-                // And expire the announcement
-                await closeAll();
-
-                // And removed after expiry
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
-            });
-        });
-
         describe("Goodbye protection against out-of-order packets", () => {
             const criteria: MdnsScannerTargetCriteria = {
                 commissionable: true,
-                operationalTargets: [{ fabricId: GLOBAL_ID }],
             };
             beforeEach(() => client.targetCriteriaProviders.add(criteria));
             afterEach(() => client.targetCriteriaProviders.delete(criteria));
 
-            it("ignores goodbye (TTL=0) for operational device discovered within 1 second", async () => {
-                // Wait for the initial announcement to be received
-                const messages = waitForMessages({ count: 2 });
-                advertise(OPERATIONAL_SERVICE);
-                await messages;
-
-                // Verify the device is discovered
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort1,
-                );
-
-                // Send a goodbye message (TTL=0) immediately - simulating out-of-order packet
-                await serverSocket.send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        answers: [
-                            {
-                                name: "0000000000000018-0000000000000001._matter._tcp.local",
-                                recordType: DnsRecordType.TXT,
-                                recordClass: 1,
-                                ttl: Instant, // TTL=0
-                                value: [],
-                                flushCache: false,
-                            },
-                        ],
-                    },
-                    "fake0",
-                );
-
-                // Wait for the message to be processed
-                await MockTime.resolve(Time.sleep("process", Millis(50)));
-
-                // Device should still be there - goodbye was ignored due to protection window
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort1,
-                );
-
-                await closeAll();
-            });
-
-            it("accepts goodbye (TTL=0) for operational device discovered more than 1 second ago", async () => {
-                // Wait for an initial announcement to be received
-                const messages = waitForMessages({ count: 2 });
-                advertise(OPERATIONAL_SERVICE);
-                await messages;
-
-                // Verify device is discovered
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)?.addresses).deep.equal(
-                    IPIntegrationResultsPort1,
-                );
-
-                // Wait more than 1 second (protection window)
-                await MockTime.resolve(Time.sleep("wait", Millis(1100)));
-
-                // Send a goodbye message (TTL=0) - now outside protection window
-                await serverSocket.send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        answers: [
-                            {
-                                name: "0000000000000018-0000000000000001._matter._tcp.local",
-                                recordType: DnsRecordType.TXT,
-                                recordClass: 1,
-                                ttl: Instant, // TTL=0
-                                value: [],
-                                flushCache: false,
-                            },
-                        ],
-                    },
-                    "fake0",
-                );
-
-                // Wait for the message to be processed
-                await MockTime.resolve(Time.sleep("process", Millis(50)));
-                await MockTime.yield3();
-
-                // Device should be removed - goodbye was accepted
-                expect(client.getDiscoveredOperationalDevice(FABRIC, NODE_ID)).deep.equal(undefined);
-
-                await closeAll();
-            });
-
             it("ignores goodbye (TTL=0) for commissionable device discovered within 1 second", async () => {
                 // Wait for initial announcement to be received
-                const messages = waitForMessages({ count: 2 });
+                const messages = waitForMessages({ count: 1 });
                 advertise(COMMISSIONABLE_SERVICE);
                 await messages;
 
@@ -1832,7 +1111,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
 
             it("accepts goodbye (TTL=0) for commissionable device discovered more than 1 second ago", async () => {
                 // Wait for initial announcement to be received
-                const messages = waitForMessages({ count: 2 });
+                const messages = waitForMessages({ count: 1 });
                 advertise(COMMISSIONABLE_SERVICE);
                 await messages;
 
@@ -1867,45 +1146,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 // Device should be removed - goodbye was accepted
                 const devicesAfter = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
                 expect(devicesAfter.length).equals(0);
-
-                await closeAll();
-            });
-
-            it("ignores goodbye (TTL=0) for IP address discovered within 1 second", async () => {
-                // Wait for initial announcement to be received
-                const messages = waitForMessages({ count: 2 });
-                advertise(OPERATIONAL_SERVICE);
-                await messages;
-
-                // Verify device is discovered with addresses
-                const device = client.getDiscoveredOperationalDevice(FABRIC, NODE_ID);
-                expect(device?.addresses.length).greaterThan(0);
-                const initialAddressCount = device?.addresses.length ?? 0;
-
-                // Send a goodbye for a specific IP address immediately
-                await serverSocket.send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        answers: [
-                            {
-                                name: "00B0D063C2260000.local",
-                                recordType: DnsRecordType.AAAA,
-                                recordClass: 1,
-                                ttl: Instant, // TTL=0
-                                value: SERVER_IPv6,
-                                flushCache: false,
-                            },
-                        ],
-                    },
-                    "fake0",
-                );
-
-                // Wait for message to be processed
-                await MockTime.resolve(Time.sleep("process", Millis(50)));
-
-                // IP address should still be there - goodbye was ignored due to protection window
-                const deviceAfter = client.getDiscoveredOperationalDevice(FABRIC, NODE_ID);
-                expect(deviceAfter?.addresses.length).equals(initialAddressCount);
 
                 await closeAll();
             });

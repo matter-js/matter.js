@@ -11,6 +11,7 @@
     },
     "bin": {
         "matter-build": "bin/build.js",
+        "matter-embed-examples": "bin/embed-examples.js",
         "matter-run": "bin/run.js",
         "matter-version": "bin/version.js"
     },

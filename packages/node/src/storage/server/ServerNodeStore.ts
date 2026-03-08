@@ -92,7 +92,15 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     }
 
     #logChange(what: "Opened" | "Closed") {
-        logger.info(what, Diagnostic.strong(this.#nodeId ?? "node"), "storage at", `${this.#location}/${this.#nodeId}`);
+        logger.info(
+            what,
+            Diagnostic.strong(this.#nodeId ?? "node"),
+            "storage",
+            Diagnostic.dict({
+                location: `${this.#location}/${this.#nodeId}`,
+                driver: this.#storageManager?.driverId ?? "unknown",
+            }),
+        );
     }
 
     storeForEndpoint(endpoint: Endpoint) {

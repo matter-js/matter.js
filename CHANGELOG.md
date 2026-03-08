@@ -18,9 +18,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
+    - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
+    - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
+    - Fix: Try to preserve clusters in the structure even if they are not specified in the serverList of the endpoint but reported data ("Schrödinger's cluster")
 
 - @matter/protocol
-    - Breaking: Removed automatic retry-logic for interactions on node-reachabiloity issues, new session will be initialized automatically afterwards
+    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterwards
     - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
     - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel

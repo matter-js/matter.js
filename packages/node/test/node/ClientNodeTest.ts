@@ -17,7 +17,19 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
-import { b$, Bytes, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds } from "@matter/general";
+import {
+    b$,
+    Bytes,
+    Crypto,
+    deepCopy,
+    Entropy,
+    Minutes,
+    MockCrypto,
+    Observable,
+    Seconds,
+    Time,
+    Timestamp,
+} from "@matter/general";
 import { Specification } from "@matter/model";
 import { FabricManager, PeerSet, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
@@ -29,9 +41,6 @@ import { subscribedPeer } from "./node-helpers.js";
 describe("ClientNode", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("times out commissioning discovery", async () => {
@@ -169,6 +178,31 @@ describe("ClientNode", () => {
 
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
+    });
+
+    it("commissions with a short numeric passcode", async () => {
+        await using site = new MockSite();
+        const controller = await site.addController();
+        const device = await site.addDevice({
+            commissioning: {
+                passcode: 1,
+            },
+        });
+
+        const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+        const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+        controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+        const { passcode, discriminator } = device.state.commissioning;
+        expect(passcode).equals(1);
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
+
+        controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+        expect(device.state.commissioning.commissioned).equals(true);
+        expect(controller.peers.size).equals(1);
     });
 
     it("invokes, receives state updates and emits changed events", async () => {
@@ -612,6 +646,149 @@ describe("ClientNode", () => {
         // TODO
         // TODO Also include validation that the session is closed correctly on the device side on session close and
         //  all subscriptions ended and such
+    });
+
+    describe("orphaned peer cleanup", () => {
+        it("uncommissioned node from incomplete commissioning persists across restart", async () => {
+            // *** SETUP ***
+
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair();
+            const { discriminator } = device.state.commissioning;
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            // *** DISCOVER WITHOUT COMMISSIONING ***
+
+            // Discover device but do not commission it - this creates an uncommissioned peer node and
+            // persists its discoveredAt to storage
+            await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            expect(controller.peers.size).equals(1);
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1).not.undefined;
+            expect(peer1.state.commissioning.peerAddress).undefined; // Not commissioned
+            expect(peer1.state.commissioning.discoveredAt).not.undefined; // Persisted
+
+            // *** RESTART ***
+
+            await site.close();
+
+            // Recreate the controller with the same storage (same id + index)
+            const controllerB = await site.addNode(undefined, { id: "controller1", index: 1 });
+
+            // The uncommissioned node must have survived: its discoveredAt was written to persistent
+            // storage during discovery, so it is restored exactly as an uncommissioned peer
+            expect(controllerB.peers.size).equals(1);
+            const peer1b = controllerB.peers.get("peer1")!;
+            expect(peer1b).not.undefined;
+            expect(peer1b.state.commissioning.peerAddress).undefined; // Still uncommissioned
+            expect(peer1b.state.commissioning.discoveredAt).not.undefined;
+        });
+
+        it("culls uncommissioned nodes after TTL expires even when commissioned nodes are present", async () => {
+            // *** SETUP ***
+
+            await using site = new MockSite();
+
+            // Commission first pair (peer1 - commissioned, 1 address with no discoveredAt on the
+            // address record - this is the condition that triggered the early-return bug)
+            const { controller } = await site.addCommissionedPair();
+
+            // Add a second device to discover without commissioning
+            const device2 = await site.addDevice({ index: 3 });
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device2.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            const { discriminator } = device2.state.commissioning;
+            const discovered = await MockTime.resolve(
+                controller.peers.discover({ longDiscriminator: discriminator, timeout: Seconds(90) }),
+                { macrotasks: true },
+            );
+
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            expect(discovered.length).equals(1);
+            const peer2 = discovered[0];
+            expect(peer2.state.commissioning.peerAddress).undefined; // Uncommissioned
+            expect(controller.peers.size).equals(2); // peer1 (commissioned) + peer2 (uncommissioned)
+
+            // *** WAIT FOR EXPIRATION ***
+
+            // The expiration timer fires every 1 minute and culls uncommissioned nodes whose TTL
+            // has expired (default TTL = 15 min from discoveredAt).  Iterate until peer2 is gone.
+            // Without the return→continue fix, peer1 (commissioned, 1 address) would cause the
+            // expiration loop to exit early and peer2 would never be culled.
+            const peer2Destroyed = new Promise<void>(resolve => peer2.lifecycle.destroyed.once(() => resolve()));
+            await MockTime.resolve(peer2Destroyed);
+
+            // *** VALIDATE ***
+
+            expect(controller.peers.size).equals(1);
+            expect(controller.peers.get("peer1")).not.undefined; // commissioned peer survives
+            expect(controller.peers.get(peer2.id)).undefined; // uncommissioned peer was culled
+        });
+
+        it("prunes expired addresses from commissioned nodes", async () => {
+            // *** SETUP ***
+
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const peer1 = controller.peers.get("peer1")!;
+            expect(peer1).not.undefined;
+
+            const originalAddresses = peer1.state.commissioning.addresses!;
+            expect(originalAddresses.length).equals(1);
+
+            // *** ADD STALE ADDRESS ***
+
+            // Add a second address with an expired TTL (discoveredAt 20 min ago, no explicit ttl so
+            // DEFAULT_TTL of 15 min is used → already expired).
+            const staleAddress = {
+                type: "udp" as const,
+                ip: "192.168.99.99",
+                port: 5678,
+                peripheralAddress: undefined,
+                ttl: undefined,
+                discoveredAt: Timestamp(Time.nowMs - Minutes(20)), // 20 min ago → past DEFAULT_TTL
+            };
+
+            await peer1.set({
+                commissioning: {
+                    addresses: [...originalAddresses, staleAddress],
+                },
+            });
+
+            expect(peer1.state.commissioning.addresses!.length).equals(2);
+
+            // *** WAIT FOR PRUNING ***
+
+            // Advance time past one expiration interval so the timer fires and prunes the expired
+            // address.  Without the { addresses } → { addresses: newAddresses } fix, the old full
+            // list would be written back and no pruning would occur.
+            await MockTime.advance(Minutes(2));
+            // Allow async state update to complete
+            await MockTime.yield3();
+
+            // *** VALIDATE ***
+
+            const updatedAddresses = peer1.state.commissioning.addresses!;
+            expect(updatedAddresses.length).equals(1);
+            const remainingAddress = updatedAddresses[0];
+            expect(remainingAddress.type === "udp" && remainingAddress.ip).equals(
+                originalAddresses[0].type === "udp" && originalAddresses[0].ip,
+            );
+        });
     });
 });
 

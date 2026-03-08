@@ -15,9 +15,6 @@ import { MockSite } from "./mock-site.js";
 describe("ClientInvoke", () => {
     before(() => {
         MockTime.init();
-
-        // Required for crypto to succeed
-        MockTime.forceMacrotasks = true;
     });
 
     it("executes commands via the batcher", async () => {
@@ -270,6 +267,44 @@ describe("ClientInvoke", () => {
 
         // Final state should be true (on → toggle off → on again)
         expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(true);
+    });
+
+    it("correctly splits different-path commands when maxPathsPerInvoke is 1", async () => {
+        await using site = new MockSite();
+        // Device advertises maxPathsPerInvoke=1 — the server enforces this limit
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: { maxPathsPerInvoke: 1 },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const ep1 = peer1.endpoints.for(1);
+        const cmds = ep1.commandsOf(OnOffClient);
+
+        // Get initial state, normally off, thats why rest relies on that
+        const initialState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(initialState).equals(false);
+
+        // Issue two different commands in the same tick — they have different path keys so
+        // #partitionBatch puts them in the same sub-batch.
+        // maxPathsPerInvoke=1 causes #invokeWithSplitting to be called with maxPaths=1.
+        //
+        // Before the fix: each split's batchRequest kept all original invokeRequests →
+        // the server received 2 paths → rejected with InvalidAction(128).
+        // After the fix: each split's invokeRequests is filtered to only its own command →
+        // the server receives 1 path per exchange → both succeed.
+        const p1 = cmds.on();
+        const p2 = cmds.toggle();
+
+        await MockTime.resolve(Promise.all([p1, p2]));
+
+        // on() (false→true) then toggle() (true→false) — final state is back to initial
+        const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(finalState).equals(initialState);
     });
 
     it("splits duplicate command paths into separate batches", async () => {

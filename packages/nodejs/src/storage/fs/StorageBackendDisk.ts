@@ -10,10 +10,11 @@ import {
     fromJson,
     Logger,
     MatterAggregateError,
-    Storage,
+    StorageDriver,
     StorageError,
     SupportedStorageTypes,
     toJson,
+    type Directory,
 } from "@matter/general";
 import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
@@ -33,7 +34,13 @@ interface ContextIndex {
     keys?: Set<string>;
 }
 
-export class StorageBackendDisk extends Storage {
+export class StorageBackendDisk extends StorageDriver {
+    static readonly id = "file";
+
+    static create(dir: Directory) {
+        return new StorageBackendDisk(dir.path);
+    }
+
     readonly #path: string;
     readonly #clear: boolean;
     protected isInitialized = false;
@@ -52,7 +59,8 @@ export class StorageBackendDisk extends Storage {
 
     async initialize() {
         if (this.#clear) {
-            await this.clear();
+            this.#index = {};
+            await rm(this.#path, { recursive: true, force: true });
         }
         await mkdir(this.#path, { recursive: true });
 
@@ -115,13 +123,6 @@ export class StorageBackendDisk extends Storage {
 
     filePath(fileName: string) {
         return join(this.#path, fileName);
-    }
-
-    async clear() {
-        await this.#finishAllWrites();
-        this.#index = {};
-        await rm(this.#path, { recursive: true, force: true });
-        await mkdir(this.#path, { recursive: true });
     }
 
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {

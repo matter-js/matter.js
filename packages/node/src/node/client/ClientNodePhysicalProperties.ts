@@ -55,6 +55,18 @@ export function ClientNodePhysicalProperties(node: ClientNode) {
         get isThreadSleepyEndDevice() {
             return props().isThreadSleepyEndDevice;
         },
+
+        get threadActive() {
+            return props().threadActive;
+        },
+
+        get threadPan() {
+            return props().threadPan;
+        },
+
+        get threadChannel() {
+            return props().threadChannel;
+        },
     };
 
     cache.set(node, result);

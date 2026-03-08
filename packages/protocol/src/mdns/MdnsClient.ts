@@ -4,10 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     AddressLifespan,
-    BasicMultiplex,
     BasicSet,
     ChannelType,
     Diagnostic,
@@ -20,7 +18,6 @@ import {
     Hours,
     ImplementationError,
     Instant,
-    InternalError,
     Lifetime,
     Logger,
     MdnsSocket,
@@ -37,24 +34,15 @@ import {
     createPromise,
     isIPv6,
 } from "@matter/general";
-import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
-import {
-    CommissionableDevice,
-    CommissionableDeviceIdentifiers,
-    DiscoveryData,
-    OperationalDevice,
-    Scanner,
-} from "../common/Scanner.js";
-import { Fabric } from "../fabric/Fabric.js";
+import { VendorId } from "@matter/types";
+import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, Scanner } from "../common/Scanner.js";
 import {
     MATTER_COMMISSION_SERVICE_QNAME,
     MATTER_SERVICE_QNAME,
     getCommissionableDeviceQname,
     getCommissioningModeQname,
     getDeviceTypeQname,
-    getFabricQname,
     getLongDiscriminatorQname,
-    getOperationalDeviceQname,
     getShortDiscriminatorQname,
     getVendorQname,
 } from "./MdnsConsts.js";
@@ -88,12 +76,6 @@ type CommissionableDeviceRecordWithExpire = Omit<CommissionableDevice, "addresse
         P?: number; // Additional Field for Product ID
     };
 
-/** Type for operational Device records including Lifespan details. */
-type OperationalDeviceRecordWithExpire = Omit<OperationalDevice, "addresses"> &
-    AddressLifespan & {
-        addresses: Map<string, MatterServerRecordWithExpire>; // Override addresses type to include expiration
-    };
-
 /** Type for any DNS record with Lifespan (discoveredAt and ttl) details. */
 type AnyDnsRecordWithExpiry = DnsRecord<any> & AddressLifespan;
 
@@ -113,24 +95,14 @@ type StructuredDnsAnswers = {
 const START_ANNOUNCE_INTERVAL = Seconds(1.5);
 
 /**
- * Interface to add criteria for MDNS discovery a node is interested in
+ * Interface to add criteria for MDNS discovery a node is interested in.
  *
- * This interface is used to define criteria for mDNS scanner targets. It includes the information if commissionable
- * devices are relevant for the target and a list of operational targets. Operational targets can consist of operational
- * IDs and optional node IDs.
- *
- * When no commissionable devices are relevant and no operational targets are defined, it is not required to add a
- * criteria to the scanner.
+ * This interface is used to define criteria for mDNS scanner targets. It includes whether commissionable devices are
+ * relevant for the target.
  */
 export interface MdnsScannerTargetCriteria {
     /** Are commissionable MDNS records relevant? */
     commissionable: boolean;
-
-    /** List of operational targets. */
-    operationalTargets: {
-        fabricId: GlobalFabricId;
-        nodeId?: NodeId;
-    }[];
 }
 
 interface WaiterRecord {
@@ -151,7 +123,6 @@ interface WaiterRecord {
  */
 export class MdnsClient implements Scanner {
     readonly #lifetime: Lifetime;
-    #operationalInitialQueries?: BasicMultiplex;
 
     readonly type = ChannelType.UDP;
 
@@ -160,9 +131,6 @@ export class MdnsClient implements Scanner {
 
     /** Known IP addresses by network interface */
     readonly #discoveredIpRecords = new Map<string, StructuredDnsAddressAnswers>();
-
-    /** Known operational device records by Matter Qname */
-    readonly #operationalDeviceRecords = new Map<string, OperationalDeviceRecordWithExpire>();
 
     /** Known commissionable device records by queryId */
     readonly #commissionableDeviceRecords = new Map<string, CommissionableDeviceRecordWithExpire>();
@@ -180,7 +148,6 @@ export class MdnsClient implements Scanner {
     readonly #targetCriteriaProviders = new BasicSet<MdnsScannerTargetCriteria>();
     #scanForCommissionableDevices = false;
     #hasCommissionableWaiters = false;
-    readonly #operationalScanTargets = new Set<string>();
     readonly #observers = new ObserverGroup();
 
     /** True, if any node is interested in MDNS traffic, else we ignore all traffic */
@@ -210,68 +177,22 @@ export class MdnsClient implements Scanner {
             "MDNS Scan targets updated :",
             Diagnostic.dict({
                 commissionable: this.#scanForCommissionableDevices,
-                operational: this.#operationalScanTargets,
             }),
         );
     }
 
-    /** Update the MDNS scan criteria state and collect the desired operational targets */
     #updateScanTargets() {
         if (this.#closing) {
             return;
         }
 
-        const formerTargets = new Set(this.#operationalScanTargets);
-        const initialSendQueries = new Set<string>();
-        // Add all operational targets from the criteria providers
-        this.#operationalScanTargets.clear();
         let cacheCommissionableDevices = false;
         for (const criteria of this.#targetCriteriaProviders) {
-            const { operationalTargets, commissionable } = criteria;
-            cacheCommissionableDevices = cacheCommissionableDevices || commissionable;
-            for (const { fabricId, nodeId } of operationalTargets) {
-                let target: string;
-                let scanTarget: string;
-                if (nodeId === undefined) {
-                    target = GlobalFabricId.strOf(fabricId).toUpperCase();
-                    scanTarget = getFabricQname(fabricId);
-                } else {
-                    target = `${GlobalFabricId.strOf(fabricId)}-${NodeId.strOf(nodeId)}`.toUpperCase();
-                    scanTarget = getOperationalDeviceQname(fabricId, nodeId);
-                }
-
-                this.#operationalScanTargets.add(target);
-                if (!formerTargets.has(target)) {
-                    initialSendQueries.add(scanTarget);
-                }
-            }
+            cacheCommissionableDevices = cacheCommissionableDevices || criteria.commissionable;
         }
         this.#scanForCommissionableDevices = cacheCommissionableDevices;
 
-        // Register all operational targets for running queries
-        for (const queryId of this.#recordWaiters.keys()) {
-            this.#registerOperationalQuery(queryId);
-        }
         this.#updateListeningStatus();
-
-        if (initialSendQueries.size > 0) {
-            logger.debug(
-                `Sending initial operational mDNS queries for ${initialSendQueries.size} new operational targets`,
-            );
-            if (this.#operationalInitialQueries === undefined) {
-                this.#operationalInitialQueries = new BasicMultiplex();
-            }
-            this.#operationalInitialQueries.add(
-                this.#socket.send({
-                    messageType: DnsMessageType.Query,
-                    queries: Array.from(initialSendQueries.values()).map(target => ({
-                        name: target,
-                        recordClass: DnsRecordClass.IN,
-                        recordType: DnsRecordType.PTR,
-                    })),
-                }),
-            );
-        }
     }
 
     /** Update the status if we care about MDNS messages or not */
@@ -279,13 +200,9 @@ export class MdnsClient implements Scanner {
         const formerListenStatus = this.#listening;
         // Are we interested in MDNS traffic or not?
         this.#listening =
-            this.#scanForCommissionableDevices ||
-            this.#operationalScanTargets.size > 0 ||
-            this.#recordWaiters.size > 0 ||
-            this.#activeAnnounceQueries.size > 0;
+            this.#scanForCommissionableDevices || this.#recordWaiters.size > 0 || this.#activeAnnounceQueries.size > 0;
         if (!this.#listening) {
             this.#discoveredIpRecords.clear();
-            this.#operationalDeviceRecords.clear();
             this.#commissionableDeviceRecords.clear();
         }
         if (this.#listening !== formerListenStatus) {
@@ -390,28 +307,6 @@ export class MdnsClient implements Scanner {
     }
 
     /**
-     * Returns the list of all targets (IP/port) discovered for a queried operational device record.
-     */
-    #getOperationalDeviceRecords(deviceMatterQname: string): OperationalDevice | undefined {
-        const device = this.#operationalDeviceRecords.get(deviceMatterQname);
-        if (device === undefined) {
-            return undefined;
-        }
-        const { addresses } = device;
-        if (addresses.size === 0) {
-            return undefined;
-        }
-        return {
-            ...device,
-            addresses: this.#sortServerEntries(Array.from(addresses.values())).map(({ ip, port }) => ({
-                ip,
-                port,
-                type: "udp",
-            })) as ServerAddressUdp[],
-        };
-    }
-
-    /**
      * Sort the list of found IP/ports and make sure link-local IPv6 addresses come first, IPv6 next and IPv4 last.
      *
      * @param entries
@@ -438,15 +333,6 @@ export class MdnsClient implements Scanner {
             }
             return 0; // no preference
         });
-    }
-
-    #registerOperationalQuery(queryId: string) {
-        const separator = queryId.indexOf(".");
-        if (separator !== -1) {
-            this.#operationalScanTargets.add(queryId.substring(0, separator));
-        } else {
-            throw new InternalError(`Invalid queryId ${queryId} for operational device, no separator found`);
-        }
     }
 
     /**
@@ -483,9 +369,6 @@ export class MdnsClient implements Scanner {
         });
         this.#recordWaiters.set(queryId, waiters);
         this.#hasCommissionableWaiters = this.#hasCommissionableWaiters || commissionable;
-        if (!commissionable) {
-            this.#registerOperationalQuery(queryId);
-        }
         logger.info(
             `Registered waiter for query ${queryId} (${id}) with ${
                 timeout !== undefined ? `timeout ${timeout}` : "no timeout"
@@ -534,85 +417,20 @@ export class MdnsClient implements Scanner {
         if (!this.#closing) {
             // We removed a waiter, so update what we still have left
             this.#hasCommissionableWaiters = false;
-            let hasOperationalWaiters = false;
-            loop: for (const waiters of this.#recordWaiters.values()) {
+            for (const waiters of this.#recordWaiters.values()) {
                 for (const { commissionable } of waiters) {
                     if (commissionable) {
                         this.#hasCommissionableWaiters = true;
-                        if (hasOperationalWaiters) {
-                            break loop; // No need to check further
-                        }
-                    } else {
-                        hasOperationalWaiters = true;
-                        if (this.#hasCommissionableWaiters) {
-                            break loop; // No need to check further
-                        }
+                        break;
                     }
+                }
+                if (this.#hasCommissionableWaiters) {
+                    break;
                 }
             }
 
-            if (!commissionableRecordFinished) {
-                // We removed an operational device waiter, so we need to update the scan targets
-                this.#updateScanTargets();
-            } else {
-                this.#updateListeningStatus();
-            }
+            this.#updateListeningStatus();
         }
-    }
-
-    /** Returns weather a waiter promise is registered for a specific queryId. */
-    #hasWaiter(queryId: string) {
-        return this.#recordWaiters.has(queryId);
-    }
-
-    /**
-     * Method to find an operational device (already commissioned) and return a promise with the list of discovered
-     * IP/ports or an empty array if not found.
-     */
-    async findOperationalDevice(
-        fabric: Fabric,
-        nodeId: NodeId,
-        timeout?: Duration,
-        ignoreExistingRecords = false,
-    ): Promise<OperationalDevice | undefined> {
-        if (this.#closing) {
-            throw new ImplementationError("Cannot discover operational device because scanner is closing.");
-        }
-        const deviceMatterQname = getOperationalDeviceQname(fabric.globalId, nodeId);
-
-        let storedDevice = this.#getOperationalDeviceRecords(deviceMatterQname);
-        if (storedDevice === undefined || ignoreExistingRecords) {
-            using _finding = this.#lifetime.join(
-                "finding peer",
-                PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId }),
-            );
-
-            if (storedDevice) {
-                // We know the device including IPs but want to query anew, so forget the addresses to ensure they get updated
-                const device = this.#operationalDeviceRecords.get(deviceMatterQname);
-                device?.addresses.clear();
-            }
-
-            const promise = this.#registerWaiterPromise(deviceMatterQname, false, timeout, () =>
-                this.#getOperationalDeviceRecords(deviceMatterQname),
-            );
-
-            this.#setQueryRecords(deviceMatterQname, [
-                {
-                    name: deviceMatterQname,
-                    recordClass: DnsRecordClass.IN,
-                    recordType: DnsRecordType.SRV,
-                },
-            ]);
-
-            storedDevice = await promise;
-        }
-        return storedDevice;
-    }
-
-    cancelOperationalDeviceDiscovery(fabric: Fabric, nodeId: NodeId, resolvePromise = true) {
-        const deviceMatterQname = getOperationalDeviceQname(fabric.globalId, nodeId);
-        this.#finishWaiter(deviceMatterQname, resolvePromise);
     }
 
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers, resolvePromise = true) {
@@ -623,10 +441,6 @@ export class MdnsClient implements Scanner {
             cancelResolver?.();
         }
         this.#finishWaiter(queryId, resolvePromise);
-    }
-
-    getDiscoveredOperationalDevice({ globalId }: Fabric, nodeId: NodeId) {
-        return this.#getOperationalDeviceRecords(getOperationalDeviceQname(globalId, nodeId));
     }
 
     /**
@@ -873,7 +687,7 @@ export class MdnsClient implements Scanner {
         );
 
         // We scan continuously, so make sure we are registered for commissionable devices
-        const criteria: MdnsScannerTargetCriteria = { commissionable: true, operationalTargets: [] };
+        const criteria: MdnsScannerTargetCriteria = { commissionable: true };
         this.targetCriteriaProviders.add(criteria);
 
         using finding = this.#lifetime.join("finding commissionable");
@@ -925,7 +739,6 @@ export class MdnsClient implements Scanner {
         this.#observers.close();
         this.#periodicTimer.stop();
         this.#queryTimer?.stop();
-        await this.#operationalInitialQueries?.close();
         // Resolve all pending promises where logic waits for the response (aka: has a timer)
         [...this.#recordWaiters.entries()].forEach(([queryId, waiters]) => {
             for (const { timer, id } of waiters) {
@@ -1137,10 +950,8 @@ export class MdnsClient implements Scanner {
         const answers = this.#structureAnswers([...message.answers, ...message.additionalRecords]);
 
         const formerAnswers = this.#getActiveQueryEarlierAnswers(message.sourceIntf);
-        // Check if we got operational discovery records and handle them
-        this.#handleOperationalRecords(answers, formerAnswers, message.sourceIntf);
 
-        // Else check if we got commissionable discovery records and handle them
+        // Check if we got commissionable discovery records and handle them
         this.#handleCommissionableRecords(answers, formerAnswers, message.sourceIntf);
 
         this.#updateIpRecords(answers, message.sourceIntf);
@@ -1258,191 +1069,6 @@ export class MdnsClient implements Scanner {
             }
         });
         return [...collectedIps.values()];
-    }
-
-    #handleOperationalRecords(
-        answers: StructuredDnsAnswers,
-        formerAnswers: StructuredDnsAnswers,
-        netInterface: string,
-    ) {
-        // Does the message contain data for an operational service?
-        if (!answers.operational) return;
-
-        const operationalTxtRecords = answers.operational[DnsRecordType.TXT] ?? [];
-        operationalTxtRecords.forEach(record => this.#handleOperationalTxtRecord(record, netInterface));
-
-        let operationalSrvRecords = answers.operational[DnsRecordType.SRV] ?? [];
-        if (!operationalSrvRecords.length && formerAnswers.operational) {
-            operationalSrvRecords = formerAnswers.operational[DnsRecordType.SRV] ?? [];
-        }
-
-        if (operationalSrvRecords.length) {
-            operationalSrvRecords.forEach(record =>
-                this.#handleOperationalSrvRecord(record, answers, formerAnswers, netInterface),
-            );
-        }
-    }
-
-    #matchesOperationalCriteria(matterName: string) {
-        const nameParts = matterName.match(/^([\dA-F]{16})-([\dA-F]{16})\._matter\._tcp\.local$/i);
-        if (!nameParts) {
-            return false;
-        }
-        const operationalId = nameParts[1];
-        const nodeId = nameParts[2];
-        return (
-            this.#operationalScanTargets.has(operationalId) ||
-            this.#operationalScanTargets.has(`${operationalId}-${nodeId}`)
-        );
-    }
-
-    /**
-     * Handle goodbye (TTL=0) for an operational device record with protection against out-of-order packets.
-     * Returns true if the goodbye was processed (record deleted or protected), false if no action needed.
-     */
-    #handleOperationalDeviceGoodbye(matterName: string, netInterface: string, now: number): boolean {
-        const existingRecord = this.#operationalDeviceRecords.get(matterName);
-        if (!existingRecord) {
-            return false;
-        }
-        const recordAge = now - existingRecord.discoveredAt;
-        if (recordAge < GOODBYE_PROTECTION_WINDOW) {
-            // Record was recently added - ignore goodbye (likely out-of-order packet)
-            return true;
-        }
-        logger.debug(
-            `Removing operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
-        );
-        this.#operationalDeviceRecords.delete(matterName);
-        return true;
-    }
-
-    #handleOperationalTxtRecord(record: DnsRecord<any>, netInterface: string) {
-        const { name: matterName, value, ttl } = record as DnsRecord<string[]>;
-        const now = Time.nowMs;
-
-        // we got expiry info, so we can remove the record if we know it already and are done
-        if (ttl === 0) {
-            this.#handleOperationalDeviceGoodbye(matterName, netInterface, now);
-            return;
-        }
-        const discoveredAt = now;
-        if (!Array.isArray(value)) return;
-
-        // Existing records are always updated if relevant, but no new are added if they are not matching the criteria
-        if (!this.#operationalDeviceRecords.has(matterName) && !this.#matchesOperationalCriteria(matterName)) {
-            //logger.debug(`Operational device ${matterName} is not in the list of operational scan targets, ignoring.`);
-            return;
-        }
-
-        const txtData = this.#parseTxtRecord(record);
-        if (txtData === undefined) return;
-
-        let device = this.#operationalDeviceRecords.get(matterName);
-        if (device !== undefined) {
-            device = {
-                ...device,
-                discoveredAt,
-                ttl,
-                ...txtData,
-            };
-        } else {
-            logNewService(matterName, "operational", txtData);
-            device = {
-                deviceIdentifier: matterName,
-                addresses: new Map<string, MatterServerRecordWithExpire>(),
-                discoveredAt,
-                ttl,
-                ...txtData,
-            };
-        }
-
-        this.#operationalDeviceRecords.set(matterName, device);
-    }
-
-    #handleOperationalSrvRecord(
-        record: DnsRecord<any>,
-        answers: StructuredDnsAnswers,
-        formerAnswers: StructuredDnsAnswers,
-        netInterface: string,
-    ) {
-        const {
-            name: matterName,
-            ttl,
-            value: { target, port },
-        } = record;
-
-        const now = Time.nowMs;
-
-        // We got device expiry info, so we can remove the record if we know it already and are done
-        if (ttl === 0) {
-            this.#handleOperationalDeviceGoodbye(matterName, netInterface, now);
-            return;
-        }
-
-        const ips = this.#handleIpRecords([formerAnswers, answers], target, netInterface);
-        const deviceExisted = this.#operationalDeviceRecords.has(matterName);
-
-        // Existing records are always updated if relevant, but no new are added if they are not matching the criteria
-        if (!deviceExisted && !this.#matchesOperationalCriteria(matterName)) {
-            //logger.debug(`Operational device ${matterName} is not in the list of operational scan targets, ignoring.`);
-            return;
-        }
-
-        const discoveredAt = now;
-        const device = this.#operationalDeviceRecords.get(matterName) ?? {
-            deviceIdentifier: matterName,
-            addresses: new Map<string, MatterServerRecordWithExpire>(),
-            discoveredAt,
-            ttl,
-        };
-        const ipsInitiallyEmpty = device.addresses.size === 0;
-        const { addresses } = device;
-        if (ips.length > 0) {
-            for (const { value: ip, ttl } of ips) {
-                if (ttl === 0) {
-                    const existingAddress = addresses.get(ip);
-                    if (existingAddress) {
-                        const addressAge = now - existingAddress.discoveredAt;
-                        if (addressAge < GOODBYE_PROTECTION_WINDOW) {
-                            // Address was recently added - ignore goodbye (likely out-of-order packet)
-                            continue;
-                        }
-                        logger.debug(
-                            `Removing IP ${ip} for operational device ${matterName} from cache (interface ${netInterface}) because of ttl=0`,
-                        );
-                        addresses.delete(ip);
-                    }
-                    continue;
-                }
-                const address = addresses.get(ip) ?? ({ ip, port, type: "udp" } as MatterServerRecordWithExpire);
-                address.discoveredAt = discoveredAt;
-                address.ttl = ttl;
-
-                addresses.set(address.ip, address);
-            }
-            device.addresses = addresses;
-            if (ipsInitiallyEmpty) {
-                logNewAddresses(matterName, "operational", netInterface, addresses);
-            }
-            this.#operationalDeviceRecords.set(matterName, device);
-        }
-
-        if (addresses.size === 0 && this.#hasWaiter(matterName)) {
-            // We have no or no more (because expired) IPs, and we are interested in this particular service name, request them
-            const queries = [{ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.AAAA }];
-            if (this.#socket.supportsIpv4) {
-                queries.push({ name: target, recordClass: DnsRecordClass.IN, recordType: DnsRecordType.A });
-            }
-            if (this.#setQueryRecords(matterName, queries, answers)) {
-                // Only log when we are not already searching for them
-                logger.debug(
-                    `Requesting IP addresses for operational device ${matterName} (interface ${netInterface}).`,
-                );
-            }
-        } else if (addresses.size > 0) {
-            this.#finishWaiter(matterName, true, deviceExisted);
-        }
     }
 
     /**
@@ -1662,20 +1288,6 @@ export class MdnsClient implements Scanner {
 
     #expire() {
         const now = Time.nowMs;
-        [...this.#operationalDeviceRecords.entries()].forEach(([recordKey, { addresses, discoveredAt, ttl }]) => {
-            const expires = discoveredAt + this.#effectiveTTL(ttl);
-            if (now <= expires) {
-                // Only check expired IPs if not device itself has expired
-                [...addresses.entries()].forEach(([key, { discoveredAt, ttl }]) => {
-                    if (now < discoveredAt + this.#effectiveTTL(ttl)) return; // not expired yet
-                    addresses.delete(key);
-                });
-            }
-            if (now > expires && !addresses.size) {
-                // device expired and also has no addresses anymore
-                this.#operationalDeviceRecords.delete(recordKey);
-            }
-        });
         [...this.#commissionableDeviceRecords.entries()].forEach(([recordKey, { addresses, discoveredAt, ttl }]) => {
             const expires = discoveredAt + this.#effectiveTTL(ttl);
             if (now <= expires) {

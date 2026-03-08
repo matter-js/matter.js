@@ -15,17 +15,13 @@ import {
     Seconds,
     ServerAddress,
 } from "@matter/general";
-import { NodeId } from "@matter/types";
 import {
     AddressTypeFromDevice,
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
     DiscoverableDevice,
-    OperationalDevice,
     Scanner,
 } from "../common/Scanner.js";
-import { Fabric } from "../fabric/Fabric.js";
-import { MdnsClient } from "../mdns/MdnsClient.js";
 import { CommissioningError } from "./CommissioningError.js";
 
 const logger = Logger.get("ControllerDiscovery");
@@ -123,26 +119,6 @@ export class ControllerDiscovery {
         });
 
         return Array.from(finalDiscoveredDevices.values());
-    }
-
-    static async discoverOperationalDevice(
-        fabric: Fabric,
-        peerNodeId: NodeId,
-        scanner: MdnsClient,
-        timeout?: Duration,
-        ignoreExistingRecords?: boolean,
-    ): Promise<OperationalDevice> {
-        const foundDevice = await scanner.findOperationalDevice(fabric, peerNodeId, timeout, ignoreExistingRecords);
-        if (foundDevice === undefined) {
-            throw new DiscoveryError(
-                "The operational device cannot be found on the network. Please make sure it is online.",
-            );
-        }
-        return foundDevice;
-    }
-
-    static cancelOperationalDeviceDiscovery(fabric: Fabric, peerNodeId: NodeId, scanner: MdnsClient) {
-        scanner.cancelOperationalDeviceDiscovery(fabric, peerNodeId);
     }
 
     static cancelCommissionableDeviceDiscovery(scanner: Scanner, identifier: CommissionableDeviceIdentifiers = {}) {

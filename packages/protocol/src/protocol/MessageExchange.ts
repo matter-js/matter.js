@@ -588,7 +588,7 @@ export class MessageExchange {
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         if (isStandaloneAck) {
-            await this.channel.send(message, this, logContext);
+            await this.channel.send(message, this);
         } else {
             await abort.attempt(this.channel.send(message, this, logContext));
         }
@@ -644,10 +644,7 @@ export class MessageExchange {
 
         if (options?.timeout !== undefined) {
             timeout = options.timeout;
-        } else if (
-            !this.session.isClosed &&
-            ((!this.#sendOptions.abort && !options?.abort) || options?.expectedProcessingTime !== undefined)
-        ) {
+        } else if (!this.session.isClosed) {
             timeout = this.channel.calculateMaximumPeerResponseTime(
                 this.session.parameters,
                 this.context.localSessionParameters,

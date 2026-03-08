@@ -4,10 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError } from "#MatterError.js";
 import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
-import { Storage, StorageError } from "./Storage.js";
+import { StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
 export interface StorageContextFactory {
@@ -16,7 +15,7 @@ export interface StorageContextFactory {
 
 export class StorageContext implements StorageContextFactory {
     constructor(
-        protected readonly storage: Storage,
+        protected readonly storage: StorageDriver,
         readonly thisContexts: string[],
     ) {}
 
@@ -75,6 +74,10 @@ export class StorageContext implements StorageContextFactory {
         return this.storage.delete(this.thisContexts, key);
     }
 
+    begin(): MaybePromise<StorageDriver.Transaction> {
+        return this.storage.begin();
+    }
+
     createContext(context: string): StorageContext {
         if (context.length === 0) throw new StorageError("Context must not be an empty string");
         if (context.includes(".")) throw new StorageError("Context must not contain dots");
@@ -93,28 +96,9 @@ export class StorageContext implements StorageContextFactory {
         return this.storage.contexts(this.thisContexts);
     }
 
-    /** Clears all keys in this context */
+    /** @deprecated Use {@link clearAll} instead. */
     clear() {
-        const keys = this.keys();
-        if (MaybePromise.is(keys)) {
-            return keys.then(keys => {
-                return MatterAggregateError.allSettled(
-                    keys.map(key => this.delete(key)),
-                    "Error while clearing storage",
-                ).then(() => {});
-            });
-        }
-        const promises = new Array<PromiseLike<void>>();
-        keys.forEach(key => {
-            const promise = this.delete(key);
-            if (promise !== undefined && MaybePromise.is(promise)) {
-                promises.push(promise);
-            }
-        });
-        if (promises.length > 0) {
-            return MatterAggregateError.allSettled(promises, "Error while clearing storage").then(() => {});
-        }
-        return undefined;
+        throw new StorageError("clear() is deprecated; use clearAll() instead");
     }
 
     /** Clears all keys in this context and all created sub-contexts. */
