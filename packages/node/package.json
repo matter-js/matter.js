@@ -90,6 +90,16 @@
                 "default": "./dist/cjs/behaviors/index.js"
             }
         },
+        "./behaviors/system/*": {
+            "import": {
+                "types": "./dist/esm/behavior/system/*/index.d.ts",
+                "default": "./dist/esm/behavior/system/*/index.js"
+            },
+            "require": {
+                "types": "./dist/cjs/behavior/system/*/index.d.ts",
+                "default": "./dist/cjs/behavior/system/*/index.js"
+            }
+        },
         "./behaviors/*": {
             "import": {
                 "types": "./dist/esm/behaviors/*/index.d.ts",
