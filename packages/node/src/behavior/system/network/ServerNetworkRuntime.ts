@@ -28,6 +28,7 @@ import {
     ExchangeManager,
     MdnsAdvertiser,
     MdnsService,
+    NetworkProfiles,
     PeerSet,
     ScannerSet,
     SecureChannelProtocol,
@@ -296,6 +297,14 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         // Initialize ScannerSet
         env.get(ScannerSet).add(env.get(MdnsService).client);
+
+        const { timing, profiles } = this.owner.state.network;
+        if (timing) {
+            env.get(PeerSet).timing = timing;
+        }
+        if (profiles) {
+            env.get(NetworkProfiles).defaults = profiles;
+        }
 
         env.get(PeerSet).exchanges = exchanges;
 

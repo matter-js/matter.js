@@ -73,11 +73,18 @@ export function PeerTimingParameters(options?: Partial<PeerTimingParameters>) {
         return options as PeerTimingParameters;
     }
 
-    return {
-        ...PeerTimingParameters.defaults,
-        ...options,
-        [complete]: true,
-    } satisfies Internal as PeerTimingParameters;
+    const result = { ...PeerTimingParameters.defaults } as Record<string | symbol, unknown>;
+    if (options) {
+        for (const key of Object.keys(options)) {
+            const value = (options as Record<string, unknown>)[key];
+            if (value !== undefined) {
+                result[key] = value;
+            }
+        }
+    }
+    result[complete] = true;
+
+    return result as unknown as PeerTimingParameters;
 }
 
 export namespace PeerTimingParameters {

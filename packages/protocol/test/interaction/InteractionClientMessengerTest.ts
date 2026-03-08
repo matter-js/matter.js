@@ -6,7 +6,7 @@
 
 import { InteractionClientMessenger, MessageType } from "#interaction/InteractionMessenger.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
-import { Bytes } from "@matter/general";
+import { Bytes, DataReadQueue } from "@matter/general";
 import { Specification } from "@matter/model";
 import {
     EndpointNumber,
@@ -225,5 +225,67 @@ describe("InteractionClientMessenger", () => {
         requestData.dataVersionFilters!.length = 67;
         expect(request).to.deep.equal(requestData);
         expect(subscriptionFinalized).to.be.true;
+    });
+
+    it("does not block report iteration on final status ack and waits on close", async () => {
+        let resolveStatusSend: (() => void) | undefined;
+        let exchangeClosed = false;
+
+        const queue = new DataReadQueue<any>();
+        queue.write({
+            packetHeader: {},
+            payloadHeader: { messageType: MessageType.ReportData },
+            payload: TlvDataReport.encode({
+                interactionModelRevision: Specification.INTERACTION_MODEL_REVISION,
+                suppressResponse: false,
+                moreChunkedMessages: false,
+                subscriptionId: 1,
+            }),
+        });
+
+        const exchange = {
+            maxPayloadSize: 1200,
+            send: (messageType: number) => {
+                if (messageType === MessageType.StatusResponse) {
+                    return new Promise<void>(resolve => {
+                        resolveStatusSend = resolve;
+                    });
+                }
+            },
+            nextMessage: () => queue.read(),
+            close: async () => {
+                exchangeClosed = true;
+            },
+        } as unknown as MessageExchange;
+
+        const messenger = new InteractionClientMessenger(exchange);
+        const reports = messenger.readDataReports();
+
+        const first = await reports.next();
+        expect(first.done).to.be.false;
+
+        let iterationFinished = false;
+        const donePromise = reports.next().then(result => {
+            iterationFinished = true;
+            return result;
+        });
+        await Promise.resolve();
+        expect(iterationFinished).to.be.true;
+        expect((await donePromise).done).to.be.true;
+
+        let closeFinished = false;
+        const closePromise = messenger.close().then(() => {
+            closeFinished = true;
+        });
+        await Promise.resolve();
+        expect(closeFinished).to.be.false;
+        expect(exchangeClosed).to.be.false;
+
+        expect(resolveStatusSend, "StatusResponse send was never initiated").to.be.a("function");
+        resolveStatusSend!();
+        await closePromise;
+
+        expect(closeFinished).to.be.true;
+        expect(exchangeClosed).to.be.true;
     });
 });

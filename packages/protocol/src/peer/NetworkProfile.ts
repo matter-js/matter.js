@@ -54,6 +54,33 @@ export class NetworkProfiles {
         };
     }
 
+    set defaults(options: NetworkProfiles.PartialOptions) {
+        const base = { ...NetworkProfiles.defaults };
+        for (const key of Object.keys(options) as (keyof NetworkProfiles.Templates)[]) {
+            const override = options[key];
+            if (override !== undefined) {
+                const { connect, ...rest } = override;
+                const merged = { ...base[key] };
+                for (const [k, v] of Object.entries(rest)) {
+                    if (v !== undefined) {
+                        (merged as Record<string, unknown>)[k] = v;
+                    }
+                }
+                if (connect !== undefined) {
+                    const connectMerged = { ...base[key].connect } as Record<string, unknown>;
+                    for (const [k, v] of Object.entries(connect)) {
+                        if (v !== undefined) {
+                            connectMerged[k] = v;
+                        }
+                    }
+                    merged.connect = connectMerged as unknown as NetworkProfiles.ConcreteLimits;
+                }
+                base[key] = merged;
+            }
+        }
+        this.#defaults = base;
+    }
+
     static [Environmental.create](env: Environment) {
         const instance = new this();
         env.set(NetworkProfiles, instance);
@@ -135,6 +162,13 @@ export class NetworkProfiles {
 
 export namespace NetworkProfiles {
     export interface Options extends Partial<Templates> {}
+
+    /**
+     * Like {@link Options} but allows partially specifying individual profiles, including nested connect limits.
+     */
+    export type PartialOptions = {
+        [K in keyof Templates]?: Partial<Omit<Limits, "connect">> & { connect?: Partial<ConcreteLimits> };
+    };
 
     export interface ConcreteLimits {
         /**
