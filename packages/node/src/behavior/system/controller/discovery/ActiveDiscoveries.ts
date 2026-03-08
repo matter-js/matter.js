@@ -49,7 +49,7 @@ export class ActiveDiscoveries extends Set<Discovery<any>> {
         }
 
         if (this.#mdnsTargetCriteria === undefined) {
-            this.#mdnsTargetCriteria = { commissionable: true, operationalTargets: [] };
+            this.#mdnsTargetCriteria = { commissionable: true };
         }
         scanner.targetCriteriaProviders.add(this.#mdnsTargetCriteria);
     }

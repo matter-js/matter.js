@@ -189,7 +189,9 @@ export const MockTime = {
     },
 
     requireMacrotasks<T>(dependent: Promise<T>) {
-        dependent = dependent.finally(() => macrotaskDependents.delete(dependent));
+        dependent = dependent.finally(() => {
+            macrotaskDependents.delete(dependent);
+        });
         macrotaskDependents.add(dependent);
         return dependent;
     },
@@ -300,12 +302,10 @@ export const MockTime = {
         );
 
         let timeAdvanced = 0;
+
         while (!resolved) {
-            // Macrotasks are necessary for testing code that requires macrotasks, either explicitly or for system logic
-            // such as Node's crypto.subtle.  We use macrotasks if enabled explicitly or if aware of pending promises
-            // requiring macrotasks
-            //
-            // TODO - remove manual macrotask control if/when no longer necessary
+            // Use macrotask yields when required explicitly or when async operations needing macrotasks (e.g.
+            // crypto) are pending
             if ((macrotasks ?? defaultToMacrotasks) || macrotaskDependents.size) {
                 await MockTime.macrotask;
             } else {
@@ -327,11 +327,8 @@ export const MockTime = {
                 await this.advance(stepMs);
                 timeAdvanced += stepMs;
             } else {
-                // Each loop iteration yields to the event loop ~2 times.  Async operations like CASE handshakes
-                // require many yields to complete (one per crypto.subtle call), so we need enough iterations before
-                // mock-time-based timeouts fire.  With 100ms steps, a 10-second timeout gives ~200 yields, sufficient
-                // for any realistic async chain.  The fast macrotask yield (setImmediate/MessageChannel) keeps real
-                // wall time negligible even at this granularity.
+                // 100ms steps give ~200 yields before a 10-second mock timeout fires, sufficient for realistic
+                // async chains
                 await this.advance(100);
                 timeAdvanced += 100;
             }

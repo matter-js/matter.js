@@ -117,18 +117,27 @@ describe("Conformance", () => {
         });
 
         const matter = new MatterModel({ name: "TestMatter", children: [cluster] });
-        const result = ValidateModel(matter);
-        const conformanceErrors = result.errors.filter(
-            e => e.code?.includes("CONFORMANCE") || e.code?.includes("UNRESOLVED"),
-        );
+
+        let conformanceErrors: typeof result.errors | undefined;
+        let result: ValidateModel.Result;
+
+        function validate() {
+            if (!conformanceErrors) {
+                result = ValidateModel(matter);
+                conformanceErrors = result.errors.filter(
+                    e => e.code?.includes("CONFORMANCE") || e.code?.includes("UNRESOLVED"),
+                );
+            }
+            return conformanceErrors;
+        }
 
         it("resolves simple enum field == value", () => {
-            const simple = conformanceErrors.filter(e => e.source?.includes("MaxPreRollLen"));
+            const simple = validate().filter(e => e.source?.includes("MaxPreRollLen"));
             expect(simple).deep.equal([]);
         });
 
         it("resolves enum field == value in OR expression", () => {
-            const orExpr = conformanceErrors.filter(e => e.source?.includes("maxPreRollLenOr"));
+            const orExpr = validate().filter(e => e.source?.includes("maxPreRollLenOr"));
             expect(orExpr).deep.equal([]);
         });
     });
@@ -155,11 +164,18 @@ describe("Conformance", () => {
         });
 
         const boolMatter = new MatterModel({ name: "BoolTestMatter", children: [boolCluster] });
-        const boolResult = ValidateModel(boolMatter);
-        const boolErrors = boolResult.errors.filter(e => e.code?.includes("UNRESOLVED"));
+
+        let boolErrors: ValidateModel.Result["errors"] | undefined;
+
+        function validateBool() {
+            if (!boolErrors) {
+                boolErrors = ValidateModel(boolMatter).errors.filter(e => e.code?.includes("UNRESOLVED"));
+            }
+            return boolErrors;
+        }
 
         it("resolves True for boolean field", () => {
-            expect(boolErrors).deep.equal([]);
+            expect(validateBool()).deep.equal([]);
         });
     });
 
@@ -297,15 +313,23 @@ describe("Conformance", () => {
             name: "TestDeviceMatter",
             children: [tempControlledCabinet, rootNode, refrigerator, doorLock],
         });
-        const result = ValidateModel(matter);
+
+        let deviceResult: ValidateModel.Result | undefined;
+
+        function validateDevices() {
+            if (!deviceResult) {
+                deviceResult = ValidateModel(matter);
+            }
+            return deviceResult;
+        }
 
         it("resolves qualified condition types across device types", () => {
-            const typeErrors = result.errors.filter(e => e.code === "TYPE_UNKNOWN");
+            const typeErrors = validateDevices().errors.filter(e => e.code === "TYPE_UNKNOWN");
             expect(typeErrors).deep.equal([]);
         });
 
         it("validates condition elements without errors", () => {
-            const condErrors = result.errors.filter(
+            const condErrors = validateDevices().errors.filter(
                 e =>
                     e.source?.includes("Cooler") ||
                     e.source?.includes("AclExtensionCond") ||

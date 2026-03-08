@@ -15,8 +15,7 @@ import {
     ServerAddress,
     ServerAddressUdp,
 } from "@matter/general";
-import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema, VendorId } from "@matter/types";
-import { Fabric } from "../fabric/Fabric.js";
+import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema, VendorId } from "@matter/types";
 
 /**
  * All information exposed by a device via announcements.
@@ -158,23 +157,6 @@ export type CommissionableDeviceIdentifiers =
 
 export interface Scanner {
     type: ChannelType;
-
-    /**
-     * Send DNS-SD queries to discover the current addresses of an operational paired device by its operational ID
-     * and return them.
-     */
-    findOperationalDevice(
-        fabric: Fabric,
-        nodeId: NodeId,
-        timeout?: Duration,
-        ignoreExistingRecords?: boolean,
-    ): Promise<OperationalDevice | undefined>;
-
-    /**
-     * Return already discovered addresses of an operational paired device and return them. Does not send out new
-     * DNS-SD queries.
-     */
-    getDiscoveredOperationalDevice(fabric: Fabric, nodeId: NodeId): OperationalDevice | undefined;
 
     /**
      * Send DNS-SD queries to discover commissionable devices by a provided identifier (e.g. discriminator,

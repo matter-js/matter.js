@@ -97,18 +97,19 @@ export function ClientEventEmitter(node: ClientNode, structure: ClientStructure)
             return;
         }
 
-        logger.info(
-            "Received event",
-            Diagnostic.strong(`${clusterName}.${eventName}`),
-            " on ",
-            Diagnostic.strong(endpoint.toString()),
-            Diagnostic.weak(isObject(value) ? Diagnostic.dict(value) : value),
-        );
-
         const event = events[eventName];
         if (event) {
+            logger.info(
+                "Received event",
+                Diagnostic.strong(`${clusterName}.${eventName}`),
+                " on ",
+                Diagnostic.strong(endpoint.toString()),
+                Diagnostic.weak(isObject(value) ? Diagnostic.dict(value) : value),
+            );
             return { endpoint, event };
         }
+
+        logger.warn(`Received unknown event ${clusterName}.${eventName} on ${endpoint}`);
     }
 }
 

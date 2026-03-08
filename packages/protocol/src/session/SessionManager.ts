@@ -759,7 +759,7 @@ export class SessionManager {
         }
 
         await this.closeAllSessions();
-        await this.#context.storage.clear();
+        await this.#context.storage.clearAll();
         this.#resumptionRecords.clear();
     }
 

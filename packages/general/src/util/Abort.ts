@@ -167,6 +167,13 @@ export class Abort
     }
 
     /**
+     * Sleep for a duration, returning early if aborted.
+     */
+    sleep(description: string, duration: Duration) {
+        return Abort.sleep(description, this, duration);
+    }
+
+    /**
      * Free resources.
      *
      * You must abort or invoke {@link close} when finished if you construct with {@link Abort.Options#abort} or
@@ -248,7 +255,7 @@ export class Abort
         options?: boolean | EventListenerOptions,
     ): void;
     removeEventListener(type: any, listener: any, options?: any) {
-        this.signal.addEventListener(type, listener, options);
+        this.signal.removeEventListener(type, listener, options);
     }
 
     dispatchEvent(event: Event) {
@@ -327,6 +334,10 @@ export namespace Abort {
         if (signal) {
             if ("signal" in signal) {
                 signal = signal.signal;
+            }
+
+            if (signal.aborted) {
+                return undefined;
             }
 
             let off: () => void;
