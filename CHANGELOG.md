@@ -36,6 +36,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
     - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)
+    - Fix: Do not announce devices as commissionable before the factory reset when the last fabric is removed
 
 - @matter/react-native
     - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
