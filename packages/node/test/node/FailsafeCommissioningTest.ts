@@ -19,7 +19,8 @@
  *    - No factory reset (state.commissioned was never true; handleFabricChange sees false→false, no state change).
  */
 
-import { Lifecycle, Crypto, MockCrypto, Seconds } from "@matter/general";
+import { ServerNode } from "#node/ServerNode.js";
+import { Crypto, Lifecycle, MockCrypto, Seconds } from "@matter/general";
 import {
     Advertiser,
     ControllerCommissioningFlow,
@@ -28,7 +29,6 @@ import {
     FabricManager,
     ServiceDescription,
 } from "@matter/protocol";
-import { ServerNode } from "#node/ServerNode.js";
 import { MockSite } from "./mock-site.js";
 
 describe("Failsafe commissioning re-announcement", () => {
