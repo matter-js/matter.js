@@ -60,6 +60,9 @@ const logger = Logger.get("ClientInteraction");
 /** Maximum value for commandRef (uint16) */
 const MAX_COMMAND_REF = 0xffff;
 
+/** Higher processing time to give devices a bit more time to send updates. */
+const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
+
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
     pathKey: string;
@@ -785,7 +788,7 @@ export class ClientInteraction<
                 closed: () => this.subscriptions.delete(subscription),
                 response,
                 abort,
-                maxPeerResponseTime: this.maximumPeerResponseTime(),
+                maxPeerResponseTime: this.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME),
             });
             this.subscriptions.addPeer(subscription);
 

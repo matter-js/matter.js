@@ -175,11 +175,17 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
         .filter(([, v]) => v)
         .map(([k]) => k);
     if (featureNames.length) {
-        // Update ClusterModel
         extendSchema();
 
         // Update the cluster.  Note that we do not validate feature combinations.  What the device sends we work with
         cluster = new ClusterComposer(cluster, true).compose(featureNames.map(capitalize));
+    }
+
+    // Always include all events regardless of detected features.  Unlike attributes and commands
+    // (reported via attributeList/acceptedCommandList), there is no EventList global attribute to
+    // discover which events a device supports, so we copy them from the complete cluster definition
+    if (baseType !== ClusterBehavior) {
+        cluster = { ...cluster, events: (baseType as ClusterBehavior.Type).cluster.events };
     }
 
     // If the schema does not match what the device actually returned, further augment both the ClusterModel and
