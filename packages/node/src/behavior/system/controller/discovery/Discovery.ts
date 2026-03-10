@@ -8,7 +8,7 @@ import { ClientNodeFactory } from "#node/client/ClientNodeFactory.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { CancelablePromise, Diagnostic, Duration, Logger, MaybePromise, withTimeout } from "@matter/general";
-import { CommissionableDeviceIdentifiers, ScannerSet } from "@matter/protocol";
+import { CommissionableDeviceIdentifiers, Scanner, ScannerSet } from "@matter/protocol";
 import { ControllerBehavior } from "../ControllerBehavior.js";
 import { ActiveDiscoveries } from "./ActiveDiscoveries.js";
 import { DiscoveryAggregateError } from "./DiscoveryError.js";
@@ -185,11 +185,13 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         }
 
         const scanners = this.#owner.env.get(ScannerSet);
+        const scannerFilter = this.#options.scannerFilter;
 
         const factory = this.#owner.env.get(ClientNodeFactory);
         const promises = new Array<PromiseLike<unknown>>();
         const cancelSignal = new Promise<void>(resolve => (this.#stopDiscovery = resolve));
         for (const scanner of scanners) {
+            if (scannerFilter && !scannerFilter(scanner)) continue;
             promises.push(
                 scanner.findCommissionableDevicesContinuously(
                     this.#options,
@@ -261,6 +263,12 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
 export namespace Discovery {
     export type Options = CommissionableDeviceIdentifiers & {
         timeout?: Duration;
+
+        /**
+         * Optional filter to restrict which scanners participate in discovery.  When omitted all available scanners
+         * are used.  Use this to limit discovery to a specific transport (e.g. only UDP/mDNS or only BLE).
+         */
+        scannerFilter?: (scanner: Scanner) => boolean;
     };
 
     export type InstanceOptions = Options & {

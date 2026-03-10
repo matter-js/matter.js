@@ -7,17 +7,13 @@
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import {
     ClassExtends,
-    Duration,
     Logger,
     NoResponseTimeoutError,
     ServerAddress,
 } from "@matter/general";
 import {
     AddressTypeFromDevice,
-    CommissionableDevice,
-    CommissionableDeviceIdentifiers,
     DiscoverableDevice,
-    Scanner,
 } from "../common/Scanner.js";
 import { CommissioningError } from "./CommissioningError.js";
 
@@ -35,52 +31,6 @@ export class DiscoveryError extends RetransmissionLimitReachedError {}
 export class PairRetransmissionLimitReachedError extends RetransmissionLimitReachedError {}
 
 export class ControllerDiscovery {
-    static async discoverCommissionableDevices(
-        scanners: Array<Scanner>,
-        timeout: Duration,
-        identifier: CommissionableDeviceIdentifiers = {},
-        discoveredCallback?: (device: CommissionableDevice) => void,
-    ): Promise<CommissionableDevice[]> {
-        const discoveredDevices = new Map<string, CommissionableDevice>();
-
-        const results = await Promise.all(
-            scanners.map(async scanner =>
-                scanner.findCommissionableDevicesContinuously(
-                    identifier,
-                    device => {
-                        const { deviceIdentifier } = device;
-                        if (!discoveredDevices.has(deviceIdentifier)) {
-                            discoveredDevices.set(deviceIdentifier, device);
-                            discoveredCallback?.(device);
-                        }
-                    },
-                    timeout,
-                ),
-            ),
-        );
-
-        // The final answer only consists the devices still left, so expired ones will be excluded
-        const finalDiscoveredDevices = new Map<string, CommissionableDevice>();
-        results.forEach(devices => {
-            devices.forEach(device => {
-                const { deviceIdentifier } = device;
-                if (!discoveredDevices.has(deviceIdentifier)) {
-                    discoveredDevices.set(deviceIdentifier, device);
-                    discoveredCallback?.(device);
-                }
-                if (!finalDiscoveredDevices.has(deviceIdentifier)) {
-                    finalDiscoveredDevices.set(deviceIdentifier, device);
-                }
-            });
-        });
-
-        return Array.from(finalDiscoveredDevices.values());
-    }
-
-    static cancelCommissionableDeviceDiscovery(scanner: Scanner, identifier: CommissionableDeviceIdentifiers = {}) {
-        scanner.cancelCommissionableDeviceDiscovery(identifier);
-    }
-
     /**
      * Helper method to iterate through a list of server addresses and try to execute a method on each of them. If the
      * method throws a configurable error (or EHOSTUNREACH), the server address list is updated (to also add later

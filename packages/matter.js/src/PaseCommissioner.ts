@@ -3,17 +3,16 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Environment, ImplementationError, Logger, Minutes, SharedEnvironmentServices } from "@matter/general";
+import { ChannelType, Environment, ImplementationError, Logger, Minutes, SharedEnvironmentServices } from "@matter/general";
 import {
     CertificateAuthority,
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
-    ControllerDiscovery,
     DiscoveryData,
     Fabric,
     MdnsService,
-    Scanner,
 } from "@matter/protocol";
+import { ContinuousDiscovery, RemoteDescriptor, ServerNode } from "@matter/node";
 import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema } from "@matter/types";
 import {
     CommissioningControllerOptions,
@@ -44,6 +43,8 @@ export class PaseCommissioner {
     readonly #environment: Environment;
     #controllerInstance?: MatterController;
     #services?: SharedEnvironmentServices;
+    // Keyed by JSON-stringified identifier so cancelCommissionableDeviceDiscovery() can look up active discoveries.
+    readonly #activeDiscoveries = new Map<string, ContinuousDiscovery>();
 
     /**
      * Creates a new CommissioningController instance
@@ -129,14 +130,10 @@ export class PaseCommissioner {
 
     cancelCommissionableDeviceDiscovery(
         identifierData: CommissionableDeviceIdentifiers,
-        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
+        _discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const controller = this.assertControllerIsStarted();
-        controller
-            .collectScanners(discoveryCapabilities)
-            .forEach((scanner: Scanner) =>
-                ControllerDiscovery.cancelCommissionableDeviceDiscovery(scanner, identifierData),
-            );
+        const key = JSON.stringify(identifierData);
+        this.#activeDiscoveries.get(key)?.stop();
     }
 
     async discoverCommissionableDevices(
@@ -145,12 +142,32 @@ export class PaseCommissioner {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const controller = this.assertControllerIsStarted();
-        return await ControllerDiscovery.discoverCommissionableDevices(
-            controller.collectScanners(discoveryCapabilities),
+        const key = JSON.stringify(identifierData);
+        const discovery = new ContinuousDiscovery(this.assertControllerIsStarted().node as ServerNode, {
+            ...identifierData,
             timeout,
-            identifierData,
-            discoveredCallback,
-        );
+            scannerFilter: discoveryCapabilities
+                ? (s): boolean =>
+                      s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
+                : undefined,
+        });
+        const results = Array<CommissionableDevice>();
+        const seen = new Set<string>();
+        discovery.discovered.on(node => {
+            const device = RemoteDescriptor.fromLongForm(node.state.commissioning) as CommissionableDevice;
+            const id = device.deviceIdentifier ?? JSON.stringify(node.state.commissioning.addresses ?? []);
+            if (!seen.has(id)) {
+                seen.add(id);
+                results.push(device);
+                discoveredCallback?.(device);
+            }
+        });
+        this.#activeDiscoveries.set(key, discovery);
+        try {
+            await discovery;
+            return results;
+        } finally {
+            this.#activeDiscoveries.delete(key);
+        }
     }
 }

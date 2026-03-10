@@ -7,6 +7,7 @@
 import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import {
     ClassExtends,
+    ChannelType,
     Crypto,
     Duration,
     Environment,
@@ -22,9 +23,11 @@ import {
 import {
     ChangeNotificationService,
     ClusterState,
+    ContinuousDiscovery,
     Endpoint,
     NetworkClient,
     Node,
+    RemoteDescriptor,
     ServerNode,
     SoftwareUpdateManager,
 } from "@matter/node";
@@ -37,7 +40,6 @@ import {
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
     ControllerCommissioningFlow,
-    ControllerDiscovery,
     DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
@@ -193,6 +195,8 @@ export class CommissioningController {
     readonly #nodeUpdateLabelHandlers = new Map<NodeId, (nodeState: NodeStates) => Promise<void>>();
     readonly #observers = new ObserverGroup();
     readonly #endpointsToPeers = new WeakMap<Endpoint, string>();
+    // Keyed by JSON-stringified identifier so cancelCommissionableDeviceDiscovery() can look up active discoveries.
+    readonly #activeDiscoveries = new Map<string, ContinuousDiscovery>();
 
     /**
      * Creates a new CommissioningController instance
@@ -741,12 +745,10 @@ export class CommissioningController {
      */
     cancelCommissionableDeviceDiscovery(
         identifierData: CommissionableDeviceIdentifiers,
-        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
+        _discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const controller = this.#assertControllerIsStarted();
-        controller
-            .collectScanners(discoveryCapabilities)
-            .forEach(scanner => ControllerDiscovery.cancelCommissionableDeviceDiscovery(scanner, identifierData));
+        const key = JSON.stringify(identifierData);
+        this.#activeDiscoveries.get(key)?.stop();
     }
 
     /**
@@ -760,13 +762,33 @@ export class CommissioningController {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const controller = this.#assertControllerIsStarted();
-        return await ControllerDiscovery.discoverCommissionableDevices(
-            controller.collectScanners(discoveryCapabilities),
+        const key = JSON.stringify(identifierData);
+        const discovery = new ContinuousDiscovery(this.node as ServerNode, {
+            ...identifierData,
             timeout,
-            identifierData,
-            discoveredCallback,
-        );
+            scannerFilter: discoveryCapabilities
+                ? (s): boolean =>
+                      s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
+                : undefined,
+        });
+        const results = Array<CommissionableDevice>();
+        const seen = new Set<string>();
+        discovery.discovered.on(node => {
+            const device = RemoteDescriptor.fromLongForm(node.state.commissioning) as CommissionableDevice;
+            const id = device.deviceIdentifier ?? JSON.stringify(node.state.commissioning.addresses ?? []);
+            if (!seen.has(id)) {
+                seen.add(id);
+                results.push(device);
+                discoveredCallback?.(device);
+            }
+        });
+        this.#activeDiscoveries.set(key, discovery);
+        try {
+            await discovery;
+            return results;
+        } finally {
+            this.#activeDiscoveries.delete(key);
+        }
     }
 
     /**
