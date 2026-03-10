@@ -7,6 +7,7 @@
 import {
     Construction,
     Days,
+    Diagnostic,
     Duration,
     Environment,
     Logger,
@@ -52,6 +53,14 @@ export class DclVendorInfoService {
     constructor(environment: Environment, options: DclVendorInfoService.Options = {}) {
         environment.root.set(DclVendorInfoService, this);
         this.#options = options;
+        logger.info(
+            "Initialize VendorInfoService",
+            Diagnostic.dict({
+                source: options.dclConfig?.url ?? DclConfig.production.url,
+                interval:
+                    options.updateInterval === null ? "disabled" : Duration.format(options.updateInterval ?? Days.one),
+            }),
+        );
 
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("vendors");
@@ -130,7 +139,7 @@ export class DclVendorInfoService {
      * Fetch vendor information from DCL and store it.
      */
     async #fetchVendorsFromDcl(storage: StorageContext) {
-        logger.info("Fetching vendor information from DCL...");
+        logger.info("Fetching vendor information from DCL");
 
         const dclClient = new DclClient(this.#options.dclConfig ?? DclConfig.production);
         const vendors = await dclClient.fetchAllVendors(this.#options);
