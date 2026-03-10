@@ -6,7 +6,7 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, ScannerSet } from "#common/Scanner.js";
+import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { MdnsClient } from "#mdns/MdnsClient.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
@@ -16,7 +16,7 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
-import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -32,7 +32,6 @@ import {
     ChannelType,
     ClassExtends,
     ConnectionlessTransportSet,
-    Diagnostic,
     Duration,
     Environment,
     Environmental,
@@ -45,7 +44,6 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
-    UnexpectedDataError,
 } from "@matter/general";
 import {
     DiscoveryCapabilitiesBitmap,
@@ -162,11 +160,44 @@ export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
 }
 
 /**
+ * Options for establishing a PASE session with a device whose address(es) are already known.
+ *
+ * Use this when you have at least one address for the device (from a prior discovery, a QR code, or a
+ * pre-configured address).  For pure mDNS/BLE discovery without known addresses, use {@link PaseDiscovery}.
+ */
+export interface EstablishPaseOptions {
+    /** One or more addresses at which the device may be reached. All are tried in parallel. */
+    addresses: ServerAddress[];
+
+    /** Discovery metadata associated with the device (used for logging and passed through to the caller). */
+    discoveryData?: DiscoveryData;
+
+    /** PASE passcode for the device. */
+    passcode: number;
+
+    /** Overall timeout for PASE establishment across all addresses. Defaults to 30 seconds. */
+    timeout?: Duration;
+
+    /** External abort signal that, when fired, cancels all in-flight PASE attempts. */
+    abort?: AbortSignal;
+
+    /**
+     * Atomic gate for parallel PASE racing.
+     *
+     * Called immediately after PASE is established (before any further work).  Return `true` to claim this
+     * PASE session as the winner.  Return `false` if another candidate already won — this session is closed
+     * cleanly without proceeding.
+     *
+     * When omitted, the first successful PASE session is always accepted.
+     */
+    continueAfterPase?: () => boolean;
+}
+
+/**
  * Interfaces {@link ControllerCommissioner} with other components.
  */
 export interface ControllerCommissionerContext {
     peers: PeerSet;
-    scanners: ScannerSet;
     transports: ConnectionlessTransportSet;
     sessions: SessionManager;
     exchanges: ExchangeManager;
@@ -189,7 +220,6 @@ export class ControllerCommissioner {
     static [Environmental.create](env: Environment) {
         const instance = new ControllerCommissioner({
             peers: env.get(PeerSet),
-            scanners: env.get(ScannerSet),
             transports: env.get(ConnectionlessTransportSet),
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
@@ -255,92 +285,44 @@ export class ControllerCommissioner {
     }
 
     /**
-     * Discover and establish a PASE channel with a device.
+     * Establishes a PASE session with a known device without running a commissioning flow.
+     *
+     * All provided addresses are tried in parallel.  The first to complete PASE wins; the rest are cancelled
+     * via an abort signal.  A credential failure (wrong passcode) on any address immediately cancels all
+     * other in-flight attempts for this device.
      */
-    async discoverAndEstablishPase(
-        options: DiscoveryAndCommissioningOptions,
-    ): Promise<{ paseSession: NodeSession; discoveryData?: DiscoveryData }> {
-        const {
-            discovery: { timeout = Seconds(30) },
+    async establishPase(options: EstablishPaseOptions): Promise<{ paseSession: NodeSession; discoveryData?: DiscoveryData }> {
+        const { addresses, discoveryData, passcode, timeout = Seconds(30), abort, continueAfterPase } = options;
+
+        // Prioritize UDP addresses.
+        const sortedAddresses = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
+
+        // Model each address as a distinct candidate so per-device abort logic works correctly even in the
+        // single-address case.
+        const candidates = sortedAddresses.map((address, index) => ({
+            ...(discoveryData ?? {}),
+            addresses: [address],
+            deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
+            D: 0,
+            CM: 1,
+        }));
+
+        const { session } = await this.#establishPaseFromCandidates({
+            devices: candidates,
+            timeout,
             passcode,
-        } = options;
+            retryFailureAsPeerCommunication: "Could not connect to device",
+            abort,
+        });
 
-        const commissionableDevice =
-            "commissionableDevice" in options.discovery ? options.discovery.commissionableDevice : undefined;
-        let {
-            discovery: { discoveryCapabilities = {}, knownAddress },
-        } = options;
-        let identifierData = "identifierData" in options.discovery ? options.discovery.identifierData : {};
-
-        if (
-            this.#context.scanners.hasScannerFor(ChannelType.UDP) &&
-            this.#context.transports.hasInterfaceFor(ChannelType.UDP, "::") !== undefined
-        ) {
-            discoveryCapabilities.onIpNetwork = true; // We always discover on network as defined by specs
-        }
-        if (commissionableDevice !== undefined) {
-            let { addresses } = commissionableDevice;
-            if (discoveryCapabilities.ble === true) {
-                discoveryCapabilities = { onIpNetwork: true, ble: addresses.some(address => address.type === "ble") };
-            } else if (discoveryCapabilities.onIpNetwork === true) {
-                // do not use BLE if not specified, even if existing
-                addresses = addresses.filter(address => address.type !== "ble");
-            }
-            addresses.sort(a => (a.type === "udp" ? -1 : 1)); // Sort addresses to use UDP first
-            knownAddress = addresses[0];
-            if ("instanceId" in commissionableDevice && commissionableDevice.instanceId !== undefined) {
-                // it is an UDP discovery
-                identifierData = { instanceId: commissionableDevice.instanceId as string };
-            } else {
-                identifierData = { longDiscriminator: commissionableDevice.D };
-            }
-        }
-
-        const scannersToUse = this.#context.scanners.select(discoveryCapabilities);
-
-        logger.info(
-            `Connecting to device with identifier ${Diagnostic.json(identifierData)} and ${
-                scannersToUse.length
-            } scanners and knownAddress ${Diagnostic.json(knownAddress)}`,
-        );
-
-        // If we have a known address we try this first before we discover the device
-        let session: NodeSession | undefined;
-        let discoveryData: DiscoveryData | undefined;
-
-        // If we have a last known address, try this first
-        if (knownAddress !== undefined) {
-            try {
-                session = await this.#establishEphemeralNodeSession(knownAddress, passcode);
-            } catch (error) {
-                // Intentional: swallow both timeout and unexpected-data errors on the known address so we fall
-                // back to full discovery.  The "unexpected data" case handles stale/wrong known addresses that
-                // point to a different device — the address is correct on the network but belongs to a device
-                // with a different identity/passcode.  When the passcode itself is wrong, discovery will also
-                // fail (just more slowly), but that is an acceptable trade-off for correctly handling the
-                // stale-address scenario.
-                if (!causedBy(error, UnexpectedDataError, NoResponseTimeoutError)) {
-                    throw error;
-                }
-            }
-        }
-        if (session === undefined) {
-            const discoveredDevices = await ControllerDiscovery.discoverDeviceAddressesByIdentifier(
-                scannersToUse,
-                identifierData,
-                timeout,
-            );
-            const { session: connectedSession, discoveryData: winningDevice } = await this.#establishPaseFromCandidates(
-                {
-                    devices: discoveredDevices,
-                    timeout,
-                    discoveredDevices: async () =>
-                        scannersToUse.flatMap(scanner => scanner.getDiscoveredCommissionableDevices(identifierData)),
-                    passcode,
-                },
-            );
-            session = connectedSession;
-            discoveryData = winningDevice;
+        // Check with the caller whether to proceed with this session.  In parallel PASE scenarios this callback
+        // atomically determines the winner: the first call returns true; any subsequent call returns false and
+        // we clean up this session cleanly.
+        if (continueAfterPase !== undefined && !continueAfterPase()) {
+            await session.initiateForceClose({
+                cause: new CommissioningError("PASE established but another candidate already won"),
+            });
+            throw new CommissioningError("PASE cancelled: another candidate was already selected");
         }
 
         return { paseSession: session, discoveryData };
@@ -349,7 +331,6 @@ export class ControllerCommissioner {
     async #establishPaseFromCandidates(options: {
         devices: CommissionableDevice[];
         timeout: Duration;
-        discoveredDevices?: () => Promise<CommissionableDevice[]>;
         passcode: number;
         retryFailureAsPeerCommunication?: string;
         abort?: AbortSignal;
@@ -358,7 +339,6 @@ export class ControllerCommissioner {
             return await CommissioningConnection({
                 devices: options.devices,
                 timeout: options.timeout,
-                discoveredDevices: options.discoveredDevices,
                 externalAbort: options.abort,
                 establishSession: (address, device, signal) =>
                     this.#establishEphemeralNodeSession(address, options.passcode, device, signal),

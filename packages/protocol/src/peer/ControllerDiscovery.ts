@@ -6,13 +6,10 @@
 
 import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 import {
-    anyPromise,
     ClassExtends,
-    Diagnostic,
     Duration,
     Logger,
     NoResponseTimeoutError,
-    Seconds,
     ServerAddress,
 } from "@matter/general";
 import {
@@ -38,47 +35,6 @@ export class DiscoveryError extends RetransmissionLimitReachedError {}
 export class PairRetransmissionLimitReachedError extends RetransmissionLimitReachedError {}
 
 export class ControllerDiscovery {
-    /**
-     * Discovers devices by a provided identifier and a list of scanners (e.g. IP and BLE in parallel).
-     * It returns after the timeout or if at least one device was found.
-     * The method returns a list of addresses of the discovered devices.
-     */
-    static async discoverDeviceAddressesByIdentifier(
-        scanners: Array<Scanner>,
-        identifier: CommissionableDeviceIdentifiers,
-        timeout = Seconds(30),
-    ): Promise<CommissionableDevice[]> {
-        logger.info(`Start Discovering devices using identifier ${Diagnostic.json(identifier)} ...`);
-
-        const scanResults = scanners.map(async scanner => {
-            const foundDevices = await scanner.findCommissionableDevices(
-                identifier,
-                timeout,
-                scanner.type === "ble", // Force rediscovery for BLE
-            );
-            logger.info(`Found ${foundDevices.length} devices using identifier ${Diagnostic.json(identifier)}`);
-            if (foundDevices.length === 0) {
-                throw new CommissionableDeviceDiscoveryFailedError(
-                    `No device discovered using identifier ${Diagnostic.json(
-                        identifier,
-                    )}! Please check that the relevant device is online.`,
-                );
-            }
-
-            const devices = foundDevices.filter(device => device.addresses.length > 0);
-            if (devices.length === 0) {
-                throw new CommissionableDeviceDiscoveryFailedError(
-                    `Device discovered using identifier ${Diagnostic.json(
-                        identifier,
-                    )}, but no Network addresses discovered.`,
-                );
-            }
-            return devices;
-        });
-
-        return await anyPromise(scanResults);
-    }
-
     static async discoverCommissionableDevices(
         scanners: Array<Scanner>,
         timeout: Duration,

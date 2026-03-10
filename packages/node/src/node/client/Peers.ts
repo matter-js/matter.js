@@ -12,6 +12,7 @@ import { CommissioningDiscovery } from "#behavior/system/controller/discovery/Co
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
+import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
@@ -156,6 +157,16 @@ export class Peers extends EndpointContainer<ClientNode> {
      */
     commission(options: CommissioningDiscovery.Options) {
         return new CommissioningDiscovery(this.owner as ServerNode, options);
+    }
+
+    /**
+     * Find a specific commissionable node and establish a PASE session without commissioning.
+     *
+     * Useful for split-commissioning scenarios where one controller establishes PASE and another
+     * performs the commissioning flow, or for raw PASE channel establishment.
+     */
+    pase(options: PaseDiscovery.Options) {
+        return new PaseDiscovery(this.owner as ServerNode, options);
     }
 
     /**

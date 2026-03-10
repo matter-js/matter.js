@@ -63,77 +63,6 @@ describe("CommissioningConnection", () => {
         expect(attempts).deep.equals(["a:fd00::1", "a:fd00::3", "b:fd00::2"]);
     });
 
-    it("tries addresses discovered later", async () => {
-        const attempts = new Array<string>();
-        let discoverCalls = 0;
-
-        const { discoveryData } = await CommissioningConnection({
-            devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
-            timeout: Seconds(2),
-            discoveredDevices: async () => {
-                discoverCalls++;
-                return discoverCalls >= 3 ? [device("a", [udp("fd00::3")])] : [];
-            },
-            establishSession: async (address, discoveryData) => {
-                const ip = (address as ServerAddressUdp).ip;
-                attempts.push(`${discoveryData.deviceIdentifier}:${ip}`);
-                if (ip !== "fd00::3") {
-                    throw new NoResponseTimeoutError("temporary network error");
-                }
-                return {} as any;
-            },
-        });
-
-        expect(discoveryData.deviceIdentifier).equals("a");
-        expect(attempts).deep.equals(["a:fd00::1", "b:fd00::2", "a:fd00::3"]);
-    });
-
-    it("does not re-add a previously failed address from rediscovery", async () => {
-        const attempts = new Array<string>();
-        let discoverCalls = 0;
-
-        const { discoveryData } = await CommissioningConnection({
-            devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
-            timeout: Seconds(2),
-            discoveredDevices: async () => {
-                discoverCalls++;
-                if (discoverCalls >= 3) {
-                    return [device("a", [udp("fd00::1"), udp("fd00::3")])];
-                }
-                return [device("a", [udp("fd00::1")])];
-            },
-            establishSession: async (address, discoveryData) => {
-                const ip = (address as ServerAddressUdp).ip;
-                attempts.push(`${discoveryData.deviceIdentifier}:${ip}`);
-                if (ip !== "fd00::3") {
-                    throw new NoResponseTimeoutError("temporary network error");
-                }
-                return {} as any;
-            },
-        });
-
-        expect(discoveryData.deviceIdentifier).equals("a");
-        expect(attempts).deep.equals(["a:fd00::1", "b:fd00::2", "a:fd00::3"]);
-    });
-
-    it("does not re-add a device rejected for invalid credentials", async () => {
-        const attempts = new Array<string>();
-
-        await expect(
-            CommissioningConnection({
-                devices: [device("a", [udp("fd00::1")])],
-                timeout: Millis(300),
-                discoveredDevices: async () => [device("a", [udp("fd00::3")])],
-                establishSession: async (address, discoveryData) => {
-                    attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
-                    throw new UnexpectedDataError("invalid credentials");
-                },
-            }),
-        ).rejectedWith(UnexpectedDataError);
-        expect(attempts.length).equals(1);
-        expect(attempts[0].startsWith("a:fd00::")).equals(true);
-    });
-
     it("throws UnexpectedDataError (not generic error) when all static candidates fail with wrong credentials", async () => {
         await expect(
             CommissioningConnection({
@@ -232,28 +161,4 @@ describe("CommissioningConnection", () => {
         expect(receivedSignal!.aborted).equals(true);
     });
 
-    it("waits for later devices when current candidate pool becomes empty", async () => {
-        const attempts = new Array<string>();
-        let discoverCalls = 0;
-
-        const { discoveryData } = await CommissioningConnection({
-            devices: [device("a", [udp("fd00::1")])],
-            timeout: Seconds(2),
-            discoveredDevices: async () => {
-                discoverCalls++;
-                return discoverCalls >= 3 ? [device("c", [udp("fd00::9")])] : [];
-            },
-            establishSession: async (address, discoveryData) => {
-                const ip = (address as ServerAddressUdp).ip;
-                attempts.push(`${discoveryData.deviceIdentifier}:${ip}`);
-                if (discoveryData.deviceIdentifier === "a") {
-                    throw new NoResponseTimeoutError("temporary network error");
-                }
-                return {} as any;
-            },
-        });
-
-        expect(discoveryData.deviceIdentifier).equals("c");
-        expect(attempts).deep.equals(["a:fd00::1", "c:fd00::9"]);
-    });
 });

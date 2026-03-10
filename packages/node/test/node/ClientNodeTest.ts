@@ -242,7 +242,7 @@ describe("ClientNode", () => {
         );
     });
 
-    it("falls back to discovery when knownAddress fails with invalid credentials during PASE", async () => {
+    it("establishes a PASE session via discovery (PaseDiscovery)", async () => {
         await using site = new MockSite();
         const controller = await site.addController();
         const wrongPasscodeDevice = await site.addDevice({
@@ -265,21 +265,13 @@ describe("ClientNode", () => {
 
         await controller.start();
         await controller.act(agent => agent.load(ControllerBehavior));
-        const fabricConfig = await controller.act(agent => agent.get(ControllerBehavior).fabricAuthorityConfig);
-        const fabric = await controller.env.get(FabricAuthority).defaultFabric(fabricConfig);
 
-        const wrongKnownAddress = { type: "udp", ip: "abcd::2", port: 5540 } as const;
-
-        const commissioner = controller.env.get(ControllerCommissioner);
-        const { paseSession, discoveryData } = await MockTime.resolve(
-            commissioner.discoverAndEstablishPase({
-                fabric,
+        // PaseDiscovery discovers both devices but only the one with matching passcode establishes PASE.
+        const paseSession = await MockTime.resolve(
+            controller.peers.pase({
                 passcode: 22223333,
-                discovery: {
-                    identifierData: { longDiscriminator: 1234 },
-                    knownAddress: wrongKnownAddress,
-                    timeout: Seconds(30),
-                },
+                longDiscriminator: 1234,
+                timeout: Seconds(30),
             }),
             { macrotasks: true },
         );
@@ -288,7 +280,7 @@ describe("ClientNode", () => {
 
         controllerCrypto.entropic = wrongDeviceCrypto.entropic = matchingDeviceCrypto.entropic = false;
 
-        expect(discoveryData).not.undefined;
+        expect(paseSession).not.undefined;
     });
 
     it("commissions the correct node with same-discriminator devices and mixed passcodes", async () => {
