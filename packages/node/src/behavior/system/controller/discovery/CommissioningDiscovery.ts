@@ -47,7 +47,7 @@ export class CommissioningDiscovery extends Discovery<ClientNode> {
         // Track by reference so the continueCommissioningAfterPase closure can promote this attempt to #winnerPromise.
         // This works because the callback is always invoked asynchronously (after PASE establishes), well after the
         // synchronous assignment of `attempt` below.
-        let attempt!: Promise<unknown>;
+        let attempt: Promise<unknown>;
 
         // Launch commissioning for this candidate.
         //

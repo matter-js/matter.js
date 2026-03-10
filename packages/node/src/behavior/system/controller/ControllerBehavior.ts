@@ -5,11 +5,8 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
-import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import type { ServerNode } from "#node/ServerNode.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
     ConnectionlessTransportSet,
@@ -36,7 +33,6 @@ import {
     getFabricQname,
 } from "@matter/protocol";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
-import { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
 import { ActiveDiscoveries } from "./discovery/ActiveDiscoveries.js";
@@ -163,19 +159,6 @@ export class ControllerBehavior extends Behavior {
 
             throw e;
         }
-    }
-
-    /**
-     * Commission a node by discovery criteria from the controller context.
-     *
-     * This method is intended for ambiguous discovery criteria (for example, the same discriminator on multiple
-     * devices).  All discovered candidates are commissioned in parallel; the first success wins.
-     */
-    commission(options: CommissioningDiscovery.Options, preferredNode?: ClientNode): Promise<ClientNode> {
-        return new CommissioningDiscovery(this.endpoint as ServerNode, {
-            id: preferredNode?.id,
-            ...options,
-        });
     }
 
     override async [Symbol.asyncDispose]() {
