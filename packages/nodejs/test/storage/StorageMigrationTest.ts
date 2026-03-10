@@ -6,7 +6,7 @@
 
 import { NodeJsFilesystem } from "#fs/NodeJsFilesystem.js";
 import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
-import { PlatformSqlite } from "#storage/sqlite/index.js";
+import { SqliteStorage } from "#storage/sqlite/SqliteStorage.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, Environment, Filesystem, StorageDriver, StorageMigration, StorageService } from "@matter/general";
 import * as assert from "node:assert";
@@ -46,7 +46,7 @@ if (supportsSqlite()) {
         name: "sqlite",
         async create(namespace) {
             const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
-            const storage = await PlatformSqlite(path, false);
+            const storage = new SqliteStorage({ namespaceOrPath: path });
             await storage.initialize();
             return storage;
         },
@@ -181,8 +181,8 @@ describe("StorageService migration", () => {
         // Register a "mock" driver that wraps StorageBackendDisk under a different id
         storageService.registerDriver({
             id: "mock",
-            create(dir) {
-                return StorageBackendDisk.create(dir);
+            create(namespace, descriptor) {
+                return StorageBackendDisk.create(namespace, descriptor);
             },
         });
 

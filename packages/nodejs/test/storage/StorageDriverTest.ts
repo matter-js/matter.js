@@ -5,8 +5,8 @@
  */
 
 import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
+import { SqliteStorage } from "#storage/sqlite/SqliteStorage.js";
 import { SqliteStorageError } from "#storage/sqlite/SqliteStorageError.js";
-import { PlatformSqlite } from "#storage/sqlite/index.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
@@ -46,7 +46,7 @@ if (supportsSqlite()) {
         name: "sqlite",
         async create(namespace) {
             const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
-            const storage = await PlatformSqlite(path, false);
+            const storage = new SqliteStorage({ namespaceOrPath: path });
             await storage.initialize();
             return storage;
         },
