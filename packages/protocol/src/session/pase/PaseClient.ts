@@ -166,24 +166,25 @@ export class PaseClient {
                 "Received incorrect key confirmation from the receiver. Commissioning failed.",
             );
         }
-        await abort.attempt(messenger.sendPasePake3({ verifier: hAY }, { abort: abort.signal }));
+
+        // Once Pake3 is sent, we can not abort anymore.
+        // Complete the handshake and let continueCommissioningAfterPase close a losing session instead if needed.
+        await messenger.sendPasePake3({ verifier: hAY });
 
         // All good! Creating the secure session
-        await abort.attempt(messenger.waitForSuccess({ abort: abort.signal, description: "PasePake3-Success" }));
-        const secureSession = await abort.attempt(
-            this.#sessions.createSecureSession({
-                channel,
-                id: initiatorSessionId,
-                fabric: undefined,
-                peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
-                peerSessionId: responderSessionId,
-                sharedSecret: Ke,
-                salt: new Uint8Array(0),
-                isInitiator: true,
-                isResumption: false,
-                peerSessionParameters,
-            }),
-        );
+        await messenger.waitForSuccess({ description: "PasePake3-Success" });
+        const secureSession = await this.#sessions.createSecureSession({
+            channel,
+            id: initiatorSessionId,
+            fabric: undefined,
+            peerNodeId: NodeId.UNSPECIFIED_NODE_ID,
+            peerSessionId: responderSessionId,
+            sharedSecret: Ke,
+            salt: new Uint8Array(0),
+            isInitiator: true,
+            isResumption: false,
+            peerSessionParameters,
+        });
         logger.info("Paired successfully", Mark.OUTBOUND, messenger.channelName, exchange.diagnostics);
 
         return secureSession;
