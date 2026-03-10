@@ -96,6 +96,12 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
     discoveryData?: DiscoveryData;
 
     /**
+     * Overall wall-clock budget for PASE establishment across all candidate addresses.
+     * Defaults to 30 seconds.
+     */
+    timeout?: Duration;
+
+    /**
      * Abort signal for cancellation.  When fired during PASE establishment, cancels the attempt.
      * In parallel commissioning scenarios this is used to cancel other candidates once one wins.
      */
@@ -198,7 +204,16 @@ export class ControllerCommissioner {
      * Commission a previously discovered node.
      */
     async commission(options: LocatedNodeCommissioningOptions): Promise<PeerAddress> {
-        const { passcode, addresses, discoveryData, fabric, nodeId, abort, continueCommissioningAfterPase } = options;
+        const {
+            passcode,
+            addresses,
+            discoveryData,
+            fabric,
+            nodeId,
+            abort,
+            continueCommissioningAfterPase,
+            timeout = Seconds(30),
+        } = options;
 
         this.#assertRequestedNodeIdAvailable(fabric, nodeId);
 
@@ -220,7 +235,7 @@ export class ControllerCommissioner {
 
         const { session } = await this.#establishPaseFromCandidates({
             devices: addressCandidates,
-            timeout: Seconds(30),
+            timeout,
             passcode,
             retryFailureAsPeerCommunication: "Could not connect to device",
             abort,
@@ -298,6 +313,12 @@ export class ControllerCommissioner {
             try {
                 session = await this.#establishEphemeralNodeSession(knownAddress, passcode);
             } catch (error) {
+                // Intentional: swallow both timeout and unexpected-data errors on the known address so we fall
+                // back to full discovery.  The "unexpected data" case handles stale/wrong known addresses that
+                // point to a different device — the address is correct on the network but belongs to a device
+                // with a different identity/passcode.  When the passcode itself is wrong, discovery will also
+                // fail (just more slowly), but that is an acceptable trade-off for correctly handling the
+                // stale-address scenario.
                 if (!causedBy(error, UnexpectedDataError, NoResponseTimeoutError)) {
                     throw error;
                 }

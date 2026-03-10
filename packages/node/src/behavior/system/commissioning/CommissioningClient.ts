@@ -204,6 +204,7 @@ export class CommissioningClient extends Behavior {
             threadNetwork: options.threadNetwork,
             regulatoryLocation: options.regulatoryLocation,
             regulatoryCountryCode: options.regulatoryCountryCode,
+            timeout: options.timeout,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -757,6 +758,12 @@ export namespace CommissioningClient {
          * When omitted, commissioning always proceeds.
          */
         continueCommissioningAfterPase?: () => boolean;
+
+        /**
+         * Overall wall-clock budget for PASE establishment.
+         * Defaults to 30 seconds.
+         */
+        timeout?: Duration;
 
         /**
          * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
