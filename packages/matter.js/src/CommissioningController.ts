@@ -21,12 +21,10 @@ import {
 } from "@matter/general";
 import {
     ChangeNotificationService,
-    ClientNode,
     ClusterState,
     Endpoint,
     NetworkClient,
     Node,
-    RemoteDescriptor,
     ServerNode,
     SoftwareUpdateManager,
 } from "@matter/node";
@@ -348,51 +346,13 @@ export class CommissioningController {
             };
         }
 
-        const caseAuthenticatedTags = nodeOptions.caseAuthenticatedTags ?? this.#options.caseAuthenticatedTags;
-        const { knownAddress, timeout, discoveryCapabilities } = nodeOptions.discovery;
-        const commissionableDevice =
-            "commissionableDevice" in nodeOptions.discovery ? nodeOptions.discovery.commissionableDevice : undefined;
+        // Apply controller-level caseAuthenticatedTags default when not specified per-node
+        const nodeOptionsWithDefaults: NodeCommissioningOptions = {
+            caseAuthenticatedTags: this.#options.caseAuthenticatedTags,
+            ...nodeOptions,
+        };
 
-        let clientNode: ClientNode;
-
-        const addresses = commissionableDevice?.addresses ?? (knownAddress !== undefined ? [knownAddress] : undefined);
-        if (addresses !== undefined) {
-            // Pre-discovered device or known address — find/create the ClientNode and commission via CommissioningClient
-            const descriptor: RemoteDescriptor = commissionableDevice ?? { addresses };
-            clientNode = await controller.node.peers.forDescriptor(descriptor);
-            await clientNode.commission({
-                fabric: controller.fabric,
-                passcode: nodeOptions.passcode,
-                commissioningFlowImpl,
-                caseAuthenticatedTags,
-                autoSubscribe: false,
-                wifiNetwork: nodeOptions.commissioning.wifiNetwork,
-                threadNetwork: nodeOptions.commissioning.threadNetwork,
-                regulatoryLocation: nodeOptions.commissioning.regulatoryLocation,
-                regulatoryCountryCode: nodeOptions.commissioning.regulatoryCountryCode,
-                nodeId: nodeOptions.commissioning.nodeId,
-            });
-        } else {
-            // Pure discovery by identifier — use CommissioningDiscovery for full parallel PASE support
-            const identifierData =
-                "identifierData" in nodeOptions.discovery ? nodeOptions.discovery.identifierData : {};
-            clientNode = await controller.node.peers.commission({
-                ...identifierData,
-                ...nodeOptions.commissioning,
-                fabric: controller.fabric,
-                passcode: nodeOptions.passcode,
-                commissioningFlowImpl,
-                caseAuthenticatedTags,
-                timeout,
-                discoveryCapabilities,
-            });
-        }
-
-        const peerAddr = clientNode.peerAddress;
-        if (peerAddr === undefined) {
-            throw new ImplementationError("Commissioned node has no peer address");
-        }
-        const nodeId = peerAddr.nodeId;
+        const nodeId = await controller.commission(nodeOptionsWithDefaults, { commissioningFlowImpl });
 
         if (connectNodeAfterCommissioning) {
             const node = await this.#createPairedNode(nodeId, {

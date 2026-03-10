@@ -66,11 +66,11 @@ import {
     CommissioningError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
-    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
+    PeerAddress,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -487,30 +487,67 @@ export class MatterController {
             commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
         },
     ): Promise<NodeId> {
-        const commissioningOptions: DiscoveryAndCommissioningOptions = {
-            ...options.commissioning,
-            fabric: this.fabric,
-            discovery: options.discovery,
-            passcode: options.passcode,
-        };
-
         const { completeCommissioningCallback, commissioningFlowImpl } = customizations ?? {};
 
-        if (completeCommissioningCallback) {
-            commissioningOptions.finalizeCommissioning = async (peerAddress, discoveryData) => {
-                const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
-                if (!result) {
-                    throw new RetransmissionLimitReachedError("Device could not be discovered");
-                }
-            };
-        }
-        commissioningOptions.commissioningFlowImpl = commissioningFlowImpl;
+        // Wrap the optional PASE-only callback into the finalizeCommissioning hook understood by CommissioningClient
+        const finalizeCommissioning = completeCommissioningCallback
+            ? async (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => {
+                  const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
+                  if (!result) {
+                      throw new RetransmissionLimitReachedError("Device could not be discovered");
+                  }
+              }
+            : undefined;
 
-        const address = await this.node.env.get(ControllerCommissioner).commissionWithDiscovery(commissioningOptions);
+        const caseAuthenticatedTags = options.caseAuthenticatedTags;
+        const { knownAddress, timeout, discoveryCapabilities } = options.discovery;
+        const commissionableDevice =
+            "commissionableDevice" in options.discovery ? options.discovery.commissionableDevice : undefined;
+
+        let clientNode: ClientNode;
+
+        const addresses = commissionableDevice?.addresses ?? (knownAddress !== undefined ? [knownAddress] : undefined);
+        if (addresses !== undefined) {
+            // Pre-discovered device or known address — find/create the ClientNode and commission via CommissioningClient
+            const descriptor: RemoteDescriptor = commissionableDevice ?? { addresses };
+            clientNode = await this.node.peers.forDescriptor(descriptor);
+            await clientNode.commission({
+                fabric: this.fabric,
+                passcode: options.passcode,
+                commissioningFlowImpl,
+                caseAuthenticatedTags,
+                autoSubscribe: false,
+                wifiNetwork: options.commissioning.wifiNetwork,
+                threadNetwork: options.commissioning.threadNetwork,
+                regulatoryLocation: options.commissioning.regulatoryLocation,
+                regulatoryCountryCode: options.commissioning.regulatoryCountryCode,
+                nodeId: options.commissioning.nodeId,
+                finalizeCommissioning,
+            });
+        } else {
+            // Pure discovery by identifier — use CommissioningDiscovery for full parallel PASE support
+            const identifierData = "identifierData" in options.discovery ? options.discovery.identifierData : {};
+            clientNode = await this.node.peers.commission({
+                ...identifierData,
+                ...options.commissioning,
+                fabric: this.fabric,
+                passcode: options.passcode,
+                commissioningFlowImpl,
+                caseAuthenticatedTags,
+                autoSubscribe: false,
+                timeout,
+                discoveryCapabilities,
+                finalizeCommissioning,
+            });
+        }
+
+        const peerAddress = clientNode.peerAddress;
+        if (peerAddress === undefined) {
+            throw new ImplementationError("Commissioned node has no peer address");
+        }
 
         await this.fabric.persist();
-
-        return address.nodeId;
+        return peerAddress.nodeId;
     }
 
     async disconnect(nodeId: NodeId) {

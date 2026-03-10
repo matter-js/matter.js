@@ -32,7 +32,7 @@ import {
 import { MockSite } from "./mock-site.js";
 
 describe("Failsafe commissioning re-announcement", () => {
-    before(function () {
+    before(() => {
         // MockTime is disabled before each test file by the test harness (Boot.reboot → MockTime.disable()).
         // Re-enable it here so that failsafe timers registered via Time.getTimer() use mock time.
         MockTime.init();
@@ -84,10 +84,7 @@ describe("Failsafe commissioning re-announcement", () => {
         }
     }
 
-    it("re-announces after failsafe expiry with PASE session active (before addNOC)", async function () {
-        // Advancing 60 s of mock time (the failsafe) via MockTime.resolve() can take several seconds
-        // of wall-clock time even though the actual work is trivial — increase the Mocha timeout.
-        this.timeout(30_000);
+    it("re-announces after failsafe expiry with PASE session active (before addNOC)", async () => {
         // Use explicit try/finally to ensure cleanup even when assertions fail.
         const site = new MockSite();
         try {
@@ -177,8 +174,7 @@ describe("Failsafe commissioning re-announcement", () => {
         }
     });
 
-    it("re-announces after failsafe expiry with CASE session after addNOC (before CommissioningComplete)", async function () {
-        this.timeout(30_000);
+    it("re-announces after failsafe expiry with CASE session after addNOC (before CommissioningComplete)", async () => {
         const site = new MockSite();
         try {
             const { controller, device } = await site.addUncommissionedPair();

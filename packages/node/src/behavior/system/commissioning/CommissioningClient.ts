@@ -218,7 +218,9 @@ export class CommissioningClient extends Behavior {
             };
         }
 
-        if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
+        if (options.finalizeCommissioning !== undefined) {
+            commissioningOptions.finalizeCommissioning = options.finalizeCommissioning;
+        } else if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
             commissioningOptions.finalizeCommissioning = this.finalizeCommissioning.bind(this);
         }
 
@@ -822,6 +824,19 @@ export namespace CommissioningClient {
          * Defaults to "XX" (unspecified).
          */
         regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
+
+        /**
+         * Override the final commissioning step.
+         *
+         * When provided, matter.js completes commissioning over PASE and then calls this function instead of performing
+         * the CASE reconnection and "CommissioningComplete" command internally.  The function must connect to the device
+         * operationally and invoke "CommissioningComplete" itself.
+         *
+         * This is used by {@link PaseCommissioner} so that a lightweight commissioner can perform the PASE phase and
+         * then hand off to a full controller to finish commissioning.
+         * TODO: Revisit when we decide how to continue with the PaseCommissioner approach at all
+         */
+        finalizeCommissioning?: (address: ProtocolPeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

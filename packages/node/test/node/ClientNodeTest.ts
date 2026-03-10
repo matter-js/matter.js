@@ -116,21 +116,10 @@ describe("ClientNode", () => {
         // Validate the root endpoint
         expect(Object.keys(peer1.state).sort()).deep.equals(Object.keys(PEER1_STATE).sort());
         for (const key in peer1.state) {
-            if (key === "commissioning") {
-                continue;
-            }
             const actual = (peer1.state as Record<string, unknown>)[key] as Val.Struct;
             const expected = (PEER1_STATE as Record<string, unknown>)[key];
             expect(deepCopy(actual)).deep.equals(expected);
         }
-        expect(peer1.state.commissioning.discriminator).equals(0x202);
-        expect(peer1.state.commissioning.deviceName).equals("Matter.js Test Product");
-        expect(peer1.state.commissioning.deviceType).equals(0x100);
-        expect(peer1.state.commissioning.vendorId).equals(0xfff1);
-        expect(peer1.state.commissioning.productId).equals(0x8000);
-        expect(peer1.state.commissioning.longIdleTimeOperatingMode).equals(false);
-        expect(peer1.state.commissioning.peerAddress?.fabricIndex).equals(1);
-        expect(typeof peer1.state.commissioning.peerAddress?.nodeId).equals("bigint");
         const expectedPeer1State = deepCopy(peer1.state);
 
         // Validate the light endpoint

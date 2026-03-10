@@ -325,20 +325,6 @@ export class ControllerCommissioner {
         return { paseSession: session, discoveryData };
     }
 
-    /**
-     * Commission a node with discovery.
-     */
-    async commissionWithDiscovery(options: DiscoveryAndCommissioningOptions): Promise<PeerAddress> {
-        const { fabric, nodeId } = options;
-        this.#assertRequestedNodeIdAvailable(fabric, nodeId);
-
-        // Establish PASE channel
-        const { paseSession, discoveryData } = await this.discoverAndEstablishPase(options);
-
-        // Commission the node
-        return await this.#commissionConnectedNode(paseSession, options, discoveryData);
-    }
-
     async #establishPaseFromCandidates(options: {
         devices: CommissionableDevice[];
         timeout: Duration;
