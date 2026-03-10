@@ -69,6 +69,8 @@ export default function commands(theNode: MatterNode) {
                         const { file } = argv;
                         const fileArg = file;
 
+                        await theNode.start();
+
                         let updateInfo;
 
                         if (fileArg.startsWith("file://")) {
@@ -183,6 +185,8 @@ export default function commands(theNode: MatterNode) {
 
                         console.log(`Verifying OTA image: ${fileArg}\n`);
 
+                        await theNode.start();
+
                         let header;
                         let source: string;
 
@@ -253,6 +257,8 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { vid, pid, mode } = argv;
 
+                        await theNode.start();
+
                         // Validate filter options
                         if (pid && !vid) {
                             console.error("Error: --pid requires --vid to be specified");
@@ -317,6 +323,8 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { file } = argv;
                         let filePath = file;
+
+                        await theNode.start();
 
                         if (filePath.startsWith("file://")) {
                             filePath = filePath.slice(7); // Remove the "file://" prefix
@@ -402,6 +410,8 @@ export default function commands(theNode: MatterNode) {
                     async argv => {
                         const { keyname, vid, pid, mode } = argv;
 
+                        await theNode.start();
+
                         if (keyname) {
                             // Delete by keyname
                             await theNode.otaService.delete({
@@ -466,6 +476,8 @@ export default function commands(theNode: MatterNode) {
                         const { source, target, pid, mode } = argv;
                         const sourceArg = source;
                         const targetArg = target;
+
+                        await theNode.start();
 
                         let keyname: string;
 
@@ -566,6 +578,8 @@ export default function commands(theNode: MatterNode) {
                     },
                     async argv => {
                         const { vendorId: vendorIdStr, productId: productIdStr, softwareVersion, mode, local } = argv;
+
+                        await theNode.start();
 
                         const vendorId = parseHexId(vendorIdStr, "vendor");
                         const productId = parseHexId(productIdStr, "product");

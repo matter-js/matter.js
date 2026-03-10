@@ -20,7 +20,9 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
-                        const vendors = [...theNode.vendorInfoService.vendors.values()];
+                        const vendorService = theNode.vendorInfoService;
+                        await vendorService.construction;
+                        const vendors = [...vendorService.vendors.values()];
 
                         if (vendors.length === 0) {
                             console.log("No vendor information found in storage.");

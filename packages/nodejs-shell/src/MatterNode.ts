@@ -5,16 +5,8 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import {
-    Environment,
-    Logger,
-    ObserverGroup,
-    SharedEnvironmentServices,
-    StorageContext,
-    StorageManager,
-    StorageService,
-} from "@matter/general";
-import { ServerNode, SoftwareUpdateManager } from "@matter/node";
+import { Environment, Logger, ObserverGroup, StorageContext, StorageManager, StorageService } from "@matter/general";
+import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
@@ -33,7 +25,6 @@ export class MatterNode {
     readonly #nodeNum: number;
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
-    #services?: SharedEnvironmentServices;
     #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
@@ -51,13 +42,6 @@ export class MatterNode {
         return this.#environment;
     }
 
-    protected get services() {
-        if (!this.#services) {
-            this.#services = this.#environment.asDependent();
-        }
-        return this.#services;
-    }
-
     get node(): ServerNode {
         if (this.commissioningController === undefined) {
             throw new Error("CommissioningController not initialized. Start first");
@@ -66,24 +50,15 @@ export class MatterNode {
     }
 
     get otaService() {
-        if (!this.environment.has(DclOtaUpdateService)) {
-            new DclOtaUpdateService(this.environment); // Adds itself to the environment
-        }
-        return this.services.get(DclOtaUpdateService);
+        return this.node.act(agent => agent.get(DclBehavior).otaUpdateService) as DclOtaUpdateService;
     }
 
     get certificateService() {
-        if (!this.environment.has(DclCertificateService)) {
-            new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
-        }
-        return this.services.get(DclCertificateService);
+        return this.node.act(agent => agent.get(DclBehavior).certificateService) as DclCertificateService;
     }
 
     get vendorInfoService() {
-        if (!this.environment.has(DclVendorInfoService)) {
-            new DclVendorInfoService(this.environment); // Adds itself to the environment
-        }
-        return this.services.get(DclVendorInfoService);
+        return this.node.act(agent => agent.get(DclBehavior).vendorInfoService) as DclVendorInfoService;
     }
 
     async initialize(resetStorage: boolean) {
@@ -148,7 +123,6 @@ export class MatterNode {
 
     async close() {
         await this.commissioningController?.close();
-        await this.#services?.close();
         this.#observers?.close();
         await this.#storageManager?.close();
     }
@@ -161,6 +135,10 @@ export class MatterNode {
 
         if (this.commissioningController !== undefined) {
             await this.commissioningController.start();
+
+            this.commissioningController.node.behaviors.require(DclBehavior, {
+                fetchTestCertificates: this.#dclFetchTestCertificates,
+            });
 
             if (await this.Store.has("ControllerFabricLabel")) {
                 await this.commissioningController.updateFabricLabel(
