@@ -71,7 +71,7 @@ export class VariableService {
 
     /**
      * Get a variable value.
-     * The name is first checked as defined, if not value is found and the name contains non-alphanumeric characters,
+     * The name is first checked as defined, if no value is found and the name contains non-alphanumeric characters,
      * the name is parsed with all "non-environment-var chars" replaced by dots and checked again.
      * If the name is still not found, the {@link fallback} value is returned.
      */
@@ -94,8 +94,18 @@ export class VariableService {
         let value = this.#maybeValue(name);
 
         if (value === undefined && name.match(/[^A-Z0-9]/gi)) {
-            // Try to parse the name with all "non-environment-var chars" replaced
-            value = this.#maybeValue(name.replaceAll(/[^A-Z0-9]+/gi, "."));
+            // Try to parse the name with all "non-environment-var chars" replaced.
+            // Strip leading/trailing dots to avoid empty segments from names like "_foo" or "foo-".
+            const sanitizedName = name.replaceAll(/[^A-Z0-9]+/gi, ".").replace(/^\.+|\.+$/g, "");
+            if (sanitizedName) {
+                value = this.#maybeValue(sanitizedName);
+                if (value !== undefined) {
+                    // Track the sanitized name so changes to it trigger re-evaluation
+                    for (const collector of this.#usageCollectors) {
+                        collector.add(sanitizedName);
+                    }
+                }
+            }
         }
 
         return value ?? fallback;

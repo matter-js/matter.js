@@ -134,7 +134,7 @@ export class NetworkProfiles {
         if (limits.connect) {
             network.connect = this.configure(`${id}:connect`, { ...limits.connect, connect: undefined });
         }
-        logger.info("Configure profile", id, Diagnostic.dict({ limits, connect: undefined }));
+        logger.info("Configure profile", id, Diagnostic.dict({ ...limits, connect: undefined }));
         this.#networks.set(id, network);
         return network;
     }

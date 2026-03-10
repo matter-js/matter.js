@@ -89,13 +89,13 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
+                        const vendorService = theNode.vendorInfoService;
+                        await vendorService.construction;
                         console.log("Updating vendor information from DCL...");
 
                         try {
-                            await theNode.vendorInfoService.update();
-                            console.log(
-                                `Successfully updated. ${theNode.vendorInfoService.vendors.size} vendor(s) now available.`,
-                            );
+                            await vendorService.update();
+                            console.log(`Successfully updated. ${vendorService.vendors.size} vendor(s) now available.`);
                         } catch (error) {
                             console.error(
                                 `Failed to update vendor information: ${error instanceof Error ? error.message : error}`,

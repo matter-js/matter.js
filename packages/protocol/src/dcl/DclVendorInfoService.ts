@@ -54,7 +54,7 @@ export class DclVendorInfoService {
         environment.root.set(DclVendorInfoService, this);
         this.#options = options;
         logger.info(
-            "Initialize VendorInformationService",
+            "Initialize VendorInfoService",
             Diagnostic.dict({
                 source: options.dclConfig?.url ?? DclConfig.production.url,
                 interval:
