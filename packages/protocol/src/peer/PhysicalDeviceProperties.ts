@@ -58,7 +58,6 @@ export namespace PhysicalDeviceProperties {
             threadActive,
         } = properties ?? {};
 
-        // TODO Add test for this
         if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
             if (minIntervalFloor !== undefined) {
                 logger.info(
