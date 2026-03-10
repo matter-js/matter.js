@@ -83,9 +83,83 @@ export namespace File {
         abstract fsync(): Promise<void>;
 
         /**
+         * Create a cursor for sequential or random-access reading with an internal buffer.
+         *
+         * The cursor starts at position 0.  {@link max} sets the upper byte bound (typically file size); reads will
+         * not exceed it.  The optional {@link bufferSize} controls the internal buffer size used for shared reads
+         * (default 8192).
+         */
+        abstract cursor(max: number, bufferSize?: number): Cursor;
+
+        /**
+         * Truncate the file to the specified size (default 0).
+         */
+        abstract truncate(size?: number): Promise<void>;
+
+        /**
          * Close the file handle.
          */
         abstract close(): Promise<void>;
+    }
+
+    /**
+     * A cursor for reading from an open file handle with an internal reusable buffer.
+     *
+     * The cursor maintains a current position that advances automatically after each {@link read}.  Use {@link seek}
+     * to reposition for random access.
+     *
+     * The {@link read} method's `copy` parameter controls buffer allocation:
+     * - `copy = false` (default): returns a view into the cursor's internal buffer.  The view is invalidated on the
+     *    next read, so callers must consume the data before reading again.
+     * - `copy = true`: allocates a fresh buffer and reads directly into it, returning owned data safe to retain.
+     */
+    export abstract class Cursor {
+        #position = 0;
+        readonly #max: number;
+
+        constructor(max: number) {
+            this.#max = max;
+        }
+
+        /**
+         * The upper byte bound for this cursor (typically file size).
+         */
+        get max() {
+            return this.#max;
+        }
+
+        /**
+         * The current byte position in the file.
+         */
+        get position() {
+            return this.#position;
+        }
+
+        /**
+         * Move the cursor to a byte position.
+         */
+        seek(position: number) {
+            this.#position = position;
+        }
+
+        /**
+         * Read up to {@link length} bytes from the current position.
+         *
+         * Returns fewer bytes than requested at EOF.  Advances the position by the number of bytes read.
+         *
+         * @param copy when true, returns a new owned buffer; when false (default), returns a view of the internal
+         *   buffer that is invalidated on the next read
+         */
+        async read(length: number, copy?: boolean): Promise<Uint8Array> {
+            const result = await this.readAt(this.#position, length, copy);
+            this.#position += result.length;
+            return result;
+        }
+
+        /**
+         * Read up to {@link length} bytes at the given position without moving the cursor.
+         */
+        protected abstract readAt(position: number, length: number, copy?: boolean): Promise<Uint8Array>;
     }
 }
 
