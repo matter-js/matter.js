@@ -5,7 +5,15 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import { Environment, Logger, ObserverGroup, StorageContext, StorageManager, StorageService } from "@matter/general";
+import {
+    Environment,
+    Logger,
+    MaybePromise,
+    ObserverGroup,
+    StorageContext,
+    StorageManager,
+    StorageService,
+} from "@matter/general";
 import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
 import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
 import { NodeId } from "@matter/types";
@@ -50,15 +58,27 @@ export class MatterNode {
     }
 
     get otaService() {
-        return this.node.act(agent => agent.get(DclBehavior).otaUpdateService) as DclOtaUpdateService;
+        const service = this.node.act(agent => agent.get(DclBehavior).otaUpdateService);
+        if (MaybePromise.is(service)) {
+            throw new Error("OTA service not initialized");
+        }
+        return service as DclOtaUpdateService;
     }
 
     get certificateService() {
-        return this.node.act(agent => agent.get(DclBehavior).certificateService) as DclCertificateService;
+        const service = this.node.act(agent => agent.get(DclBehavior).certificateService);
+        if (MaybePromise.is(service)) {
+            throw new Error("Certificate service not initialized");
+        }
+        return service as DclCertificateService;
     }
 
     get vendorInfoService() {
-        return this.node.act(agent => agent.get(DclBehavior).vendorInfoService) as DclVendorInfoService;
+        const service = this.node.act(agent => agent.get(DclBehavior).vendorInfoService);
+        if (MaybePromise.is(service)) {
+            throw new Error("VendorInformation service not initialized");
+        }
+        return service as DclVendorInfoService;
     }
 
     async initialize(resetStorage: boolean) {
