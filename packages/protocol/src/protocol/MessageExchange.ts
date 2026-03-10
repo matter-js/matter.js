@@ -429,7 +429,13 @@ export class MessageExchange {
         try {
             await this.#send(messageType, payload);
         } catch (e) {
-            if (causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)) {
+            // Only declare the peer as lost when this exchange has never received a response.  If we already
+            // exchanged messages, the peer was reachable, and the later send-failure may be transient — declaring
+            // peer loss would unnecessarily close sessions and tear down subscriptions.
+            if (
+                this.#messageReceivedCounter === 0 &&
+                causedBy(e, TransientPeerCommunicationError, TimeoutError, NetworkError)
+            ) {
                 await this.#context.peerLost(this, asError(e));
             }
 
@@ -621,7 +627,10 @@ export class MessageExchange {
         try {
             return await this.#nextMessage(options);
         } catch (e) {
-            if (causedBy(e, TransientPeerCommunicationError)) {
+            // Only declare the peer as lost when this exchange has never received a message.  Receiving at least
+            // one message confirms the peer was reachable; a later timeout waiting for the next message in a
+            // multi-message exchange should not be treated as permanent peer absence.
+            if (this.#messageReceivedCounter === 0 && causedBy(e, TransientPeerCommunicationError)) {
                 await this.#context.peerLost(this, asError(e));
             }
 
