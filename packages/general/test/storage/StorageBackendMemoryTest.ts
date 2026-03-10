@@ -8,13 +8,19 @@ import { StorageBackendMemory } from "#storage/StorageBackendMemory.js";
 import { StorageError } from "#storage/StorageDriver.js";
 import { Bytes } from "#util/Bytes.js";
 
+function createMemoryStorage() {
+    const storage = new StorageBackendMemory();
+    storage.initialize();
+    return storage;
+}
+
 const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
 describe("StorageBackendMemory", () => {
     it("write and read success", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx1, "key", "value");
 
@@ -23,7 +29,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("multi-write and read success", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx1, { key: "value", key2: "value2" });
 
@@ -34,7 +40,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("multi-write and values read", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx1, { key: "value", key2: "value2" });
 
@@ -43,7 +49,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("write and delete success", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx1, "key", "value");
         storage.delete(CONTEXTx1, "key");
@@ -53,7 +59,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("write and read success with multiple context levels", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx3, "key", "value");
 
@@ -62,7 +68,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("return keys with storage values", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx3, "key", "value");
 
@@ -71,7 +77,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("clear all keys with multiple contextes", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx1, "key1", "value");
         storage.set(CONTEXTx2, "key2", "value");
@@ -84,7 +90,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("return keys with storage without subcontexts values", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx2, "key", "value");
         storage.set(CONTEXTx3, "key", "value");
@@ -94,7 +100,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("return all contexts with multiple contextes", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
 
         storage.set(CONTEXTx1, "key1", "value");
         storage.set(CONTEXTx2, "key2", "value");
@@ -108,38 +114,38 @@ describe("StorageBackendMemory", () => {
     });
 
     it("Throws error when context is empty on set", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         expect(() => {
             storage.set([], "key", "value");
         }).throw(StorageError, "Context and key must not be empty.");
     });
 
     it("Throws error when context is empty on set", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         expect(() => {
             storage.set([""], "key", "value");
         }).throw(StorageError, "Context must not be an empty string.");
     });
 
     it("Throws error when key is empty on set", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         expect(() => {
             storage.set(CONTEXTx1, "", "value");
         }).throw(StorageError, "Context and key must not be empty.");
     });
 
     it("Throws error when context is empty on get with subcontext", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         expect(() => storage.get(["ok", ""], "key")).throws(StorageError, "Context must not be an empty string.");
     });
 
     it("Throws error when key is empty on get", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         expect(() => storage.get(CONTEXTx2, "")).throws(StorageError, "Context and key must not be empty.");
     });
 
     it("writeBlob and readBlob success", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         const data = new Uint8Array([1, 2, 3, 4]);
         const stream = new ReadableStream<Bytes>({
             start(controller) {
@@ -162,7 +168,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("blobSize returns correct size", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         const data = new Uint8Array([10, 20, 30]);
         storage.set(CONTEXTx2, "blobkey", data);
 
@@ -171,7 +177,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("readBlob returns empty stream for missing key", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         const blob = storage.openBlob(CONTEXTx1, "missingkey");
         const reader = blob.stream().getReader();
         const { done } = await reader.read();
@@ -179,7 +185,7 @@ describe("StorageBackendMemory", () => {
     });
 
     it("blobSize throws error for non-Uint8Array value", async () => {
-        const storage = await StorageBackendMemory.create();
+        const storage = createMemoryStorage();
         storage.set(CONTEXTx1, "notblob", "stringvalue");
         expect(() => storage.openBlob(CONTEXTx1, "notblob")).throws(StorageError);
     });

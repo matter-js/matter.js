@@ -10,11 +10,11 @@ import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.j
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
 export class StorageBackendMemory extends StorageDriver implements CloneableStorage {
-    static readonly id = "memory";
+    static readonly id: string = "memory";
 
     protected isInitialized = false;
 
-    constructor(protected store: any = {}) {
+    constructor(protected store: Record<string, Record<string, SupportedStorageTypes>> = {}) {
         super();
     }
 
@@ -22,8 +22,8 @@ export class StorageBackendMemory extends StorageDriver implements CloneableStor
         return this.isInitialized;
     }
 
-    static async create(store: any = {}) {
-        const storage = new StorageBackendMemory(store);
+    static create(_namespace?: unknown, _descriptor?: StorageDriver.Descriptor) {
+        const storage = new StorageBackendMemory();
         storage.initialize();
         return storage;
     }
