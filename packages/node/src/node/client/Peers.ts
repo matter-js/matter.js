@@ -8,7 +8,6 @@ import { type ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
 import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
@@ -156,7 +155,6 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find a specific commissionable node and commission.
      */
     commission(options: CommissioningDiscovery.Options) {
-        this.owner.behaviors.require(ControllerBehavior);
         return new CommissioningDiscovery(this.owner as ServerNode, options);
     }
 
@@ -169,7 +167,6 @@ export class Peers extends EndpointContainer<ClientNode> {
      * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
      */
     async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
-        this.owner.behaviors.require(ControllerBehavior);
         const factory = this.owner.env.get(ClientNodeFactory);
         let node = factory.find(descriptor);
         if (node !== undefined) {
