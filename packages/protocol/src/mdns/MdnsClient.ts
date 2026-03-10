@@ -1290,7 +1290,7 @@ export class MdnsClient implements Scanner {
         const now = Time.nowMs;
         [...this.#commissionableDeviceRecords.entries()].forEach(([recordKey, { addresses, discoveredAt, ttl }]) => {
             const expires = discoveredAt + this.#effectiveTTL(ttl);
-            // Always prune expired IPs; if none remain, we will re-query for them
+            // Always prune expired IPs; if none remain, we will re-query for them when needed
             [...addresses.entries()].forEach(([key, { discoveredAt, ttl }]) => {
                 if (now < discoveredAt + this.#effectiveTTL(ttl)) return; // IP still valid
                 addresses.delete(key);
