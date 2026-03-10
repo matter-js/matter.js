@@ -48,6 +48,7 @@ import {
     CommissioningMode,
     ControllerCommissioner,
     ControllerCommissioningFlow,
+    ControllerCommissioningFlowOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
@@ -197,10 +198,12 @@ export class CommissioningClient extends Behavior {
             passcode,
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
-            // TODO Allow to configure all relevant commissioning options like
-            //  * wifi/thread credentials
-            //  * regulatory config
-            //  * custom otaUpdateProviderLocation
+            abort: options.abort,
+            continueCommissioningAfterPase: options.continueCommissioningAfterPase,
+            wifiNetwork: options.wifiNetwork,
+            threadNetwork: options.threadNetwork,
+            regulatoryLocation: options.regulatoryLocation,
+            regulatoryCountryCode: options.regulatoryCountryCode,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -738,6 +741,22 @@ export namespace CommissioningClient {
         commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
 
         /**
+         * Abort signal for cancellation.  When fired during PASE establishment, cancels the PASE attempt.
+         * In parallel commissioning scenarios this fires once a winner is found, stopping remaining candidates.
+         */
+        abort?: AbortSignal;
+
+        /**
+         * Called immediately after PASE is established, before the main commissioning flow begins.
+         *
+         * Return `true` to proceed with commissioning (this candidate won the parallel race).
+         * Return `false` to abort cleanly — the PASE session is closed and commissioning stops.
+         *
+         * When omitted, commissioning always proceeds.
+         */
+        continueCommissioningAfterPase?: () => boolean;
+
+        /**
          * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
          * is supported for initial commissioning.
          */
@@ -779,6 +798,30 @@ export namespace CommissioningClient {
          * Case Authenticated Tags (CATs)
          */
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
+
+        /**
+         * WiFi network credentials to configure on the device during commissioning.  Required if the device connects
+         * to the network over WiFi and doesn't already have credentials configured.
+         */
+        wifiNetwork?: ControllerCommissioningFlowOptions["wifiNetwork"];
+
+        /**
+         * Thread network credentials to configure on the device during commissioning.  Required if the device connects
+         * to the network over Thread and doesn't already have credentials configured.
+         */
+        threadNetwork?: ControllerCommissioningFlowOptions["threadNetwork"];
+
+        /**
+         * The regulatory location (indoor or outdoor) where the device is used.
+         * Defaults to `Indoor` if not provided.
+         */
+        regulatoryLocation?: ControllerCommissioningFlowOptions["regulatoryLocation"];
+
+        /**
+         * The two-character country code where the device is deployed (e.g. "DE", "US").
+         * Defaults to "XX" (unspecified).
+         */
+        regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

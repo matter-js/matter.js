@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import type { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
+import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { BasicInformationBehavior } from "#behaviors/basic-information";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
@@ -17,14 +17,11 @@ import {
     DnsRecordType,
     ImplementationError,
     Logger,
-    Seconds,
     SharedEnvironmentServices,
-    Time,
 } from "@matter/general";
 import {
     Ble,
     ClientSubscriptions,
-    ControllerCommissioner,
     Fabric,
     FabricAuthority,
     FabricAuthorityConfiguration,
@@ -41,8 +38,6 @@ import {
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
 import { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
-import { RemoteDescriptor } from "../commissioning/RemoteDescriptor.js";
-import { NetworkClient } from "../network/NetworkClient.js";
 import { NetworkServer } from "../network/NetworkServer.js";
 import { ActiveDiscoveries } from "./discovery/ActiveDiscoveries.js";
 import type { Discovery } from "./discovery/Discovery.js";
@@ -173,94 +168,14 @@ export class ControllerBehavior extends Behavior {
     /**
      * Commission a node by discovery criteria from the controller context.
      *
-     * This method is intended for ambiguous discovery criteria (for example same discriminator on multiple devices).
-     * It discovers candidates and then commissions one candidate at a time using the node-level commissioning path.
+     * This method is intended for ambiguous discovery criteria (for example, the same discriminator on multiple
+     * devices).  All discovered candidates are commissioned in parallel; the first success wins.
      */
-    async commission(options: CommissioningDiscovery.Options, preferredNode?: ClientNode): Promise<ClientNode> {
-        const opts = CommissioningClient.PasscodeOptions(options);
-        const identifierData =
-            "instanceId" in options
-                ? { instanceId: options.instanceId }
-                : "longDiscriminator" in options
-                  ? { longDiscriminator: options.longDiscriminator }
-                  : "shortDiscriminator" in options
-                    ? { shortDiscriminator: options.shortDiscriminator }
-                    : "vendorId" in options
-                      ? { vendorId: options.vendorId, productId: options.productId }
-                      : "deviceType" in options
-                        ? { deviceType: options.deviceType }
-                        : "productId" in options
-                          ? { productId: options.productId }
-                          : opts.discriminator !== undefined
-                            ? { longDiscriminator: opts.discriminator }
-                            : {};
-
-        const fabricAuthority = opts.fabricAuthority ?? this.env.get(FabricAuthority);
-        let { fabric } = opts;
-        if (fabric === undefined) {
-            const config = this.fabricAuthorityConfig;
-            fabric = await fabricAuthority.defaultFabric(config);
-        }
-        if (!fabricAuthority.hasControlOf(fabric)) {
-            throw new ImplementationError(
-                `Cannot commission into fabric ${fabric.fabricIndex} because we do not control this fabric`,
-            );
-        }
-
-        const peerAddress = await this.env.get(ControllerCommissioner).commissionWithDiscovery({
-            fabric,
-            nodeId: opts.nodeId,
-            passcode: opts.passcode,
-            commissioningFlowImpl: opts.commissioningFlowImpl,
-            discovery: {
-                identifierData,
-                discoveryCapabilities: opts.discoveryCapabilities,
-                timeout: options.timeout ?? Seconds(30),
-            },
+    commission(options: CommissioningDiscovery.Options, preferredNode?: ClientNode): Promise<ClientNode> {
+        return new CommissioningDiscovery(this.endpoint as ServerNode, {
+            id: preferredNode?.id,
+            ...options,
         });
-
-        const peers = (this.endpoint as ServerNode).peers;
-        const peerDiscoveryData = this.env.get(PeerSet).for(peerAddress).descriptor.discoveryData as
-            | RemoteDescriptor
-            | undefined;
-        const winningIdentifier = peerDiscoveryData?.deviceIdentifier;
-        let node =
-            (winningIdentifier !== undefined
-                ? [...peers].find(
-                      candidate => candidate.maybeStateOf(CommissioningClient)?.deviceIdentifier === winningIdentifier,
-                  )
-                : undefined) ?? preferredNode;
-        if (node === undefined) {
-            node = await peers.forAddress(peerAddress);
-        } else {
-            await node.set({
-                commissioning: {
-                    peerAddress,
-                },
-            });
-        }
-
-        await node.act(agent => {
-            agent.commissioning.state.commissionedAt = Time.nowMs;
-            RemoteDescriptor.toLongForm(peerDiscoveryData, agent.commissioning.state);
-            if (Array.isArray(peerDiscoveryData?.addresses)) {
-                // We currently persist the last known working operational address.
-                agent.commissioning.state.addresses = peerDiscoveryData.addresses.slice(
-                    0,
-                    1,
-                ) as typeof agent.commissioning.state.addresses;
-            }
-            if (opts.caseAuthenticatedTags !== undefined) {
-                agent.commissioning.state.caseAuthenticatedTags = opts.caseAuthenticatedTags;
-            }
-            const network = agent.get(NetworkClient);
-            network.state.defaultSubscription = opts.defaultSubscription;
-            network.state.autoSubscribe = opts.autoSubscribe !== false;
-            network.internal.isNewlyCommissioned = true;
-        });
-
-        await node.start();
-        return node;
     }
 
     override async [Symbol.asyncDispose]() {

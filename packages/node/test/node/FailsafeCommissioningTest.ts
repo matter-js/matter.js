@@ -32,7 +32,7 @@ import {
 import { MockSite } from "./mock-site.js";
 
 describe("Failsafe commissioning re-announcement", () => {
-    before(() => {
+    before(function () {
         // MockTime is disabled before each test file by the test harness (Boot.reboot → MockTime.disable()).
         // Re-enable it here so that failsafe timers registered via Time.getTimer() use mock time.
         MockTime.init();
@@ -84,7 +84,10 @@ describe("Failsafe commissioning re-announcement", () => {
         }
     }
 
-    it("re-announces after failsafe expiry with PASE session active (before addNOC)", async () => {
+    it("re-announces after failsafe expiry with PASE session active (before addNOC)", async function () {
+        // Advancing 60 s of mock time (the failsafe) via MockTime.resolve() can take several seconds
+        // of wall-clock time even though the actual work is trivial — increase the Mocha timeout.
+        this.timeout(30_000);
         // Use explicit try/finally to ensure cleanup even when assertions fail.
         const site = new MockSite();
         try {
@@ -163,14 +166,19 @@ describe("Failsafe commissioning re-announcement", () => {
             expect(adSpy.count).to.be.greaterThan(0);
 
             // Cancel the paused flow so commission() rejects and the uncommissioned peer entry is removed.
+            // Wrap in MockTime.resolve to allow mock timer-based cleanup (e.g. exchange ack timeouts) to fire.
             cancelFlow(new Error("flow cancelled by test after failsafe expiry"));
-            await commissionPromise.catch(() => {});
+            await MockTime.resolve(
+                commissionPromise.catch(() => {}),
+                { macrotasks: true },
+            );
         } finally {
             await site.close();
         }
     });
 
-    it("re-announces after failsafe expiry with CASE session after addNOC (before CommissioningComplete)", async () => {
+    it("re-announces after failsafe expiry with CASE session after addNOC (before CommissioningComplete)", async function () {
+        this.timeout(30_000);
         const site = new MockSite();
         try {
             const { controller, device } = await site.addUncommissionedPair();

@@ -9,7 +9,7 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
 import { ControllerBehavior } from "#behavior/system/controller/ControllerBehavior.js";
-import type { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
+import { CommissioningDiscovery } from "#behavior/system/controller/discovery/CommissioningDiscovery.js";
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
@@ -155,16 +155,32 @@ export class Peers extends EndpointContainer<ClientNode> {
     /**
      * Find a specific commissionable node and commission.
      */
-    async commission(options: CommissioningDiscovery.Options) {
+    commission(options: CommissioningDiscovery.Options) {
         this.owner.behaviors.require(ControllerBehavior);
-        if (!this.owner.lifecycle.isOnline) {
-            throw new ImplementationError("Cannot commission while the controller node is offline");
-        }
+        return new CommissioningDiscovery(this.owner as ServerNode, options);
+    }
 
-        return await this.owner.act("commission", async agent => {
-            await agent.load(ControllerBehavior);
-            return await agent.get(ControllerBehavior).commission(options);
-        });
+    /**
+     * Find or create a {@link ClientNode} for a device described by {@link descriptor}.
+     *
+     * If a matching node already exists in the peer collection, returns it after refreshing its addresses and
+     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.
+     *
+     * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
+     */
+    async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
+        this.owner.behaviors.require(ControllerBehavior);
+        const factory = this.owner.env.get(ClientNodeFactory);
+        let node = factory.find(descriptor);
+        if (node !== undefined) {
+            // Refresh addresses and discovery data from the new descriptor
+            const state = RemoteDescriptor.toLongForm(descriptor);
+            if (Object.keys(state).length) {
+                await node.setStateOf(CommissioningClient, state);
+            }
+            return node;
+        }
+        return factory.create({ commissioning: { descriptor } });
     }
 
     /**

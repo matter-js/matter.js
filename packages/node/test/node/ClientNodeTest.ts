@@ -44,13 +44,13 @@ describe("ClientNode", () => {
         MockTime.init();
     });
 
-    it("rejects commissioning discovery when controller is offline", async () => {
+    it("starts controller automatically when commissioning with controller offline", async () => {
         await using site = new MockSite();
         const controller = await site.addNode(undefined, { online: false, device: undefined });
         await MockTime.resolve(
             expect(
-                controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(90) }),
-            ).rejectedWith("Cannot commission while the controller node is offline"),
+                controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(1) }),
+            ).rejectedWith("No device could be commissioned"),
         );
     });
 
@@ -288,7 +288,7 @@ describe("ClientNode", () => {
                 passcode: 22223333,
                 discovery: {
                     identifierData: { longDiscriminator: 1234 },
-                    knownAddress: wrongKnownAddress!,
+                    knownAddress: wrongKnownAddress,
                     timeout: Seconds(30),
                 },
             }),
