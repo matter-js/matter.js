@@ -93,11 +93,12 @@ export class VariableService {
 
         let value = this.#maybeValue(name);
 
-        if (value === undefined && name.match(/[^A-Z0-9]/gi)) {
-            // Try to parse the name with all "non-environment-var chars" replaced.
-            // Strip leading/trailing dots to avoid empty segments from names like "_foo" or "foo-".
-            const sanitizedName = name.replaceAll(/[^A-Z0-9]+/gi, ".").replace(/^\.+|\.+$/g, "");
-            if (sanitizedName) {
+        if (value === undefined && name.match(/[^A-Z0-9.]/gi)) {
+            // Try to parse the name with all "non-environment-var chars" replaced by dots.
+            // Skip if the result starts or ends with "." (e.g. "_foo" → ".foo") as that
+            // would produce empty segments and is not a valid alternate key.
+            const sanitizedName = name.replaceAll(/[^A-Z0-9.]+/gi, ".");
+            if (!sanitizedName.startsWith(".") && !sanitizedName.endsWith(".")) {
                 value = this.#maybeValue(sanitizedName);
                 if (value !== undefined) {
                     // Track the sanitized name so changes to it trigger re-evaluation
