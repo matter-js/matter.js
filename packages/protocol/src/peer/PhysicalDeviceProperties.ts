@@ -58,13 +58,14 @@ export namespace PhysicalDeviceProperties {
             threadActive,
         } = properties ?? {};
 
-        if (isIntermittentlyConnected) {
-            if (minIntervalFloor !== undefined && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
+        // TODO Add test for this
+        if (isIntermittentlyConnected && minIntervalFloor !== DEFAULT_SUBSCRIPTION_FLOOR_ICD) {
+            if (minIntervalFloor !== undefined) {
                 logger.info(
                     `${description}: Overwriting minIntervalFloorSeconds for intermittently connected device to ${Duration.format(DEFAULT_SUBSCRIPTION_FLOOR_ICD)}`,
                 );
-                minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_ICD;
             }
+            minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_ICD;
         }
         if (minIntervalFloor === undefined) {
             minIntervalFloor = DEFAULT_SUBSCRIPTION_FLOOR_DEFAULT;
