@@ -3,8 +3,6 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { MaybePromise } from "#util/Promises.js";
-
 import { NoProviderError } from "../MatterError.js";
 import { Environment } from "../environment/Environment.js";
 import { Environmental } from "../environment/Environmental.js";
@@ -12,6 +10,8 @@ import type { Directory } from "../fs/Directory.js";
 import { Filesystem } from "../fs/Filesystem.js";
 import { Diagnostic } from "../log/Diagnostic.js";
 import { Logger } from "../log/Logger.js";
+import { DataNamespace } from "./DataNamespace.js";
+import { DatafileRoot } from "./DatafileRoot.js";
 import { StorageDriver } from "./StorageDriver.js";
 import { StorageManager } from "./StorageManager.js";
 import { StorageMigration } from "./StorageMigration.js";
@@ -23,26 +23,14 @@ const DRIVER_JSON = "driver.json";
  * Service adapter for the Matter.js storage API.
  */
 export class StorageService {
-    #factory?: (namespace: string) => MaybePromise<StorageDriver>;
-    #location?: string;
     #drivers = new Map<string, StorageDriver.Implementation<StorageDriver.Descriptor>>();
     #defaultDriver = "wal";
     #configuredDriver?: string;
     #environment: Environment;
 
-    constructor(
-        environment: Environment,
-
-        factory?: (namespace: string) => MaybePromise<StorageDriver>,
-        resolver?: (...paths: string[]) => string,
-    ) {
+    constructor(environment: Environment) {
         environment.set(StorageService, this);
-        this.#factory = factory;
         this.#environment = environment;
-
-        // Fallback resolver is dumb and probably not useful; expected to be replaced by platform implementation if
-        // file resolution is necessary
-        this.resolve = resolver ?? ((...paths: []) => paths.join("/"));
     }
 
     static [Environmental.create](environment: Environment) {
@@ -80,26 +68,57 @@ export class StorageService {
     }
 
     /**
+     * Whether a {@link Filesystem} service is installed in the environment.  Callers can check this before calling
+     * {@link open} to avoid errors in memory-only environments.
+     */
+    get hasFilesystem(): boolean {
+        return this.#environment.has(Filesystem);
+    }
+
+    /**
+     * Whether drivers are registered.
+     */
+    get isConfigured(): boolean {
+        return this.#drivers.size > 0;
+    }
+
+    /**
      * Open storage.  The storage is initialized but the caller must take ownership.
      *
-     * @param namespace a unique namespace identifier such as a root node ID
+     * @param namespace a unique namespace identifier (string) or a pre-built {@link DataNamespace}/{@link DatafileRoot}
      */
-    async open(namespace: string) {
-        // If a custom factory is installed, use it directly (backward compat)
-        if (this.#factory !== undefined) {
-            const storage = await this.#factory(namespace);
-            const manager = new StorageManager(storage);
-            await manager.initialize();
-            return manager;
-        }
-
-        // Use the driver registry
+    async open(namespace: string | DataNamespace) {
         if (this.#drivers.size === 0) {
             throw new NoProviderError("Storage is unavailable because no drivers are registered");
         }
 
+        // Resolve the DataNamespace.  When a string is given, attempt to create a DatafileRoot if a Filesystem is
+        // available; otherwise fall back to a plain DataNamespace.
+        let dataNs: DataNamespace;
+        if (typeof namespace === "string") {
+            if (this.#environment.has(Filesystem)) {
+                const fs = this.#environment.get(Filesystem);
+                dataNs = new DatafileRoot(fs.directory(namespace));
+            } else {
+                dataNs = new DataNamespace(namespace);
+            }
+        } else {
+            dataNs = namespace;
+        }
+
+        // Filesystem path — full detection, migration, driver.json
+        if (dataNs instanceof DatafileRoot) {
+            return this.#openFilesystem(dataNs);
+        }
+
+        // Non-filesystem path — simple create, no detection/migration
+        return this.#openSimple(dataNs);
+    }
+
+    async #openFilesystem(root: DatafileRoot) {
         const fs = this.#environment.get(Filesystem);
-        let dir = fs.directory(namespace);
+        const dir = root.directory;
+        const namespace = root.namespace;
 
         // Detect existing driver
         let descriptor = await this.#readDescriptor(dir);
@@ -107,8 +126,8 @@ export class StorageService {
 
         if (descriptor) {
             detectedKind = descriptor.kind;
-        } else if (await dir.exists()) {
-            // Directory exists but no driver.json → legacy file driver
+        } else if (await this.#hasLegacyFileData(dir)) {
+            // Directory exists with data files but no driver.json → legacy file driver
             detectedKind = "file";
         } else {
             // Check for legacy sibling .db file → sqlite driver
@@ -124,7 +143,6 @@ export class StorageService {
         // Migration: if we detected an existing driver that differs from the target, migrate
         if (detectedKind !== undefined && detectedKind !== targetKind) {
             await this.#migrate(fs, namespace, dir, detectedKind, targetKind);
-            dir = fs.directory(namespace);
             descriptor = await this.#readDescriptor(dir);
         }
 
@@ -142,8 +160,8 @@ export class StorageService {
             await impl.preinitialize(fs, descriptor);
         }
 
-        // Create the driver
-        const storage = await impl.create(dir, descriptor);
+        // Create the driver — pass root so it can acquire a ref-counted lock
+        const storage = await impl.create(root, descriptor);
 
         // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
         if (await dir.exists()) {
@@ -155,37 +173,63 @@ export class StorageService {
         return manager;
     }
 
-    /**
-     * Install a factory for opening storage.  Without such a factory storage is unavailable.
-     */
-    set factory(factory: (namespace: string) => MaybePromise<StorageDriver>) {
-        this.#factory = factory;
+    async #openSimple(dataNs: DataNamespace) {
+        const targetKind = this.#configuredDriver ?? this.#defaultDriver;
+        const descriptor: StorageDriver.Descriptor = { kind: targetKind };
+
+        const impl = this.#drivers.get(targetKind);
+        if (!impl) {
+            throw new NoProviderError(`No storage driver registered for "${targetKind}"`);
+        }
+
+        const storage = await impl.create(dataNs, descriptor);
+
+        const manager = new StorageManager(storage);
+        await manager.initialize();
+        return manager;
     }
 
     /**
-     * The storage location.  Only used for diagnostic purposes.
+     * Close storage for a namespace previously opened with {@link open}.
+     *
+     * Locking is now managed by the drivers themselves via ref-counted {@link DatafileRoot.Lock}s, so this method is a
+     * no-op retained for backward compatibility.
      */
-    get location() {
-        return this.#location;
-    }
-
-    set location(location: string | undefined) {
-        this.#location = location;
+    async close(_namespace: string) {
+        // No-op — drivers acquire/release locks via their own lifecycle
     }
 
     /**
-     * Join one or more relative paths to some platform-dependent notion of an absolute storage path.
+     * The root filesystem path for storage, or a placeholder if no filesystem is available.
      */
-    resolve: (...paths: string[]) => string;
+    get location(): string {
+        if (this.#environment.has(Filesystem)) {
+            return this.#environment.get(Filesystem).path;
+        }
+        return "(off filesystem)";
+    }
 
     [Diagnostic.value]() {
         return [
             "Persistence",
             Diagnostic.dict({
-                location: this.#location ?? "(unknown)",
-                available: this.#factory !== undefined || this.#drivers.size > 0,
+                location: this.location,
+                available: this.#drivers.size > 0,
             }),
         ];
+    }
+
+    async #hasLegacyFileData(dir: Directory): Promise<boolean> {
+        if (!(await dir.exists())) {
+            return false;
+        }
+        const ignoredFiles = new Set(["matter.lock", "matter.pid", DRIVER_JSON]);
+        for await (const entry of dir.entries()) {
+            if (entry.kind === "file" && !ignoredFiles.has(entry.name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     async #readDescriptor(dir: Directory): Promise<StorageDriver.Descriptor | undefined> {
@@ -239,14 +283,14 @@ export class StorageService {
                     await fromImpl.preinitialize(fs, fromDescriptor);
                 }
 
-                sourceStorage = await fromImpl.create(sourceDir, fromDescriptor);
+                sourceStorage = await fromImpl.create(new DatafileRoot(sourceDir), fromDescriptor);
                 await sourceStorage.initialize();
 
                 if (toImpl.preinitialize) {
                     await toImpl.preinitialize(fs, toDescriptor);
                 }
 
-                targetStorage = await toImpl.create(tempDir, toDescriptor);
+                targetStorage = await toImpl.create(new DatafileRoot(tempDir), toDescriptor);
                 await targetStorage.initialize();
 
                 const result = await StorageMigration.migrate(sourceStorage, targetStorage);

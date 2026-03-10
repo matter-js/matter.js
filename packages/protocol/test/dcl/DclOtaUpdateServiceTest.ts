@@ -17,9 +17,8 @@ import {
     Environment,
     HashFipsAlgorithmId,
     MockFetch,
+    MockStorageService,
     StandardCrypto,
-    StorageBackendMemory,
-    StorageService,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { createOtaImage, createVersionMetadata, mockVersionsList } from "./dcl-ota-test-helpers.js";
@@ -27,18 +26,14 @@ import { createOtaImage, createVersionMetadata, mockVersionsList } from "./dcl-o
 describe("DclOtaUpdateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
-    let storage: StorageBackendMemory;
+    let mockStorage: MockStorageService;
     const crypto = new StandardCrypto();
 
     beforeEach(async () => {
         fetchMock = new MockFetch();
         environment = new Environment("test");
 
-        // Set up storage - just create the backend, StorageService will manage initialization
-        storage = new StorageBackendMemory();
-
-        // Add services to environment
-        new StorageService(environment, (_namespace: string) => storage);
+        mockStorage = new MockStorageService(environment);
         environment.set(Crypto, crypto);
     });
 
@@ -1225,10 +1220,8 @@ describe("DclOtaUpdateService", () => {
             // Pre-populate storage with old-format data
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 3);
 
-            // Initialize storage so we can write directly to it
-            storage.initialize();
-
             // Write directly to storage in old format: bin/fff1/8000/prod
+            const storage = mockStorage.store("ota");
             storage.set(["bin", "fff1", "8000"], "prod", otaImage);
 
             // Creating the service triggers migration
@@ -1246,10 +1239,8 @@ describe("DclOtaUpdateService", () => {
         it("migrates test mode bare keys", async () => {
             const otaImage = await createOtaImage(crypto, 0xfff1, 0x8000, 2);
 
-            // Initialize storage so we can write directly to it
-            storage.initialize();
-
             // Write in old format: bin/fff1/8000/test
+            const storage = mockStorage.store("ota");
             storage.set(["bin", "fff1", "8000"], "test", otaImage);
 
             const service = new DclOtaUpdateService(environment);
@@ -1262,10 +1253,8 @@ describe("DclOtaUpdateService", () => {
         });
 
         it("handles corrupt files during migration gracefully", async () => {
-            // Initialize storage so we can write directly to it
-            storage.initialize();
-
             // Write garbage data in old format
+            const storage = mockStorage.store("ota");
             storage.set(["bin", "fff1", "8000"], "prod", new Uint8Array([0x00, 0x01, 0x02]));
 
             // Service should start without error

@@ -263,7 +263,8 @@ describe("StorageContext", () => {
         const KEY = "blobkey";
 
         beforeEach(async () => {
-            storage = await StorageBackendMemory.create();
+            storage = new StorageBackendMemory();
+            storage.initialize();
             blobContext = new StorageContext(storage, CONTEXT);
         });
 

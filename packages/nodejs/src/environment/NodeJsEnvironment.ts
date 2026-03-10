@@ -26,9 +26,10 @@ import {
     StorageService,
     VariableService,
     WalStorage,
+    type DataNamespace,
 } from "@matter/general";
 
-import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
+import { isBunjs } from "#util/runtimeChecks.js";
 
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
@@ -177,9 +178,8 @@ function configureCrypto(env: Environment) {
 function configureNetwork(env: Environment) {
     Boot.init(() => {
         if (env.vars.boolean("nodejs.network")) {
-            const basePathForUnixSockets = rootDirOf(env);
             env.set(Network, new NodeJsNetwork());
-            env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory(basePathForUnixSockets));
+            env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory());
             return;
         }
         // Extends default Network
@@ -202,10 +202,6 @@ function configureStorage(env: Environment) {
         if (env.vars.boolean("nodejs.storage")) {
             const service = env.get(StorageService);
 
-            env.vars.use(() => {
-                service.location = env.vars.get("storage.path", rootDirOf(env));
-            });
-
             // Register general-package drivers
             service.registerDriver(StorageBackendMemory);
             service.registerDriver(WalStorage);
@@ -213,17 +209,14 @@ function configureStorage(env: Environment) {
             // Register nodejs-specific drivers
             service.registerDriver(StorageBackendDisk);
 
-            if (supportsSqlite()) {
-                service.registerDriver({
-                    id: "sqlite",
+            service.registerDriver({
+                id: "sqlite",
 
-                    async create(dir, _descriptor) {
-                        const { PlatformSqlite } = await import("#storage/sqlite/index.js");
-                        const dbPath = resolve(dir.path, "storage.db");
-                        return await PlatformSqlite(dbPath, false);
-                    },
-                });
-            }
+                async create(namespace: DataNamespace) {
+                    const { SqliteStorage } = await import("#storage/sqlite/index.js");
+                    return SqliteStorage.create(namespace);
+                },
+            });
 
             // Default to "file" in nodejs (temporary until WAL is proven)
             service.defaultDriver = "file";
@@ -234,7 +227,6 @@ function configureStorage(env: Environment) {
                 service.configuredDriver = storageDriver;
             }
 
-            service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
             return;
         }
         // Extends default Storage

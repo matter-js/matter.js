@@ -5,6 +5,9 @@
  */
 
 export * from "./BytesStreamReader.js";
+export * from "./DatafileRoot.js";
+export * from "./DataNamespace.js";
+export * from "./MockStorageService.js";
 export * from "./StorageBackendMemory.js";
 export * from "./StorageContext.js";
 export * from "./StorageDriver.js";
@@ -14,3 +17,4 @@ export * from "./StorageService.js";
 export * from "./StorageTransaction.js";
 export * from "./StringifyTools.js";
 export * from "./wal/index.js";
+export * from "./WebStorageDriver.js";

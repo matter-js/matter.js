@@ -35,12 +35,8 @@ function loadVariables(env: Environment) {
 
 function configureStorage(env: Environment) {
     const service = env.get(StorageService);
-
-    env.vars.use(() => {
-        service.location = "Memory";
-    });
-
-    service.factory = namespace => new StorageBackendAsyncStorage(namespace);
+    service.registerDriver(StorageBackendAsyncStorage);
+    service.defaultDriver = "async-storage";
 }
 
 function configureNetwork(env: Environment) {
