@@ -8,7 +8,7 @@ import { ReactNativeBle } from "#ble/ReactNativeBle.js";
 import { Environment, Network, StorageService, VariableService } from "@matter/general";
 import { Ble } from "@matter/protocol";
 import { NetworkReactNative } from "../net/NetworkReactNative.js";
-import { StorageBackendAsyncStorage } from "../storage/StorageBackendAsyncStorage.js";
+import { ReactNativeWebStorageDriver } from "../storage/ReactNativeWebStorageDriver.js";
 
 /**
  * This is the default environment implementation for React-native:
@@ -35,7 +35,7 @@ function loadVariables(env: Environment) {
 
 function configureStorage(env: Environment) {
     const service = env.get(StorageService);
-    service.registerDriver(StorageBackendAsyncStorage);
+    service.registerDriver(ReactNativeWebStorageDriver);
     service.defaultDriver = "async-storage";
 }
 

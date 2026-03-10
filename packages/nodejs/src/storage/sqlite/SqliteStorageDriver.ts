@@ -19,7 +19,7 @@ import {
 import { resolve } from "node:path";
 
 import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
-import { SqliteStorageError } from "./SqliteStorageError.js";
+import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 import type { DatabaseCreator, DatabaseLike, SafeUint8Array, SqlRunnable } from "./SqliteTypes.js";
 import { SqliteTransaction as Transaction } from "./SqliteTypes.js";
 import { buildContextKeyLog, buildContextKeyPair, buildContextPath, escapeGlob } from "./SqliteUtil.js";
@@ -52,22 +52,22 @@ type SqlRunnableKV<
 >;
 
 /**
- * SQLite implementation of `StorageBackendDisk.ts`
+ * SQLite implementation of `FileStorageDriver.ts`
  *
  * `DatabaseCreator` is need to use (sqlite).
  *
  * Supports `node:sqlite`, `bun:sqlite`. (maybe also `better-sqlite3` support)
  */
-export class SqliteStorage extends FilesystemStorageDriver implements CloneableStorage {
+export class SqliteStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
     static readonly id = "sqlite";
     public static readonly memoryPath = ":memory:";
     public static readonly defaultTableName = "kvstore";
 
     /**
-     * Create a SqliteStorage for the given namespace using the platform-appropriate database.
+     * Create a SqliteStorageDriver for the given namespace using the platform-appropriate database.
      */
     static async create(namespace: DataNamespace) {
-        const storage = new SqliteStorage({ namespaceOrPath: namespace });
+        const storage = new SqliteStorageDriver({ namespaceOrPath: namespace });
         await storage.initialize();
         return storage;
     }
@@ -123,10 +123,10 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
                 ? namespaceOrPath
                 : namespaceOrPath != null
                   ? resolve(this.root!.directory.path, "storage.db")
-                  : SqliteStorage.memoryPath;
+                  : SqliteStorageDriver.memoryPath;
 
         // tableName is vulnerable — DO NOT USE FROM USER'S INPUT
-        this.tableName = args?.tableName ?? SqliteStorage.defaultTableName;
+        this.tableName = args?.tableName ?? SqliteStorageDriver.defaultTableName;
         this.clearOnInit = args?.clear ?? false;
 
         if (args?.databaseCreator) {
@@ -257,7 +257,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
         switch (mode) {
             case Transaction.BEGIN:
                 if (this.#inTransaction) {
-                    throw new SqliteStorageError("transaction", "BEGIN", "Transaction is in progress.");
+                    throw new SqliteStorageDriverError("transaction", "BEGIN", "Transaction is in progress.");
                 }
                 this.#database.exec("BEGIN IMMEDIATE TRANSACTION");
                 this.#inTransaction = true;
@@ -265,7 +265,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
 
             case Transaction.COMMIT:
                 if (!this.#inTransaction) {
-                    throw new SqliteStorageError("transaction", "COMMIT", "No transaction in progress.");
+                    throw new SqliteStorageDriverError("transaction", "COMMIT", "No transaction in progress.");
                 }
                 this.#database.exec("COMMIT");
                 this.#inTransaction = false;
@@ -314,7 +314,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
     }
 
     public clone(): StorageDriver {
-        const clonedStorage = new SqliteStorage({
+        const clonedStorage = new SqliteStorageDriver({
             databaseCreator: this.#databaseCreator,
             namespaceOrPath: null,
             tableName: this.tableName,
@@ -343,7 +343,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
             // Shouldn't be happened. (Confused with BLOB?)
             this.delete(contexts, key);
 
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "get",
                 buildContextKeyLog(contexts, key),
                 "path has null json-value! (expected non-null value)",
@@ -368,7 +368,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
             if (value === undefined) {
                 // If user called set(contexts, key),
                 // indented behavior should be error instead of setting `undefined JSON`.
-                throw new SqliteStorageError(
+                throw new SqliteStorageDriverError(
                     "set",
                     buildContextKeyLog(contexts, keyOrValues),
                     "Use null instead of undefined if you want to store null value!",
@@ -398,7 +398,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
             value_json: value,
         });
         if (Number(changes) <= 0) {
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "set",
                 buildContextKeyLog(contexts, key),
                 `Something went wrong! Value wasn't changed.`,
@@ -423,7 +423,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
                 value_blob: raw.value_blob,
             });
             if (Number(changes) <= 0) {
-                throw new SqliteStorageError(
+                throw new SqliteStorageDriverError(
                     "setraw",
                     `${raw.context}$${raw.key}`,
                     `Something went wrong! Value wasn't changed.`,
@@ -442,7 +442,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
                     value_blob: raw.value_blob,
                 });
                 if (Number(changes) <= 0) {
-                    throw new SqliteStorageError(
+                    throw new SqliteStorageDriverError(
                         "setraw",
                         `${raw.context}$${raw.key}`,
                         `Something went wrong! Value wasn't changed.`,
@@ -529,7 +529,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
     }
 
     override clearAll(contexts: string[]) {
-        // Match StorageBackendDisk behavior: if contexts is empty, do nothing
+        // Match FileStorageDriver behavior: if contexts is empty, do nothing
         if (contexts.length === 0) {
             return;
         }
@@ -573,7 +573,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
             value_blob: bytes,
         });
         if (Number(queryResult.changes) <= 0) {
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "writeBlob",
                 buildContextKeyLog(contexts, key),
                 `Something went wrong! Value wasn't changed.`,
@@ -582,7 +582,7 @@ export class SqliteStorage extends FilesystemStorageDriver implements CloneableS
     }
 
     override begin(): StorageTransaction {
-        return new SqliteStorageTransaction(this);
+        return new SqliteStorageDriverTransaction(this);
     }
 }
 
@@ -618,8 +618,8 @@ function findDefaultExport<T, N extends keyof T>(moduleLike: T, name: N): T[N] {
     return moduleLike[name] || (moduleLike as any).default?.[name] || (moduleLike as any).default;
 }
 
-class SqliteStorageTransaction extends StorageTransaction {
-    constructor(private readonly sqliteStorage: SqliteStorage) {
+class SqliteStorageDriverTransaction extends StorageTransaction {
+    constructor(private readonly sqliteStorage: SqliteStorageDriver) {
         super(sqliteStorage);
         sqliteStorage.transaction(Transaction.BEGIN);
     }

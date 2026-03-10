@@ -15,14 +15,14 @@ import { createAsyncStorage } from "@react-native-async-storage/async-storage";
  * `@matter/react-native` with async-storage `3.x`.
  *
  * For migration scenarios that need legacy v2-compatible singleton storage
- * behavior, use {@link StorageBackendAsyncStorageV2} from
+ * behavior, use {@link ReactNativeWebStorageDriverV2} from
  * `@matter/react-native/storage` instead.
  */
-export class StorageBackendAsyncStorage extends WebStorageDriver {
-    static readonly id = "async-storage";
+export class ReactNativeWebStorageDriver extends WebStorageDriver {
+    static readonly id = "react-native-web";
 
     static create(namespace: DataNamespace) {
-        return new StorageBackendAsyncStorage(namespace.namespace);
+        return new ReactNativeWebStorageDriver(namespace.namespace);
     }
 
     constructor(namespace?: string) {

@@ -29,7 +29,7 @@ import { WalSnapshot } from "./WalSnapshot.js";
 import { WalTransaction, applyCommit } from "./WalTransaction.js";
 import { WalWriter } from "./WalWriter.js";
 
-const logger = Logger.get("WalStorage");
+const logger = Logger.get("WalStorageDriver");
 
 type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 
@@ -39,11 +39,11 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
  * Data is loaded from the snapshot + WAL on first read and cached until a write invalidates the cache.  This keeps
  * memory free during steady-state operation when only writes occur.
  */
-export class WalStorage extends FilesystemStorageDriver implements CloneableStorage {
+export class WalStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
     static readonly id = "wal";
 
-    static create(namespace: DataNamespace, descriptor: WalStorage.Descriptor) {
-        return new WalStorage(namespace, {
+    static create(namespace: DataNamespace, descriptor: WalStorageDriver.Descriptor) {
+        return new WalStorageDriver(namespace, {
             maxSegmentSize: descriptor.maxSegmentSize,
             fsync: descriptor.fsync,
             compressSnapshot: descriptor.compressSnapshot,
@@ -53,7 +53,7 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
     }
 
     readonly #storageDir: Directory;
-    readonly #options: WalStorage.Options;
+    readonly #options: WalStorageDriver.Options;
     #cache?: StoreData;
     #abort = new Abort();
     #workers = new BasicMultiplex();
@@ -66,7 +66,7 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
     #cleaner?: WalCleaner;
     #compressSnapshot = true;
 
-    constructor(namespace?: DataNamespace, options?: WalStorage.Options) {
+    constructor(namespace?: DataNamespace, options?: WalStorageDriver.Options) {
         super(namespace);
         this.#storageDir = options?.storageDir ?? this.root!.directory;
         this.#options = options ?? {};
@@ -78,7 +78,7 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
 
     override async initialize(): Promise<void> {
         if (this.#initialized) {
-            throw new StorageError("WalStorage already initialized");
+            throw new StorageError("WalStorageDriver already initialized");
         }
 
         await super.initialize();
@@ -95,7 +95,7 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
         const walDir = this.#storageDir.directory("wal");
         await walDir.mkdir();
 
-        const compressLog = this.#options.compressLog ?? WalStorage.defaults.compressLog;
+        const compressLog = this.#options.compressLog ?? WalStorageDriver.defaults.compressLog;
 
         this.#reader = new WalReader(walDir);
         this.#writer = new WalWriter(walDir, {
@@ -107,9 +107,9 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
                   }
                 : undefined,
         });
-        this.#compressSnapshot = this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot;
+        this.#compressSnapshot = this.#options.compressSnapshot ?? WalStorageDriver.defaults.compressSnapshot;
 
-        const headSnapshot = this.#options.headSnapshot ?? WalStorage.defaults.headSnapshot;
+        const headSnapshot = this.#options.headSnapshot ?? WalStorageDriver.defaults.headSnapshot;
         this.#cleaner = new WalCleaner(
             walDir,
             headSnapshot
@@ -122,13 +122,13 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
         );
 
         // Start background workers
-        const snapshotInterval = this.#options.snapshotInterval ?? WalStorage.defaults.snapshotInterval;
+        const snapshotInterval = this.#options.snapshotInterval ?? WalStorageDriver.defaults.snapshotInterval;
         this.#workers.add(
             this.#runWorker("wal-snapshot", snapshotInterval, () => this.#runSnapshot()),
             "wal-snapshot",
         );
 
-        const cleanInterval = this.#options.cleanInterval ?? WalStorage.defaults.cleanInterval;
+        const cleanInterval = this.#options.cleanInterval ?? WalStorageDriver.defaults.cleanInterval;
         if (cleanInterval !== undefined) {
             this.#workers.add(
                 this.#runWorker("wal-clean", cleanInterval, () => this.#runClean()),
@@ -166,8 +166,8 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
         const tempDir = this.#storageDir.fs.tempDirectory();
         await this.#storageDir.fs.copy(this.#storageDir, tempDir);
 
-        // Return a new WalStorage backed by the copy (no root lock for the clone)
-        const clone = new WalStorage(undefined, { ...this.#options, storageDir: tempDir });
+        // Return a new WalStorageDriver backed by the copy (no root lock for the clone)
+        const clone = new WalStorageDriver(undefined, { ...this.#options, storageDir: tempDir });
         await clone.initialize();
         return clone;
     }
@@ -507,12 +507,12 @@ export class WalStorage extends FilesystemStorageDriver implements CloneableStor
 
     #assertInitialized(): void {
         if (!this.#initialized) {
-            throw new StorageError("WalStorage is not initialized");
+            throw new StorageError("WalStorageDriver is not initialized");
         }
     }
 }
 
-export namespace WalStorage {
+export namespace WalStorageDriver {
     export interface Descriptor extends StorageDriver.Descriptor {
         /**
          * Maximum WAL segment size in bytes.
@@ -543,7 +543,7 @@ export namespace WalStorage {
     export interface Options {
         /**
          * Override the storage directory.  When omitted the directory is derived from the root passed to the
-         * constructor.  Used by {@link WalStorage.clone} to point at a temporary copy.
+         * constructor.  Used by {@link WalStorageDriver.clone} to point at a temporary copy.
          */
         storageDir?: Directory;
 

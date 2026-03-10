@@ -7,19 +7,19 @@
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { StandardCrypto, StorageBackendMemory, StorageContext, Timestamp } from "@matter/general";
+import { MemoryStorageDriver, StandardCrypto, StorageContext, Timestamp } from "@matter/general";
 import { FabricIndex, NodeId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 
 describe("SessionManager", () => {
     describe("getNextAvailableSessionId", () => {
-        let storage: StorageBackendMemory;
+        let storage: MemoryStorageDriver;
         let storageContext: StorageContext;
         let sessionManager: SessionManager;
 
         beforeEach(async () => {
-            storage = new StorageBackendMemory();
+            storage = new MemoryStorageDriver();
             storage.initialize();
             storageContext = new StorageContext(storage, ["context"]);
 
@@ -121,12 +121,12 @@ describe("SessionManager", () => {
     });
 
     describe("maybeSessionFor", () => {
-        let storage: StorageBackendMemory;
+        let storage: MemoryStorageDriver;
         let storageContext: StorageContext;
         let sessionManager: SessionManager;
 
         beforeEach(async () => {
-            storage = new StorageBackendMemory();
+            storage = new MemoryStorageDriver();
             storage.initialize();
             storageContext = new StorageContext(storage, ["context"]);
 

@@ -8,10 +8,10 @@ import { MockFilesystem } from "#fs/MockFilesystem.js";
 import { toJson } from "#storage/StringifyTools.js";
 import { segmentFilename, serializeCommit, type WalCommit } from "#storage/wal/WalCommit.js";
 import { WalSnapshot } from "#storage/wal/WalSnapshot.js";
-import { WalStorage } from "#storage/wal/WalStorage.js";
+import { WalStorageDriver } from "#storage/wal/WalStorageDriver.js";
 import { Seconds } from "#time/TimeUnit.js";
 
-describe("WalStorage", () => {
+describe("WalStorageDriver", () => {
     before(() => MockTime.enable());
 
     let fs: MockFilesystem;
@@ -20,9 +20,9 @@ describe("WalStorage", () => {
         fs = new MockFilesystem();
     });
 
-    async function createStorage(options?: WalStorage.Options) {
+    async function createStorage(options?: WalStorageDriver.Options) {
         const storageDir = fs.directory("storage");
-        const storage = new WalStorage(undefined, {
+        const storage = new WalStorageDriver(undefined, {
             storageDir,
             fsync: false,
             snapshotInterval: Seconds(600),
@@ -98,7 +98,7 @@ describe("WalStorage", () => {
 
     it("can close and reinitialize", async () => {
         const storageDir = fs.directory("storage");
-        const storage = new WalStorage(undefined, {
+        const storage = new WalStorageDriver(undefined, {
             storageDir,
             fsync: false,
             snapshotInterval: Seconds(600),
@@ -188,7 +188,7 @@ describe("WalStorage", () => {
 
         it("recovers from snapshot + WAL on restart", async () => {
             const storageDir = fs.directory("storage");
-            const storage = new WalStorage(undefined, {
+            const storage = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -201,7 +201,7 @@ describe("WalStorage", () => {
             await storage.close(); // close triggers snapshot
 
             // Write more data after snapshot
-            const storage2 = new WalStorage(undefined, {
+            const storage2 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -212,7 +212,7 @@ describe("WalStorage", () => {
             await storage2.close();
 
             // Reopen — should load snapshot + replay remaining WAL
-            const storage3 = new WalStorage(undefined, {
+            const storage3 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -227,7 +227,7 @@ describe("WalStorage", () => {
 
         it("recovers from compressed snapshot + WAL on restart", async () => {
             const storageDir = fs.directory("storage");
-            const storage = new WalStorage(undefined, {
+            const storage = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 compressSnapshot: true,
@@ -245,7 +245,7 @@ describe("WalStorage", () => {
             expect(await storageDir.file("snapshot.json").exists()).equal(false);
 
             // Write more data after snapshot
-            const storage2 = new WalStorage(undefined, {
+            const storage2 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 compressSnapshot: true,
@@ -257,7 +257,7 @@ describe("WalStorage", () => {
             await storage2.close();
 
             // Reopen — should load compressed snapshot + replay remaining WAL
-            const storage3 = new WalStorage(undefined, {
+            const storage3 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 compressSnapshot: true,
@@ -282,7 +282,7 @@ describe("WalStorage", () => {
             const content = serializeCommit(commit) + "\n" + '{"truncated\n';
             await walDir.file(segmentFilename(1)).write(content);
 
-            const storage = new WalStorage(undefined, {
+            const storage = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -315,7 +315,7 @@ describe("WalStorage", () => {
             const storageDir = fs.directory("storage");
 
             // Write some data
-            const storage1 = new WalStorage(undefined, {
+            const storage1 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -326,7 +326,7 @@ describe("WalStorage", () => {
             await storage1.close();
 
             // Reopen — initialize should not load data yet
-            const storage2 = new WalStorage(undefined, {
+            const storage2 = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -347,7 +347,7 @@ describe("WalStorage", () => {
     describe("head snapshot", () => {
         it("creates head snapshot at truncation boundary during cleanup", async () => {
             const storageDir = fs.directory("storage");
-            const storage = new WalStorage(undefined, {
+            const storage = new WalStorageDriver(undefined, {
                 storageDir,
                 fsync: false,
                 snapshotInterval: Seconds(600),
@@ -385,7 +385,11 @@ describe("WalStorage", () => {
                 .file(segmentFilename(1))
                 .write(serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n");
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             const snap = await storage.snapshotAtTime();
@@ -411,7 +415,11 @@ describe("WalStorage", () => {
                     serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n",
                 );
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             const snap = await storage.snapshotAtTime(2500);
@@ -446,7 +454,11 @@ describe("WalStorage", () => {
             const commit: WalCommit = { ts: 6000, ops: [{ op: "upd", key: "ctx", values: { key2: "val2" } }] };
             await walDir.file(segmentFilename(1)).write(serializeCommit(commit) + "\n");
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             await expect(storage.snapshotAtTime(3000)).rejectedWith("Timestamp predates available logs");
@@ -465,7 +477,11 @@ describe("WalStorage", () => {
             const commit2: WalCommit = { ts: 2000, ops: [{ op: "upd", key: "ctx", values: { key2: "modern" } }] };
             await walDir.file(segmentFilename(1)).write(legacyLine + "\n" + serializeCommit(commit2) + "\n");
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             // Legacy commits (ts=0) are always included since 0 > asOf is false
@@ -486,7 +502,11 @@ describe("WalStorage", () => {
             const baseSnap = new WalSnapshot({ segment: 1, offset: 0 }, 5000, { ctx: { key: "val" } });
             await baseSnap.save(storageDir, { compress: false });
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             const snap = await storage.snapshotAtTime(6000);
@@ -510,7 +530,11 @@ describe("WalStorage", () => {
                 .file(segmentFilename(1))
                 .write(serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n");
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             const snap = await storage.snapshotAtCommit();
@@ -535,7 +559,11 @@ describe("WalStorage", () => {
                     serializeCommit(commit1) + "\n" + serializeCommit(commit2) + "\n" + serializeCommit(commit3) + "\n",
                 );
 
-            const storage = new WalStorage(undefined, { storageDir, fsync: false, snapshotInterval: Seconds(600) });
+            const storage = new WalStorageDriver(undefined, {
+                storageDir,
+                fsync: false,
+                snapshotInterval: Seconds(600),
+            });
             await storage.initialize();
 
             // Stop at commit {segment: 1, offset: 1} — includes commits 0 and 1

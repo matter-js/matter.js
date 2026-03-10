@@ -10,7 +10,7 @@ import type { DatabaseLike } from "../SqliteTypes.js";
 /**
  * Create a Node.js SQLite database.
  *
- * DO NOT IMPORT DIRECTLY — use {@link SqliteStorage.create} instead.
+ * DO NOT IMPORT DIRECTLY — use {@link SqliteStorageDriver.create} instead.
  */
 export function createNodeJsDatabase(path: string): DatabaseLike {
     return new DatabaseSync(path) as DatabaseLike;

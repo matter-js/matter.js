@@ -21,7 +21,7 @@ import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
 import { join } from "node:path";
 
-const logger = new Logger("StorageBackendDisk");
+const logger = new Logger("FileStorageDriver");
 
 /**
  * For legacy reasons we store in an inefficient "one-value-per-file-all-in-one-directory" format.  To make this at
@@ -35,11 +35,11 @@ interface ContextIndex {
     keys?: Set<string>;
 }
 
-export class StorageBackendDisk extends FilesystemStorageDriver {
+export class FileStorageDriver extends FilesystemStorageDriver {
     static readonly id = "file";
 
     static create(namespace: DataNamespace, _descriptor: StorageDriver.Descriptor) {
-        return new StorageBackendDisk(namespace);
+        return new FileStorageDriver(namespace);
     }
 
     readonly #path: string;

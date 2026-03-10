@@ -4,6 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export { SqliteStorage } from "./SqliteStorage.js";
-export { SqliteStorageError } from "./SqliteStorageError.js";
+export { SqliteStorageDriver } from "./SqliteStorageDriver.js";
+export { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 export type { DatabaseCreator, DatabaseLike } from "./SqliteTypes.js";
+import { SqliteStorageDriver } from "./SqliteStorageDriver.js";
+
+/** @deprecated Use {@link SqliteStorageDriver} */
+export const SqliteStorage = SqliteStorageDriver;

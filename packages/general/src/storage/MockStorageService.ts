@@ -8,7 +8,7 @@ import { InternalError } from "#MatterError.js";
 import { MaybePromise } from "#util/Promises.js";
 import { Environment } from "../environment/Environment.js";
 import type { DataNamespace } from "./DataNamespace.js";
-import { StorageBackendMemory } from "./StorageBackendMemory.js";
+import { MemoryStorageDriver } from "./MemoryStorageDriver.js";
 import { StorageDriver } from "./StorageDriver.js";
 import { StorageManager } from "./StorageManager.js";
 import { StorageService } from "./StorageService.js";
@@ -17,12 +17,12 @@ import { StorageService } from "./StorageService.js";
  * A {@link StorageService} subclass for tests and non-filesystem environments.
  *
  * Overrides {@link open} to call a user-supplied opener function.  The opener defaults to
- * `() => new StorageBackendMemory()`, so `new MockStorageService(env)` gives you a pure in-memory storage service with
+ * `() => new MemoryStorageDriver()`, so `new MockStorageService(env)` gives you a pure in-memory storage service with
  * no further setup.
  */
 export class MockStorageService extends StorageService {
     #opener?: (namespace: string) => MaybePromise<StorageDriver>;
-    #stores = new Map<string, StorageBackendMemory>();
+    #stores = new Map<string, MemoryStorageDriver>();
 
     constructor(environment: Environment, opener?: (namespace: string) => MaybePromise<StorageDriver>) {
         super(environment);
@@ -41,7 +41,7 @@ export class MockStorageService extends StorageService {
         }
         let store = this.#stores.get(namespace);
         if (!store) {
-            store = StorageBackendMemory.create();
+            store = MemoryStorageDriver.create();
             this.#stores.set(namespace, store);
         }
         return store;

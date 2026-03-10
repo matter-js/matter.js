@@ -10,7 +10,7 @@ import type { Node } from "#node/Node.js";
 import {
     Construction,
     MatterAggregateError,
-    StorageBackendMemory,
+    MemoryStorageDriver,
     StorageContext,
     StorageManager,
 } from "@matter/general";
@@ -125,7 +125,7 @@ export class ClientNodeStores {
      * Group stores are always created with a memory backend as they are transient.
      */
     #createGroupStore(id: string) {
-        const manager = new StorageManager(new StorageBackendMemory());
+        const manager = new StorageManager(new MemoryStorageDriver());
         manager.initialize();
         const store = new ClientNodeStore(id, manager.createContext(id), false);
         store.construction.start();

@@ -9,8 +9,8 @@ import {
     type DataNamespace,
     FilesystemStorageDriver,
     fromJson,
+    MemoryStorageDriver,
     Seconds,
-    StorageBackendMemory,
     type StorageDriver,
     StorageError,
     type SupportedStorageTypes,
@@ -21,18 +21,18 @@ import { readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export class StorageBackendJsonFile extends FilesystemStorageDriver {
+export class JsonFileStorageDriver extends FilesystemStorageDriver {
     static readonly id = "json";
 
     /** We store changes after a value was set to the storage, but not more often than this setting (in ms). */
     static commitDelay = Seconds.one;
     committed = Promise.resolve();
 
-    #commitTimer = Time.getTimer("Storage commit", StorageBackendJsonFile.commitDelay, () => this.#commit());
+    #commitTimer = Time.getTimer("Storage commit", JsonFileStorageDriver.commitDelay, () => this.#commit());
     #closed = false;
     #resolveCommitted?: () => void;
     readonly #path: string;
-    #store: StorageBackendMemory;
+    #store: MemoryStorageDriver;
 
     constructor(namespaceOrPath?: DataNamespace | string) {
         super(typeof namespaceOrPath === "string" || namespaceOrPath === undefined ? undefined : namespaceOrPath);
@@ -42,11 +42,11 @@ export class StorageBackendJsonFile extends FilesystemStorageDriver {
                 : namespaceOrPath !== undefined
                   ? join(this.root!.directory.path, "storage.json")
                   : "";
-        this.#store = new StorageBackendMemory();
+        this.#store = new MemoryStorageDriver();
     }
 
     static create(namespace: DataNamespace, _descriptor?: StorageDriver.Descriptor) {
-        return new StorageBackendJsonFile(namespace);
+        return new JsonFileStorageDriver(namespace);
     }
 
     override get initialized() {
@@ -65,7 +65,7 @@ export class StorageBackendJsonFile extends FilesystemStorageDriver {
                 throw error;
             }
         }
-        this.#store = new StorageBackendMemory(data);
+        this.#store = new MemoryStorageDriver(data);
         this.#store.initialize();
     }
 

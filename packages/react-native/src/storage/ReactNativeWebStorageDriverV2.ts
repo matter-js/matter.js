@@ -13,11 +13,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
  * This backend exists as migration path when apps need to keep using the legacy
  * singleton storage behavior before switching to the v3 scoped storage backend.
  */
-export class StorageBackendAsyncStorageV2 extends WebStorageDriver {
-    static readonly id = "async-storage-v2";
+export class ReactNativeWebStorageDriverV2 extends WebStorageDriver {
+    static readonly id = "react-native-web-v2";
 
     static create(namespace: DataNamespace) {
-        return new StorageBackendAsyncStorageV2(namespace.namespace);
+        return new ReactNativeWebStorageDriverV2(namespace.namespace);
     }
 
     /**

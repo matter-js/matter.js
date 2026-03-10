@@ -4,12 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageBackendMemory } from "#storage/StorageBackendMemory.js";
+import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
 import { StorageError } from "#storage/StorageDriver.js";
 import { Bytes } from "#util/Bytes.js";
 
 function createMemoryStorage() {
-    const storage = new StorageBackendMemory();
+    const storage = new MemoryStorageDriver();
     storage.initialize();
     return storage;
 }
@@ -18,7 +18,7 @@ const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
-describe("StorageBackendMemory", () => {
+describe("MemoryStorageDriver", () => {
     it("write and read success", async () => {
         const storage = createMemoryStorage();
 

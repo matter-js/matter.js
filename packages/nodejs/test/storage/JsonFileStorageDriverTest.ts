@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageBackendJsonFile } from "#storage/index.js";
+import { JsonFileStorageDriver } from "#storage/index.js";
 import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import { readFile, unlink } from "node:fs/promises";
@@ -14,7 +14,7 @@ import { resolve } from "node:path";
 const TEST_STORAGE_LOCATION = resolve(tmpdir(), "matterjs-test-storage.json");
 
 async function createJsonFileStorage(path: string) {
-    const storage = new StorageBackendJsonFile(path);
+    const storage = new JsonFileStorageDriver(path);
     await storage.initialize();
     return storage;
 }

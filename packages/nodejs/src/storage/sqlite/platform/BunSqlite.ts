@@ -12,7 +12,7 @@ import type { DatabaseLike } from "../SqliteTypes.js";
 /**
  * Create a Bun SQLite database.
  *
- * DO NOT IMPORT DIRECTLY — use {@link SqliteStorage.create} instead.
+ * DO NOT IMPORT DIRECTLY — use {@link SqliteStorageDriver.create} instead.
  */
 export function createBunDatabase(path: string): DatabaseLike {
     return new Database(path, {

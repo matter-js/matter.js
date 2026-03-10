@@ -7,7 +7,7 @@
 import { config } from "#config.js";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
-import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
+import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
 import {
     asError,
     Boot,
@@ -19,13 +19,13 @@ import {
     ImplementationError,
     LogFormat,
     Logger,
+    MemoryStorageDriver,
     Network,
     ServiceBundle,
     StandardCrypto,
-    StorageBackendMemory,
     StorageService,
     VariableService,
-    WalStorage,
+    WalStorageDriver,
     type DataNamespace,
 } from "@matter/general";
 
@@ -203,18 +203,18 @@ function configureStorage(env: Environment) {
             const service = env.get(StorageService);
 
             // Register general-package drivers
-            service.registerDriver(StorageBackendMemory);
-            service.registerDriver(WalStorage);
+            service.registerDriver(MemoryStorageDriver);
+            service.registerDriver(WalStorageDriver);
 
             // Register nodejs-specific drivers
-            service.registerDriver(StorageBackendDisk);
+            service.registerDriver(FileStorageDriver);
 
             service.registerDriver({
                 id: "sqlite",
 
                 async create(namespace: DataNamespace) {
-                    const { SqliteStorage } = await import("#storage/sqlite/index.js");
-                    return SqliteStorage.create(namespace);
+                    const { SqliteStorageDriver } = await import("#storage/sqlite/index.js");
+                    return SqliteStorageDriver.create(namespace);
                 },
             });
 

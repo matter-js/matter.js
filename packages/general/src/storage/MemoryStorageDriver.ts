@@ -9,7 +9,7 @@ import { deepCopy } from "#util/DeepCopy.js";
 import { CloneableStorage, StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
-export class StorageBackendMemory extends StorageDriver implements CloneableStorage {
+export class MemoryStorageDriver extends StorageDriver implements CloneableStorage {
     static readonly id: string = "memory";
 
     protected isInitialized = false;
@@ -23,7 +23,7 @@ export class StorageBackendMemory extends StorageDriver implements CloneableStor
     }
 
     static create(_namespace?: unknown, _descriptor?: StorageDriver.Descriptor) {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
         storage.initialize();
         return storage;
     }
@@ -42,7 +42,7 @@ export class StorageBackendMemory extends StorageDriver implements CloneableStor
     }
 
     clone() {
-        const clone = new StorageBackendMemory(deepCopy(this.store));
+        const clone = new MemoryStorageDriver(deepCopy(this.store));
         clone.initialize();
         return clone;
     }

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SqliteStorageError } from "./SqliteStorageError.js";
+import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 
 /**
  * Build string context path from contexts[]
@@ -14,7 +14,7 @@ import { SqliteStorageError } from "./SqliteStorageError.js";
 export function buildContextPath(contexts: string[]) {
     for (const ctx of contexts) {
         if (ctx.trim().length <= 0 || ctx.includes(".")) {
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "build",
                 `{${contexts.join(",")}}`,
                 "Context must not be an empty and not contain dots.",
@@ -48,7 +48,7 @@ export function buildContextKeyLog(contexts: string[], key: string) {
  */
 export function buildKey(key: string) {
     if (key.trim().length <= 0) {
-        throw new SqliteStorageError("build", key, "Key must not be an empty string.");
+        throw new SqliteStorageDriverError("build", key, "Key must not be an empty string.");
     }
     return key;
 }
