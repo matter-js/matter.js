@@ -171,10 +171,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         let node = factory.find(descriptor);
         if (node !== undefined) {
             // Refresh addresses and discovery data from the new descriptor
-            const state = RemoteDescriptor.toLongForm(descriptor);
-            if (Object.keys(state).length) {
-                await node.setStateOf(CommissioningClient, state);
-            }
+            await node.act(agent => {
+                agent.commissioning.descriptor = descriptor;
+            });
             return node;
         }
         return factory.create({ commissioning: { descriptor } });
