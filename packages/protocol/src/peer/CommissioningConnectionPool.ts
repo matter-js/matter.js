@@ -86,7 +86,7 @@ export class CommissioningConnectionPool {
      * from the device key and address URL, used to deduplicate attempts across poll cycles in dynamic-discovery
      * mode.
      */
-    availableCandidates(inFlight?: Set<string>, permanentlyExcluded?: Set<string>): CommissioningConnectionAttempt[] {
+    availableCandidates(inFlight?: Set<string>, permanentlyExcluded?: Set<string> /* reserved for future dynamic-discovery polling */): CommissioningConnectionAttempt[] {
         const result: CommissioningConnectionAttempt[] = [];
         for (const [deviceKey, state] of this.#devices) {
             for (const [addressUrl, address] of state.addresses) {

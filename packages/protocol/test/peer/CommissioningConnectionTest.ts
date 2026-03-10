@@ -6,7 +6,7 @@
 
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
-import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { Millis, NoResponseTimeoutError, Seconds, ServerAddressUdp, UnexpectedDataError } from "@matter/general";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
@@ -117,10 +117,10 @@ describe("CommissioningConnection", () => {
         await expect(
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1")])],
-                timeout: Millis(5),
+                timeout: Millis(50),
                 establishSession: async () => {
                     // Delay much longer than the timeout so the abort fires before we return.
-                    await new Promise<void>(resolve => setTimeout(resolve, 100));
+                    await new Promise<void>(resolve => setTimeout(resolve, 1000));
                     return {
                         initiateForceClose: async () => {
                             sessionClosed = true;
@@ -138,12 +138,12 @@ describe("CommissioningConnection", () => {
         await expect(
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1")])],
-                timeout: Millis(5),
+                timeout: Millis(50),
                 establishSession: async (_address, _discoveryData, signal) => {
                     receivedSignal = signal;
                     // Simulate abort-aware establishment that respects the signal
                     await new Promise<void>((resolve, reject) => {
-                        const timer = setTimeout(resolve, 100);
+                        const timer = setTimeout(resolve, 1000);
                         signal.addEventListener(
                             "abort",
                             () => {

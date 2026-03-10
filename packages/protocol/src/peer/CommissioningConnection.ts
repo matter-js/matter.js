@@ -5,7 +5,7 @@
  */
 
 import { CommissionableDevice } from "#common/Scanner.js";
-import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
+import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import { NodeSession } from "#session/NodeSession.js";
 import {
     Abort,
@@ -134,9 +134,10 @@ export async function CommissioningConnection(
         await abort.race(...pending);
     }
 
-    // Snapshot any remaining in-flight attempts (some may have self-removed via .finally() already) and
-    // await them.  They should resolve quickly since the abort signal has already fired.
-    await MatterAggregateError.allSettled([...pending]).catch(() => {});
+    // Give in-flight attempts a brief window to honour the abort signal and cancel cleanly.
+    // We do not wait indefinitely — a transport that ignores abort must not block the caller.
+    const cleanupBudget = new Promise<void>(resolve => setTimeout(resolve, 5000));
+    await Promise.race([MatterAggregateError.allSettled([...pending]).catch(() => {}), cleanupBudget]);
 
     if (winner !== undefined) {
         return winner;

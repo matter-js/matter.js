@@ -6,17 +6,16 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
-import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData } from "#common/Scanner.js";
+import { CommissionableDevice, DiscoveryData } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { MdnsClient } from "#mdns/MdnsClient.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
-import { CommissioningError } from "#peer/CommissioningError.js";
+import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import {
     ControllerCommissioningFlow,
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
-import { PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
 import { ChannelStatusResponseError } from "#securechannel/SecureChannelMessenger.js";
@@ -45,12 +44,7 @@ import {
     Seconds,
     ServerAddress,
 } from "@matter/general";
-import {
-    DiscoveryCapabilitiesBitmap,
-    NodeId,
-    SECURE_CHANNEL_PROTOCOL_ID,
-    TypeFromPartialBitSchema,
-} from "@matter/types";
+import { NodeId, SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { PeerAddress } from "./PeerAddress.js";
 import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
@@ -121,45 +115,6 @@ export interface LocatedNodeCommissioningOptions extends CommissioningOptions {
 }
 
 /**
- * Configuration for performing discovery + commissioning in one step.
- */
-export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
-    /** Discovery related options. */
-    discovery: (
-        | {
-              /**
-               * Device identifiers (Short or Long Discriminator, Product/Vendor-Ids, Device-type or a pre-discovered
-               * instance Id, or "nothing" to discover all commissionable matter devices) to use for discovery.
-               * If the property commissionableDevice is provided this property is ignored.
-               */
-              identifierData: CommissionableDeviceIdentifiers;
-          }
-        | {
-              /**
-               * Commissionable device object returned by a discovery run.
-               * If this property is provided then identifierData and knownAddress are ignored.
-               */
-              commissionableDevice: CommissionableDevice;
-          }
-    ) & {
-        /**
-         * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
-         * is supported for initial commissioning.
-         */
-        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
-
-        /**
-         * Known address of the device to use for discovery. if this is set this will be tried first before discovering
-         * the device.
-         */
-        knownAddress?: ServerAddress;
-
-        /** Timeout in seconds for the discovery process. Default: 30 seconds */
-        timeout?: Duration;
-    };
-}
-
-/**
  * Options for establishing a PASE session with a device whose address(es) are already known.
  *
  * Use this when you have at least one address for the device (from a prior discovery, a QR code, or a
@@ -191,6 +146,12 @@ export interface EstablishPaseOptions {
      * When omitted, the first successful PASE session is always accepted.
      */
     continueAfterPase?: () => boolean;
+}
+
+/** Result returned by {@link ControllerCommissioner.establishPase}. */
+export interface EstablishPaseResult {
+    paseSession: NodeSession;
+    discoveryData?: DiscoveryData;
 }
 
 /**
@@ -247,21 +208,9 @@ export class ControllerCommissioner {
 
         this.#assertRequestedNodeIdAvailable(fabric, nodeId);
 
-        // Prioritize UDP
-        const sortedAddresses = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
-
-        // For known-address commissioning we still run candidate selection over all provided addresses in
-        // parallel.  Each address is modelled as an independent candidate with a unique synthetic identifier
-        // so that a credential failure on one address does not cancel attempts on others — in mixed-address
-        // scenarios this is the correct behaviour.  In the single-device case all addresses will fail with
-        // the same credential error, but none is short-circuited based on a sibling's failure.
-        const addressCandidates = sortedAddresses.map((address, index) => ({
-            ...(discoveryData ?? {}),
-            addresses: [address],
-            deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
-            D: 0,
-            CM: 1,
-        }));
+        // Each address becomes an independent candidate so that a credential failure on one does not
+        // cancel attempts on others.  UDP is prioritised within the sorted list.
+        const addressCandidates = this.#addressesToCandidates(addresses, discoveryData);
 
         const { session } = await this.#establishPaseFromCandidates({
             devices: addressCandidates,
@@ -291,21 +240,10 @@ export class ControllerCommissioner {
      * via an abort signal.  A credential failure (wrong passcode) on any address immediately cancels all
      * other in-flight attempts for this device.
      */
-    async establishPase(options: EstablishPaseOptions): Promise<{ paseSession: NodeSession; discoveryData?: DiscoveryData }> {
+    async establishPase(options: EstablishPaseOptions): Promise<EstablishPaseResult> {
         const { addresses, discoveryData, passcode, timeout = Seconds(30), abort, continueAfterPase } = options;
 
-        // Prioritize UDP addresses.
-        const sortedAddresses = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
-
-        // Model each address as a distinct candidate so per-device abort logic works correctly even in the
-        // single-address case.
-        const candidates = sortedAddresses.map((address, index) => ({
-            ...(discoveryData ?? {}),
-            addresses: [address],
-            deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
-            D: 0,
-            CM: 1,
-        }));
+        const candidates = this.#addressesToCandidates(addresses, discoveryData);
 
         const { session } = await this.#establishPaseFromCandidates({
             devices: candidates,
@@ -456,6 +394,23 @@ export class ControllerCommissioner {
         if (nodeId !== undefined) {
             this.#assertPeerAddress(fabric.addressOf(nodeId));
         }
+    }
+
+    /**
+     * Maps a sorted list of addresses to synthetic `CommissionableDevice` candidates for use with
+     * {@link CommissioningConnection}.  Each address becomes its own candidate so that a credential failure
+     * on one does not cancel attempts on others, and the per-device abort logic works correctly even in the
+     * single-address case.
+     */
+    #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
+        const sorted = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
+        return sorted.map((address, index) => ({
+            ...(discoveryData ?? {}),
+            addresses: [address],
+            deviceIdentifier: `known-address-${index}-${ServerAddress.urlFor(address)}`,
+            D: 0,
+            CM: 1,
+        }));
     }
 
     /** Finds an unused random Node-ID to use for commissioning if not already provided. */

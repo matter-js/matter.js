@@ -5,9 +5,15 @@
  */
 
 import { MatterError } from "@matter/general";
+import { RetransmissionLimitReachedError } from "#protocol/errors.js";
 
 /**
  * Error that throws when Commissioning fails and a process cannot be continued, and no more specific error
  * information is available.
  */
 export class CommissioningError extends MatterError {}
+
+/**
+ * Thrown when PASE pairing fails because no candidate address responded before the timeout or retransmission limit.
+ */
+export class PairRetransmissionLimitReachedError extends RetransmissionLimitReachedError {}

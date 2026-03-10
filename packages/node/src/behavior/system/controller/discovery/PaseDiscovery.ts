@@ -7,7 +7,7 @@
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import { Duration, MatterAggregateError, ServerAddress } from "@matter/general";
-import { ControllerCommissioner, EstablishPaseOptions, NodeSession } from "@matter/protocol";
+import { ControllerCommissioner, EstablishPaseOptions, EstablishPaseResult, NodeSession } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryError } from "./DiscoveryError.js";
 
@@ -29,7 +29,7 @@ export class PaseDiscovery extends Discovery<NodeSession> {
     #winner?: NodeSession;
     #winnerPromise?: Promise<unknown>;
     #paseWon = false;
-    #pending = new Set<Promise<unknown>>();
+    #pending = new Set<Promise<EstablishPaseResult | undefined>>();
     #abort = new AbortController();
 
     constructor(owner: ServerNode, options: PaseDiscovery.Options) {
@@ -49,7 +49,7 @@ export class PaseDiscovery extends Discovery<NodeSession> {
         // Track by reference so the continueAfterPase closure can promote this attempt to #winnerPromise.
         // This works because the callback is always invoked asynchronously (after PASE establishes), well
         // after the synchronous assignment of `attempt` below.
-        let attempt: Promise<unknown>;
+        let attempt: Promise<EstablishPaseResult | undefined>;
 
         // Launch PASE for this candidate.
         //
@@ -84,7 +84,7 @@ export class PaseDiscovery extends Discovery<NodeSession> {
                         // Promote this attempt from the loser pool to dedicated winner tracking.
                         this.#pending.delete(attempt);
                         this.#winnerPromise = attempt.then(result => {
-                            this.#winner = (result as { paseSession: NodeSession } | undefined)?.paseSession;
+                            this.#winner = result?.paseSession;
                         });
                         return true;
                     },

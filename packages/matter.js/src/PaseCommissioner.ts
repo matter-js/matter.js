@@ -130,9 +130,9 @@ export class PaseCommissioner {
 
     cancelCommissionableDeviceDiscovery(
         identifierData: CommissionableDeviceIdentifiers,
-        _discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
+        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const key = JSON.stringify(identifierData);
+        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
         this.#activeDiscoveries.get(key)?.stop();
     }
 
@@ -142,7 +142,7 @@ export class PaseCommissioner {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const key = JSON.stringify(identifierData);
+        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
         const discovery = new ContinuousDiscovery(this.assertControllerIsStarted().node as ServerNode, {
             ...identifierData,
             timeout,

@@ -18,6 +18,7 @@ import {
     Observable,
     ObserverGroup,
     Seconds,
+    ServerAddress,
     UnexpectedDataError,
 } from "@matter/general";
 import {
@@ -39,8 +40,8 @@ import {
     CertificateAuthority,
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
+    CommissioningOptions,
     ControllerCommissioningFlow,
-    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricGroups,
@@ -168,6 +169,46 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      */
     readonly basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
 };
+
+/**
+ * Configuration for performing discovery + commissioning in one step.
+ * Kept in the legacy matter.js package; new code uses {@link CommissioningDiscovery.Options} directly.
+ */
+export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
+    /** Discovery related options. */
+    discovery: (
+        | {
+              /**
+               * Device identifiers (Short or Long Discriminator, Product/Vendor-Ids, Device-type or a pre-discovered
+               * instance Id, or "nothing" to discover all commissionable matter devices) to use for discovery.
+               * If the property commissionableDevice is provided this property is ignored.
+               */
+              identifierData: CommissionableDeviceIdentifiers;
+          }
+        | {
+              /**
+               * Commissionable device object returned by a discovery run.
+               * If this property is provided then identifierData and knownAddress are ignored.
+               */
+              commissionableDevice: CommissionableDevice;
+          }
+    ) & {
+        /**
+         * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
+         * is supported for initial commissioning.
+         */
+        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
+
+        /**
+         * Known address of the device to use for discovery. if this is set this will be tried first before discovering
+         * the device.
+         */
+        knownAddress?: ServerAddress;
+
+        /** Timeout in seconds for the discovery process. Default: 30 seconds */
+        timeout?: Duration;
+    };
+}
 
 /** Options needed to commission a new node */
 export type NodeCommissioningOptions = CommissioningControllerNodeOptions & {
@@ -745,9 +786,9 @@ export class CommissioningController {
      */
     cancelCommissionableDeviceDiscovery(
         identifierData: CommissionableDeviceIdentifiers,
-        _discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
+        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const key = JSON.stringify(identifierData);
+        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
         this.#activeDiscoveries.get(key)?.stop();
     }
 
@@ -762,7 +803,7 @@ export class CommissioningController {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const key = JSON.stringify(identifierData);
+        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
         const discovery = new ContinuousDiscovery(this.node as ServerNode, {
             ...identifierData,
             timeout,
