@@ -7,14 +7,15 @@
 import {
     Bytes,
     createPromise,
+    FilesystemStorageDriver,
     fromJson,
     Logger,
     MatterAggregateError,
-    StorageDriver,
     StorageError,
     SupportedStorageTypes,
     toJson,
-    type Directory,
+    type DataNamespace,
+    type StorageDriver,
 } from "@matter/general";
 import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
@@ -34,11 +35,11 @@ interface ContextIndex {
     keys?: Set<string>;
 }
 
-export class StorageBackendDisk extends StorageDriver {
+export class StorageBackendDisk extends FilesystemStorageDriver {
     static readonly id = "file";
 
-    static create(dir: Directory) {
-        return new StorageBackendDisk(dir.path);
+    static create(namespace: DataNamespace, _descriptor: StorageDriver.Descriptor) {
+        return new StorageBackendDisk(namespace);
     }
 
     readonly #path: string;
@@ -47,9 +48,14 @@ export class StorageBackendDisk extends StorageDriver {
     #writeFileBlocker = new Map<string, Promise<void>>();
     #index: ContextIndex = {};
 
-    constructor(path: string, clear = false) {
-        super();
-        this.#path = path;
+    constructor(namespaceOrPath?: DataNamespace | string, clear = false) {
+        super(typeof namespaceOrPath === "string" || namespaceOrPath === undefined ? undefined : namespaceOrPath);
+        this.#path =
+            typeof namespaceOrPath === "string"
+                ? namespaceOrPath
+                : namespaceOrPath !== undefined
+                  ? this.root!.directory.path
+                  : "";
         this.#clear = clear;
     }
 
@@ -57,7 +63,9 @@ export class StorageBackendDisk extends StorageDriver {
         return this.isInitialized;
     }
 
-    async initialize() {
+    override async initialize() {
+        await super.initialize();
+
         if (this.#clear) {
             this.#index = {};
             await rm(this.#path, { recursive: true, force: true });
@@ -116,9 +124,10 @@ export class StorageBackendDisk extends StorageDriver {
         }
     }
 
-    async close() {
+    override async close() {
         this.isInitialized = false;
         await this.#finishAllWrites();
+        await super.close();
     }
 
     filePath(fileName: string) {
