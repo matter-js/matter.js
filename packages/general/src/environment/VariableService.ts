@@ -69,6 +69,12 @@ export class VariableService {
 
     get<T extends VariableService.Value>(name: string): T | undefined;
 
+    /**
+     * Get a variable value.
+     * The name is first checked as defined, if not value is found and the name contains non-alphanumeric characters,
+     * the name is parsed with all "non-environment-var chars" replaced by dots and checked again.
+     * If the name is still not found, the {@link fallback} value is returned.
+     */
     get(name: string, fallback?: VariableService.Value) {
         for (const collector of this.#usageCollectors) {
             collector.add(name);
@@ -85,14 +91,25 @@ export class VariableService {
                 return this.boolean(name) ?? fallback;
         }
 
+        let value = this.#maybeValue(name);
+
+        if (value === undefined && name.match(/[^A-Z0-9]/gi)) {
+            // Try to parse the name with all "non-environment-var chars" replaced
+            value = this.#maybeValue(name.replaceAll(/[^A-Z0-9]+/gi, "."));
+        }
+
+        return value ?? fallback;
+    }
+
+    #maybeValue(name: string) {
         let value: VariableService.Value = this.#vars;
         for (const segment of this.#parseName(name)) {
             if (value === null || typeof value !== "object" || Array.isArray(value)) {
-                return fallback;
+                return undefined;
             }
             value = value[segment];
         }
-        return value ?? fallback;
+        return value ?? undefined;
     }
 
     has(name: string) {
