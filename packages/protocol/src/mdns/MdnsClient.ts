@@ -1290,15 +1290,13 @@ export class MdnsClient implements Scanner {
         const now = Time.nowMs;
         [...this.#commissionableDeviceRecords.entries()].forEach(([recordKey, { addresses, discoveredAt, ttl }]) => {
             const expires = discoveredAt + this.#effectiveTTL(ttl);
-            if (now <= expires) {
-                // Only check expired IPs if not device itself has expired
-                [...addresses.entries()].forEach(([key, { discoveredAt, ttl }]) => {
-                    if (now < discoveredAt + this.#effectiveTTL(ttl)) return; // not expired yet
-                    addresses.delete(key);
-                });
-            }
+            // Always prune expired IPs; if none remain, we will re-query for them
+            [...addresses.entries()].forEach(([key, { discoveredAt, ttl }]) => {
+                if (now < discoveredAt + this.#effectiveTTL(ttl)) return; // IP still valid
+                addresses.delete(key);
+            });
             if (now > expires && !addresses.size) {
-                // device expired and also has no addresses anymore
+                // Device expired and no valid IPs remain
                 this.#commissionableDeviceRecords.delete(recordKey);
             }
         });
