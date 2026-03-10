@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { SharedEnvironmentServices } from "@matter/general";
 import { DclCertificateService, DclConfig, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
 
 /**
@@ -38,26 +39,34 @@ export class DclBehavior extends Behavior {
     static override readonly id = "dcl";
 
     declare state: DclBehavior.State;
+    declare internal: DclBehavior.Internal;
 
-    /** Get DclConfig for production DCL based on current state. */
+    get #services() {
+        if (!this.internal.services) {
+            this.internal.services = this.endpoint.env.asDependent();
+        }
+        return this.internal.services;
+    }
+
+    /** Get DclConfig for production DCL based on the current state. */
     get productionConfig(): DclConfig {
         return { url: this.state.productionUrl };
     }
 
-    /** Get DclConfig for test DCL based on current state. */
+    /** Get DclConfig for test DCL based on the current state. */
     get testConfig(): DclConfig {
         return { url: this.state.testUrl };
     }
 
     /**
-     * Get DclConfig based on production flag.
+     * Get DclConfig based on a production flag.
      * @param isProduction - true for production, false for test
      */
     configForProduction(isProduction: boolean): DclConfig {
         return isProduction ? this.productionConfig : this.testConfig;
     }
 
-    /** Get or create the DclCertificateService with current configuration. */
+    /** Get or create the DclCertificateService with the current configuration. */
     get certificateService(): DclCertificateService {
         if (!this.env.has(DclCertificateService)) {
             new DclCertificateService(this.env, {
@@ -67,20 +76,20 @@ export class DclBehavior extends Behavior {
                 testDclConfig: this.state.fetchTestCertificates ? this.testConfig : undefined,
             });
         }
-        return this.env.get(DclCertificateService);
+        return this.#services.get(DclCertificateService);
     }
 
-    /** Get or create the DclVendorInfoService with current configuration. */
+    /** Get or create the DclVendorInfoService with the current configuration. */
     get vendorInfoService(): DclVendorInfoService {
         if (!this.env.has(DclVendorInfoService)) {
             new DclVendorInfoService(this.env, {
                 dclConfig: this.productionConfig,
             });
         }
-        return this.env.get(DclVendorInfoService);
+        return this.#services.get(DclVendorInfoService);
     }
 
-    /** Get or create the DclOtaUpdateService with current configuration. */
+    /** Get or create the DclOtaUpdateService with the current configuration. */
     get otaUpdateService(): DclOtaUpdateService {
         if (!this.env.has(DclOtaUpdateService)) {
             new DclOtaUpdateService(this.env, {
@@ -88,7 +97,12 @@ export class DclBehavior extends Behavior {
                 testDclConfig: this.testConfig,
             });
         }
-        return this.env.get(DclOtaUpdateService);
+        return this.#services.get(DclOtaUpdateService);
+    }
+
+    override async [Symbol.asyncDispose]() {
+        await this.internal.services?.close();
+        await super[Symbol.asyncDispose]?.();
     }
 }
 
@@ -109,5 +123,9 @@ export namespace DclBehavior {
 
         /** Whether to fetch development certificates from GitHub (only when fetchTestCertificates is true). */
         fetchGithubCertificates = true;
+    }
+
+    export class Internal {
+        services?: SharedEnvironmentServices;
     }
 }
