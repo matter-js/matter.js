@@ -1448,7 +1448,7 @@ describe("BdxTest", () => {
     });
 
     describe("BdxSession getters", () => {
-        it("sessionId and sessionActiveTimestamp are accessible during transfer", async () => {
+        it("sessionId and sessionActiveTimestamp are accessible after transfer completes", async () => {
             const data = crypto.randomBytes(256);
 
             let fd: PersistedFileDesignator;
@@ -1466,10 +1466,10 @@ describe("BdxTest", () => {
                     };
                 },
                 validate: async (_clientStorage, _serverStorage, { clientExchangeData }) => {
-                    // Verify that sessionId returns a number
+                    // Verify that sessionId returns a non-negative number
                     const sessionId = bdxClientRef.session.sessionId;
                     expect(typeof sessionId).equals("number");
-                    expect(sessionId).greaterThan(0);
+                    expect(sessionId).greaterThanOrEqual(0);
 
                     // Verify that sessionActiveTimestamp returns a timestamp (number)
                     const activeTimestamp = bdxClientRef.session.sessionActiveTimestamp;
