@@ -14,7 +14,7 @@ import type { ClientNode } from "#node/ClientNode.js";
 import type { Node } from "#node/Node.js";
 import { ClientNodeStore } from "#storage/client/ClientNodeStore.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
-import { Diagnostic, hex, InternalError, isDeepEqual, Logger, Observable } from "@matter/general";
+import { Diagnostic, hex, InternalError, isDeepEqual, Lifecycle, Logger, Observable } from "@matter/general";
 import {
     AcceptedCommandList,
     AttributeList,
@@ -670,6 +670,13 @@ export class ClientStructure {
         );
 
         this.#endpoints.delete(endpoint.number);
+
+        // Skip deletion if the endpoint was already destroyed, e.g. because a parent endpoint was erased first and
+        // recursively closed its children
+        if (endpoint.construction.status === Lifecycle.Status.Destroyed) {
+            return;
+        }
+
         try {
             await endpoint.delete();
         } catch (e) {
