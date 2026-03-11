@@ -88,8 +88,7 @@ export async function runDiscoverCommissionableDevices(
         ...identifierData,
         timeout,
         scannerFilter: discoveryCapabilities
-            ? (s): boolean =>
-                  s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
+            ? (s): boolean => s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
             : undefined,
     });
     const results = Array<CommissionableDevice>();
