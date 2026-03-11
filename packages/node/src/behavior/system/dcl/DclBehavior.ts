@@ -72,7 +72,7 @@ export class DclBehavior extends Behavior {
      */
     get certificateService(): DclCertificateService {
         if (!this.internal.certificateService) {
-            if (!this.#services.has(DclCertificateService)) {
+            if (!this.env.root.has(DclCertificateService)) {
                 new DclCertificateService(this.env, {
                     fetchTestCertificates: this.state.fetchTestCertificates,
                     fetchGithubCertificates: this.state.fetchGithubCertificates,
@@ -91,7 +91,7 @@ export class DclBehavior extends Behavior {
      */
     get vendorInfoService(): DclVendorInfoService {
         if (!this.internal.vendorInfoService) {
-            if (!this.#services.has(DclVendorInfoService)) {
+            if (!this.env.root.has(DclVendorInfoService)) {
                 new DclVendorInfoService(this.env, {
                     dclConfig: this.productionConfig,
                 });
@@ -107,7 +107,7 @@ export class DclBehavior extends Behavior {
      */
     get otaUpdateService(): DclOtaUpdateService {
         if (!this.internal.otaService) {
-            if (!this.#services.has(DclOtaUpdateService)) {
+            if (!this.env.root.has(DclOtaUpdateService)) {
                 new DclOtaUpdateService(this.env, {
                     productionDclConfig: this.productionConfig,
                     testDclConfig: this.testConfig,
