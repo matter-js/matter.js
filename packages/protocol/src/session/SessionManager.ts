@@ -429,14 +429,18 @@ export class SessionManager {
     maybeSessionFor(address: PeerAddress) {
         this.#construction.assert();
 
-        // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
+        // Prefer the most recently active session (i.e. the one we last heard from the peer on).  Older ones may not
+        // work with broken peers (e.g. CHIP test harness).  We use activeTimestamp rather than timestamp because
+        // timestamp is updated on sends too, meaning a session where we are sending into the void (e.g. BDX
+        // retransmitting to a peer that has rebooted) could incorrectly rank above a session where the peer is
+        // actually responding.
         let found: NodeSession | undefined;
         for (const session of this.#sessions) {
             if (!session.peerIs(address) || session.isClosing) {
                 continue;
             }
 
-            if (!found || found.timestamp < session.timestamp) {
+            if (!found || found.activeTimestamp < session.activeTimestamp) {
                 found = session;
             }
         }

@@ -7,8 +7,8 @@
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { StandardCrypto, StorageBackendMemory, StorageContext } from "@matter/general";
-import { NodeId } from "@matter/types";
+import { FabricIndex, NodeId } from "@matter/types";
+import { StandardCrypto, StorageBackendMemory, StorageContext, Timestamp } from "@matter/general";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 
@@ -78,6 +78,46 @@ describe("SessionManager", () => {
                 isResumption: false,
             });
             expect(await sessionManager.getNextAvailableSessionId()).to.equal(first + 2);
+        });
+
+        it("maybeSessionFor returns session with most recent activeTimestamp, not timestamp", async () => {
+            const PEER_NODE_ID = NodeId(0x1234n);
+            const PEER_ADDRESS = { fabricIndex: FabricIndex(0), nodeId: PEER_NODE_ID };
+
+            // Session A: recently active on sends (high timestamp) but peer hasn't talked to us recently
+            const sessionA = await sessionManager.createSecureSession({
+                id: 0x0100,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0001,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+
+            // Session B: peer has more recently communicated with us (higher activeTimestamp)
+            const sessionB = await sessionManager.createSecureSession({
+                id: 0x0200,
+                fabric: undefined,
+                peerNodeId: PEER_NODE_ID,
+                peerSessionId: 0x0002,
+                sharedSecret: DUMMY_BYTEARRAY,
+                salt: DUMMY_BYTEARRAY,
+                isInitiator: true,
+                isResumption: false,
+            });
+
+            // Manipulate timestamps: sessionA has higher timestamp (from sends) but lower activeTimestamp
+            sessionA.timestamp = Timestamp(2000);
+            sessionA.activeTimestamp = Timestamp(100);
+
+            // sessionB has lower timestamp but higher activeTimestamp (peer was recently heard from)
+            sessionB.timestamp = Timestamp(1000);
+            sessionB.activeTimestamp = Timestamp(200);
+
+            const result = sessionManager.maybeSessionFor(PEER_ADDRESS);
+            expect(result).to.equal(sessionB);
         });
 
         it("verify that oldest session gets closed when no more ids are available", async () => {
