@@ -5,6 +5,7 @@
  */
 
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
+import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { ProtocolMocks, SessionManager } from "@matter/protocol";
 import { Seconds, Timestamp } from "@matter/general";
@@ -17,24 +18,24 @@ describe("Client startUp event handling", () => {
     it("ignores startUp event when subscription is not yet active", async () => {
         // Set up a commissioned pair and wait for active subscription
         await using site = new MockSite();
-        const { controller, device } = await site.addCommissionedPair();
+        const { controller } = await site.addCommissionedPair();
         const peer1 = await subscribedPeer(controller, "peer1");
 
         const peerAddress = peer1.stateOf(CommissioningClient).peerAddress!;
         const sessionManager = controller.env.get(SessionManager);
 
-        // Bring the device offline so the subscription is no longer active
-        await MockTime.resolve(device.stop());
-        if (peer1.lifecycle.isOnline) {
-            await MockTime.resolve(peer1.lifecycle.offline);
-        }
+        // Nullify activeSubscription so subscriptionActive returns false while the peer
+        // remains online (the session still exists).  This tests the subscriptionActive
+        // guard directly without going through device stop, which would also trigger the
+        // isOnline guard and close sessions on its own.
+        peer1.behaviors.internalsOf(NetworkClient).activeSubscription = undefined;
+        expect(peer1.lifecycle.isOnline).true;
+        expect(peer1.act(agent => agent.get(NetworkClient).subscriptionActive)).false;
 
-        // Count sessions — device stopping will have closed them already.
         const sessionsBefore = sessionManager.sessionsFor(peerAddress).length;
+        expect(sessionsBefore).greaterThan(0);
 
-        // Emit startUp directly on the peer's basicInformation — mimics a stale
-        // startUp event arriving during initial subscription establishment when the
-        // guard check `subscriptionActive` is false.
+        // Emit startUp directly on the peer — the subscriptionActive guard should reject it.
         await peer1.act(agent => {
             const events = (agent as any).basicInformation?.events;
             if (events?.startUp) {
@@ -42,7 +43,7 @@ describe("Client startUp event handling", () => {
             }
         });
 
-        // Sessions should be unchanged because the guard rejected the event
+        // Sessions should be unchanged because the guard rejected the event.
         const sessionsAfter = sessionManager.sessionsFor(peerAddress).length;
         expect(sessionsAfter).equals(sessionsBefore);
     });
@@ -74,7 +75,8 @@ describe("Client startUp event handling", () => {
 
         await MockTime.resolve(startUpReceived);
 
-        // Yield so the async #onStartUp handler can complete
+        // Two yields are needed: one for #onStartUp to schedule handlePeerShutdown, and one
+        // for handlePeerShutdown → #handlePeerLoss to complete its async session iteration.
         await MockTime.yield();
         await MockTime.yield();
 
@@ -96,19 +98,13 @@ describe("Client startUp event handling", () => {
         const liveSession = sessionManager.maybeSessionFor(peerAddress);
         expect(liveSession).not.undefined;
 
-        // Create a stale "pre-reboot" session. Since MockTime is frozen and both the live session
-        // and any new mock session would get the same createdAt, we simulate an older session by
-        // capturing the live session's createdAt and creating a session with a lower (manually
-        // back-dated) timestamp. We do this by advancing MockTime by 1s, then checking that the
-        // existing live session's createdAt is still at T0 while Time.nowMs is T0+1000.
+        // The live session was created at T0.  Advance MockTime by 1s so that a new session
+        // created now has createdAt = T0+1s, simulating the post-reboot session on the device.
         const liveCreatedAt = liveSession!.createdAt;
-
-        // Advance time so that if a new session is created now it will have createdAt = T0+1s
         await MockTime.advance(Seconds(1));
         expect(liveCreatedAt).lessThan(MockTime.nowMs);
 
-        // Create a "new post-reboot" session that simulates what the device would use after reboot.
-        // This is newer than liveSession (T0 vs T0+1s).
+        // Create the "new post-reboot" session (createdAt = T0+1s).
         const peerNodeId = peerAddress.nodeId;
         const newSession = new ProtocolMocks.NodeSession({
             index: 9991,
@@ -117,9 +113,9 @@ describe("Client startUp event handling", () => {
         });
         expect(newSession.createdAt).greaterThan(liveCreatedAt);
 
-        // Make newSession appear most-recently-active so #onStartUp's maybeSessionFor picks it.
-        // Use a far-future timestamp to ensure it beats any subscription-driven activeTimestamp
-        // updates on the live session that may occur when the startUp event is delivered.
+        // Give newSession the highest activeTimestamp so maybeSessionFor picks it over liveSession.
+        // Use MAX_SAFE_INTEGER to beat any subscription-driven updates that arrive when startUp
+        // is delivered through the live session.
         newSession.activeTimestamp = Timestamp(Number.MAX_SAFE_INTEGER);
 
         sessionManager.sessions.add(newSession);
@@ -138,6 +134,9 @@ describe("Client startUp event handling", () => {
         });
 
         await MockTime.resolve(startUpReceived);
+
+        // Two yields are needed: one for #onStartUp to schedule handlePeerShutdown, and one
+        // for handlePeerShutdown → #handlePeerLoss to complete its async session iteration.
         await MockTime.yield();
         await MockTime.yield();
 
@@ -148,7 +147,7 @@ describe("Client startUp event handling", () => {
         // liveSession must be closed (createdAt = T0 < asOf = T0+1s)
         expect(survivingSessions.some(s => s.id === liveSession!.id)).false;
 
-        // Clean up
+        // Clean up the injected session if not already closed by the handler
         if (!newSession.isClosing) {
             await newSession.initiateClose();
         }

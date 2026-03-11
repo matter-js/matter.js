@@ -463,6 +463,7 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
     }
 
+    // No mutex — matches #onShutdown pattern; handlePeerShutdown is safe to call concurrently.
     async #onStartUp(node: ClientNode) {
         if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
             return;
@@ -485,7 +486,9 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
-        // while older sessions (from before the reboot) are closed.
+        // while older sessions (from before the reboot) are closed.  If currentSession is
+        // undefined (no known session), asOf is undefined and handlePeerShutdown falls back to
+        // Time.nowMs, closing all sessions — the same safe behaviour as a full shutdown.
         const currentSession = this.owner.env.get(SessionManager).maybeSessionFor(peerAddress);
         await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress, currentSession?.createdAt);
     }
