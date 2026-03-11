@@ -22,10 +22,7 @@ describe("CommissioningConnectionPool", () => {
 
         const candidates = pool.availableCandidates();
         expect(candidates).lengthOf(2);
-        expect(candidates.map(c => (c.address as ServerAddressUdp).ip).sort()).deep.equals([
-            "fd00::1",
-            "fd00::2",
-        ]);
+        expect(candidates.map(c => (c.address as ServerAddressUdp).ip).sort()).deep.equals(["fd00::1", "fd00::2"]);
     });
 
     it("excludes in-flight attempt keys", () => {
@@ -65,10 +62,7 @@ describe("CommissioningConnectionPool", () => {
     });
 
     it("attemptKey is unique per (device, address) pair", () => {
-        const pool = new CommissioningConnectionPool([
-            device("a", [udp("fd00::1")]),
-            device("b", [udp("fd00::1")]),
-        ]);
+        const pool = new CommissioningConnectionPool([device("a", [udp("fd00::1")]), device("b", [udp("fd00::1")])]);
 
         const candidates = pool.availableCandidates();
         expect(candidates).lengthOf(2);
@@ -79,15 +73,9 @@ describe("CommissioningConnectionPool", () => {
 
     it("merges addresses for the same device when called multiple times with same batch", () => {
         // Two scanner entries for the same device in one addDevices call (e.g., two interfaces)
-        const pool = new CommissioningConnectionPool([
-            device("a", [udp("fd00::1")]),
-            device("a", [udp("fd00::2")]),
-        ]);
+        const pool = new CommissioningConnectionPool([device("a", [udp("fd00::1")]), device("a", [udp("fd00::2")])]);
 
         const candidates = pool.availableCandidates();
-        expect(candidates.map(c => (c.address as ServerAddressUdp).ip).sort()).deep.equals([
-            "fd00::1",
-            "fd00::2",
-        ]);
+        expect(candidates.map(c => (c.address as ServerAddressUdp).ip).sort()).deep.equals(["fd00::1", "fd00::2"]);
     });
 });

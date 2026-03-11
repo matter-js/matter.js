@@ -5,8 +5,8 @@
  */
 
 import { RemoteDescriptor } from "#behavior/system/commissioning/RemoteDescriptor.js";
-import { CommissionableDevice } from "@matter/protocol";
 import { ServerAddressUdp } from "@matter/general";
+import { CommissionableDevice } from "@matter/protocol";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
     return { type: "udp", ip, port };
