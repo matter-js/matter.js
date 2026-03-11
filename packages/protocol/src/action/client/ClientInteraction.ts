@@ -185,7 +185,7 @@ export class ClientInteraction<
     /**
      * Read attributes and events.
      */
-    async *read(request: ClientRead, session?: SessionT): ReadResult {
+    async *read(request: ClientRead, session?: SessionT, extraAbort?: AbortSignal): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (readPathsCount > 9) {
             logger.info(
@@ -193,7 +193,7 @@ export class ClientInteraction<
             );
         }
 
-        await using context = await this.#begin("reading", request, session);
+        await using context = await this.#begin("reading", request, session, extraAbort);
         const { abort, messenger } = context;
 
         logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, session?.logContext ?? "", request);
@@ -814,15 +814,14 @@ export class ClientInteraction<
         };
 
         const read = (request: Read, extraAbort?: AbortSignal, logContext?: ExchangeLogContext) => {
-            const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
-
+            let readSession = session;
             if (logContext !== undefined) {
-                session = {
+                readSession = {
                     ...session,
                     logContext: session?.logContext ? { ...session.logContext, ...logContext } : logContext,
                 } as unknown as SessionT;
             }
-            return this.read(request, { ...session, abort } as unknown as SessionT);
+            return this.read(request, readSession, extraAbort);
         };
 
         let subscription: ClientSubscription;
@@ -882,6 +881,7 @@ export class ClientInteraction<
             [Symbol.asyncDispose]: async () => {
                 await messenger.close();
                 this.#interactions.delete(request);
+                abort[Symbol.dispose]();
             },
         };
 
