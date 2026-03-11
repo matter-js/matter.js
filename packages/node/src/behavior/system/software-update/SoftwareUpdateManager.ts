@@ -628,6 +628,7 @@ export class SoftwareUpdateManager extends Behavior {
             return;
         }
         const entry = this.internal.updateQueue[entryIndex];
+        let previousProgressStatus = entry.lastProgressStatus;
         if (entry.lastProgressUpdateTime !== undefined) {
             logger.info(
                 `Clearing in-progress update for node ${peerAddress.toString()} due to software version change. Last State was ${OtaUpdateStatus[entry.lastProgressStatus!]}`,
@@ -640,8 +641,8 @@ export class SoftwareUpdateManager extends Behavior {
             // Device rebooted during apply with old version — the update failed
             if (
                 isStartUp &&
-                (entry.lastProgressStatus === OtaUpdateStatus.Applying ||
-                    entry.lastProgressStatus === OtaUpdateStatus.WaitForApply)
+                (previousProgressStatus === OtaUpdateStatus.Applying ||
+                    previousProgressStatus === OtaUpdateStatus.WaitForApply)
             ) {
                 logger.warn(
                     `Device ${peerAddress.toString()} rebooted after applying update but reports softwareVersion ${newVersion} (expected >= ${expectedVersion}), update failed to apply`,
@@ -780,6 +781,14 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         const { endpoint, peerAddress } = entry;
+
+        // Guard: skip announcement if a BDX session is already active for this peer
+        const bdxProtocol = this.env.get(BdxProtocol);
+        const activeSession = bdxProtocol.sessionFor(peerAddress, this.storage.scope);
+        if (activeSession !== undefined) {
+            logger.info(`BDX transfer still active for node ${peerAddress.toString()}, skipping announcement`);
+            return;
+        }
 
         try {
             logger.info(`Announcing OTA provider to node ${peerAddress.toString()}`);
@@ -1001,10 +1010,11 @@ export class SoftwareUpdateManager extends Behavior {
             this.events.updateDone.emit(peerAddress);
             this.#triggerQueuedUpdate();
         } else if (status === OtaUpdateStatus.Cancelled) {
-            logger.info(`OTA update cancelled for node`, peerAddress.toString());
-            this.internal.updateQueue.splice(entryIndex, 1);
-            // Keep knownUpdates since the update file is still available for retry
-            this.events.updateFailed.emit(peerAddress);
+            // BDX transport interruption: reset the entry so it can be retried.
+            // The intentional cancel path (#cancelUpdate) handles removal and updateFailed independently.
+            logger.info(`OTA update BDX cancelled for node ${peerAddress.toString()}, resetting for retry`);
+            entry.lastProgressUpdateTime = undefined;
+            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
             this.#triggerQueuedUpdate();
         } else {
             logger.info(
