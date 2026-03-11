@@ -6,6 +6,7 @@
 
 import { SecureSession } from "#session/SecureSession.js";
 import { AsyncObservable, ClassExtends, Diagnostic, Logger, Observable } from "@matter/general";
+import type { Timestamp } from "@matter/general";
 import { BdxMessageType, BdxStatusCode } from "@matter/types";
 import { bdxSessionInitiator } from "./bdx-session-initiator.js";
 import { BdxError } from "./BdxError.js";
@@ -187,6 +188,16 @@ export class BdxSession {
     get peerAddress() {
         SecureSession.assert(this.#messenger.exchange.session);
         return this.#messenger.exchange.session.peerAddress;
+    }
+
+    get sessionId(): number {
+        SecureSession.assert(this.#messenger.exchange.session);
+        return this.#messenger.exchange.session.id;
+    }
+
+    get sessionActiveTimestamp(): Timestamp {
+        SecureSession.assert(this.#messenger.exchange.session);
+        return this.#messenger.exchange.session.activeTimestamp;
     }
 
     async close(error?: unknown) {
