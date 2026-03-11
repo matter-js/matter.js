@@ -511,7 +511,10 @@ describe("Ota", () => {
             return agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
-        // Mock BdxProtocol.sessionFor to return a fake active session
+        // Patch BdxProtocol.sessionFor to simulate an active BDX session for this peer.
+        // No restore is needed: each MockSite test creates its own Environment (new Environment(id)
+        // in mock-site.ts), so the BdxProtocol instance is isolated to this test and discarded when
+        // the site is torn down via `await using _localSite = site`.
         await otaProvider.act(agent => {
             const su = agent.get(SoftwareUpdateManager);
             const bdxProtocol = su.env.get(BdxProtocol);
@@ -524,19 +527,22 @@ describe("Ota", () => {
             };
         });
 
-        // Trigger the queued update manually — it should skip due to active BDX session
+        // addUpdateConsent above fired #triggerQueuedUpdate → #triggerUpdateOnNode as a fire-and-forget
+        // promise (not yet awaited). Reset the entry to "not-started" so that when the async
+        // #triggerUpdateOnNode body runs during MockTime.macrotasks below it sees no in-progress state,
+        // and the BDX guard (now active via the patch above) is the first thing that stops it.
+        // We also deliver a Done event for a nonexistent peer purely as a synchronous no-op placeholder
+        // that makes the intent of "reset + re-check" explicit; the actual queue re-processing is
+        // driven by the already-scheduled fire-and-forget task running in MacroTasks below.
         await otaProvider.act(agent => {
-            // Access the entry and trigger #triggerQueuedUpdate indirectly via onOtaStatusChange
-            // which calls #triggerQueuedUpdate. First reset the entry to "not started":
             const su = agent.get(SoftwareUpdateManager);
             const entry = su.internal.updateQueue[0];
             if (entry !== undefined) {
                 entry.lastProgressUpdateTime = undefined;
                 entry.lastProgressStatus = OtaUpdateStatus.Unknown;
             }
-            // Directly trigger the queued update processing
             su.onOtaStatusChange(
-                PeerAddress({ nodeId: NodeId(0n), fabricIndex: FabricIndex(99) }), // unknown node, just to trigger #triggerQueuedUpdate
+                PeerAddress({ nodeId: NodeId(0n), fabricIndex: FabricIndex(99) }), // unknown peer — returns early
                 OtaUpdateStatus.Done,
             );
         });

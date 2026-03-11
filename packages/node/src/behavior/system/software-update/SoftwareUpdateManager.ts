@@ -746,8 +746,10 @@ export class SoftwareUpdateManager extends Behavior {
             // An update is already in progress
             return;
         }
-        // Re-sort queue to prioritize entries without an Unknown status. Means the lastProgressStatus of "undefined"
-        // is sorted first, all others last
+        // Re-sort queue to deprioritize entries with Unknown status (sort them last). Entries without a
+        // lastProgressStatus (undefined — never started) go first, while Unknown entries go last. Unknown
+        // arises when a BDX-cancelled entry is reset for retry (Fix 1); deprioritizing it lets any
+        // genuinely fresh entries go first before the retry is attempted.
         this.internal.updateQueue = this.internal.updateQueue.sort((a, b) => {
             const aStatus = a.lastProgressStatus === OtaUpdateStatus.Unknown ? 1 : 0;
             const bStatus = b.lastProgressStatus === OtaUpdateStatus.Unknown ? 1 : 0;
