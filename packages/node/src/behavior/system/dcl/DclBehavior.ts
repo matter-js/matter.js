@@ -71,15 +71,18 @@ export class DclBehavior extends Behavior {
      * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
      */
     get certificateService(): DclCertificateService {
-        if (!this.env.has(DclCertificateService)) {
-            new DclCertificateService(this.env, {
-                fetchTestCertificates: this.state.fetchTestCertificates,
-                fetchGithubCertificates: this.state.fetchGithubCertificates,
-                dclConfig: this.productionConfig,
-                testDclConfig: this.state.fetchTestCertificates ? this.testConfig : undefined,
-            });
+        if (!this.internal.certificateService) {
+            if (!this.#services.has(DclCertificateService)) {
+                new DclCertificateService(this.env, {
+                    fetchTestCertificates: this.state.fetchTestCertificates,
+                    fetchGithubCertificates: this.state.fetchGithubCertificates,
+                    dclConfig: this.productionConfig,
+                    testDclConfig: this.state.fetchTestCertificates ? this.testConfig : undefined,
+                });
+            }
+            this.internal.certificateService = this.#services.get(DclCertificateService);
         }
-        return this.#services.get(DclCertificateService);
+        return this.internal.certificateService;
     }
 
     /**
@@ -87,12 +90,15 @@ export class DclBehavior extends Behavior {
      * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
      */
     get vendorInfoService(): DclVendorInfoService {
-        if (!this.env.has(DclVendorInfoService)) {
-            new DclVendorInfoService(this.env, {
-                dclConfig: this.productionConfig,
-            });
+        if (!this.internal.vendorInfoService) {
+            if (!this.#services.has(DclVendorInfoService)) {
+                new DclVendorInfoService(this.env, {
+                    dclConfig: this.productionConfig,
+                });
+            }
+            this.internal.vendorInfoService = this.#services.get(DclVendorInfoService);
         }
-        return this.#services.get(DclVendorInfoService);
+        return this.internal.vendorInfoService;
     }
 
     /**
@@ -100,16 +106,22 @@ export class DclBehavior extends Behavior {
      * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
      */
     get otaUpdateService(): DclOtaUpdateService {
-        if (!this.env.has(DclOtaUpdateService)) {
-            new DclOtaUpdateService(this.env, {
-                productionDclConfig: this.productionConfig,
-                testDclConfig: this.testConfig,
-            });
+        if (!this.internal.otaService) {
+            if (!this.#services.has(DclOtaUpdateService)) {
+                new DclOtaUpdateService(this.env, {
+                    productionDclConfig: this.productionConfig,
+                    testDclConfig: this.testConfig,
+                });
+            }
+            this.internal.otaService = this.#services.get(DclOtaUpdateService);
         }
-        return this.#services.get(DclOtaUpdateService);
+        return this.internal.otaService;
     }
 
     override async [Symbol.asyncDispose]() {
+        this.internal.otaService = undefined;
+        this.internal.certificateService = undefined;
+        this.internal.vendorInfoService = undefined;
         await this.internal.services?.close();
         await super[Symbol.asyncDispose]?.();
     }
@@ -136,5 +148,8 @@ export namespace DclBehavior {
 
     export class Internal {
         services?: SharedEnvironmentServices;
+        otaService?: DclOtaUpdateService;
+        certificateService?: DclCertificateService;
+        vendorInfoService?: DclVendorInfoService;
     }
 }
