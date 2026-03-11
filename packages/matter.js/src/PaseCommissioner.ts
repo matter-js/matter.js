@@ -4,14 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import {
-    ChannelType,
     Environment,
     ImplementationError,
     Logger,
     Minutes,
     SharedEnvironmentServices,
 } from "@matter/general";
-import { ContinuousDiscovery, RemoteDescriptor, ServerNode } from "@matter/node";
+import { ContinuousDiscovery, ServerNode } from "@matter/node";
 import {
     CertificateAuthority,
     CommissionableDevice,
@@ -22,9 +21,11 @@ import {
 } from "@matter/protocol";
 import { DiscoveryCapabilitiesBitmap, NodeId, TypeFromPartialBitSchema } from "@matter/types";
 import {
+    cancelDiscoverCommissionableDevices,
     CommissioningControllerOptions,
     ControllerEnvironmentOptions,
     NodeCommissioningOptions,
+    runDiscoverCommissionableDevices,
 } from "./CommissioningController.js";
 import { MatterController } from "./MatterController.js";
 
@@ -139,8 +140,7 @@ export class PaseCommissioner {
         identifierData: CommissionableDeviceIdentifiers,
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
-        this.#activeDiscoveries.get(key)?.stop();
+        cancelDiscoverCommissionableDevices(identifierData, discoveryCapabilities, this.#activeDiscoveries);
     }
 
     async discoverCommissionableDevices(
@@ -149,32 +149,13 @@ export class PaseCommissioner {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
-        const discovery = new ContinuousDiscovery(this.assertControllerIsStarted().node as ServerNode, {
-            ...identifierData,
+        return runDiscoverCommissionableDevices(
+            this.assertControllerIsStarted().node as ServerNode,
+            identifierData,
+            discoveryCapabilities,
+            discoveredCallback,
             timeout,
-            scannerFilter: discoveryCapabilities
-                ? (s): boolean =>
-                      s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
-                : undefined,
-        });
-        const results = Array<CommissionableDevice>();
-        const seen = new Set<string>();
-        discovery.discovered.on(node => {
-            const device = RemoteDescriptor.fromLongForm(node.state.commissioning) as CommissionableDevice;
-            const id = device.deviceIdentifier ?? JSON.stringify(node.state.commissioning.addresses ?? []);
-            if (!seen.has(id)) {
-                seen.add(id);
-                results.push(device);
-                discoveredCallback?.(device);
-            }
-        });
-        this.#activeDiscoveries.set(key, discovery);
-        try {
-            await discovery;
-            return results;
-        } finally {
-            this.#activeDiscoveries.delete(key);
-        }
+            this.#activeDiscoveries,
+        );
     }
 }

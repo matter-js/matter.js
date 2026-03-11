@@ -66,6 +66,60 @@ import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
 const logger = new Logger("CommissioningController");
 
+// Shared helpers used by both CommissioningController and PaseCommissioner.
+
+function discoveryKey(
+    identifierData: CommissionableDeviceIdentifiers,
+    discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
+) {
+    return JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
+}
+
+export async function runDiscoverCommissionableDevices(
+    node: ServerNode,
+    identifierData: CommissionableDeviceIdentifiers,
+    discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
+    discoveredCallback: ((device: CommissionableDevice) => void) | undefined,
+    timeout: Duration,
+    activeDiscoveries: Map<string, ContinuousDiscovery>,
+): Promise<CommissionableDevice[]> {
+    const key = discoveryKey(identifierData, discoveryCapabilities);
+    const discovery = new ContinuousDiscovery(node, {
+        ...identifierData,
+        timeout,
+        scannerFilter: discoveryCapabilities
+            ? (s): boolean =>
+                  s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
+            : undefined,
+    });
+    const results = Array<CommissionableDevice>();
+    const seen = new Set<string>();
+    discovery.discovered.on(discoveredNode => {
+        const device = RemoteDescriptor.fromLongForm(discoveredNode.state.commissioning) as CommissionableDevice;
+        const id = device.deviceIdentifier ?? JSON.stringify(discoveredNode.state.commissioning.addresses ?? []);
+        if (!seen.has(id)) {
+            seen.add(id);
+            results.push(device);
+            discoveredCallback?.(device);
+        }
+    });
+    activeDiscoveries.set(key, discovery);
+    try {
+        await discovery;
+        return results;
+    } finally {
+        activeDiscoveries.delete(key);
+    }
+}
+
+export function cancelDiscoverCommissionableDevices(
+    identifierData: CommissionableDeviceIdentifiers,
+    discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
+    activeDiscoveries: Map<string, ContinuousDiscovery>,
+) {
+    activeDiscoveries.get(discoveryKey(identifierData, discoveryCapabilities))?.stop();
+}
+
 // TODO how to enhance "getting devices" as API? Or is getDevices() enough?
 // TODO decline using setRoot*Cluster
 // TODO Decline cluster access after announced/paired
@@ -788,8 +842,7 @@ export class CommissioningController {
         identifierData: CommissionableDeviceIdentifiers,
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
-        this.#activeDiscoveries.get(key)?.stop();
+        cancelDiscoverCommissionableDevices(identifierData, discoveryCapabilities, this.#activeDiscoveries);
     }
 
     /**
@@ -803,33 +856,14 @@ export class CommissioningController {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const key = JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
-        const discovery = new ContinuousDiscovery(this.node as ServerNode, {
-            ...identifierData,
+        return runDiscoverCommissionableDevices(
+            this.node as ServerNode,
+            identifierData,
+            discoveryCapabilities,
+            discoveredCallback,
             timeout,
-            scannerFilter: discoveryCapabilities
-                ? (s): boolean =>
-                      s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
-                : undefined,
-        });
-        const results = Array<CommissionableDevice>();
-        const seen = new Set<string>();
-        discovery.discovered.on(node => {
-            const device = RemoteDescriptor.fromLongForm(node.state.commissioning) as CommissionableDevice;
-            const id = device.deviceIdentifier ?? JSON.stringify(node.state.commissioning.addresses ?? []);
-            if (!seen.has(id)) {
-                seen.add(id);
-                results.push(device);
-                discoveredCallback?.(device);
-            }
-        });
-        this.#activeDiscoveries.set(key, discovery);
-        try {
-            await discovery;
-            return results;
-        } finally {
-            this.#activeDiscoveries.delete(key);
-        }
+            this.#activeDiscoveries,
+        );
     }
 
     /**

@@ -81,21 +81,16 @@ export class CommissioningConnectionPool {
     }
 
     /**
-     * Returns all viable (device, address) pairs, optionally excluding attempt keys already in-flight or
-     * permanently failed.  Each entry has a unique {@link CommissioningConnectionAttempt.attemptKey} formed
-     * from the device key and address URL, used to deduplicate attempts across poll cycles in dynamic-discovery
-     * mode.
+     * Returns all viable (device, address) pairs, optionally excluding attempt keys already in-flight.
+     * Each entry has a unique {@link CommissioningConnectionAttempt.attemptKey} formed from the device key
+     * and address URL, used to deduplicate in-flight attempts.
      */
-    availableCandidates(
-        inFlight?: Set<string>,
-        permanentlyExcluded?: Set<string> /* reserved for future dynamic-discovery polling */,
-    ): CommissioningConnectionAttempt[] {
+    availableCandidates(inFlight?: Set<string>): CommissioningConnectionAttempt[] {
         const result: CommissioningConnectionAttempt[] = [];
         for (const [deviceKey, state] of this.#devices) {
             for (const [addressUrl, address] of state.addresses) {
                 const attemptKey = `${deviceKey}:${addressUrl}`;
                 if (inFlight?.has(attemptKey)) continue;
-                if (permanentlyExcluded?.has(attemptKey)) continue;
                 result.push({ attemptKey, deviceKey, device: state.device, address });
             }
         }

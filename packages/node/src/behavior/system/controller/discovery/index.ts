@@ -6,6 +6,7 @@
 
 export * from "./ActiveDiscoveries.js";
 export * from "./CommissioningDiscovery.js";
+export * from "./ParallelPaseDiscovery.js";
 export * from "./ContinuousDiscovery.js";
 export * from "./Discovery.js";
 export * from "./DiscoveryError.js";

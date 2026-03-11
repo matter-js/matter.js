@@ -23,6 +23,10 @@ import { TransientPeerCommunicationError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("CommissioningConnection");
 
+// Maximum time to wait for in-flight PASE losers to honour the abort signal and close their sessions.
+// We do not wait indefinitely — a transport that ignores abort must not block the caller.
+const LOSER_CLEANUP_BUDGET_MS = 5000;
+
 /**
  * Attempts PASE establishments in parallel across all provided device candidates, returning the first successful
  * session.
@@ -134,9 +138,7 @@ export async function CommissioningConnection(
         await abort.race(...pending);
     }
 
-    // Give in-flight attempts a brief window to honour the abort signal and cancel cleanly.
-    // We do not wait indefinitely — a transport that ignores abort must not block the caller.
-    const cleanupBudget = new Promise<void>(resolve => setTimeout(resolve, 5000));
+    const cleanupBudget = new Promise<void>(resolve => setTimeout(resolve, LOSER_CLEANUP_BUDGET_MS));
     await Promise.race([MatterAggregateError.allSettled([...pending]).catch(() => {}), cleanupBudget]);
 
     if (winner !== undefined) {
