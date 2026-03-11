@@ -438,6 +438,11 @@ export class Behaviors {
                 destroyNow = new Set(Object.keys(this.#backings));
             }
 
+            // Dispose cached event emitters so they cancel deferred-emit timers
+            for (const emitter of Object.values(this.#events)) {
+                emitter[Symbol.dispose]?.();
+            }
+
             // Commit any state changes that occurred during destruction
             const transaction = agent.context.transaction;
             if (transaction.status === Transaction.Status.Exclusive) {
