@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { MatterDclResponseError } from "#dcl/DclClient.js";
 import { DclVendorInfoService } from "#dcl/DclVendorInfoService.js";
 import { Environment, Minutes, MockFetch, StorageBackendMemory, StorageManager, StorageService } from "@matter/general";
+import { CommissioningFlowType } from "@matter/types";
 
 // Mock DCL vendor info responses
 const mockVendorsPage1 = {
@@ -445,6 +447,102 @@ describe("DclVendorInfoService", () => {
             expect(calls[0].url).to.include("https://on.dcl.csa-iot.org");
 
             await service.close();
+        });
+    });
+
+    describe("productInfoFor", () => {
+        const mockModelResponse = {
+            model: {
+                vid: 0xfff1,
+                pid: 0x8000,
+                deviceTypeID: 10,
+                productName: "Test Smart Lock",
+                productLabel: "Smart Lock v2",
+                partNumber: "TSL-001",
+                discoveryCapabilitiesBitmask: 4, // bit 2 = onIpNetwork
+                commissioningCustomFlow: 0,      // Standard
+                commissioningModeInitialStepsHint: 1, // bit 0 = powerCycle
+                commissioningModeSecondaryStepsHint: 4, // bit 2 = administrator
+                userManualUrl: "https://example.com/manual",
+                schemaVersion: 0,
+            },
+        };
+
+        it("returns ProductInfo with decoded fields for a known VID/PID", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.addResponse("/dcl/model/models/65521/32768", mockModelResponse);
+            fetchMock.install();
+
+            const service = new DclVendorInfoService(environment, { updateInterval: null });
+            await service.construction;
+
+            const info = await service.productInfoFor(0xfff1, 0x8000);
+
+            expect(info).to.not.be.undefined;
+            expect(info?.productName).to.equal("Test Smart Lock");
+            expect(info?.productLabel).to.equal("Smart Lock v2");
+            expect(info?.commissioningFlow).to.equal(CommissioningFlowType.Standard);
+            expect(info?.discoveryCapabilities.onIpNetwork).to.be.true;
+            expect(info?.discoveryCapabilities.ble).to.be.false;
+            expect(info?.commissioningModeInitialStepsHint.powerCycle).to.be.true;
+            expect(info?.commissioningModeInitialStepsHint.administrator).to.be.false;
+            expect(info?.commissioningModeSecondaryStepsHint.administrator).to.be.true;
+            expect(info?.userManualUrl).to.equal("https://example.com/manual");
+            // Wire-format internals must not be present
+            expect((info as any).vid).to.be.undefined;
+            expect((info as any).pid).to.be.undefined;
+            expect((info as any).schemaVersion).to.be.undefined;
+            expect((info as any).discoveryCapabilitiesBitmask).to.be.undefined;
+            expect((info as any).commissioningCustomFlow).to.be.undefined;
+
+            await service.close();
+        });
+
+        it("returns undefined for an unknown VID/PID combination", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.addResponse(
+                "/dcl/model/models/65521/32768",
+                { code: 5, message: "rpc error: not found", details: [] },
+                { status: 404 },
+            );
+            fetchMock.install();
+
+            const service = new DclVendorInfoService(environment, { updateInterval: null });
+            await service.construction;
+
+            const info = await service.productInfoFor(0xfff1, 0x8000);
+            expect(info).to.be.undefined;
+
+            await service.close();
+        });
+
+        it("rethrows non-NotFound DCL errors", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.addResponse(
+                "/dcl/model/models/65521/32768",
+                { code: 14, message: "service unavailable", details: [] },
+                { status: 503 },
+            );
+            fetchMock.install();
+
+            const service = new DclVendorInfoService(environment, { updateInterval: null });
+            await service.construction;
+
+            await expect(service.productInfoFor(0xfff1, 0x8000)).to.be.rejectedWith(MatterDclResponseError);
+
+            await service.close();
+        });
+
+        it("returns undefined when service is closed", async () => {
+            fetchMock.addResponse("/dcl/vendorinfo/vendors", { vendorInfo: [] });
+            fetchMock.install();
+
+            const service = new DclVendorInfoService(environment, { updateInterval: null });
+            await service.construction;
+            await service.close();
+
+            const info = await service.productInfoFor(0xfff1, 0x8000);
+            expect(info).to.be.undefined;
         });
     });
 });

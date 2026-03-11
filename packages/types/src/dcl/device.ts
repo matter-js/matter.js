@@ -6,6 +6,39 @@
 
 import { DeviceTypeId } from "../datatype/DeviceTypeId.js";
 import { VendorId } from "../datatype/VendorId.js";
+import { BitFlag, BitmapSchema } from "../schema/BitmapSchema.js";
+
+/**
+ * Bitmap for the Enhanced Setup Flow Options field in DeviceModelDclSchema.
+ * @see {@link MatterSpecification.v141.Core} § 11.23.6.
+ */
+export const EnhancedSetupFlowOptionsBitmap = {
+    /**
+     * A commissioner is required to show Terms and Conditions content if this is the initial
+     * commissioning for the device out of a factory-reset state.
+     */
+    tcOnInitialCommission: BitFlag(0),
+
+    /**
+     * The commissioner SHALL NOT reuse user's responses to the required Terms and Conditions
+     * from commissioning a previous product (same VID) with the same T&C.
+     */
+    disallowTcReuseForRequiredTc: BitFlag(1),
+
+    /**
+     * The commissioner SHALL NOT reuse user's responses to the non-required Terms and Conditions
+     * from commissioning a previous product (same VID) with the same T&C.
+     */
+    disallowTcReuseForNonRequiredTc: BitFlag(2),
+
+    /**
+     * The commissioner SHALL NOT reuse user's responses to the Terms and Conditions from
+     * commissioning a previous product (same VID, other PID) with the same T&C.
+     */
+    disallowTcReuseBetweenPids: BitFlag(3),
+};
+
+export const EnhancedSetupFlowOptionsSchema = BitmapSchema(EnhancedSetupFlowOptionsBitmap);
 
 /**
  * DeviceModel Schema
@@ -185,9 +218,9 @@ export interface DeviceModelDclSchema {
 
     /**
      * This field SHALL identify the configuration options for the Enhanced Setup Flow. This field is a
-     * bitmap with values defined in Enhanced Setup Flow Options Table.
+     * bitmap with values defined in Enhanced Setup Flow Options Table. Decode with EnhancedSetupFlowOptionsSchema.
      */
-    enhancedSetupFlowOptions?: number; // TODO
+    enhancedSetupFlowOptions?: number;
 
     /**
      * This field (when provided) SHALL identify a link to the Enhanced Setup Flow Terms and Condition
