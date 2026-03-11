@@ -415,7 +415,9 @@ export default function commands(theNode: MatterNode) {
                                     );
                                     console.log(`  DCL Mode: ${mode}\n`);
 
-                                    const updateInfo = await theNode.otaService.checkForUpdate({
+                                    const updateInfo = await (
+                                        await theNode.otaService()
+                                    ).checkForUpdate({
                                         vendorId: basicInfo.vendorId as VendorId,
                                         productId: basicInfo.productId as number,
                                         currentSoftwareVersion: basicInfo.softwareVersion as number,
@@ -511,7 +513,9 @@ export default function commands(theNode: MatterNode) {
                                     );
                                     console.log(`  DCL Mode: ${mode}\n`);
 
-                                    const updateInfo = await theNode.otaService.checkForUpdate({
+                                    const updateInfo = await (
+                                        await theNode.otaService()
+                                    ).checkForUpdate({
                                         vendorId: basicInfo.vendorId as VendorId,
                                         productId: basicInfo.productId as number,
                                         currentSoftwareVersion: basicInfo.softwareVersion as number,
@@ -536,7 +540,9 @@ export default function commands(theNode: MatterNode) {
                                     }
 
                                     console.log("\nDownloading update...");
-                                    const fd = await theNode.otaService.downloadUpdate(updateInfo, forceDownload);
+                                    const fd = await (
+                                        await theNode.otaService()
+                                    ).downloadUpdate(updateInfo, forceDownload);
 
                                     console.log(`✓ Update downloaded and stored successfully: ${fd.text}`);
                                     console.log(
@@ -612,7 +618,9 @@ export default function commands(theNode: MatterNode) {
                                     );
                                     console.log(`  DCL Mode: ${mode}\n`);
 
-                                    const localUpdates = await theNode.otaService.find({
+                                    const localUpdates = await (
+                                        await theNode.otaService()
+                                    ).find({
                                         vendorId: basicInfo.vendorId as VendorId,
                                         productId: basicInfo.productId as number,
                                         currentVersion: basicInfo.softwareVersion as number,
@@ -623,7 +631,9 @@ export default function commands(theNode: MatterNode) {
                                         return;
                                     }
 
-                                    const updateInfo = await theNode.otaService.checkForUpdate({
+                                    const updateInfo = await (
+                                        await theNode.otaService()
+                                    ).checkForUpdate({
                                         vendorId: basicInfo.vendorId as VendorId,
                                         productId: basicInfo.productId as number,
                                         currentSoftwareVersion: basicInfo.softwareVersion as number,
@@ -647,7 +657,9 @@ export default function commands(theNode: MatterNode) {
                                         }
 
                                         console.log("\nDownloading update...");
-                                        const fd = await theNode.otaService.downloadUpdate(updateInfo, forceDownload);
+                                        const fd = await (
+                                            await theNode.otaService()
+                                        ).downloadUpdate(updateInfo, forceDownload);
 
                                         updateVersion = updateInfo.softwareVersion;
 

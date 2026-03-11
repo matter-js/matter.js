@@ -20,7 +20,8 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
-                        const vendors = [...theNode.vendorInfoService.vendors.values()];
+                        const vendorService = await theNode.vendorInfoService();
+                        const vendors = [...vendorService.vendors.values()];
 
                         if (vendors.length === 0) {
                             console.log("No vendor information found in storage.");
@@ -71,7 +72,7 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         await theNode.start();
-                        const vendor = theNode.vendorInfoService.infoFor(vendorId);
+                        const vendor = (await theNode.vendorInfoService()).infoFor(vendorId);
                         if (!vendor) {
                             console.error(`Vendor with ID ${vendorIdStr} not found`);
                             return;
@@ -87,13 +88,12 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
+                        const vendorService = await theNode.vendorInfoService();
                         console.log("Updating vendor information from DCL...");
 
                         try {
-                            await theNode.vendorInfoService.update();
-                            console.log(
-                                `Successfully updated. ${theNode.vendorInfoService.vendors.size} vendor(s) now available.`,
-                            );
+                            await vendorService.update();
+                            console.log(`Successfully updated. ${vendorService.vendors.size} vendor(s) now available.`);
                         } catch (error) {
                             console.error(
                                 `Failed to update vendor information: ${error instanceof Error ? error.message : error}`,

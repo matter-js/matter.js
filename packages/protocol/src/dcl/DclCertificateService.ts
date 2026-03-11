@@ -44,8 +44,16 @@ export class DclCertificateService {
     #fetchPromise?: Promise<void>;
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
-        environment.set(DclCertificateService, this);
+        environment.root.set(DclCertificateService, this);
         this.#options = options;
+        logger.info(
+            "Initialize CertificateService",
+            Diagnostic.dict({
+                prod: options.dclConfig?.url ?? DclConfig.production.url,
+                test: options.fetchTestCertificates ? (options.testDclConfig?.url ?? DclConfig.test.url) : undefined,
+                github: options.fetchTestCertificates && options.fetchGithubCertificates ? "yes" : undefined,
+            }),
+        );
 
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");

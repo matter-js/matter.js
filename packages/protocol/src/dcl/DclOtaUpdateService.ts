@@ -75,9 +75,16 @@ export class DclOtaUpdateService {
     }
 
     constructor(environment: Environment, options?: DclOtaUpdateService.Options) {
-        environment.set(DclOtaUpdateService, this);
+        environment.root.set(DclOtaUpdateService, this);
         this.#crypto = environment.get(Crypto);
         this.#options = options;
+        logger.info(
+            "Initialize OTAUpdateService",
+            Diagnostic.dict({
+                prod: options?.productionDclConfig?.url ?? DclConfig.production.url,
+                test: options?.testDclConfig?.url ?? DclConfig.test.url,
+            }),
+        );
 
         // THe construction is async and will be enforced when needed
         this.#construction = Construction(this, async () => {

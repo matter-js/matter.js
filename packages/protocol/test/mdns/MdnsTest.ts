@@ -994,6 +994,70 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
             });
 
+            it("removes commissionable device from cache once device and IP TTLs both elapse", async () => {
+                const shortTtl = Seconds(2);
+                const instanceName = "ttltest00000000._matterc._udp.local";
+                const hostname = "ttltesthost.local";
+
+                // Inject a commissionable record with a short TTL directly, bypassing the
+                // advertiser so there are no follow-up re-announcements that would refresh the TTL
+                await serverSocket.send(
+                    {
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                flushCache: false,
+                                name: "_matterc._udp.local",
+                                recordType: DnsRecordType.PTR,
+                                recordClass: 1,
+                                ttl: shortTtl,
+                                value: instanceName,
+                            },
+                        ],
+                        additionalRecords: [
+                            {
+                                flushCache: false,
+                                name: instanceName,
+                                recordType: DnsRecordType.SRV,
+                                recordClass: 1,
+                                ttl: shortTtl,
+                                value: { priority: 0, weight: 0, port: PORT, target: hostname },
+                            },
+                            {
+                                flushCache: false,
+                                name: instanceName,
+                                recordType: DnsRecordType.TXT,
+                                recordClass: 1,
+                                ttl: shortTtl,
+                                value: ["D=9999", "CM=1", "VP=1+1", "DT=1", "PH=33"],
+                            },
+                            {
+                                flushCache: false,
+                                name: hostname,
+                                recordType: DnsRecordType.AAAA,
+                                recordClass: 1,
+                                ttl: shortTtl,
+                                value: SERVER_IPv6,
+                            },
+                        ],
+                    },
+                    "fake0",
+                );
+
+                // Let the DNS response be processed
+                await MockTime.resolve(Time.sleep("process", Millis(50)));
+
+                // Device is in cache
+                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 9999 })).length(1);
+
+                // Advance past both device and IP TTLs (2s * 1.05 grace factor = 2.1s) plus
+                // one periodic expiry timer cycle (fires every 60s) to trigger the cleanup
+                await MockTime.resolve(Time.sleep("expire", Seconds(63)));
+
+                // Device must be removed — both device record and all IP addresses have expired
+                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 9999 })).deep.equal([]);
+            });
+
             describe("Multiple concurrent waiters for the same commissionable query", () => {
                 it("two timed commissionable discoveries with different timeouts resolve in the correct order", async () => {
                     // Start two findCommissionableDevices calls with different timeouts

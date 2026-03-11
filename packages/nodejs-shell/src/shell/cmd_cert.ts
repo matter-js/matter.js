@@ -27,7 +27,7 @@ export default function commands(theNode: MatterNode) {
                         const { vendorId: vendorIdStr } = argv;
 
                         await theNode.start();
-                        let certificates = theNode.certificateService.certificates;
+                        let certificates = (await theNode.certificateService()).certificates;
 
                         // Filter by vendor ID if provided
                         if (vendorIdStr) {
@@ -78,7 +78,7 @@ export default function commands(theNode: MatterNode) {
                         const { subjectKeyId } = argv;
 
                         await theNode.start();
-                        const cert = theNode.certificateService.getCertificate(subjectKeyId);
+                        const cert = (await theNode.certificateService()).getCertificate(subjectKeyId);
                         if (!cert) {
                             console.error(`Certificate with subject key ID ${subjectKeyId} not found`);
                             return;
@@ -104,7 +104,7 @@ export default function commands(theNode: MatterNode) {
                         const normalizedId = subjectKeyId.replace(/:/g, "").toUpperCase();
 
                         await theNode.start();
-                        const pemCert = await theNode.certificateService.getCertificateAsPem(normalizedId);
+                        const pemCert = await (await theNode.certificateService()).getCertificateAsPem(normalizedId);
                         console.log(pemCert);
                     },
                 )
@@ -124,7 +124,7 @@ export default function commands(theNode: MatterNode) {
                         const normalizedId = subjectKeyId.replace(/:/g, "").toUpperCase();
 
                         await theNode.start();
-                        await theNode.certificateService.deleteCertificate(normalizedId);
+                        await (await theNode.certificateService()).deleteCertificate(normalizedId);
                         console.log(`Certificate ${subjectKeyId} deleted successfully`);
                     },
                 )
@@ -142,10 +142,10 @@ export default function commands(theNode: MatterNode) {
                         await theNode.start();
 
                         console.log(`Updating certificates from DCL${force ? " (force mode)" : ""}...`);
-                        await theNode.certificateService.update(force);
+                        await (await theNode.certificateService()).update(force);
                         console.log("Certificate update completed successfully");
 
-                        const count = theNode.certificateService.certificates.length;
+                        const count = (await theNode.certificateService()).certificates.length;
                         console.log(`Total certificates in storage: ${count}`);
                     },
                 ),
