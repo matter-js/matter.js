@@ -207,16 +207,21 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                             if (MaybePromise.is(updatePromise)) {
                                 promises.push(updatePromise);
                             }
+                            this.onDiscovered(node);
                         } else {
-                            // This node is new to us
+                            // This node is new to us — defer onDiscovered until construction completes
+                            // so that node.state.commissioning is committed and readable by listeners.
                             node = factory.create({
                                 id,
                                 environment: this.#owner.env,
                                 commissioning: { descriptor },
                             });
+                            const newNode = node;
+                            Promise.resolve(newNode.construction.ready).then(
+                                () => this.onDiscovered(newNode),
+                                () => {},
+                            );
                         }
-
-                        this.onDiscovered(node);
                     },
                     undefined,
                     cancelSignal,
