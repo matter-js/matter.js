@@ -43,7 +43,7 @@ export class DclBehavior extends Behavior {
 
     get #services() {
         if (!this.internal.services) {
-            this.internal.services = this.endpoint.env.asDependent();
+            this.internal.services = this.env.asDependent();
         }
         return this.internal.services;
     }

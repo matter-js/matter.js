@@ -75,7 +75,7 @@ export class DclOtaUpdateService {
     }
 
     constructor(environment: Environment, options?: DclOtaUpdateService.Options) {
-        environment.set(DclOtaUpdateService, this);
+        environment.root.set(DclOtaUpdateService, this);
         this.#crypto = environment.get(Crypto);
         this.#options = options;
         logger.info(
