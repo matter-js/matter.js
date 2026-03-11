@@ -6,8 +6,8 @@
 
 import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import {
-    ClassExtends,
     ChannelType,
+    ClassExtends,
     Crypto,
     Duration,
     Environment,

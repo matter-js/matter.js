@@ -160,5 +160,4 @@ describe("CommissioningConnection", () => {
         expect(receivedSignal).not.undefined;
         expect(receivedSignal!.aborted).equals(true);
     });
-
 });

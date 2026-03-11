@@ -22,6 +22,7 @@ import { DeviceInformationData } from "#device/DeviceInformation.js";
 import {
     BasicMultiplex,
     Bytes,
+    causedBy,
     ChannelType,
     ClassExtends,
     ConnectionlessTransportSet,
@@ -44,6 +45,7 @@ import {
     StorageService,
     SupportedStorageTypes,
     Time,
+    UnexpectedDataError,
 } from "@matter/general";
 import {
     ClientNode,
@@ -79,7 +81,6 @@ import {
     SecureSession,
     SessionManager,
 } from "@matter/protocol";
-import { causedBy, UnexpectedDataError } from "@matter/general";
 import {
     CaseAuthenticatedTag,
     DiscoveryCapabilitiesBitmap,

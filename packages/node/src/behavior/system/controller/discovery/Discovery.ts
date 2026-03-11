@@ -185,7 +185,7 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
         }
 
         const scanners = this.#owner.env.get(ScannerSet);
-        const scannerFilter = this.#options.scannerFilter;
+        const { timeout: _, scannerFilter, id, ...identifier } = this.#options as Discovery.InstanceOptions;
 
         const factory = this.#owner.env.get(ClientNodeFactory);
         const promises = new Array<PromiseLike<unknown>>();
@@ -194,7 +194,7 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
             if (scannerFilter && !scannerFilter(scanner)) continue;
             promises.push(
                 scanner.findCommissionableDevicesContinuously(
-                    this.#options,
+                    identifier,
                     descriptor => {
                         // Identify a known node that matches the descriptor
                         let node = factory.find(descriptor);
@@ -210,7 +210,7 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                         } else {
                             // This node is new to us
                             node = factory.create({
-                                id: (this.#options as Discovery.InstanceOptions).id,
+                                id,
                                 environment: this.#owner.env,
                                 commissioning: { descriptor },
                             });
