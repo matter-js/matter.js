@@ -460,7 +460,7 @@ describe("DclVendorInfoService", () => {
                 productLabel: "Smart Lock v2",
                 partNumber: "TSL-001",
                 discoveryCapabilitiesBitmask: 4, // bit 2 = onIpNetwork
-                commissioningCustomFlow: 0,      // Standard
+                commissioningCustomFlow: 0, // Standard
                 commissioningModeInitialStepsHint: 1, // bit 0 = powerCycle
                 commissioningModeSecondaryStepsHint: 4, // bit 2 = administrator
                 userManualUrl: "https://example.com/manual",

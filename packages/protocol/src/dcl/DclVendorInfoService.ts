@@ -294,7 +294,11 @@ export class DclVendorInfoService {
                 enhancedSetupFlowMaintenanceUrl,
             };
         } catch (error) {
-            logger.warn("Invalid DCL product entry", Diagnostic.dict({ vendorId: model.vid, productId: model.pid }), error);
+            logger.warn(
+                "Invalid DCL product entry",
+                Diagnostic.dict({ vendorId: model.vid, productId: model.pid }),
+                error,
+            );
             return undefined;
         }
     }
