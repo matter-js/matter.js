@@ -66,7 +66,10 @@ export class DclBehavior extends Behavior {
         return isProduction ? this.productionConfig : this.testConfig;
     }
 
-    /** Get or create the DclCertificateService with the current configuration. */
+    /**
+     * Get or create the DclCertificateService with the current configuration.
+     * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
+     */
     get certificateService(): DclCertificateService {
         if (!this.env.has(DclCertificateService)) {
             new DclCertificateService(this.env, {
@@ -79,7 +82,10 @@ export class DclBehavior extends Behavior {
         return this.#services.get(DclCertificateService);
     }
 
-    /** Get or create the DclVendorInfoService with the current configuration. */
+    /**
+     * Get or create the DclVendorInfoService with the current configuration.
+     * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
+     */
     get vendorInfoService(): DclVendorInfoService {
         if (!this.env.has(DclVendorInfoService)) {
             new DclVendorInfoService(this.env, {
@@ -89,7 +95,10 @@ export class DclBehavior extends Behavior {
         return this.#services.get(DclVendorInfoService);
     }
 
-    /** Get or create the DclOtaUpdateService with the current configuration. */
+    /**
+     * Get or create the DclOtaUpdateService with the current configuration.
+     * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
+     */
     get otaUpdateService(): DclOtaUpdateService {
         if (!this.env.has(DclOtaUpdateService)) {
             new DclOtaUpdateService(this.env, {

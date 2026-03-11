@@ -5,17 +5,8 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import {
-    Environment,
-    Logger,
-    MaybePromise,
-    ObserverGroup,
-    StorageContext,
-    StorageManager,
-    StorageService,
-} from "@matter/general";
+import { Environment, Logger, ObserverGroup, StorageContext, StorageManager, StorageService } from "@matter/general";
 import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
-import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
@@ -57,28 +48,22 @@ export class MatterNode {
         return this.commissioningController.node;
     }
 
-    get otaService() {
-        const service = this.node.act(agent => agent.get(DclBehavior).otaUpdateService);
-        if (MaybePromise.is(service)) {
-            throw new Error("OTA service not initialized");
-        }
-        return service as DclOtaUpdateService;
+    async otaService() {
+        const service = await this.node.act(agent => agent.get(DclBehavior).otaUpdateService);
+        await service.construction;
+        return service;
     }
 
-    get certificateService() {
-        const service = this.node.act(agent => agent.get(DclBehavior).certificateService);
-        if (MaybePromise.is(service)) {
-            throw new Error("Certificate service not initialized");
-        }
-        return service as DclCertificateService;
+    async certificateService() {
+        const service = await this.node.act(agent => agent.get(DclBehavior).certificateService);
+        await service.construction;
+        return service;
     }
 
-    get vendorInfoService() {
-        const service = this.node.act(agent => agent.get(DclBehavior).vendorInfoService);
-        if (MaybePromise.is(service)) {
-            throw new Error("VendorInformation service not initialized");
-        }
-        return service as DclVendorInfoService;
+    async vendorInfoService() {
+        const service = await this.node.act(agent => agent.get(DclBehavior).vendorInfoService);
+        await service.construction;
+        return service;
     }
 
     async initialize(resetStorage: boolean) {

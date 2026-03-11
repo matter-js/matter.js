@@ -20,8 +20,7 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
-                        const vendorService = theNode.vendorInfoService;
-                        await vendorService.construction;
+                        const vendorService = await theNode.vendorInfoService();
                         const vendors = [...vendorService.vendors.values()];
 
                         if (vendors.length === 0) {
@@ -73,7 +72,7 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         await theNode.start();
-                        const vendor = theNode.vendorInfoService.infoFor(vendorId);
+                        const vendor = (await theNode.vendorInfoService()).infoFor(vendorId);
                         if (!vendor) {
                             console.error(`Vendor with ID ${vendorIdStr} not found`);
                             return;
@@ -89,8 +88,7 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
-                        const vendorService = theNode.vendorInfoService;
-                        await vendorService.construction;
+                        const vendorService = await theNode.vendorInfoService();
                         console.log("Updating vendor information from DCL...");
 
                         try {

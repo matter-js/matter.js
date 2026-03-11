@@ -81,10 +81,10 @@ export default function commands(theNode: MatterNode) {
                             const nodeStream = createReadStream(filePath);
                             const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
 
-                            updateInfo = await theNode.otaService.updateInfoFromStream(webStream, fileArg);
+                            updateInfo = await (await theNode.otaService()).updateInfoFromStream(webStream, fileArg);
                         } else {
                             // Read file from storage using PersistedFileDesignator
-                            const fileDesignator = await theNode.otaService.fileDesignatorForUpdate(fileArg);
+                            const fileDesignator = await (await theNode.otaService()).fileDesignatorForUpdate(fileArg);
                             const blob = await fileDesignator.openBlob();
                             const reader = blob.stream().getReader();
 
@@ -205,7 +205,7 @@ export default function commands(theNode: MatterNode) {
                         } else {
                             // Storage key - read from OTA storage
                             source = `storage:${fileArg}`;
-                            const fileDesignator = await theNode.otaService.fileDesignatorForUpdate(fileArg);
+                            const fileDesignator = await (await theNode.otaService()).fileDesignatorForUpdate(fileArg);
                             const blob = await fileDesignator.openBlob();
                             const reader = blob.stream().getReader();
 
@@ -269,7 +269,9 @@ export default function commands(theNode: MatterNode) {
                         const vendorId = vid ? parseHexId(vid, "vendor") : undefined;
                         const productId = pid ? parseHexId(pid, "product") : undefined;
                         // Get list of downloaded updates
-                        const updates = await theNode.otaService.find({
+                        const updates = await (
+                            await theNode.otaService()
+                        ).find({
                             vendorId,
                             productId,
                             mode: mode as "prod" | "test" | "local" | undefined,
@@ -339,14 +341,14 @@ export default function commands(theNode: MatterNode) {
                         let updateInfo;
                         if (filePath.toLowerCase().startsWith("https://")) {
                             // Remote HTTPS file
-                            updateInfo = await theNode.otaService.createUpdateInfoFromFile(filePath);
+                            updateInfo = await (await theNode.otaService()).createUpdateInfoFromFile(filePath);
                         } else {
                             // Local file - use stream
                             const nodeStream = createReadStream(filePath);
                             const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
                             const fileUrl = `file://${filePath}`;
                             localFile = true;
-                            updateInfo = await theNode.otaService.updateInfoFromStream(webStream, fileUrl);
+                            updateInfo = await (await theNode.otaService()).updateInfoFromStream(webStream, fileUrl);
                         }
 
                         console.log(`Validated OTA image:`);
@@ -361,9 +363,9 @@ export default function commands(theNode: MatterNode) {
                         if (localFile) {
                             const nodeStream = createReadStream(filePath);
                             const webStream = Readable.toWeb(nodeStream) as ReadableStream<Uint8Array>;
-                            fd = await theNode.otaService.store(webStream, updateInfo, "local");
+                            fd = await (await theNode.otaService()).store(webStream, updateInfo, "local");
                         } else {
-                            fd = await theNode.otaService.downloadUpdate(updateInfo);
+                            fd = await (await theNode.otaService()).downloadUpdate(updateInfo);
                         }
 
                         console.log(`\nOTA image added to storage successfully: ${fd.text}`);
@@ -414,7 +416,9 @@ export default function commands(theNode: MatterNode) {
 
                         if (keyname) {
                             // Delete by keyname
-                            await theNode.otaService.delete({
+                            await (
+                                await theNode.otaService()
+                            ).delete({
                                 filename: keyname,
                             });
                             console.log(`Deleted OTA image: ${keyname}`);
@@ -422,7 +426,9 @@ export default function commands(theNode: MatterNode) {
                             // Delete by vendor ID, product ID (optional), and mode
                             const vendorId = parseHexId(vid as string, "vendor");
                             const productId = pid ? parseHexId(pid, "product") : undefined;
-                            const deletedCount = await theNode.otaService.delete({
+                            const deletedCount = await (
+                                await theNode.otaService()
+                            ).delete({
                                 vendorId,
                                 productId,
                                 mode: mode as "prod" | "test" | "local",
@@ -493,7 +499,7 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         // Get file from storage
-                        const fileDesignator = await theNode.otaService.fileDesignatorForUpdate(keyname);
+                        const fileDesignator = await (await theNode.otaService()).fileDesignatorForUpdate(keyname);
 
                         // Determine target path
                         let targetPath = targetArg;
@@ -591,7 +597,9 @@ export default function commands(theNode: MatterNode) {
                         console.log(`  Current Software Version: ${softwareVersion}`);
                         console.log(`  DCL Mode: ${mode}\n`);
 
-                        const updateInfo = await theNode.otaService.checkForUpdate({
+                        const updateInfo = await (
+                            await theNode.otaService()
+                        ).checkForUpdate({
                             vendorId: vendorId as VendorId,
                             productId,
                             currentSoftwareVersion: softwareVersion,
@@ -613,7 +621,7 @@ export default function commands(theNode: MatterNode) {
                                 console.log(`  Release Notes: ${updateInfo.releaseNotesUrl}`);
                             }
 
-                            const fd = await theNode.otaService.downloadUpdate(updateInfo);
+                            const fd = await (await theNode.otaService()).downloadUpdate(updateInfo);
                             console.log(`\nOTA image added to storage successfully: ${fd.text}`);
                         } else {
                             console.log("✓ No updates available in DCL for this version.");
