@@ -7,7 +7,7 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { MatterAggregateError } from "@matter/general";
+import { MatterAggregateError, Seconds } from "@matter/general";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryError } from "./DiscoveryError.js";
 
@@ -31,6 +31,11 @@ export class CommissioningDiscovery extends Discovery<ClientNode> {
         const { discriminator } = opts;
         if (discriminator !== undefined) {
             options = { ...options, longDiscriminator: discriminator };
+        }
+
+        // Default discovery timeout matches the old discoverAndEstablishPase default.
+        if (options.timeout === undefined) {
+            options = { ...options, timeout: Seconds(30) };
         }
 
         super(owner, options);
