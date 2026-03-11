@@ -390,6 +390,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
+        node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {
@@ -460,6 +461,33 @@ export class Peers extends EndpointContainer<ClientNode> {
             // Shutdown event means the device reboots, handle it like a peer loss and remove all sessions
             await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress);
         }
+    }
+
+    async #onStartUp(node: ClientNode) {
+        if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
+            return;
+        }
+
+        // Ignore startup events received during initial subscription establishment
+        // as they may be stale events from before the device was restarted.
+        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+            logger.debug(
+                "Startup event for peer",
+                Diagnostic.strong(node.id),
+                "received without active subscription. Ignoring.",
+            );
+            return;
+        }
+
+        const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
+        if (peerAddress === undefined) {
+            return;
+        }
+
+        // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
+        // while older sessions (from before the reboot) are closed.
+        const currentSession = this.owner.env.get(SessionManager).maybeSessionFor(peerAddress);
+        await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress, currentSession?.createdAt);
     }
 }
 
