@@ -134,7 +134,12 @@ export class ClientNodeStores {
     }
 
     #createNodeStore(id: string, isPreexisting = false) {
-        const store = new ClientNodeStore(id, this.#storage.createContext(id), isPreexisting);
+        const store = new ClientNodeStore(
+            id,
+            this.#storage.createContext(id),
+            isPreexisting,
+            () => delete this.#stores[id],
+        );
         store.construction.start();
         this.#stores[id] = store;
         return store;

@@ -21,11 +21,13 @@ export class ClientNodeStore extends NodeStore {
     #stores = new Map<EndpointNumber, ClientEndpointStore>();
     #write?: RemoteWriter;
     #isPreexisting: boolean;
+    #onErase?: () => void;
 
-    constructor(id: string, storage: StorageContextFactory, isPreexisting: boolean) {
+    constructor(id: string, storage: StorageContextFactory, isPreexisting: boolean, onErase?: () => void) {
         super(storage);
         this.#id = id;
         this.#isPreexisting = isPreexisting;
+        this.#onErase = onErase;
     }
 
     override toString() {
@@ -56,9 +58,11 @@ export class ClientNodeStore extends NodeStore {
         return this.#stores.values();
     }
 
-    override erase() {
+    override async erase() {
         this.#stores = new Map();
-        return this.#storage?.clearAll();
+        this.#onErase?.();
+        await this.#storage?.clearAll();
+        await this.construction.close();
     }
 
     override storeForEndpoint(endpoint: Endpoint) {
