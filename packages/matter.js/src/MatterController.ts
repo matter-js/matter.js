@@ -22,6 +22,7 @@ import { DeviceInformationData } from "#device/DeviceInformation.js";
 import {
     BasicMultiplex,
     Bytes,
+    causedBy,
     ChannelType,
     ClassExtends,
     ConnectionlessTransportSet,
@@ -44,6 +45,7 @@ import {
     StorageService,
     SupportedStorageTypes,
     Time,
+    UnexpectedDataError,
 } from "@matter/general";
 import {
     ClientNode,
@@ -66,11 +68,11 @@ import {
     CommissioningError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
-    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
+    PeerAddress,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -487,30 +489,67 @@ export class MatterController {
             commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
         },
     ): Promise<NodeId> {
-        const commissioningOptions: DiscoveryAndCommissioningOptions = {
-            ...options.commissioning,
-            fabric: this.fabric,
-            discovery: options.discovery,
-            passcode: options.passcode,
-        };
-
         const { completeCommissioningCallback, commissioningFlowImpl } = customizations ?? {};
 
-        if (completeCommissioningCallback) {
-            commissioningOptions.finalizeCommissioning = async (peerAddress, discoveryData) => {
-                const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
-                if (!result) {
-                    throw new RetransmissionLimitReachedError("Device could not be discovered");
-                }
-            };
-        }
-        commissioningOptions.commissioningFlowImpl = commissioningFlowImpl;
+        // Wrap the optional PASE-only callback into the finalizeCommissioning hook understood by CommissioningClient
+        const finalizeCommissioning = completeCommissioningCallback
+            ? async (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => {
+                  const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
+                  if (!result) {
+                      throw new RetransmissionLimitReachedError("Device could not be discovered");
+                  }
+              }
+            : undefined;
 
-        const address = await this.node.env.get(ControllerCommissioner).commissionWithDiscovery(commissioningOptions);
+        const caseAuthenticatedTags = options.caseAuthenticatedTags;
+        const { knownAddress, timeout, discoveryCapabilities } = options.discovery;
+        const commissionableDevice =
+            "commissionableDevice" in options.discovery ? options.discovery.commissionableDevice : undefined;
+
+        let clientNode: ClientNode;
+
+        const addresses = commissionableDevice?.addresses ?? (knownAddress !== undefined ? [knownAddress] : undefined);
+        if (addresses !== undefined) {
+            // Pre-discovered device or known address — find/create the ClientNode and commission via CommissioningClient
+            const descriptor: RemoteDescriptor = commissionableDevice ?? { addresses };
+            clientNode = await this.node.peers.forDescriptor(descriptor);
+            await clientNode.commission({
+                fabric: this.fabric,
+                passcode: options.passcode,
+                commissioningFlowImpl,
+                caseAuthenticatedTags,
+                autoSubscribe: false,
+                wifiNetwork: options.commissioning.wifiNetwork,
+                threadNetwork: options.commissioning.threadNetwork,
+                regulatoryLocation: options.commissioning.regulatoryLocation,
+                regulatoryCountryCode: options.commissioning.regulatoryCountryCode,
+                nodeId: options.commissioning.nodeId,
+                finalizeCommissioning,
+            });
+        } else {
+            // Pure discovery by identifier — use CommissioningDiscovery for full parallel PASE support
+            const identifierData = "identifierData" in options.discovery ? options.discovery.identifierData : {};
+            clientNode = await this.node.peers.commission({
+                ...identifierData,
+                ...options.commissioning,
+                fabric: this.fabric,
+                passcode: options.passcode,
+                commissioningFlowImpl,
+                caseAuthenticatedTags,
+                autoSubscribe: false,
+                timeout,
+                discoveryCapabilities,
+                finalizeCommissioning,
+            });
+        }
+
+        const peerAddress = clientNode.peerAddress;
+        if (peerAddress === undefined) {
+            throw new ImplementationError("Commissioned node has no peer address");
+        }
 
         await this.fabric.persist();
-
-        return address.nodeId;
+        return peerAddress.nodeId;
     }
 
     async disconnect(nodeId: NodeId) {
@@ -519,13 +558,51 @@ export class MatterController {
     }
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
-        const { paseSession } = await this.node.env.get(ControllerCommissioner).discoverAndEstablishPase({
-            ...options.commissioning,
-            fabric: this.fabric,
-            discovery: options.discovery,
-            passcode: options.passcode,
-        });
-        logger.warn("PASE channel established", paseSession.via, paseSession.isSecure);
+        const { discovery, passcode } = options;
+        const timeout = discovery.timeout;
+
+        if ("commissionableDevice" in discovery) {
+            // Pre-discovered device: addresses already known, skip discovery.
+            let { addresses } = discovery.commissionableDevice;
+            if (discovery.discoveryCapabilities?.ble !== true) {
+                addresses = addresses.filter(a => a.type !== "ble");
+            }
+            const commissioner = this.node.env.get(ControllerCommissioner);
+            const { paseSession } = await commissioner.establishPase({
+                addresses,
+                discoveryData: discovery.commissionableDevice,
+                passcode,
+                timeout,
+            });
+            logger.warn("PASE channel established", paseSession.via, paseSession.isSecure);
+            return paseSession;
+        }
+
+        const identifierData = "identifierData" in discovery ? discovery.identifierData : {};
+
+        // If we have a known address, try it first before falling back to full discovery.
+        if (discovery.knownAddress !== undefined) {
+            const commissioner = this.node.env.get(ControllerCommissioner);
+            try {
+                const { paseSession } = await commissioner.establishPase({
+                    addresses: [discovery.knownAddress],
+                    passcode,
+                    timeout,
+                });
+                logger.warn("PASE channel established via known address", paseSession.via, paseSession.isSecure);
+                return paseSession;
+            } catch (error) {
+                // Intentional: fall back to full discovery when the known address is stale, unreachable, or
+                // points to a different device.  Re-throw on unexpected errors (e.g. config problems).
+                if (!causedBy(error, UnexpectedDataError, RetransmissionLimitReachedError)) {
+                    throw error;
+                }
+            }
+        }
+
+        // Pure discovery: use PaseDiscovery which manages scanner lifecycle automatically.
+        const paseSession = await this.node.peers.pase({ ...identifierData, timeout, passcode });
+        logger.warn("PASE channel established via discovery", paseSession.via, paseSession.isSecure);
         return paseSession;
     }
 

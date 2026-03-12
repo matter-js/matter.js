@@ -325,6 +325,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             );
                             clearConnectionGuard();
                             this.#connectionsInProgress.delete(address);
+                            return;
                         } catch (error) {
                             this.#connectionsInProgress.delete(address);
                             this.#openChannels.delete(address);
@@ -518,14 +519,24 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             async () => {
                 if (peripheral.state !== "connected" || !nobleChannel.connected) return;
                 logger.debug(`Peripheral ${peripheralAddress}: Disconnect from peripheral because btp session closed`);
-                characteristicC2ForSubscribe.unsubscribeAsync().then(
-                    () =>
-                        peripheral.disconnectAsync().then(
+                // Unsubscribe from C2 notifications, then disconnect.  If unsubscribe fails (e.g. the
+                // peripheral already started disconnecting and Noble's _withDisconnectHandler rejected the
+                // pending operation with "Disconnected unknown"), proceed to disconnectAsync anyway.
+                characteristicC2ForSubscribe
+                    .unsubscribeAsync()
+                    .catch(error =>
+                        logger.debug(`Peripheral ${peripheralAddress}: Error while unsubscribing from C2`, error),
+                    )
+                    .then(() => {
+                        if (peripheral.state !== "connected") {
+                            return;
+                        }
+                        return peripheral.disconnectAsync().then(
                             () => logger.debug(`Peripheral ${peripheralAddress}: Disconnected from peripheral`),
-                            error => logger.debug(`Peripheral ${peripheralAddress}: Error while unsubscribing`, error),
-                        ),
-                    error => logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
-                );
+                            error => logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
+                        );
+                    })
+                    .catch(() => {});
             },
 
             // callback to forward decoded and de-assembled Matter messages to ExchangeManager

@@ -12,6 +12,7 @@ import { CommissioningDiscovery } from "#behavior/system/controller/discovery/Co
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
+import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
@@ -155,7 +156,38 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find a specific commissionable node and commission.
      */
     commission(options: CommissioningDiscovery.Options) {
-        return new CommissioningDiscovery(this.owner, options);
+        return new CommissioningDiscovery(this.owner as ServerNode, options);
+    }
+
+    /**
+     * Find a specific commissionable node and establish a PASE session without commissioning.
+     *
+     * Useful for split-commissioning scenarios where one controller establishes PASE and another
+     * performs the commissioning flow, or for raw PASE channel establishment.
+     */
+    pase(options: PaseDiscovery.Options) {
+        return new PaseDiscovery(this.owner as ServerNode, options);
+    }
+
+    /**
+     * Find or create a {@link ClientNode} for a device described by {@link descriptor}.
+     *
+     * If a matching node already exists in the peer collection, returns it after refreshing its addresses and
+     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.
+     *
+     * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
+     */
+    async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
+        const factory = this.owner.env.get(ClientNodeFactory);
+        let node = factory.find(descriptor);
+        if (node !== undefined) {
+            // Refresh addresses and discovery data from the new descriptor
+            await node.act(agent => {
+                agent.commissioning.descriptor = descriptor;
+            });
+            return node;
+        }
+        return factory.create({ commissioning: { descriptor } });
     }
 
     /**

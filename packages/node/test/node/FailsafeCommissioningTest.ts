@@ -163,8 +163,12 @@ describe("Failsafe commissioning re-announcement", () => {
             expect(adSpy.count).to.be.greaterThan(0);
 
             // Cancel the paused flow so commission() rejects and the uncommissioned peer entry is removed.
+            // Wrap in MockTime.resolve to allow mock timer-based cleanup (e.g. exchange ack timeouts) to fire.
             cancelFlow(new Error("flow cancelled by test after failsafe expiry"));
-            await commissionPromise.catch(() => {});
+            await MockTime.resolve(
+                commissionPromise.catch(() => {}),
+                { macrotasks: true },
+            );
         } finally {
             await site.close();
         }
