@@ -535,7 +535,8 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                             () => logger.debug(`Peripheral ${peripheralAddress}: Disconnected from peripheral`),
                             error => logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
                         );
-                    });
+                    })
+                    .catch(() => {});
             },
 
             // callback to forward decoded and de-assembled Matter messages to ExchangeManager
