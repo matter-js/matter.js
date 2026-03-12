@@ -524,7 +524,9 @@ async function doOtaTestImages(
             break;
         case "delete":
             await theNode.Store.delete("AllowTestOtaImages");
-            console.log(`OTA test images setting reset to default (disabled). Please restart the shell for the changes to take effect.`);
+            console.log(
+                `OTA test images setting reset to default (disabled). Please restart the shell for the changes to take effect.`,
+            );
             break;
     }
 }

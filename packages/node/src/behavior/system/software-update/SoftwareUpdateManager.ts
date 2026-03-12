@@ -32,6 +32,7 @@ import {
     Timer,
     Timestamp,
 } from "@matter/general";
+import type { Session } from "@matter/protocol";
 import {
     BdxProtocol,
     DclOtaUpdateService,
@@ -43,7 +44,6 @@ import {
     PeerAddress,
     SessionManager,
 } from "@matter/protocol";
-import type { Session } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";

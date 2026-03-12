@@ -572,7 +572,7 @@ describe("Ota", () => {
 
         // announceOtaProvider should NOT have been called — check after MockTime drains any pending tasks
         let announceWasCalled = false;
-        announceOtaProviderPromise.then(() => {
+        void announceOtaProviderPromise.then(() => {
             announceWasCalled = true;
         });
         expect(announceWasCalled).equals(false);
