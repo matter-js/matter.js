@@ -5,8 +5,20 @@
  */
 
 import { PeerAddress } from "#peer/PeerAddress.js";
-import { Duration, Environment, Environmental, MatterError, Millis, Seconds, Semaphore } from "@matter/general";
+import {
+    Diagnostic,
+    Duration,
+    Environment,
+    Environmental,
+    Logger,
+    MatterError,
+    Millis,
+    Seconds,
+    Semaphore,
+} from "@matter/general";
 import { Peer } from "./Peer.js";
+
+const logger = Logger.get("NetworkProfiles");
 
 /**
  * Thrown when a named network profile does not exist.
@@ -122,6 +134,7 @@ export class NetworkProfiles {
         if (limits.connect) {
             network.connect = this.configure(`${id}:connect`, { ...limits.connect, connect: undefined });
         }
+        logger.info("Configure profile", id, Diagnostic.dict({ ...limits, connect: undefined }));
         this.#networks.set(id, network);
         return network;
     }

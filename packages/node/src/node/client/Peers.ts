@@ -12,6 +12,7 @@ import { CommissioningDiscovery } from "#behavior/system/controller/discovery/Co
 import { ContinuousDiscovery } from "#behavior/system/controller/discovery/ContinuousDiscovery.js";
 import { Discovery } from "#behavior/system/controller/discovery/Discovery.js";
 import { InstanceDiscovery } from "#behavior/system/controller/discovery/InstanceDiscovery.js";
+import { PaseDiscovery } from "#behavior/system/controller/discovery/PaseDiscovery.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { OperationalCredentialsClient } from "#behaviors/operational-credentials";
@@ -155,7 +156,38 @@ export class Peers extends EndpointContainer<ClientNode> {
      * Find a specific commissionable node and commission.
      */
     commission(options: CommissioningDiscovery.Options) {
-        return new CommissioningDiscovery(this.owner, options);
+        return new CommissioningDiscovery(this.owner as ServerNode, options);
+    }
+
+    /**
+     * Find a specific commissionable node and establish a PASE session without commissioning.
+     *
+     * Useful for split-commissioning scenarios where one controller establishes PASE and another
+     * performs the commissioning flow, or for raw PASE channel establishment.
+     */
+    pase(options: PaseDiscovery.Options) {
+        return new PaseDiscovery(this.owner as ServerNode, options);
+    }
+
+    /**
+     * Find or create a {@link ClientNode} for a device described by {@link descriptor}.
+     *
+     * If a matching node already exists in the peer collection, returns it after refreshing its addresses and
+     * discovery data from the supplied descriptor.  Otherwise creates a new node using the descriptor.
+     *
+     * After calling {@link forDescriptor}, commission the returned node via {@link ClientNode.commission}.
+     */
+    async forDescriptor(descriptor: RemoteDescriptor): Promise<ClientNode> {
+        const factory = this.owner.env.get(ClientNodeFactory);
+        let node = factory.find(descriptor);
+        if (node !== undefined) {
+            // Refresh addresses and discovery data from the new descriptor
+            await node.act(agent => {
+                agent.commissioning.descriptor = descriptor;
+            });
+            return node;
+        }
+        return factory.create({ commissioning: { descriptor } });
     }
 
     /**
@@ -390,6 +422,7 @@ export class Peers extends EndpointContainer<ClientNode> {
 
         node.eventsOf(type).leave?.on(({ fabricIndex }) => this.#onLeave(node, fabricIndex));
         node.eventsOf(type).shutDown?.on(() => this.#onShutdown(node));
+        node.eventsOf(type).startUp?.on(() => this.#onStartUp(node));
     }
 
     #onLeave(node: ClientNode, fabricIndex: FabricIndex) {
@@ -460,6 +493,41 @@ export class Peers extends EndpointContainer<ClientNode> {
             // Shutdown event means the device reboots, handle it like a peer loss and remove all sessions
             await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress);
         }
+    }
+
+    /**
+     * Process startup events to detect node reboots in real-time. This allows us to terminate sessions
+     * that would otherwise linger until timed out and cause interaction delays.
+     */
+    async #onStartUp(node: ClientNode) {
+        // isOnline is checked because startUp arrives via an active subscription channel — the node
+        // must be online for the subscription to deliver events.  isReady guards against races during
+        // node initialization where the event might fire before the node is fully set up.
+        if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
+            return;
+        }
+
+        // Ignore startup events received during the initial subscription establishment
+        // as they may be stale events from before the device was restarted.
+        if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
+            logger.debug(
+                "Startup event for peer",
+                Diagnostic.strong(node.id),
+                "received without active subscription. Ignoring.",
+            );
+            return;
+        }
+
+        const peerAddress = node.maybeStateOf(CommissioningClient)?.peerAddress;
+        if (peerAddress === undefined) {
+            return;
+        }
+
+        // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
+        // while older sessions (from before the reboot) are closed.  If the currentSession is
+        // undefined (no known session), asOf is undefined and handlePeerShutdown closes all sessions.
+        const sessionManager = this.owner.env.get(SessionManager);
+        await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress)?.createdAt);
     }
 }
 

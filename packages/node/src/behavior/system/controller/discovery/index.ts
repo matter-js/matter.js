@@ -10,3 +10,5 @@ export * from "./ContinuousDiscovery.js";
 export * from "./Discovery.js";
 export * from "./DiscoveryError.js";
 export * from "./InstanceDiscovery.js";
+export * from "./ParallelPaseDiscovery.js";
+export * from "./PaseDiscovery.js";

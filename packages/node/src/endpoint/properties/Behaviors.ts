@@ -33,7 +33,6 @@ import { ClusterTypeProtocol, Val } from "@matter/protocol";
 import { ClusterType, VoidSchema } from "@matter/types";
 import type { Agent } from "../Agent.js";
 import type { Endpoint } from "../Endpoint.js";
-import { EndpointVariableService } from "../EndpointVariableService.js";
 import { BehaviorInitializationError, EndpointBehaviorsError } from "../errors.js";
 import { EndpointInitializer } from "./EndpointInitializer.js";
 import { EndpointLifecycle } from "./EndpointLifecycle.js";
@@ -611,10 +610,12 @@ export class Behaviors {
         }
 
         // Set defaults from environmental configuration
-        const varService = this.#endpoint.env.get(EndpointVariableService);
-        const vars = varService.forBehaviorInstance(this.#endpoint, type);
-        if (vars !== undefined) {
-            defaults = { ...defaults, ...(type.supervisor.cast(vars) as Val.Struct) };
+        const { variableService } = this.#endpoint.env.get(EndpointInitializer);
+        if (variableService) {
+            const vars = variableService.forBehaviorInstance(this.#endpoint, type);
+            if (vars !== undefined) {
+                defaults = { ...defaults, ...(type.supervisor.cast(vars) as Val.Struct) };
+            }
         }
 
         return defaults;

@@ -78,31 +78,33 @@ export class PaseServerMessenger extends SecureChannelMessenger {
 }
 
 export class PaseClientMessenger extends SecureChannelMessenger {
-    sendPbkdfParamRequest(request: PbkdfParamRequest) {
+    sendPbkdfParamRequest(request: PbkdfParamRequest, options?: ExchangeSendOptions) {
         return this.send(request, SecureMessageType.PbkdfParamRequest, TlvPbkdfParamRequest, {
             expectedProcessingTime: DEFAULT_NORMAL_PROCESSING_TIME,
+            ...options,
         });
     }
 
-    async readPbkdfParamResponse() {
+    async readPbkdfParamResponse(options?: SecureChannelMessenger.ReadOptions) {
         const { payload } = await this.nextMessage({
             type: SecureMessageType.PbkdfParamResponse,
             expectedProcessingTime: DEFAULT_NORMAL_PROCESSING_TIME,
+            abort: options?.abort,
         });
 
         // TODO Add support for BUSY response and resend the message after waiting time
         return { responsePayload: payload, response: TlvPbkdfParamResponse.decode(payload) as PbkdfParamResponse };
     }
 
-    sendPasePake1(pasePake1: PasePake1) {
-        return this.send(pasePake1, SecureMessageType.PasePake1, TlvPasePake1);
+    sendPasePake1(pasePake1: PasePake1, options?: ExchangeSendOptions) {
+        return this.send(pasePake1, SecureMessageType.PasePake1, TlvPasePake1, options);
     }
 
-    readPasePake2() {
-        return this.nextMessageDecoded(TlvPasePake2, { type: SecureMessageType.PasePake2 });
+    readPasePake2(options?: SecureChannelMessenger.ReadOptions) {
+        return this.nextMessageDecoded(TlvPasePake2, { type: SecureMessageType.PasePake2, ...options });
     }
 
-    sendPasePake3(pasePake3: PasePake3) {
-        return this.send(pasePake3, SecureMessageType.PasePake3, TlvPasePake3);
+    sendPasePake3(pasePake3: PasePake3, options?: ExchangeSendOptions) {
+        return this.send(pasePake3, SecureMessageType.PasePake3, TlvPasePake3, options);
     }
 }

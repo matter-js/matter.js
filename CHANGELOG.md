@@ -16,28 +16,43 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
+    - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
     - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
     - Fix: Try to preserve clusters in the structure even if they are not specified in the serverList of the endpoint but reported data ("Schrödinger's cluster")
 
+- @matter/nodejs-shell
+    - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
+
 - @matter/protocol
     - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterwards
-    - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
+    - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
     - Feature: matter.js now responds immediately to IP changes advertised via MDNS
     - Feature: (@adeepn) `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
+    - Enhancement: Enhances the strategy when multiple devices were discovered for the same commissioning target
+    - Enhancement: When multiple IP addresses are available for a device during commissioning, all are tried in parallel for faster connection
+    - Enhancement: An `AbortSignal` can now be passed to cancel an in-progress commissioning attempt; the PASE layer sends `InvalidParameter` to avoid a 60-second device lockout
+    - Enhancement: Several enhancements around session management when nodes reconnect or new sessions get pushed by the device
+    - Enhancement: Several enhancements around OTA updates and transfers, also when nodes restart in the middle of the process
+    - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
+    - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)
+    - Fix: Do not announce devices as commissionable before the factory reset when the last fabric is removed
+    - Fix: Fix expiry logic for Commissionable devices that potentially never expired cached records
+    - Fix: For BDX cases also give the device the defined timeout of 5 minutes to ack/request the next packet
 
 - @matter/react-native
     - Breaking: We updated to @react-native-async-storage/async-storage v3. A v2-compatible class is available. See the package readme.
 
 - @project-chip/matter.js
+    - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
 
 ## 0.16.10 (2026-02-22)
