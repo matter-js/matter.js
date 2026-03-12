@@ -40,9 +40,9 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
 import { PeerUnreachableError } from "./PeerCommunicationError.js";
 import { PeerConnection } from "./PeerConnection.js";
-import { PeerTimingParameters } from "./PeerTimingParameters.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerExchangeProvider } from "./PeerExchangeProvider.js";
+import { PeerTimingParameters } from "./PeerTimingParameters.js";
 import type { PhysicalDeviceProperties } from "./PhysicalDeviceProperties.js";
 
 const logger = Logger.get("Peer");
