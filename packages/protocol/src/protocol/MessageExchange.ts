@@ -761,10 +761,10 @@ export class MessageExchange {
     }
 
     #initializeResubmission(message: Message, resubmissionBackoffTime: Duration, expectedProcessingTimeMs?: Duration) {
-        // If a kick arrived while the previous send was in flight (timer was stopped but channel.send() hadn't
-        // completed yet), honour it by starting the next timer with zero delay so we retransmit immediately
+        // If a kick arrived while the previous sending was in flight (timer was stopped but channel.send() hadn't
+        // completed yet), honor it by starting the next timer with zero delay so we retransmit immediately
         // rather than waiting out the full backoff.
-        const interval = this.#kickPending ? 0 : resubmissionBackoffTime;
+        const interval = this.#kickPending ? Instant : resubmissionBackoffTime;
         this.#kickPending = false;
         this.#retransmissionTimer = Time.getTimer("Message retransmission", interval, () =>
             this.#retransmitMessage(message, expectedProcessingTimeMs),
