@@ -33,7 +33,6 @@ import {
     getFabricQname,
 } from "@matter/protocol";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, NodeId } from "@matter/types";
-import type { CommissioningClient } from "../commissioning/CommissioningClient.js";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { NetworkServer } from "../network/NetworkServer.js";
 import { ActiveDiscoveries } from "./discovery/ActiveDiscoveries.js";

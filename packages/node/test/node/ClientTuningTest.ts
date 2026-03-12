@@ -235,6 +235,9 @@ async function commission(
     controller: ServerNode<MockServerNode.RootEndpoint>,
     device: ServerNode<MockServerNode.RootEndpoint>,
 ) {
+    if (!controller.lifecycle.isOnline) {
+        await controller.start();
+    }
     const cc = controller.env.get(Crypto) as MockCrypto;
     const dc = device.env.get(Crypto) as MockCrypto;
     cc.entropic = dc.entropic = true;

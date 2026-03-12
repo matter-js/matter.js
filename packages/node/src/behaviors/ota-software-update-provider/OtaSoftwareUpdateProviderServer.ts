@@ -176,18 +176,56 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             metadataForRequestor,
         } = updateDetails;
 
-        // If for this fabricIndex and peerNodeId an update is already ongoing, return busy (with a delay time)
+        // If for this fabricIndex and peerNodeId an update is already ongoing, check for reboot vs genuinely in-progress
         const updateInProgress = this.#inProgressDetailsForPeer(peerAddress);
         if (updateInProgress !== undefined) {
-            logger.info(
-                `OTA Update for Requestor`,
-                peerAddress,
-                `already in progress (${OtaUpdateStatus[updateInProgress.lastState]})`,
-            );
-            return {
-                status: OtaSoftwareUpdateProvider.Status.Busy,
-                delayedActionTime: Seconds.of(Minutes(5)), // the usual bdx session timeout is 5 minutes, so let's use this
-            };
+            const bdxProtocol = this.env.get(BdxProtocol);
+            const sessionFromBdxSession = bdxProtocol.sessionFor(peerAddress, this.updateStorage.scope)?.session;
+
+            if (sessionFromBdxSession === undefined) {
+                // stale in-progress entry with no active BDX — clear and proceed fresh
+                this.#removeInProgressDetails(peerAddress);
+            } else if (
+                sessionFromBdxSession.id !== session.id &&
+                sessionFromBdxSession.activeTimestamp < session.activeTimestamp
+            ) {
+                // Different session and BDX session was last active before current session — likely a reboot
+                // Cancel old BDX transfer
+                try {
+                    await bdxProtocol.disablePeerForScope(peerAddress, this.updateStorage, true);
+                    // Only remove the in-progress entry on success; if cancellation fails, preserve the entry
+                    // so Case A or Case B handles cleanup on the next retry rather than creating a new
+                    // overlapping session (which is what falling through with no entry would cause).
+                    this.#removeInProgressDetails(peerAddress);
+                } catch (error) {
+                    MatterError.accept(error);
+                    logger.warn(
+                        "Error cancelling old BDX session during reboot detection, preserving in-progress entry:",
+                        error,
+                    );
+                    // Return Busy so the requestor retries; Other cases will clean up on the next attempt.
+                    return {
+                        status: OtaSoftwareUpdateProvider.Status.Busy,
+                        delayedActionTime: Seconds.of(Minutes(2)),
+                    };
+                }
+                // Suppress the startUp event that will arrive shortly
+                await this.endpoint.act(agent =>
+                    agent.get(SoftwareUpdateManager).suppressNextStartUp(peerAddress, session.id),
+                );
+                // fall through to normal queryImage processing below
+            } else {
+                // Same session or BDX is more recent → genuinely in progress
+                logger.info(
+                    `OTA Update for Requestor`,
+                    peerAddress,
+                    `already in progress (${OtaUpdateStatus[updateInProgress.lastState]})`,
+                );
+                return {
+                    status: OtaSoftwareUpdateProvider.Status.Busy,
+                    delayedActionTime: Seconds.of(Minutes(2)), // 2 minutes is enough since reboot-triggered retries are handled above
+                };
+            }
         }
 
         const crypto = this.env.get(Crypto);

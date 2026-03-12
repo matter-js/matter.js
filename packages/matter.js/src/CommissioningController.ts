@@ -6,6 +6,7 @@
 
 import { InteractionClient, NodeDiscoveryType } from "#cluster/client/InteractionClient.js";
 import {
+    ChannelType,
     ClassExtends,
     Crypto,
     Duration,
@@ -17,16 +18,17 @@ import {
     Observable,
     ObserverGroup,
     Seconds,
-    Time,
+    ServerAddress,
     UnexpectedDataError,
 } from "@matter/general";
 import {
     ChangeNotificationService,
     ClusterState,
-    CommissioningClient,
+    ContinuousDiscovery,
     Endpoint,
     NetworkClient,
     Node,
+    RemoteDescriptor,
     ServerNode,
     SoftwareUpdateManager,
 } from "@matter/node";
@@ -38,9 +40,8 @@ import {
     CertificateAuthority,
     CommissionableDevice,
     CommissionableDeviceIdentifiers,
+    CommissioningOptions,
     ControllerCommissioningFlow,
-    ControllerDiscovery,
-    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricGroups,
@@ -64,6 +65,59 @@ import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./de
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
 const logger = new Logger("CommissioningController");
+
+// Shared helpers used by both CommissioningController and PaseCommissioner.
+
+function discoveryKey(
+    identifierData: CommissionableDeviceIdentifiers,
+    discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
+) {
+    return JSON.stringify({ id: identifierData, caps: discoveryCapabilities });
+}
+
+export async function runDiscoverCommissionableDevices(
+    node: ServerNode,
+    identifierData: CommissionableDeviceIdentifiers,
+    discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
+    discoveredCallback: ((device: CommissionableDevice) => void) | undefined,
+    timeout: Duration,
+    activeDiscoveries: Map<string, ContinuousDiscovery>,
+): Promise<CommissionableDevice[]> {
+    const key = discoveryKey(identifierData, discoveryCapabilities);
+    const discovery = new ContinuousDiscovery(node, {
+        ...identifierData,
+        timeout,
+        scannerFilter: discoveryCapabilities
+            ? (s): boolean => s.type === ChannelType.UDP || (!!discoveryCapabilities.ble && s.type === ChannelType.BLE)
+            : undefined,
+    });
+    const results = Array<CommissionableDevice>();
+    const seen = new Set<string>();
+    discovery.discovered.on(discoveredNode => {
+        const device = RemoteDescriptor.fromLongForm(discoveredNode.state.commissioning) as CommissionableDevice;
+        const id = device.deviceIdentifier ?? JSON.stringify(discoveredNode.state.commissioning.addresses ?? []);
+        if (!seen.has(id)) {
+            seen.add(id);
+            results.push(device);
+            discoveredCallback?.(device);
+        }
+    });
+    activeDiscoveries.set(key, discovery);
+    try {
+        await discovery;
+        return results;
+    } finally {
+        activeDiscoveries.delete(key);
+    }
+}
+
+export function cancelDiscoverCommissionableDevices(
+    identifierData: CommissionableDeviceIdentifiers,
+    discoveryCapabilities: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap> | undefined,
+    activeDiscoveries: Map<string, ContinuousDiscovery>,
+) {
+    activeDiscoveries.get(discoveryKey(identifierData, discoveryCapabilities))?.stop();
+}
 
 // TODO how to enhance "getting devices" as API? Or is getDevices() enough?
 // TODO decline using setRoot*Cluster
@@ -169,6 +223,46 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
     readonly basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
 };
 
+/**
+ * Configuration for performing discovery + commissioning in one step.
+ * Kept in the legacy matter.js package; new code uses {@link CommissioningDiscovery.Options} directly.
+ */
+export interface DiscoveryAndCommissioningOptions extends CommissioningOptions {
+    /** Discovery related options. */
+    discovery: (
+        | {
+              /**
+               * Device identifiers (Short or Long Discriminator, Product/Vendor-Ids, Device-type or a pre-discovered
+               * instance Id, or "nothing" to discover all commissionable matter devices) to use for discovery.
+               * If the property commissionableDevice is provided this property is ignored.
+               */
+              identifierData: CommissionableDeviceIdentifiers;
+          }
+        | {
+              /**
+               * Commissionable device object returned by a discovery run.
+               * If this property is provided then identifierData and knownAddress are ignored.
+               */
+              commissionableDevice: CommissionableDevice;
+          }
+    ) & {
+        /**
+         * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
+         * is supported for initial commissioning.
+         */
+        discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>;
+
+        /**
+         * Known address of the device to use for discovery. if this is set this will be tried first before discovering
+         * the device.
+         */
+        knownAddress?: ServerAddress;
+
+        /** Timeout in seconds for the discovery process. Default: 30 seconds */
+        timeout?: Duration;
+    };
+}
+
 /** Options needed to commission a new node */
 export type NodeCommissioningOptions = CommissioningControllerNodeOptions & {
     commissioning: Omit<DiscoveryAndCommissioningOptions, "fabric" | "discovery" | "passcode">;
@@ -195,6 +289,8 @@ export class CommissioningController {
     readonly #nodeUpdateLabelHandlers = new Map<NodeId, (nodeState: NodeStates) => Promise<void>>();
     readonly #observers = new ObserverGroup();
     readonly #endpointsToPeers = new WeakMap<Endpoint, string>();
+    // Keyed by JSON-stringified identifier so cancelCommissionableDeviceDiscovery() can look up active discoveries.
+    readonly #activeDiscoveries = new Map<string, ContinuousDiscovery>();
 
     /**
      * Creates a new CommissioningController instance
@@ -348,17 +444,13 @@ export class CommissioningController {
             };
         }
 
-        const nodeId = await controller.commission(nodeOptions, { commissioningFlowImpl });
+        // Apply controller-level caseAuthenticatedTags default when not specified per-node
+        const nodeOptionsWithDefaults: NodeCommissioningOptions = {
+            caseAuthenticatedTags: this.#options.caseAuthenticatedTags,
+            ...nodeOptions,
+        };
 
-        // Ensure we have the peer added to the node because commissioning runs aside for now
-        await controller.node.peers.forAddress(controller.fabric.addressOf(nodeId), {
-            commissioning: {
-                caseAuthenticatedTags: nodeOptions.caseAuthenticatedTags ?? this.#options.caseAuthenticatedTags,
-            },
-            network: {
-                autoSubscribe: false,
-            },
-        });
+        const nodeId = await controller.commission(nodeOptionsWithDefaults, { commissioningFlowImpl });
 
         if (connectNodeAfterCommissioning) {
             const node = await this.#createPairedNode(nodeId, {
@@ -371,10 +463,6 @@ export class CommissioningController {
             });
             await node.events.initialized;
         }
-
-        await (
-            await this.node.peers.forAddress(this.fabric.addressOf(nodeId))
-        ).setStateOf(CommissioningClient, { commissionedAt: Time.nowMs });
 
         return nodeId;
     }
@@ -753,10 +841,7 @@ export class CommissioningController {
         identifierData: CommissionableDeviceIdentifiers,
         discoveryCapabilities?: TypeFromPartialBitSchema<typeof DiscoveryCapabilitiesBitmap>,
     ) {
-        const controller = this.#assertControllerIsStarted();
-        controller
-            .collectScanners(discoveryCapabilities)
-            .forEach(scanner => ControllerDiscovery.cancelCommissionableDeviceDiscovery(scanner, identifierData));
+        cancelDiscoverCommissionableDevices(identifierData, discoveryCapabilities, this.#activeDiscoveries);
     }
 
     /**
@@ -770,12 +855,13 @@ export class CommissioningController {
         discoveredCallback?: (device: CommissionableDevice) => void,
         timeout = Minutes(15),
     ) {
-        const controller = this.#assertControllerIsStarted();
-        return await ControllerDiscovery.discoverCommissionableDevices(
-            controller.collectScanners(discoveryCapabilities),
-            timeout,
+        return runDiscoverCommissionableDevices(
+            this.node as ServerNode,
             identifierData,
+            discoveryCapabilities,
             discoveredCallback,
+            timeout,
+            this.#activeDiscoveries,
         );
     }
 

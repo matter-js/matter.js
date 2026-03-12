@@ -5,6 +5,8 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import type { ActionContext } from "#behavior/context/ActionContext.js";
+import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -26,19 +28,21 @@ import {
     Observable,
     ObserverGroup,
     Seconds,
-    SharedEnvironmentServices,
     Time,
     Timer,
     Timestamp,
 } from "@matter/general";
+import type { Session } from "@matter/protocol";
 import {
     BdxProtocol,
     DclOtaUpdateService,
     FabricAuthority,
     FileDesignator,
+    hasRemoteActor,
     OtaUpdateError,
     OtaUpdateSource,
     PeerAddress,
+    SessionManager,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -152,12 +156,13 @@ export class SoftwareUpdateManager extends Behavior {
     declare events: SoftwareUpdateManager.Events;
 
     override async initialize() {
-        this.internal.services = this.env.asDependent();
-        this.internal.otaService = this.internal.services.get(DclOtaUpdateService);
+        const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;
+        rootNode.behaviors.require(DclBehavior);
+        this.internal.otaService = rootNode.agentFor(this.context).get(DclBehavior).otaUpdateService;
+        await this.internal.otaService.construction;
 
-        const node = Node.forEndpoint(this.endpoint);
-        this.reactTo(node.lifecycle.online, this.#nodeOnline);
-        if (node.lifecycle.isOnline) {
+        this.reactTo(rootNode.lifecycle.online, this.#nodeOnline);
+        if (rootNode.lifecycle.isOnline) {
             await this.#nodeOnline();
         }
 
@@ -602,8 +607,13 @@ export class SoftwareUpdateManager extends Behavior {
         const startUpEvent = peer.eventsOf(BasicInformationClient).startUp;
         if (!this.internal.versionUpdateObservers.observes(startUpEvent)) {
             const that = this;
-            function triggerStartUp({ softwareVersion }: { softwareVersion: number }) {
-                that.#onSoftwareVersionChanged(peerAddress, softwareVersion, true);
+            function triggerStartUp({ softwareVersion }: { softwareVersion: number }, context?: ActionContext) {
+                that.#onSoftwareVersionChanged(
+                    peerAddress,
+                    softwareVersion,
+                    true,
+                    hasRemoteActor(context) ? context.session : undefined,
+                );
             }
 
             this.internal.versionUpdateObservers.on(startUpEvent, this.callback(triggerStartUp));
@@ -620,14 +630,36 @@ export class SoftwareUpdateManager extends Behavior {
      * same version (failed apply), softwareVersion$Changed does NOT fire — so startUp feeds the version through
      * this same handler to detect the failure.
      */
-    #onSoftwareVersionChanged(peerAddress: PeerAddress, newVersion: number, isStartUp = false) {
+    #onSoftwareVersionChanged(
+        peerAddress: PeerAddress,
+        newVersion: number,
+        isStartUp = false,
+        currentSession?: Session,
+    ) {
         const entryIndex = this.internal.updateQueue.findIndex(
             e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
         );
+
+        if (isStartUp) {
+            const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress.toString());
+            if (suppressedSessionId !== undefined) {
+                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+                // Use session from event context when available (avoids extra lookup); fall back to
+                // SessionManager for local/test contexts where there is no remote actor.
+                const sessionId = currentSession?.id ?? this.env.get(SessionManager).maybeSessionFor(peerAddress)?.id;
+                if (sessionId === suppressedSessionId) {
+                    // startUp is from the reboot we already handled via queryImage — suppress it
+                    return;
+                }
+                // Different session — process normally
+            }
+        }
+
         if (entryIndex === -1) {
             return;
         }
         const entry = this.internal.updateQueue[entryIndex];
+        const previousProgressStatus = entry.lastProgressStatus;
         if (entry.lastProgressUpdateTime !== undefined) {
             logger.info(
                 `Clearing in-progress update for node ${peerAddress.toString()} due to software version change. Last State was ${OtaUpdateStatus[entry.lastProgressStatus!]}`,
@@ -640,13 +672,14 @@ export class SoftwareUpdateManager extends Behavior {
             // Device rebooted during apply with old version — the update failed
             if (
                 isStartUp &&
-                (entry.lastProgressStatus === OtaUpdateStatus.Applying ||
-                    entry.lastProgressStatus === OtaUpdateStatus.WaitForApply)
+                (previousProgressStatus === OtaUpdateStatus.Applying ||
+                    previousProgressStatus === OtaUpdateStatus.WaitForApply)
             ) {
                 logger.warn(
                     `Device ${peerAddress.toString()} rebooted after applying update but reports softwareVersion ${newVersion} (expected >= ${expectedVersion}), update failed to apply`,
                 );
                 this.internal.updateQueue.splice(entryIndex, 1);
+                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
                 this.events.updateFailed.emit(peerAddress);
                 this.#triggerQueuedUpdate();
                 return;
@@ -660,6 +693,7 @@ export class SoftwareUpdateManager extends Behavior {
             `Software version changed to ${newVersion} (expected ${expectedVersion}) for node ${peerAddress.toString()}, removing from update queue`,
         );
         this.internal.knownUpdates.delete(peerAddress.toString());
+        this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
         this.events.updateDone.emit(peerAddress);
         this.internal.updateQueue.splice(entryIndex, 1);
 
@@ -745,8 +779,10 @@ export class SoftwareUpdateManager extends Behavior {
             // An update is already in progress
             return;
         }
-        // Re-sort queue to prioritize entries without an Unknown status. Means the lastProgressStatus of "undefined"
-        // is sorted first, all others last
+        // Re-sort queue to deprioritize entries with Unknown status (sort them last). Entries without a
+        // lastProgressStatus (undefined — never started) go first, while Unknown entries go last. Unknown
+        // arises when a BDX-cancelled entry is reset for retry (Fix 1); deprioritizing it lets any
+        // genuinely fresh entries go first before the retry is attempted.
         this.internal.updateQueue = this.internal.updateQueue.sort((a, b) => {
             const aStatus = a.lastProgressStatus === OtaUpdateStatus.Unknown ? 1 : 0;
             const bStatus = b.lastProgressStatus === OtaUpdateStatus.Unknown ? 1 : 0;
@@ -780,6 +816,12 @@ export class SoftwareUpdateManager extends Behavior {
         }
 
         const { endpoint, peerAddress } = entry;
+
+        // Guard: skip the announcement if a BDX session is already active for this peer
+        if (this.env.get(BdxProtocol).sessionFor(peerAddress, this.storage.scope) !== undefined) {
+            logger.info(`BDX transfer still active for node ${peerAddress.toString()}, skipping announcement`);
+            return;
+        }
 
         try {
             logger.info(`Announcing OTA provider to node ${peerAddress.toString()}`);
@@ -831,6 +873,7 @@ export class SoftwareUpdateManager extends Behavior {
             const staleIndex = this.internal.updateQueue.indexOf(existingEntry);
             if (staleIndex >= 0) {
                 this.internal.updateQueue.splice(staleIndex, 1);
+                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
             }
             try {
                 await bdxProtocol.disablePeerForScope(peerAddress, this.storage, true);
@@ -888,6 +931,9 @@ export class SoftwareUpdateManager extends Behavior {
             return;
         }
         this.internal.updateQueue.splice(entryIndex, 1);
+        // Clean up any pending startUp suppression for this peer — it will never arrive if the peer
+        // is permanently removed from tracking (decommissioned / disconnected).
+        this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
         logger.info(`Cancelled OTA update for node ${peerAddress.toString()}`);
         this.events.updateFailed.emit(peerAddress);
         this.#triggerQueuedUpdate();
@@ -974,6 +1020,15 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
+     * Suppress the next startUp event from the given peer on the given session.
+     * Called by OtaSoftwareUpdateProviderServer when a queryImage is detected as a post-reboot query
+     * so the startUp event that follows is not treated as a new failure-after-apply.
+     */
+    suppressNextStartUp(peerAddress: PeerAddress, sessionId: number) {
+        this.internal.pendingStartUpSuppress.set(peerAddress.toString(), sessionId);
+    }
+
+    /**
      * Handles the status change of an OTA update for a given peer device.
      *
      * This method processes OTA update status notifications received from a specified device.
@@ -998,13 +1053,15 @@ export class SoftwareUpdateManager extends Behavior {
             logger.info(`OTA update completed for node`, peerAddress.toString());
             this.internal.updateQueue.splice(entryIndex, 1);
             this.internal.knownUpdates.delete(peerAddress.toString());
+            this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
             this.events.updateDone.emit(peerAddress);
             this.#triggerQueuedUpdate();
         } else if (status === OtaUpdateStatus.Cancelled) {
-            logger.info(`OTA update cancelled for node`, peerAddress.toString());
-            this.internal.updateQueue.splice(entryIndex, 1);
-            // Keep knownUpdates since the update file is still available for retry
-            this.events.updateFailed.emit(peerAddress);
+            // BDX transport interruption: reset the entry so it can be retried.
+            // The intentional cancel path (#cancelUpdate) handles removal and updateFailed independently.
+            logger.info(`OTA update BDX cancelled for node ${peerAddress.toString()}, resetting for retry`);
+            entry.lastProgressUpdateTime = undefined;
+            entry.lastProgressStatus = OtaUpdateStatus.Unknown;
             this.#triggerQueuedUpdate();
         } else {
             logger.info(
@@ -1021,7 +1078,6 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.checkForUpdateTimer?.stop();
         this.internal.updateQueueTimer?.stop();
         await this.internal.announcements?.close();
-        await this.internal.services?.close();
         this.internal.versionUpdateObservers.close();
         await super[Symbol.asyncDispose]?.();
     }
@@ -1046,8 +1102,6 @@ export namespace SoftwareUpdateManager {
         /** Use this to pre-initialize consent to allow nodes to update automatically. The content will not be persisted! */
         consents = new Array<UpdateConsent>();
 
-        services?: SharedEnvironmentServices;
-
         otaService!: DclOtaUpdateService;
 
         checkForUpdateTimer!: Timer;
@@ -1061,6 +1115,16 @@ export namespace SoftwareUpdateManager {
         versionUpdateObservers = new ObserverGroup();
 
         knownUpdates = new Map<string, SoftwareUpdateInfo>();
+
+        /**
+         * peer address string → session ID on which the reboot-triggering queryImage was received.
+         *
+         * Intentionally ephemeral (not persisted): the suppress window is sub-second — between the
+         * queryImage response and the subsequent startUp event that follows on the same session.
+         * Entries are consumed immediately when the matching startUp fires in #onSoftwareVersionChanged,
+         * or cleaned up in #cancelUpdate when the peer is permanently removed from tracking.
+         */
+        pendingStartUpSuppress = new Map<string, number>();
     }
 
     export class Events extends EventEmitter {
