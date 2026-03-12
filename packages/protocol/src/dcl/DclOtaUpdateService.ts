@@ -12,7 +12,6 @@ import {
     Crypto,
     Diagnostic,
     Environment,
-    Environmental,
     HashAlgorithm,
     HashFipsAlgorithmId,
     ImplementationError,
@@ -92,10 +91,6 @@ export class DclOtaUpdateService {
             this.#storage = new ScopedStorage(this.#storageManager.createContext("bin"), "ota");
             await this.#migrateStorage();
         });
-    }
-
-    static [Environmental.create](env: Environment) {
-        return new DclOtaUpdateService(env);
     }
 
     get storage() {

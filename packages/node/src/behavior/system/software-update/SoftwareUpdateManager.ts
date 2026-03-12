@@ -6,6 +6,7 @@
 
 import { Behavior } from "#behavior/Behavior.js";
 import { ActionContext } from "#behavior/context/ActionContext.js";
+import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
 import { Endpoint } from "#endpoint/Endpoint.js";
@@ -27,7 +28,6 @@ import {
     Observable,
     ObserverGroup,
     Seconds,
-    SharedEnvironmentServices,
     Time,
     Timer,
     Timestamp,
@@ -155,12 +155,13 @@ export class SoftwareUpdateManager extends Behavior {
     declare events: SoftwareUpdateManager.Events;
 
     override async initialize() {
-        this.internal.services = this.env.asDependent();
-        this.internal.otaService = this.internal.services.get(DclOtaUpdateService);
+        const rootNode = Node.forEndpoint(this.endpoint) as ServerNode;
+        rootNode.behaviors.require(DclBehavior);
+        this.internal.otaService = rootNode.agentFor(this.context).get(DclBehavior).otaUpdateService;
+        await this.internal.otaService.construction;
 
-        const node = Node.forEndpoint(this.endpoint);
-        this.reactTo(node.lifecycle.online, this.#nodeOnline);
-        if (node.lifecycle.isOnline) {
+        this.reactTo(rootNode.lifecycle.online, this.#nodeOnline);
+        if (rootNode.lifecycle.isOnline) {
             await this.#nodeOnline();
         }
 
@@ -1068,7 +1069,6 @@ export class SoftwareUpdateManager extends Behavior {
         this.internal.checkForUpdateTimer?.stop();
         this.internal.updateQueueTimer?.stop();
         await this.internal.announcements?.close();
-        await this.internal.services?.close();
         this.internal.versionUpdateObservers.close();
         await super[Symbol.asyncDispose]?.();
     }
@@ -1092,8 +1092,6 @@ export namespace SoftwareUpdateManager {
     export class Internal {
         /** Use this to pre-initialize consent to allow nodes to update automatically. The content will not be persisted! */
         consents = new Array<UpdateConsent>();
-
-        services?: SharedEnvironmentServices;
 
         otaService!: DclOtaUpdateService;
 
