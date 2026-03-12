@@ -337,7 +337,10 @@ export class CommissioningClient extends Behavior {
             return;
         }
 
-        const newAddressesStr = newAddresses?.map(a => ServerAddress.urlFor(a)).join(", ");
+        const newAddressesStr = newAddresses
+            ?.filter(a => a.type !== "ble")
+            .map(a => ServerAddress.urlFor(a))
+            .join(", ");
         if (oldAddresses === undefined) {
             logger.info(
                 "Operational address for",
@@ -348,7 +351,10 @@ export class CommissioningClient extends Behavior {
             return;
         }
 
-        const oldAddressesStr = oldAddresses.map(a => ServerAddress.urlFor(a)).join(", ");
+        const oldAddressesStr = oldAddresses
+            .filter(a => a.type !== "ble")
+            .map(a => ServerAddress.urlFor(a))
+            .join(", ");
         if (oldAddressesStr !== newAddressesStr) {
             logger.info(
                 "Operational address changed for",

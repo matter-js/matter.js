@@ -196,11 +196,16 @@ export abstract class Discovery<T = unknown> extends CancelablePromise<T> {
                 scanner.findCommissionableDevicesContinuously(
                     identifier,
                     descriptor => {
-                        // Identify a known node that matches the descriptor
+                        // Identify a known node that matches the descriptor.
+                        // Skip nodes that are already commissioned — they cannot be re-commissioned and
+                        // should not be surfaced by a new commissioning discovery flow.
                         let node = factory.find(descriptor);
+                        if (node?.lifecycle.isCommissioned) {
+                            node = undefined;
+                        }
 
                         if (node) {
-                            // Found a known node; update its commissioning metadata
+                            // Found a known uncommissioned node; update its commissioning metadata
                             const updatePromise = node.act(agent => {
                                 agent.commissioning.descriptor = descriptor;
                             });
