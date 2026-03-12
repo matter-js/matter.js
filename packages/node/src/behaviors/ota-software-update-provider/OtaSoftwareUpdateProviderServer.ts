@@ -176,18 +176,43 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
             metadataForRequestor,
         } = updateDetails;
 
-        // If for this fabricIndex and peerNodeId an update is already ongoing, return busy (with a delay time)
+        // If for this fabricIndex and peerNodeId an update is already ongoing, check for reboot vs genuinely in-progress
         const updateInProgress = this.#inProgressDetailsForPeer(peerAddress);
         if (updateInProgress !== undefined) {
-            logger.info(
-                `OTA Update for Requestor`,
-                peerAddress,
-                `already in progress (${OtaUpdateStatus[updateInProgress.lastState]})`,
-            );
-            return {
-                status: OtaSoftwareUpdateProvider.Status.Busy,
-                delayedActionTime: Seconds.of(Minutes(5)), // the usual bdx session timeout is 5 minutes, so let's use this
-            };
+            const bdxProtocol = this.env.get(BdxProtocol);
+            const bdxSession = bdxProtocol.sessionFor(peerAddress, this.updateStorage.scope);
+
+            if (bdxSession === undefined) {
+                // Case A: stale in-progress entry with no active BDX — clear and proceed fresh
+                this.#removeInProgressDetails(peerAddress);
+                // fall through to normal queryImage processing below
+            } else if (bdxSession.sessionId !== session.id && bdxSession.sessionActiveTimestamp < session.activeTimestamp) {
+                // Case B: different session and invoking session is more recent → reboot detected
+                // Cancel old BDX transfer
+                try {
+                    await bdxProtocol.disablePeerForScope(peerAddress, this.updateStorage, true);
+                } catch (error) {
+                    MatterError.accept(error);
+                    logger.info("Error cancelling old BDX session during reboot detection:", error);
+                }
+                this.#removeInProgressDetails(peerAddress);
+                // Suppress the startUp event that will arrive shortly
+                await this.endpoint.act(agent =>
+                    agent.get(SoftwareUpdateManager).suppressNextStartUp(peerAddress, session.id),
+                );
+                // fall through to normal queryImage processing below
+            } else {
+                // Case C: same session or BDX is more recent → genuinely in progress
+                logger.info(
+                    `OTA Update for Requestor`,
+                    peerAddress,
+                    `already in progress (${OtaUpdateStatus[updateInProgress.lastState]})`,
+                );
+                return {
+                    status: OtaSoftwareUpdateProvider.Status.Busy,
+                    delayedActionTime: Seconds.of(Minutes(2)), // 2 minutes, down from 5
+                };
+            }
         }
 
         const crypto = this.env.get(Crypto);

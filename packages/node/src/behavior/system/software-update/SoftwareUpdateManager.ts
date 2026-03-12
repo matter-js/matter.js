@@ -39,6 +39,7 @@ import {
     OtaUpdateError,
     OtaUpdateSource,
     PeerAddress,
+    SessionManager,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -621,6 +622,19 @@ export class SoftwareUpdateManager extends Behavior {
      * this same handler to detect the failure.
      */
     #onSoftwareVersionChanged(peerAddress: PeerAddress, newVersion: number, isStartUp = false) {
+        if (isStartUp) {
+            const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress.toString());
+            if (suppressedSessionId !== undefined) {
+                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
+                const currentSession = this.env.get(SessionManager).maybeSessionFor(peerAddress);
+                if (currentSession?.id === suppressedSessionId) {
+                    // startUp is from the reboot we already handled via queryImage — suppress it
+                    return;
+                }
+                // Different session — unexpected new reboot, process normally
+            }
+        }
+
         const entryIndex = this.internal.updateQueue.findIndex(
             e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
         );
@@ -985,6 +999,15 @@ export class SoftwareUpdateManager extends Behavior {
     }
 
     /**
+     * Suppress the next startUp event from the given peer on the given session.
+     * Called by OtaSoftwareUpdateProviderServer when a queryImage is detected as a post-reboot query
+     * so the startUp event that follows is not treated as a new failure-after-apply.
+     */
+    suppressNextStartUp(peerAddress: PeerAddress, sessionId: number) {
+        this.internal.pendingStartUpSuppress.set(peerAddress.toString(), sessionId);
+    }
+
+    /**
      * Handles the status change of an OTA update for a given peer device.
      *
      * This method processes OTA update status notifications received from a specified device.
@@ -1073,6 +1096,9 @@ export namespace SoftwareUpdateManager {
         versionUpdateObservers = new ObserverGroup();
 
         knownUpdates = new Map<string, SoftwareUpdateInfo>();
+
+        /** peer address string → session ID on which the reboot-triggering queryImage was received */
+        pendingStartUpSuppress = new Map<string, number>();
     }
 
     export class Events extends EventEmitter {
