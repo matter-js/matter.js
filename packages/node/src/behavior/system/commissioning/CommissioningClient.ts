@@ -19,8 +19,10 @@ import {
     ImplementationError,
     Logger,
     MatterError,
+    Minutes,
     NotImplementedError,
     Observable,
+    Seconds,
     ServerAddress,
     Time,
     Timestamp,
@@ -57,6 +59,7 @@ import {
     Peer,
     PeerAddress,
     PeerSet,
+    PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
     SessionParameters as ProtocolSessionParameters,
     Subscribe,
@@ -205,6 +208,7 @@ export class CommissioningClient extends Behavior {
             regulatoryLocation: options.regulatoryLocation,
             regulatoryCountryCode: options.regulatoryCountryCode,
             timeout: options.timeout,
+            caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -480,6 +484,21 @@ export class CommissioningClient extends Behavior {
         }
     }
 }
+
+/**
+ * Default timing overrides applied to the step-18 CASE reconnect unless the caller supplies
+ * {@link CommissioningClient.BaseCommissioningOptions.caseConnectionTiming}.
+ *
+ * Values are tighter than the global peer timing defaults because the device is known to be freshly online:
+ * - `delayBeforeNextAddress`: 15 s (vs. 45 s global default)
+ * - `maxDelayBetweenInitialContactRetries`: 60 s (vs. 2 min global default)
+ * - `delayAfterPeerError`: 2 min (vs. 5 min global default)
+ */
+const defaultCaseConnectionTiming: Partial<PeerTimingParameters> = {
+    delayBeforeNextAddress: Seconds(15),
+    maxDelayBetweenInitialContactRetries: Seconds(60),
+    delayAfterPeerError: Minutes(2),
+};
 
 export namespace CommissioningClient {
     /**
@@ -850,6 +869,17 @@ export namespace CommissioningClient {
          * TODO: Revisit when we decide how to continue with the PaseCommissioner approach at all
          */
         finalizeCommissioning?: (address: ProtocolPeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
+
+        /**
+         * Timing overrides for the step-18 CASE reconnect.
+         *
+         * After commissioning the commissioner establishes the first operational CASE session.  The device is freshly
+         * online at that point so tighter timing is appropriate.  Any fields provided here are merged on top of the
+         * global peer timing defaults for that single connection only.
+         *
+         * Defaults to `{ delayBeforeNextAddress: Seconds(15), maxDelayBetweenInitialContactRetries: Seconds(60), delayAfterPeerError: Minutes(2) }`.
+         */
+        caseConnectionTiming?: Partial<PeerTimingParameters>;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {
