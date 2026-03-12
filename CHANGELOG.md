@@ -23,6 +23,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
     - Fix: Try to preserve clusters in the structure even if they are not specified in the serverList of the endpoint but reported data ("Schrödinger's cluster")
 
+- @matter/nodejs-shell
+    - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
+
 - @matter/protocol
     - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterwards
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
@@ -34,6 +37,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Enhances the strategy when multiple devices were discovered for the same commissioning target
     - Enhancement: When multiple IP addresses are available for a device during commissioning, all are tried in parallel for faster connection
     - Enhancement: An `AbortSignal` can now be passed to cancel an in-progress commissioning attempt; the PASE layer sends `InvalidParameter` to avoid a 60-second device lockout
+    - Enhancement: Several enhancements around session management when nodes reconnect or new sessions get pushed by the device
+    - Enhancement: Several enhancements around OTA updates and transfers, also when nodes restart in the middle of the process
+    - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action

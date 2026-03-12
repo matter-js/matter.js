@@ -429,14 +429,15 @@ export class SessionManager {
     maybeSessionFor(address: PeerAddress) {
         this.#construction.assert();
 
-        // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
+        // Prefer the most recently active session (i.e. the one we last heard from the peer on).  Older ones may not
+        // work with broken peers (e.g. CHIP test harness).
         let found: NodeSession | undefined;
         for (const session of this.#sessions) {
             if (!session.peerIs(address) || session.isClosing) {
                 continue;
             }
 
-            if (!found || found.timestamp < session.timestamp) {
+            if (!found || found.activeTimestamp < session.activeTimestamp) {
                 found = session;
             }
         }
