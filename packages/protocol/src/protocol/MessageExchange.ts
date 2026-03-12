@@ -220,6 +220,7 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
+    #kickPending = false;
     #kick?: () => void;
 
     constructor(config: MessageExchange.Config) {
@@ -442,6 +443,7 @@ export class MessageExchange {
             throw e;
         } finally {
             this.#kick = undefined;
+            this.#kickPending = false;
         }
     }
 
@@ -570,6 +572,9 @@ export class MessageExchange {
                 if (this.#retransmissionTimer?.isRunning) {
                     this.#retransmissionTimer.stop();
                     this.#retransmitMessage(message, expectedProcessingTime);
+                } else {
+                    // Retransmission is currently in flight; flag so the next backoff is skipped
+                    this.#kickPending = true;
                 }
             };
             const { promise, resolver } = createPromise<Message | undefined>();
@@ -756,7 +761,12 @@ export class MessageExchange {
     }
 
     #initializeResubmission(message: Message, resubmissionBackoffTime: Duration, expectedProcessingTimeMs?: Duration) {
-        this.#retransmissionTimer = Time.getTimer("Message retransmission", resubmissionBackoffTime, () =>
+        // If a kick arrived while the previous send was in flight (timer was stopped but channel.send() hadn't
+        // completed yet), honour it by starting the next timer with zero delay so we retransmit immediately
+        // rather than waiting out the full backoff.
+        const interval = this.#kickPending ? 0 : resubmissionBackoffTime;
+        this.#kickPending = false;
+        this.#retransmissionTimer = Time.getTimer("Message retransmission", interval, () =>
             this.#retransmitMessage(message, expectedProcessingTimeMs),
         ).start();
     }
