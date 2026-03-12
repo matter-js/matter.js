@@ -353,9 +353,19 @@ export class PairedNode {
             }
         });
         this.#observers.on(peer.sessions.deleted, () => {
-            this.#setConnectionState(
-                peer.service.addresses.size ? NodeStates.Reconnecting : NodeStates.WaitingForDeviceDiscovery,
-            );
+            if (peer.sessions.size) {
+                // We still have a session, do nothing
+                return;
+            }
+            if (peer.service.addresses.size) {
+                if (this.#connectionState === NodeStates.Connected) {
+                    // No session anymore, but still known addresses and state is "connected" - we do reconnection
+                    this.#setConnectionState(NodeStates.Reconnecting);
+                }
+            } else if (this.#connectionState === NodeStates.Reconnecting) {
+                // No session anymore, and we already were reconnecting, but also no known addresses - we wait for device discovery
+                this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
+            }
         });
 
         this.#nodeDetails = new DeviceInformation(clientNode);
@@ -766,6 +776,8 @@ export class PairedNode {
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
+            // Subscription is not active anymore, and we were connected before, we use Reconnecting as state
+            // When all sessions disconnect, we go to WaitingForDiscovery
             this.#setConnectionState(NodeStates.Reconnecting);
         }
     }
