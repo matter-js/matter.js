@@ -83,6 +83,8 @@ export async function PeerConnection(
 ): Promise<NodeSession | undefined> {
     const via = Diagnostic.via(peer.address.toString());
 
+    const timing = options?.timing ? PeerTimingParameters({ ...context.timing, ...options.timing }) : context.timing;
+
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
 
@@ -189,7 +191,7 @@ export async function PeerConnection(
             // Delay if within the delay window of last initiation attempt
             if (lastAttemptAt !== undefined) {
                 const timeSinceLastAttempt = Timestamp.delta(lastAttemptAt);
-                const delayInterval = Millis(context.timing.delayBeforeNextAddress - timeSinceLastAttempt);
+                const delayInterval = Millis(timing.delayBeforeNextAddress - timeSinceLastAttempt);
                 if (delayInterval > 0) {
                     using _delaying = scheduling.join("delaying");
 
@@ -421,8 +423,8 @@ export async function PeerConnection(
                 abort: addressAbort,
                 caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
                 maxInitialRetransmissions: Infinity,
-                maxInitialRetransmissionTime: context.timing.maxDelayBetweenInitialContactRetries,
-                initialRetransmissionTime: isFallback ? context.timing.maxDelayBetweenInitialContactRetries : undefined,
+                maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
+                initialRetransmissionTime: isFallback ? timing.maxDelayBetweenInitialContactRetries : undefined,
             });
 
             // Success
@@ -449,7 +451,7 @@ export async function PeerConnection(
         const csre = ChannelStatusResponseError.of(e);
         if (csre) {
             if (csre.generalStatusCode === GeneralStatusCode.Busy && csre.busyDelay !== undefined) {
-                delay = Millis(csre.busyDelay + Math.round(Math.random() * context.timing.delayAfterNetworkError));
+                delay = Millis(csre.busyDelay + Math.round(Math.random() * timing.delayAfterNetworkError));
                 info(
                     via,
                     address,
@@ -464,14 +466,14 @@ export async function PeerConnection(
                     "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
                 );
             } else {
-                delay = context.timing.delayAfterPeerError;
+                delay = timing.delayAfterPeerError;
                 error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
             }
         } else if (causedBy(e, TransientPeerCommunicationError)) {
-            delay = context.timing.delayAfterNetworkError;
+            delay = timing.delayAfterNetworkError;
             error(address, `Connection error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
         } else {
-            delay = context.timing.delayAfterUnhandledError;
+            delay = timing.delayAfterUnhandledError;
             error(address, `General connection error (retry in ${Duration.format(delay)}):`, e);
         }
 
@@ -526,6 +528,14 @@ export namespace PeerConnection {
         abort?: AbortSignal;
         network?: string;
         kicker?: Observable<[]>;
+
+        /**
+         * Per-call overrides for timing parameters.
+         *
+         * Merged on top of the global {@link PeerConnection.Context.timing} for this connection only.
+         * Other concurrent or future connections are not affected.
+         */
+        timing?: Partial<PeerTimingParameters>;
     }
 
     export function createExchange(
