@@ -42,6 +42,7 @@ import {
     OtaUpdateSource,
     PeerAddress,
     Session,
+    SessionManager,
 } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
@@ -635,11 +636,14 @@ export class SoftwareUpdateManager extends Behavior {
         isStartUp = false,
         currentSession?: Session,
     ) {
-        if (isStartUp && currentSession !== undefined) {
+        if (isStartUp) {
             const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress.toString());
             if (suppressedSessionId !== undefined) {
                 this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
-                if (currentSession?.id === suppressedSessionId) {
+                // Use session from event context when available (avoids extra lookup); fall back to
+                // SessionManager for local/test contexts where there is no remote actor.
+                const sessionId = currentSession?.id ?? this.env.get(SessionManager).maybeSessionFor(peerAddress)?.id;
+                if (sessionId === suppressedSessionId) {
                     // startUp is from the reboot we already handled via queryImage — suppress it
                     return;
                 }

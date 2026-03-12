@@ -463,6 +463,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
     }
 
+    /**
+     * Process startup events to detect node reboots in real-time. This allows us to terminate sessions
+     * that would otherwise linger until timed out and cause interaction delays.
+     */
     async #onStartUp(node: ClientNode) {
         // isOnline is checked because startUp arrives via an active subscription channel — the node
         // must be online for the subscription to deliver events.  isReady guards against races during

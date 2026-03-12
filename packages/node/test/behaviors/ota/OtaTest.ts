@@ -774,8 +774,10 @@ describe("Ota", () => {
                 if (PeerAddress.is(peer, peerAddress)) {
                     return {
                         peerAddress,
-                        sessionId: BDX_FAKE_SESSION_ID,
-                        sessionActiveTimestamp: 0 as Timestamp, // epoch zero → always older than any live session
+                        session: {
+                            id: BDX_FAKE_SESSION_ID,
+                            activeTimestamp: 0 as Timestamp, // epoch zero → always older than any live session
+                        },
                     } as any;
                 }
                 return originalSessionFor(peer, scope);
@@ -865,8 +867,10 @@ describe("Ota", () => {
                 if (PeerAddress.is(peer, peerAddress)) {
                     return {
                         peerAddress,
-                        sessionId: 42,
-                        sessionActiveTimestamp: (Date.now() + 10000) as Timestamp, // newer → Case C
+                        session: {
+                            id: 42,
+                            activeTimestamp: (Date.now() + 10000) as Timestamp, // newer → Case C
+                        },
                     } as any;
                 }
                 return originalSessionFor(peer, scope);
