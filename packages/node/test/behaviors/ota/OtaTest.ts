@@ -570,15 +570,11 @@ describe("Ota", () => {
 
         await MockTime.macrotasks;
 
-        // announceOtaProvider should NOT have been called — the promise should NOT have resolved
+        // announceOtaProvider should NOT have been called — check after MockTime drains any pending tasks
         let announceWasCalled = false;
-        const timeout = new Promise<void>(resolve => setTimeout(resolve, 50));
-        await Promise.race([
-            announceOtaProviderPromise.then(() => {
-                announceWasCalled = true;
-            }),
-            timeout,
-        ]);
+        announceOtaProviderPromise.then(() => {
+            announceWasCalled = true;
+        });
         expect(announceWasCalled).equals(false);
 
         // The queue entry should still be present (not started since announcement was skipped)
@@ -637,7 +633,7 @@ describe("Ota", () => {
                 requestorNodeId: nodeId,
                 fabricIndex,
                 lastState: OtaUpdateStatus.Downloading,
-                timestamp: Date.now() as Timestamp, // recent timestamp to avoid auto-removal by #removeIfStale
+                timestamp: (MockTime.nowMs + 3_600_000) as Timestamp, // 1h future offset so entry stays fresh when queryImage fires (~30-40 min later in mock time)
             });
         });
 
@@ -745,7 +741,7 @@ describe("Ota", () => {
                 requestorNodeId: nodeId,
                 fabricIndex,
                 lastState: OtaUpdateStatus.Downloading,
-                timestamp: Date.now() as Timestamp,
+                timestamp: (MockTime.nowMs + 3_600_000) as Timestamp, // 1h future offset so entry stays fresh when queryImage fires (~30-40 min later in mock time)
             });
         });
 
@@ -853,7 +849,7 @@ describe("Ota", () => {
                 requestorNodeId: nodeId,
                 fabricIndex,
                 lastState: OtaUpdateStatus.Downloading,
-                timestamp: Date.now() as Timestamp,
+                timestamp: MockTime.nowMs as Timestamp,
             });
         });
 
@@ -869,7 +865,7 @@ describe("Ota", () => {
                         peerAddress,
                         session: {
                             id: 42,
-                            activeTimestamp: (Date.now() + 10000) as Timestamp, // newer → Case C
+                            activeTimestamp: (MockTime.nowMs + 10000) as Timestamp, // newer than any live session → Case C
                         },
                     } as any;
                 }

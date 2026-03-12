@@ -24,6 +24,7 @@ export class MatterNode {
     readonly #nodeNum: number;
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
+    #allowTestOtaImages = false;
     #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
@@ -111,6 +112,9 @@ export class MatterNode {
 
             // Read DCL test certificates setting
             this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
+
+            // Read OTA test images setting
+            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
         } else {
             console.log(
                 "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",
@@ -143,6 +147,10 @@ export class MatterNode {
 
             await this.commissioningController.node.setStateOf(DclBehavior, {
                 fetchTestCertificates: this.#dclFetchTestCertificates,
+            });
+
+            await this.commissioningController.otaProvider.setStateOf(SoftwareUpdateManager, {
+                allowTestOtaImages: this.#allowTestOtaImages,
             });
 
             if (await this.Store.has("ControllerFabricLabel")) {

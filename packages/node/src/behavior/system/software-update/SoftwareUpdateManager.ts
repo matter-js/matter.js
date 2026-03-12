@@ -5,7 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
-import { ActionContext } from "#behavior/context/ActionContext.js";
+import type { ActionContext } from "#behavior/context/ActionContext.js";
 import { DclBehavior } from "#behavior/system/dcl/DclBehavior.js";
 import { OtaAnnouncements } from "#behavior/system/software-update/OtaAnnouncements.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
@@ -41,9 +41,9 @@ import {
     OtaUpdateError,
     OtaUpdateSource,
     PeerAddress,
-    Session,
     SessionManager,
 } from "@matter/protocol";
+import type { Session } from "@matter/protocol";
 import { VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
@@ -636,6 +636,10 @@ export class SoftwareUpdateManager extends Behavior {
         isStartUp = false,
         currentSession?: Session,
     ) {
+        const entryIndex = this.internal.updateQueue.findIndex(
+            e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
+        );
+
         if (isStartUp) {
             const suppressedSessionId = this.internal.pendingStartUpSuppress.get(peerAddress.toString());
             if (suppressedSessionId !== undefined) {
@@ -647,13 +651,10 @@ export class SoftwareUpdateManager extends Behavior {
                     // startUp is from the reboot we already handled via queryImage — suppress it
                     return;
                 }
-                // Different session — unexpected new reboot, process normally
+                // Different session — process normally
             }
         }
 
-        const entryIndex = this.internal.updateQueue.findIndex(
-            e => e.peerAddress.fabricIndex === peerAddress.fabricIndex && e.peerAddress.nodeId === peerAddress.nodeId,
-        );
         if (entryIndex === -1) {
             return;
         }
@@ -678,6 +679,7 @@ export class SoftwareUpdateManager extends Behavior {
                     `Device ${peerAddress.toString()} rebooted after applying update but reports softwareVersion ${newVersion} (expected >= ${expectedVersion}), update failed to apply`,
                 );
                 this.internal.updateQueue.splice(entryIndex, 1);
+                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
                 this.events.updateFailed.emit(peerAddress);
                 this.#triggerQueuedUpdate();
                 return;
@@ -691,6 +693,7 @@ export class SoftwareUpdateManager extends Behavior {
             `Software version changed to ${newVersion} (expected ${expectedVersion}) for node ${peerAddress.toString()}, removing from update queue`,
         );
         this.internal.knownUpdates.delete(peerAddress.toString());
+        this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
         this.events.updateDone.emit(peerAddress);
         this.internal.updateQueue.splice(entryIndex, 1);
 
@@ -870,6 +873,7 @@ export class SoftwareUpdateManager extends Behavior {
             const staleIndex = this.internal.updateQueue.indexOf(existingEntry);
             if (staleIndex >= 0) {
                 this.internal.updateQueue.splice(staleIndex, 1);
+                this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
             }
             try {
                 await bdxProtocol.disablePeerForScope(peerAddress, this.storage, true);
@@ -1049,6 +1053,7 @@ export class SoftwareUpdateManager extends Behavior {
             logger.info(`OTA update completed for node`, peerAddress.toString());
             this.internal.updateQueue.splice(entryIndex, 1);
             this.internal.knownUpdates.delete(peerAddress.toString());
+            this.internal.pendingStartUpSuppress.delete(peerAddress.toString());
             this.events.updateDone.emit(peerAddress);
             this.#triggerQueuedUpdate();
         } else if (status === OtaUpdateStatus.Cancelled) {
