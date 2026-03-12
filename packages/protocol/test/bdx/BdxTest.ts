@@ -1467,12 +1467,12 @@ describe("BdxTest", () => {
                 },
                 validate: async (_clientStorage, _serverStorage, { clientExchangeData }) => {
                     // Verify that sessionId returns a non-negative number
-                    const sessionId = bdxClientRef.session.sessionId;
+                    const sessionId = bdxClientRef.session.session.id;
                     expect(typeof sessionId).equals("number");
                     expect(sessionId).greaterThanOrEqual(0);
 
                     // Verify that sessionActiveTimestamp returns a timestamp (number)
-                    const activeTimestamp = bdxClientRef.session.sessionActiveTimestamp;
+                    const activeTimestamp = bdxClientRef.session.session.activeTimestamp;
                     expect(typeof activeTimestamp).equals("number");
                     expect(activeTimestamp).greaterThanOrEqual(0);
 

@@ -7,8 +7,8 @@
 import { FabricManager } from "#fabric/FabricManager.js";
 import { SessionParameters } from "#index.js";
 import { SessionManager } from "#session/SessionManager.js";
-import { FabricIndex, NodeId } from "@matter/types";
 import { StandardCrypto, StorageBackendMemory, StorageContext, Timestamp } from "@matter/general";
+import { FabricIndex, NodeId } from "@matter/types";
 
 const DUMMY_BYTEARRAY = new Uint8Array();
 

@@ -5,8 +5,8 @@
  */
 
 import { OtaUpdateStatus, SoftwareUpdateManager } from "#behavior/system/software-update/SoftwareUpdateManager.js";
-import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import { BasicInformationServer } from "#behaviors/basic-information";
+import { OtaSoftwareUpdateProviderServer } from "#behaviors/ota-software-update-provider";
 import {
     OtaSoftwareUpdateRequestorClient,
     OtaSoftwareUpdateRequestorServer,
@@ -14,7 +14,7 @@ import {
 import { OtaProviderEndpoint } from "#endpoints/ota-provider";
 import { ServerNode } from "#node/ServerNode.js";
 import { Bytes, createPromise, MockFetch, Timestamp } from "@matter/general";
-import { BdxProtocol, FabricAuthority, PeerAddress, SessionManager } from "@matter/protocol";
+import { BdxProtocol, BdxSession, FabricAuthority, PeerAddress, SessionManager } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { OtaSoftwareUpdateProvider } from "@matter/types/clusters/ota-software-update-provider";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
@@ -394,13 +394,16 @@ describe("Ota", () => {
         expect(downloadUpdateCalls).equals(0);
     }).timeout(10_000);
 
-    it("Cancelled status resets queue entry for retry (Fix 1)", async () => {
+    it("Cancelled status resets queue entry for retry", async () => {
         const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
             requestUserConsentForUpdate: false,
         });
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
 
-        const { site, device, controller, otaProvider } = await initOtaSite(TestOtaProviderServer, TestOtaRequestorServer);
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
         await using _localSite = site;
 
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
@@ -410,20 +413,24 @@ describe("Ota", () => {
 
         // Add a consent and queue an entry
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+            return agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         // Manually set the entry to in-progress with Downloading status
         await otaProvider.act(agent => {
             const su = agent.get(SoftwareUpdateManager);
             const entry = su.internal.updateQueue[0];
-            entry.lastProgressUpdateTime = 1000 as any;
+            entry.lastProgressUpdateTime = Timestamp(1000);
             entry.lastProgressStatus = OtaUpdateStatus.Downloading;
         });
 
         const updateFailedEvents: PeerAddress[] = [];
         await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => { updateFailedEvents.push(peer); });
+            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => {
+                updateFailedEvents.push(peer);
+            });
         });
 
         // Simulate BDX transport cancellation via Cancelled status
@@ -441,14 +448,17 @@ describe("Ota", () => {
         expect(updateFailedEvents).length(0);
     }).timeout(10_000);
 
-    it("Apply failure detected when startUp fires after Applying state (Fix 2)", async () => {
+    it("Apply failure detected when startUp fires after Applying state", async () => {
         // This test verifies the status ordering fix: previousProgressStatus is saved BEFORE the
         // clearing block in #onSoftwareVersionChanged, so the Applying check on startUp works correctly.
 
         const { TestOtaProviderServer } = InstrumentedOtaProviderServer({ requestUserConsentForUpdate: false });
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
 
-        const { site, device, controller, otaProvider } = await initOtaSite(TestOtaProviderServer, TestOtaRequestorServer);
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
         await using _localSite = site;
 
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
@@ -458,12 +468,16 @@ describe("Ota", () => {
 
         const updateFailedEvents: PeerAddress[] = [];
         await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => { updateFailedEvents.push(peer); });
+            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => {
+                updateFailedEvents.push(peer);
+            });
         });
 
         // Queue the update (this also registers the startUp observer via #preparePeerForUpdate)
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+            return agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         // Directly set the entry to Applying state with a progress time (simulates mid-apply state)
@@ -471,7 +485,7 @@ describe("Ota", () => {
             const su = agent.get(SoftwareUpdateManager);
             const entry = su.internal.updateQueue[0];
             entry.lastProgressStatus = OtaUpdateStatus.Applying;
-            entry.lastProgressUpdateTime = 1000 as any;
+            entry.lastProgressUpdateTime = Timestamp(1000);
         });
 
         // Simulate device rebooting with the ORIGINAL (old) version — apply failed
@@ -482,7 +496,7 @@ describe("Ota", () => {
 
         await MockTime.macrotasks;
 
-        // With Fix 2: previousProgressStatus is captured before the clearing block,
+        // previousProgressStatus is captured before the clearing block,
         // so the isStartUp + Applying check should detect the failure and emit updateFailed.
         expect(updateFailedEvents).length(1);
 
@@ -491,7 +505,7 @@ describe("Ota", () => {
         expect(queue).length(0);
     }).timeout(10_000);
 
-    it("triggerUpdateOnNode skips announcement when BDX session is active (Fix 3)", async () => {
+    it("triggerUpdateOnNode skips announcement when BDX session is active", async () => {
         const { TestOtaProviderServer } = InstrumentedOtaProviderServer({
             requestUserConsentForUpdate: false,
             queryImage: false, // Should NOT be called — BDX active, announcement should be skipped
@@ -501,7 +515,10 @@ describe("Ota", () => {
             announceOtaProvider: false, // Should NOT be called
         });
 
-        const { site, device, controller, otaProvider } = await initOtaSite(TestOtaProviderServer, TestOtaRequestorServer);
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
         await using _localSite = site;
 
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
@@ -510,7 +527,9 @@ describe("Ota", () => {
 
         // Queue the entry (it should be picked up by #triggerQueuedUpdate → #triggerUpdateOnNode)
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+            return agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         // Patch BdxProtocol.sessionFor to simulate an active BDX session for this peer.
@@ -523,7 +542,7 @@ describe("Ota", () => {
             const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
             bdxProtocol.sessionFor = (peer, scope) => {
                 if (PeerAddress.is(peer, peerAddress)) {
-                    return { peerAddress } as any; // fake active session
+                    return { peerAddress } as BdxSession | undefined; // fake active session
                 }
                 return originalSessionFor(peer, scope);
             };
@@ -555,7 +574,9 @@ describe("Ota", () => {
         let announceWasCalled = false;
         const timeout = new Promise<void>(resolve => setTimeout(resolve, 50));
         await Promise.race([
-            announceOtaProviderPromise.then(() => { announceWasCalled = true; }),
+            announceOtaProviderPromise.then(() => {
+                announceWasCalled = true;
+            }),
             timeout,
         ]);
         expect(announceWasCalled).equals(false);
@@ -646,7 +667,9 @@ describe("Ota", () => {
 
         // Trigger the OTA flow via forceUpdate → announcement → device calls queryImage
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+            return agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         // Wait for queryImage to complete (provider ran Case A logic, returned NotAvailable)
@@ -671,7 +694,140 @@ describe("Ota", () => {
         await MockTime.resolve(idlePromise);
     }).timeout(10_000);
 
-    it("queryImage Case C: in-progress with active BDX session → entry preserved (Busy path)", async () => {
+    it("queryImage Case B: reboot detected (different session, older BDX timestamp) → BDX cancelled, entry cleared, startUp suppressed, UpdateAvailable", async () => {
+        // Case B: there is an in-progress entry AND an active BDX session, but the incoming queryImage
+        // session is from a different (newer) session — indicating the device has rebooted mid-transfer.
+        // Expected behaviour:
+        //   - The old BDX session is cancelled (disablePeerForScope called)
+        //   - The in-progress entry is removed
+        //   - suppressNextStartUp is registered for the peer (pendingStartUpSuppress has the entry)
+        //   - queryImage proceeds fresh → returns UpdateAvailable (not Busy)
+        //
+        // Implementation note: super.queryImage() handles Case B internally. The custom subclass
+        // captures the return value to assert UpdateAvailable, then returns NotAvailable to the
+        // device so no real BDX download is initiated (keeps teardown simple).
+
+        const { promise: queryImageResultPromise, resolver: queryImageResultResolver } =
+            createPromise<OtaSoftwareUpdateProvider.QueryImageResponse>();
+
+        class CaseBTestProviderServer extends OtaSoftwareUpdateProviderServer {
+            override async queryImage(
+                request: OtaSoftwareUpdateProvider.QueryImageRequest,
+            ): Promise<OtaSoftwareUpdateProvider.QueryImageResponse> {
+                // Run super.queryImage to trigger Case B logic
+                const result = await super.queryImage(request);
+                // Signal test with the actual result (should be UpdateAvailable, not Busy)
+                queryImageResultResolver(result);
+                // Return NotAvailable so the device does not initiate a BDX download
+                return { status: OtaSoftwareUpdateProvider.Status.NotAvailable };
+            }
+        }
+
+        const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
+
+        const { site, device, controller, otaProvider, otaRequestor } = await initOtaSite(
+            CaseBTestProviderServer,
+            TestOtaRequestorServer,
+        );
+        await using _localSite = site;
+
+        const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
+        const peer1 = controller.peers.get("peer1")!;
+        const peerAddress = peer1.state.commissioning.peerAddress!;
+
+        // Pre-populate inProgressDetails with a "cc" token entry (simulates a prior download that
+        // was interrupted by a device reboot).
+        await otaProvider.act(agent => {
+            const server = agent.get(OtaSoftwareUpdateProviderServer);
+            const { fabricIndex, nodeId } = peerAddress;
+            const key = `${nodeId}-${fabricIndex}-${"cc".repeat(32)}`;
+            server.internal.inProgressDetails.set(key, {
+                requestorNodeId: nodeId,
+                fabricIndex,
+                lastState: OtaUpdateStatus.Downloading,
+                timestamp: Date.now() as Timestamp,
+            });
+        });
+
+        // Verify the in-progress entry is there before queryImage
+        const entryCountBefore = await otaProvider.act(agent => {
+            return agent.get(OtaSoftwareUpdateProviderServer).internal.inProgressDetails.size;
+        });
+        expect(entryCountBefore).equals(1);
+
+        // Patch BdxProtocol.sessionFor to return a fake BDX session that appears to be from an
+        // OLDER session. The real queryImage session will have a newer activeTimestamp, and a
+        // different sessionId → triggers Case B.
+        //
+        // IMPORTANT: Use MockTime.nowMs (not Date.now()) for the fake BDX session's
+        // sessionActiveTimestamp so that it is older than session.activeTimestamp, which also uses
+        // MockTime-based timestamps. A timestamp of 0 is always older than any live session.
+        //
+        // BDX_FAKE_SESSION_ID uses a high value (0xDEAD) to avoid colliding with real session IDs
+        // assigned by the protocol stack in these tests.
+        const BDX_FAKE_SESSION_ID = 0xdead;
+        await otaProvider.act(agent => {
+            const su = agent.get(SoftwareUpdateManager);
+            const bdxProtocol = su.env.get(BdxProtocol);
+            const originalSessionFor = bdxProtocol.sessionFor.bind(bdxProtocol);
+            bdxProtocol.sessionFor = (peer: any, scope: any) => {
+                if (PeerAddress.is(peer, peerAddress)) {
+                    return {
+                        peerAddress,
+                        sessionId: BDX_FAKE_SESSION_ID,
+                        sessionActiveTimestamp: 0 as Timestamp, // epoch zero → always older than any live session
+                    } as any;
+                }
+                return originalSessionFor(peer, scope);
+            };
+        });
+
+        // Set up idlePromise BEFORE forceUpdate: resolves when device returns to Idle.
+        // The device will call queryImage, Case B fires, then we return NotAvailable → Idle immediately.
+        const { promise: idlePromise, resolver: idleResolver } = createPromise<void>();
+        peer1.endpoints
+            .for(otaRequestor.number)
+            .eventsOf(OtaSoftwareUpdateRequestorClient)
+            .stateTransition.on((event: OtaSoftwareUpdateRequestor.StateTransitionEvent) => {
+                if (event.newState === OtaSoftwareUpdateRequestor.UpdateState.Idle) {
+                    idleResolver();
+                }
+            });
+
+        // Trigger the OTA flow via forceUpdate → announcement → device calls queryImage
+        await otaProvider.act(agent => {
+            return agent
+                .get(SoftwareUpdateManager)
+                .forceUpdate(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+        });
+
+        // Wait for queryImage to complete (provider ran Case B logic, returned NotAvailable to device)
+        const queryImageResult = await MockTime.resolve(queryImageResultPromise);
+
+        // Case B should NOT return Busy — it falls through to normal processing → UpdateAvailable
+        expect(queryImageResult.status).equals(OtaSoftwareUpdateProvider.Status.UpdateAvailable);
+
+        // The "cc" token entry should have been removed by Case B logic
+        const hasCcEntry = await otaProvider.act(agent => {
+            return [...agent.get(OtaSoftwareUpdateProviderServer).internal.inProgressDetails.keys()].some(k =>
+                k.includes("cc".repeat(32)),
+            );
+        });
+        expect(hasCcEntry).equals(false);
+
+        // suppressNextStartUp should have been registered: pendingStartUpSuppress must contain the peer
+        const hasSuppressEntry = await otaProvider.act(agent => {
+            return agent
+                .get(SoftwareUpdateManager)
+                .internal.pendingStartUpSuppress.has(PeerAddress(peerAddress).toString());
+        });
+        expect(hasSuppressEntry).equals(true);
+
+        // Wait for the device to return to Idle (fast: queryImage returned NotAvailable)
+        await MockTime.resolve(idlePromise);
+    }).timeout(10_000);
+
+    it("queryImage Case C: in-progress with active BDX session → in-progress state preserved when BDX active", async () => {
         // Case C: there is an in-progress entry AND an active BDX session that is newer than any
         // incoming queryImage session. The entry should NOT be cleared (it's a genuine in-progress).
         // We verify state directly since we cannot invoke queryImage without a full protocol session.
@@ -724,7 +880,8 @@ describe("Ota", () => {
         expect(entryCount).equals(1);
         expect(
             await otaProvider.act(agent => {
-                return [...agent.get(OtaSoftwareUpdateProviderServer).internal.inProgressDetails.values()][0]?.lastState;
+                return [...agent.get(OtaSoftwareUpdateProviderServer).internal.inProgressDetails.values()][0]
+                    ?.lastState;
             }),
         ).equals(OtaUpdateStatus.Downloading);
 
@@ -746,7 +903,10 @@ describe("Ota", () => {
         });
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
 
-        const { site, device, controller, otaProvider } = await initOtaSite(TestOtaProviderServer, TestOtaRequestorServer);
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
         await using _localSite = site;
 
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
@@ -755,7 +915,9 @@ describe("Ota", () => {
 
         // Queue an update so #onSoftwareVersionChanged has a queue entry to process
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+            return agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         // Set entry to Applying state (so startUp would normally trigger updateFailed if NOT suppressed)
@@ -768,7 +930,9 @@ describe("Ota", () => {
 
         const updateFailedEvents: PeerAddress[] = [];
         await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => { updateFailedEvents.push(peer); });
+            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => {
+                updateFailedEvents.push(peer);
+            });
         });
 
         // Patch SessionManager.maybeSessionFor to return a fake session with id=42 for peerAddress.
@@ -806,7 +970,9 @@ describe("Ota", () => {
 
         // The suppression entry should be consumed (deleted by the startUp handler)
         const hasSuppressedAfter = await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).internal.pendingStartUpSuppress.has(PeerAddress(peerAddress).toString());
+            return agent
+                .get(SoftwareUpdateManager)
+                .internal.pendingStartUpSuppress.has(PeerAddress(peerAddress).toString());
         });
         expect(hasSuppressedAfter).equals(false);
     }).timeout(10_000);
@@ -819,7 +985,10 @@ describe("Ota", () => {
         });
         const { TestOtaRequestorServer } = InstrumentedOtaRequestorServer({ requestUserConsent: false });
 
-        const { site, device, controller, otaProvider } = await initOtaSite(TestOtaProviderServer, TestOtaRequestorServer);
+        const { site, device, controller, otaProvider } = await initOtaSite(
+            TestOtaProviderServer,
+            TestOtaRequestorServer,
+        );
         await using _localSite = site;
 
         const { vendorId, productId, targetSoftwareVersion } = await addTestOtaImage(device, controller);
@@ -828,7 +997,9 @@ describe("Ota", () => {
 
         // Queue an update
         await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
+            return agent
+                .get(SoftwareUpdateManager)
+                .addUpdateConsent(peerAddress, VendorId(vendorId), productId, targetSoftwareVersion);
         });
 
         // Set to Applying state
@@ -841,7 +1012,9 @@ describe("Ota", () => {
 
         const updateFailedEvents: PeerAddress[] = [];
         await otaProvider.act(agent => {
-            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => { updateFailedEvents.push(peer); });
+            agent.get(SoftwareUpdateManager).events.updateFailed.on(peer => {
+                updateFailedEvents.push(peer);
+            });
         });
 
         // Patch SessionManager.maybeSessionFor to return a session with id=77
@@ -875,7 +1048,9 @@ describe("Ota", () => {
 
         // The suppression entry should be consumed (even though it didn't suppress)
         const hasSuppressedAfter = await otaProvider.act(agent => {
-            return agent.get(SoftwareUpdateManager).internal.pendingStartUpSuppress.has(PeerAddress(peerAddress).toString());
+            return agent
+                .get(SoftwareUpdateManager)
+                .internal.pendingStartUpSuppress.has(PeerAddress(peerAddress).toString());
         });
         expect(hasSuppressedAfter).equals(false);
     }).timeout(10_000);

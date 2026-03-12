@@ -463,13 +463,15 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
     }
 
-    // No mutex — matches #onShutdown pattern; handlePeerShutdown is safe to call concurrently.
     async #onStartUp(node: ClientNode) {
+        // isOnline is checked because startUp arrives via an active subscription channel — the node
+        // must be online for the subscription to deliver events.  isReady guards against races during
+        // node initialization where the event might fire before the node is fully set up.
         if (!node.lifecycle.isReady || !node.lifecycle.isOnline) {
             return;
         }
 
-        // Ignore startup events received during initial subscription establishment
+        // Ignore startup events received during the initial subscription establishment
         // as they may be stale events from before the device was restarted.
         if (!node.act(agent => agent.get(NetworkClient).subscriptionActive)) {
             logger.debug(
@@ -486,11 +488,10 @@ export class Peers extends EndpointContainer<ClientNode> {
         }
 
         // Use the current session's createdAt as asOf so it (and newer sessions) are preserved
-        // while older sessions (from before the reboot) are closed.  If currentSession is
-        // undefined (no known session), asOf is undefined and handlePeerShutdown falls back to
-        // Time.nowMs, closing all sessions — the same safe behaviour as a full shutdown.
-        const currentSession = this.owner.env.get(SessionManager).maybeSessionFor(peerAddress);
-        await this.owner.env.get(SessionManager).handlePeerShutdown(peerAddress, currentSession?.createdAt);
+        // while older sessions (from before the reboot) are closed.  If the currentSession is
+        // undefined (no known session), asOf is undefined and handlePeerShutdown closes all sessions.
+        const sessionManager = this.owner.env.get(SessionManager);
+        await sessionManager.handlePeerShutdown(peerAddress, sessionManager.maybeSessionFor(peerAddress)?.createdAt);
     }
 }
 

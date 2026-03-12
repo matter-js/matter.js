@@ -7,8 +7,8 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import { NetworkClient } from "#behavior/system/network/NetworkClient.js";
 import { BasicInformationClient } from "#behaviors/basic-information";
-import { ProtocolMocks, SessionManager } from "@matter/protocol";
 import { Seconds, Timestamp } from "@matter/general";
+import { ProtocolMocks, SessionManager } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
 
