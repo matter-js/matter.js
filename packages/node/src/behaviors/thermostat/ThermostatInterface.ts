@@ -15,8 +15,6 @@ export namespace ThermostatInterface {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
          */
         setpointRaiseLower(request: Thermostat.SetpointRaiseLowerRequest): MaybePromise;
-
-        atomicRequest(request: Thermostat.AtomicRequest): MaybePromise<Thermostat.AtomicResponse>;
     }
 
     export interface ScheduleConfiguration {
@@ -62,6 +60,10 @@ export namespace ThermostatInterface {
          */
         setActiveScheduleRequest(request: Thermostat.SetActiveScheduleRequest): MaybePromise;
     }
+
+    export interface PresetsOrMatterScheduleConfiguration {
+        atomicRequest(request: Thermostat.AtomicRequest): MaybePromise<Thermostat.AtomicResponse>;
+    }
 }
 
 export type ThermostatInterface = {
@@ -69,6 +71,11 @@ export type ThermostatInterface = {
         { flags: {}, methods: ThermostatInterface.Base },
         { flags: { scheduleConfiguration: true }, methods: ThermostatInterface.ScheduleConfiguration },
         { flags: { presets: true }, methods: ThermostatInterface.Presets },
-        { flags: { matterScheduleConfiguration: true }, methods: ThermostatInterface.MatterScheduleConfiguration }
+        { flags: { matterScheduleConfiguration: true }, methods: ThermostatInterface.MatterScheduleConfiguration },
+        { flags: { presets: true }, methods: ThermostatInterface.PresetsOrMatterScheduleConfiguration },
+        {
+            flags: { matterScheduleConfiguration: true },
+            methods: ThermostatInterface.PresetsOrMatterScheduleConfiguration
+        }
     ]
 };
