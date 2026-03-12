@@ -141,7 +141,7 @@ export class MatterNode {
         if (this.commissioningController !== undefined) {
             await this.commissioningController.start();
 
-            this.commissioningController.node.behaviors.require(DclBehavior, {
+            await this.commissioningController.node.setStateOf(DclBehavior, {
                 fetchTestCertificates: this.#dclFetchTestCertificates,
             });
 
