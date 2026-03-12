@@ -36,6 +36,7 @@ export * from "./Multiplex.js";
 export * from "./Mutex.js";
 export * from "./NamedHandler.js";
 export * from "./Number.js";
+export * from "./Object.js";
 export * from "./Observable.js";
 export * from "./Promises.js";
 export * from "./Scheduler.js";

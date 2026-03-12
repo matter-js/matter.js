@@ -391,7 +391,7 @@ export class Peer {
         const added = this.#sessions.added.use(() => abort());
 
         const timing = options?.timing
-            ? PeerTimingParameters({ ...this.#context.timing, ...options.timing })
+            ? PeerTimingParameters.merge(this.#context.timing, options.timing)
             : this.#context.timing;
 
         const kicker = new QuietObservable({

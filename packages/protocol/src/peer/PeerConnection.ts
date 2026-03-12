@@ -83,7 +83,7 @@ export async function PeerConnection(
 ): Promise<NodeSession | undefined> {
     const via = Diagnostic.via(peer.address.toString());
 
-    const timing = options?.timing ? PeerTimingParameters({ ...context.timing, ...options.timing }) : context.timing;
+    const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
