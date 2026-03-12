@@ -5,6 +5,7 @@
  */
 
 import { Behavior } from "#behavior/Behavior.js";
+import { SharedEnvironmentServices } from "@matter/general";
 import { DclCertificateService, DclConfig, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
 
 /**
@@ -38,57 +39,91 @@ export class DclBehavior extends Behavior {
     static override readonly id = "dcl";
 
     declare state: DclBehavior.State;
+    declare internal: DclBehavior.Internal;
 
-    /** Get DclConfig for production DCL based on current state. */
+    get #services() {
+        if (!this.internal.services) {
+            this.internal.services = this.env.asDependent();
+        }
+        return this.internal.services;
+    }
+
+    /** Get DclConfig for production DCL based on the current state. */
     get productionConfig(): DclConfig {
         return { url: this.state.productionUrl };
     }
 
-    /** Get DclConfig for test DCL based on current state. */
+    /** Get DclConfig for test DCL based on the current state. */
     get testConfig(): DclConfig {
         return { url: this.state.testUrl };
     }
 
     /**
-     * Get DclConfig based on production flag.
+     * Get DclConfig based on a production flag.
      * @param isProduction - true for production, false for test
      */
     configForProduction(isProduction: boolean): DclConfig {
         return isProduction ? this.productionConfig : this.testConfig;
     }
 
-    /** Get or create the DclCertificateService with current configuration. */
+    /**
+     * Get or create the DclCertificateService with the current configuration.
+     * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
+     */
     get certificateService(): DclCertificateService {
-        if (!this.env.has(DclCertificateService)) {
-            new DclCertificateService(this.env, {
-                fetchTestCertificates: this.state.fetchTestCertificates,
-                fetchGithubCertificates: this.state.fetchGithubCertificates,
-                dclConfig: this.productionConfig,
-                testDclConfig: this.state.fetchTestCertificates ? this.testConfig : undefined,
-            });
+        if (!this.internal.certificateService) {
+            if (!this.env.root.has(DclCertificateService)) {
+                new DclCertificateService(this.env, {
+                    fetchTestCertificates: this.state.fetchTestCertificates,
+                    fetchGithubCertificates: this.state.fetchGithubCertificates,
+                    dclConfig: this.productionConfig,
+                    testDclConfig: this.state.fetchTestCertificates ? this.testConfig : undefined,
+                });
+            }
+            this.internal.certificateService = this.#services.get(DclCertificateService);
         }
-        return this.env.get(DclCertificateService);
+        return this.internal.certificateService;
     }
 
-    /** Get or create the DclVendorInfoService with current configuration. */
+    /**
+     * Get or create the DclVendorInfoService with the current configuration.
+     * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
+     */
     get vendorInfoService(): DclVendorInfoService {
-        if (!this.env.has(DclVendorInfoService)) {
-            new DclVendorInfoService(this.env, {
-                dclConfig: this.productionConfig,
-            });
+        if (!this.internal.vendorInfoService) {
+            if (!this.env.root.has(DclVendorInfoService)) {
+                new DclVendorInfoService(this.env, {
+                    dclConfig: this.productionConfig,
+                });
+            }
+            this.internal.vendorInfoService = this.#services.get(DclVendorInfoService);
         }
-        return this.env.get(DclVendorInfoService);
+        return this.internal.vendorInfoService;
     }
 
-    /** Get or create the DclOtaUpdateService with current configuration. */
+    /**
+     * Get or create the DclOtaUpdateService with the current configuration.
+     * NOTE: The service might not be fully initialized, so use await service.construction to ensure before using it!
+     */
     get otaUpdateService(): DclOtaUpdateService {
-        if (!this.env.has(DclOtaUpdateService)) {
-            new DclOtaUpdateService(this.env, {
-                productionDclConfig: this.productionConfig,
-                testDclConfig: this.testConfig,
-            });
+        if (!this.internal.otaService) {
+            if (!this.env.root.has(DclOtaUpdateService)) {
+                new DclOtaUpdateService(this.env, {
+                    productionDclConfig: this.productionConfig,
+                    testDclConfig: this.testConfig,
+                });
+            }
+            this.internal.otaService = this.#services.get(DclOtaUpdateService);
         }
-        return this.env.get(DclOtaUpdateService);
+        return this.internal.otaService;
+    }
+
+    override async [Symbol.asyncDispose]() {
+        this.internal.otaService = undefined;
+        this.internal.certificateService = undefined;
+        this.internal.vendorInfoService = undefined;
+        await this.internal.services?.close();
+        await super[Symbol.asyncDispose]?.();
     }
 }
 
@@ -109,5 +144,12 @@ export namespace DclBehavior {
 
         /** Whether to fetch development certificates from GitHub (only when fetchTestCertificates is true). */
         fetchGithubCertificates = true;
+    }
+
+    export class Internal {
+        services?: SharedEnvironmentServices;
+        otaService?: DclOtaUpdateService;
+        certificateService?: DclCertificateService;
+        vendorInfoService?: DclVendorInfoService;
     }
 }

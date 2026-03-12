@@ -260,7 +260,6 @@ export class PairedNode {
     #decommissioned = false;
     readonly #peerAddress: PeerAddress;
     #closing = false;
-    #peer: Peer;
 
     /**
      * Endpoint structure change information that are checked when updating structure
@@ -324,7 +323,6 @@ export class PairedNode {
         this.#crypto = crypto;
         this.#clientNode = clientNode;
         this.#interactionClient = interactionClient;
-        this.#peer = peer;
 
         // Wire up observers -- these persist for the lifetime of this PairedNode
         this.#observers.on(changes, this.#handleNodeChange.bind(this));
@@ -351,6 +349,21 @@ export class PairedNode {
 
         this.#observers.on(peer.service.changed, () => {
             if (!peer.service.addresses.size && this.#connectionState === NodeStates.Reconnecting) {
+                this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
+            }
+        });
+        this.#observers.on(peer.sessions.deleted, () => {
+            if (peer.sessions.size) {
+                // We still have a session, do nothing
+                return;
+            }
+            if (peer.service.addresses.size) {
+                if (this.#connectionState === NodeStates.Connected) {
+                    // No session anymore, but still known addresses and state is "connected" - we do reconnection
+                    this.#setConnectionState(NodeStates.Reconnecting);
+                }
+            } else if (this.#connectionState === NodeStates.Reconnecting) {
+                // No session anymore, and we already were reconnecting, but also no known addresses - we wait for device discovery
                 this.#setConnectionState(NodeStates.WaitingForDeviceDiscovery);
             }
         });
@@ -763,9 +776,9 @@ export class PairedNode {
                 }
             }
         } else if (this.#connectionState === NodeStates.Connected) {
-            this.#setConnectionState(
-                this.#peer.service.addresses.size ? NodeStates.Reconnecting : NodeStates.WaitingForDeviceDiscovery,
-            );
+            // Subscription is not active anymore, and we were connected before, we use Reconnecting as state
+            // When all sessions disconnect, we go to WaitingForDiscovery
+            this.#setConnectionState(NodeStates.Reconnecting);
         }
     }
 

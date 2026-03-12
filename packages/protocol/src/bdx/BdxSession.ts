@@ -189,6 +189,11 @@ export class BdxSession {
         return this.#messenger.exchange.session.peerAddress;
     }
 
+    get session() {
+        SecureSession.assert(this.#messenger.exchange.session);
+        return this.#messenger.exchange.session;
+    }
+
     async close(error?: unknown) {
         if (this.#isClosed) {
             return;

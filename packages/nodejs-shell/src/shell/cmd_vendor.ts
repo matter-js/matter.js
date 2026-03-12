@@ -20,7 +20,8 @@ export default function commands(theNode: MatterNode) {
                     () => {},
                     async () => {
                         await theNode.start();
-                        const vendors = [...theNode.vendorInfoService.vendors.values()];
+                        const vendorService = await theNode.vendorInfoService();
+                        const vendors = [...vendorService.vendors.values()];
 
                         if (vendors.length === 0) {
                             console.log("No vendor information found in storage.");
@@ -71,7 +72,7 @@ export default function commands(theNode: MatterNode) {
                         }
 
                         await theNode.start();
-                        const vendor = theNode.vendorInfoService.infoFor(vendorId);
+                        const vendor = (await theNode.vendorInfoService()).infoFor(vendorId);
                         if (!vendor) {
                             console.error(`Vendor with ID ${vendorIdStr} not found`);
                             return;
@@ -82,18 +83,65 @@ export default function commands(theNode: MatterNode) {
                     },
                 )
                 .command(
+                    "product <vendor-id> <product-id>",
+                    "Fetch and display product details from DCL for a vendor/product ID combination",
+                    yargs => {
+                        return yargs
+                            .positional("vendor-id", {
+                                describe: "Vendor ID (hex format like 0xFFF1 or decimal)",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("product-id", {
+                                describe: "Product ID (hex format like 0x8000 or decimal)",
+                                type: "string",
+                                demandOption: true,
+                            });
+                    },
+                    async argv => {
+                        const { "vendor-id": vendorIdStr, "product-id": productIdStr } = argv;
+
+                        const vendorId = vendorIdStr.startsWith("0x")
+                            ? parseInt(vendorIdStr.replace(/^0x/i, ""), 16)
+                            : parseInt(vendorIdStr, 10);
+                        const productId = productIdStr.startsWith("0x")
+                            ? parseInt(productIdStr.replace(/^0x/i, ""), 16)
+                            : parseInt(productIdStr, 10);
+
+                        if (!isFinite(vendorId)) {
+                            console.error(`Error: Invalid vendor ID "${vendorIdStr}"`);
+                            return;
+                        }
+                        if (!isFinite(productId)) {
+                            console.error(`Error: Invalid product ID "${productIdStr}"`);
+                            return;
+                        }
+
+                        await theNode.start();
+                        const product = await (await theNode.vendorInfoService()).productInfoFor(vendorId, productId);
+                        if (!product) {
+                            console.error(
+                                `Product with vendor ID ${vendorIdStr} and product ID ${productIdStr} not found in DCL`,
+                            );
+                            return;
+                        }
+
+                        console.log("\nProduct Details:");
+                        console.log(JSON.stringify(product, null, 2));
+                    },
+                )
+                .command(
                     "update",
                     "Update vendor information from DCL",
                     () => {},
                     async () => {
                         await theNode.start();
+                        const vendorService = await theNode.vendorInfoService();
                         console.log("Updating vendor information from DCL...");
 
                         try {
-                            await theNode.vendorInfoService.update();
-                            console.log(
-                                `Successfully updated. ${theNode.vendorInfoService.vendors.size} vendor(s) now available.`,
-                            );
+                            await vendorService.update();
+                            console.log(`Successfully updated. ${vendorService.vendors.size} vendor(s) now available.`);
                         } catch (error) {
                             console.error(
                                 `Failed to update vendor information: ${error instanceof Error ? error.message : error}`,
