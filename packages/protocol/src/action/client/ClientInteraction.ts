@@ -66,6 +66,7 @@ const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
     pathKey: string;
+    network?: string;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
@@ -503,6 +504,7 @@ export class ClientInteraction<
         const pending: PendingCommand = {
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
             pathKey,
+            network: request.network,
             resolve: resolver,
             reject: rejecter,
         };
@@ -652,8 +654,12 @@ export class ClientInteraction<
 
             logger.debug(`Executing ${invokeRequests.length} command(s)${isSingleCommand ? "" : " (batched)"}`);
 
+            // Preserve the network profile from the queued commands (all commands in a batch share the same
+            // ClientInteraction so they will normally have the same network; pick the first defined value)
+            const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
+
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            const batchRequest = Invoke({ commands: invokeRequests }) as ClientInvoke;
+            const batchRequest = { ...Invoke({ commands: invokeRequests }), network: batchNetwork } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke

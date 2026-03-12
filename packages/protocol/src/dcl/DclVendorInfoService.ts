@@ -17,9 +17,18 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { DclClient } from "./DclClient.js";
+import {
+    CommissioningFlowType,
+    DeviceModelDclSchema,
+    DeviceTypeId,
+    DiscoveryCapabilitiesSchema,
+    EnhancedSetupFlowOptionsSchema,
+    TypeFromBitmapSchema,
+} from "@matter/types";
+import { PairingHintBitmapSchema } from "../advertisement/PairingHintBitmap.js";
+import { DclClient, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig } from "./DclConfig.js";
-import { DclVendorInfo } from "./DclRestApiTypes.js";
+import { DclErrorCodes, DclVendorInfo } from "./DclRestApiTypes.js";
 
 const logger = Logger.get("DclVendorInfoService");
 
@@ -33,6 +42,94 @@ export type VendorInfo = {
     companyPreferredName: string;
     vendorLandingPageUrl: string;
     creator: string;
+};
+
+/**
+ * Normalized product information from DCL, with bitmaps decoded and wire-format
+ * internals (vid, pid, schemaVersion, TC digest/size) stripped.
+ */
+export type ProductInfo = {
+    /** Primary Device Type identifier for the device, e.g. 0x000A for Door Lock. */
+    deviceTypeID: DeviceTypeId;
+
+    /** Human-readable product name. Matches the ProductName field in the Basic Information Cluster. */
+    productName: string;
+
+    /** Human-readable product label. Matches the ProductLabel field in the Basic Information Cluster. */
+    productLabel: string;
+
+    /**
+     * Part number for this product. Matches the PartNumber field in the Basic Information Cluster.
+     * Multiple products sharing the same ProductID (e.g. different regional packaging or colors)
+     * may have different part numbers.
+     */
+    partNumber: string;
+
+    /**
+     * Device discovery technologies supported by this device — whether it supports BLE,
+     * IP network, or Wi-Fi Public Action Frame for discovery.
+     */
+    discoveryCapabilities: TypeFromBitmapSchema<typeof DiscoveryCapabilitiesSchema>;
+
+    /**
+     * Commissioning flow type: Standard (device enters commissioning on power-up),
+     * UserIntent (user action required), or Custom (vendor-specified means needed).
+     */
+    commissioningFlow: CommissioningFlowType;
+
+    /** Vendor-specific URL to initiate commissioning when flow is Custom. */
+    commissioningCustomFlowUrl?: string;
+
+    /**
+     * Hints for how to put a not-yet-commissioned device into commissioning mode,
+     * e.g. power cycle, press reset button, or use the device manual.
+     */
+    commissioningModeInitialStepsHint: TypeFromBitmapSchema<typeof PairingHintBitmapSchema>;
+
+    /** Pairing instruction text for initial commissioning steps that require user guidance. */
+    commissioningModeInitialStepsInstruction?: string;
+
+    /**
+     * Hints for how to put an already-commissioned device back into commissioning mode,
+     * e.g. via an existing Administrator or by pressing the setup button.
+     */
+    commissioningModeSecondaryStepsHint: TypeFromBitmapSchema<typeof PairingHintBitmapSchema>;
+
+    /** Pairing instruction text for secondary commissioning steps that require user guidance. */
+    commissioningModeSecondaryStepsInstruction?: string;
+
+    /** Vendor URL to help users resolve commissioning failures. */
+    commissioningFallbackUrl?: string;
+
+    /** Link to the product's user manual. */
+    userManualUrl?: string;
+
+    /** Link to the product's support page. */
+    supportUrl?: string;
+
+    /** Link to the product's web page. Matches the ProductURL field in the Basic Information Cluster. */
+    productUrl?: string;
+
+    /** Link to the Localized String File for this product. */
+    lsfUrl?: string;
+
+    /** Version number of the Localized String File — increases with each published revision. */
+    lsfRevision?: number;
+
+    /**
+     * Configuration flags for the Enhanced Setup Flow, e.g. whether Terms and Conditions
+     * must be shown during initial commissioning.
+     */
+    enhancedSetupFlowOptions?: TypeFromBitmapSchema<typeof EnhancedSetupFlowOptionsSchema>;
+
+    /** Link to the Enhanced Setup Flow Terms and Conditions file. */
+    enhancedSetupFlowTCUrl?: string;
+
+    /** Version number of the Terms and Conditions file — increases with each published revision. */
+    enhancedSetupFlowTCRevision?: number;
+
+    /** Vendor URL to resolve functionality limitations after Terms and Conditions change. */
+    enhancedSetupFlowMaintenanceUrl?: string;
 };
 
 /**
@@ -119,6 +216,90 @@ export class DclVendorInfoService {
             await this.#fetchPromise;
         } catch (error) {
             logger.info("Error updating vendor information", error);
+        }
+    }
+
+    /**
+     * Fetch product details for a given vendor ID and product ID from DCL.
+     * Returns undefined if the product is not found or the service is closed.
+     */
+    async productInfoFor(vendorId: number, productId: number): Promise<ProductInfo | undefined> {
+        if (this.#closed) {
+            return undefined;
+        }
+        try {
+            const dclClient = new DclClient(this.#options.dclConfig ?? DclConfig.production);
+            const model = await dclClient.fetchModelByVidPid(vendorId, productId, this.#options);
+            return this.#normalizeProductModel(model);
+        } catch (error) {
+            if (error instanceof MatterDclResponseError && error.response.code === DclErrorCodes.NotFound) {
+                logger.debug("Product not found in DCL", Diagnostic.dict({ vendorId, productId }));
+                return undefined;
+            }
+            throw error;
+        }
+    }
+
+    #normalizeProductModel(model: DeviceModelDclSchema): ProductInfo | undefined {
+        const {
+            deviceTypeID,
+            productName,
+            productLabel,
+            partNumber,
+            discoveryCapabilitiesBitmask,
+            commissioningCustomFlow,
+            commissioningCustomFlowUrl,
+            commissioningModeInitialStepsHint,
+            commissioningModeInitialStepsInstruction,
+            commissioningModeSecondaryStepsHint,
+            commissioningModeSecondaryStepsInstruction,
+            commissioningFallbackUrl,
+            userManualUrl,
+            supportUrl,
+            productUrl,
+            lsfUrl,
+            lsfRevision,
+            enhancedSetupFlowOptions,
+            enhancedSetupFlowTCUrl,
+            enhancedSetupFlowTCRevision,
+            enhancedSetupFlowMaintenanceUrl,
+        } = model;
+        try {
+            return {
+                deviceTypeID,
+                productName,
+                productLabel,
+                partNumber,
+                discoveryCapabilities: DiscoveryCapabilitiesSchema.decode(discoveryCapabilitiesBitmask),
+                commissioningFlow: commissioningCustomFlow as CommissioningFlowType,
+                commissioningCustomFlowUrl,
+                commissioningModeInitialStepsHint: PairingHintBitmapSchema.decode(commissioningModeInitialStepsHint),
+                commissioningModeInitialStepsInstruction,
+                commissioningModeSecondaryStepsHint: PairingHintBitmapSchema.decode(
+                    commissioningModeSecondaryStepsHint,
+                ),
+                commissioningModeSecondaryStepsInstruction,
+                commissioningFallbackUrl,
+                userManualUrl,
+                supportUrl,
+                productUrl,
+                lsfUrl,
+                lsfRevision,
+                enhancedSetupFlowOptions:
+                    enhancedSetupFlowOptions !== undefined
+                        ? EnhancedSetupFlowOptionsSchema.decode(enhancedSetupFlowOptions)
+                        : undefined,
+                enhancedSetupFlowTCUrl,
+                enhancedSetupFlowTCRevision,
+                enhancedSetupFlowMaintenanceUrl,
+            };
+        } catch (error) {
+            logger.warn(
+                "Invalid DCL product entry",
+                Diagnostic.dict({ vendorId: model.vid, productId: model.pid }),
+                error,
+            );
+            return undefined;
         }
     }
 
