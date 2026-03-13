@@ -5,7 +5,15 @@
  */
 
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
-import { Environment, Logger, ObserverGroup, StorageContext, StorageManager, StorageService } from "@matter/general";
+import {
+    Environment,
+    Filesystem,
+    Logger,
+    ObserverGroup,
+    StorageContext,
+    StorageManager,
+    StorageService,
+} from "@matter/general";
 import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
@@ -95,10 +103,9 @@ export class MatterNode {
                 },
             });
 
-            const storageService = this.commissioningController.env.get(StorageService);
-            const baseLocation = storageService.location;
-            if (baseLocation !== undefined) {
-                this.#storageLocation = join(baseLocation, id);
+            const env = this.commissioningController.env;
+            if (env.has(Filesystem)) {
+                this.#storageLocation = join(env.get(Filesystem).path, id);
             }
 
             if (resetStorage) {
@@ -107,7 +114,7 @@ export class MatterNode {
 
             // We side open a storage with the same ID as the ServerNode but only care about the "Node" sub context which
             // is consistent.
-            this.#storageManager = await storageService.open(id);
+            this.#storageManager = await env.get(StorageService).open(id);
             this.#storageContext = this.#storageManager.createContext("Node");
 
             // Read DCL test certificates setting

@@ -309,8 +309,10 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         env.get(PeerSet).exchanges = exchanges;
 
         // Prevent new connections when aborted
-        this.abortSignal.addEventListener("abort", () =>
-            this.owner.env.maybeGet(InteractionServer)?.blockNewActivity(),
+        this.abortSignal.addEventListener(
+            "abort",
+            () => this.owner.env.maybeGet(InteractionServer)?.blockNewActivity(),
+            { once: true },
         );
 
         await this.owner.act(agent => this.owner.lifecycle.online.emit(agent.context));

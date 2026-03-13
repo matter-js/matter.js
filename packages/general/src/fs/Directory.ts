@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { MaybePromise } from "../util/Promises.js";
 import { File } from "./File.js";
 import { FilesystemNode } from "./FilesystemNode.js";
 
@@ -94,6 +95,16 @@ export abstract class Directory extends FilesystemNode {
             }
         }
         return result;
+    }
+
+    /**
+     * Acquire an exclusive lock on this directory.  Returns a release function.
+     *
+     * The default implementation is a no-op.  Platform-specific subclasses (e.g. NodeJsDirectory) override this to
+     * provide real locking with stale-lock detection.
+     */
+    lock(): MaybePromise<() => MaybePromise<void>> {
+        return () => {};
     }
 }
 

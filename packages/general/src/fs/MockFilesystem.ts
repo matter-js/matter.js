@@ -588,6 +588,28 @@ class MockFileHandle extends File.Handle {
         node.mtime = new Date();
     }
 
+    cursor(max: number): File.Cursor {
+        return new MockCursor(this.#segments, this.#root, max);
+    }
+
+    async truncate(size?: number): Promise<void> {
+        if (this.#closed) {
+            throw new FileTypeError("File handle is closed");
+        }
+        const node = resolvePath(this.#segments, this.#root);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        const s = size ?? 0;
+        if (s === 0) {
+            node.content = new Uint8Array(0);
+        } else {
+            const content = node.content ?? new Uint8Array(0);
+            node.content = content.slice(0, s);
+        }
+        node.mtime = new Date();
+    }
+
     async fsync(): Promise<void> {
         if (this.#closed) {
             throw new FileTypeError("File handle is closed");
@@ -619,5 +641,28 @@ class MockFileHandle extends File.Handle {
             parent.children.delete(this.name);
         }
         this.#closed = true;
+    }
+}
+
+class MockCursor extends File.Cursor {
+    readonly #segments: string[];
+    readonly #root: MockNode;
+
+    constructor(segments: string[], root: MockNode, max: number) {
+        super(max);
+        this.#segments = segments;
+        this.#root = root;
+    }
+
+    protected override async readAt(position: number, length: number, copy?: boolean): Promise<Uint8Array> {
+        const node = resolvePath(this.#segments, this.#root);
+        if (!node) {
+            throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
+        }
+        const content = node.content ?? new Uint8Array(0);
+        const start = Math.min(position, content.length);
+        const end = Math.min(start + length, content.length);
+        // Mock is in-memory so copy vs shared is just slice vs subarray
+        return copy ? content.slice(start, end) : content.subarray(start, end);
     }
 }

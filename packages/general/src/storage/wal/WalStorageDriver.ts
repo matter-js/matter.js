@@ -12,7 +12,8 @@ import { Bytes } from "#util/Bytes.js";
 import { Gzip } from "#util/Gzip.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import type { Directory } from "../../fs/Directory.js";
-import { type CloneableStorage, StorageDriver, StorageError } from "../StorageDriver.js";
+import type { DataNamespace } from "../DataNamespace.js";
+import { type CloneableStorage, FilesystemStorageDriver, StorageDriver, StorageError } from "../StorageDriver.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import {
@@ -28,7 +29,7 @@ import { WalSnapshot } from "./WalSnapshot.js";
 import { WalTransaction, applyCommit } from "./WalTransaction.js";
 import { WalWriter } from "./WalWriter.js";
 
-const logger = Logger.get("WalStorage");
+const logger = Logger.get("WalStorageDriver");
 
 type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 
@@ -38,11 +39,11 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
  * Data is loaded from the snapshot + WAL on first read and cached until a write invalidates the cache.  This keeps
  * memory free during steady-state operation when only writes occur.
  */
-export class WalStorage extends StorageDriver implements CloneableStorage {
+export class WalStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
     static readonly id = "wal";
 
-    static create(dir: Directory, descriptor: WalStorage.Descriptor) {
-        return new WalStorage(dir, {
+    static create(namespace: DataNamespace, descriptor: WalStorageDriver.Descriptor) {
+        return new WalStorageDriver(namespace, {
             maxSegmentSize: descriptor.maxSegmentSize,
             fsync: descriptor.fsync,
             compressSnapshot: descriptor.compressSnapshot,
@@ -52,7 +53,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
     }
 
     readonly #storageDir: Directory;
-    readonly #options: WalStorage.Options;
+    readonly #options: WalStorageDriver.Options;
     #cache?: StoreData;
     #abort = new Abort();
     #workers = new BasicMultiplex();
@@ -65,9 +66,9 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
     #cleaner?: WalCleaner;
     #compressSnapshot = true;
 
-    constructor(storageDir: Directory, options?: WalStorage.Options) {
-        super();
-        this.#storageDir = storageDir;
+    constructor(namespace?: DataNamespace, options?: WalStorageDriver.Options) {
+        super(namespace);
+        this.#storageDir = options?.storageDir ?? this.root!.directory;
         this.#options = options ?? {};
     }
 
@@ -75,10 +76,12 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         return this.#initialized;
     }
 
-    async initialize(): Promise<void> {
+    override async initialize(): Promise<void> {
         if (this.#initialized) {
-            throw new StorageError("WalStorage already initialized");
+            throw new StorageError("WalStorageDriver already initialized");
         }
+
+        await super.initialize();
 
         this.#abort = new Abort();
         this.#workers = new BasicMultiplex();
@@ -92,7 +95,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         const walDir = this.#storageDir.directory("wal");
         await walDir.mkdir();
 
-        const compressLog = this.#options.compressLog ?? WalStorage.defaults.compressLog;
+        const compressLog = this.#options.compressLog ?? WalStorageDriver.defaults.compressLog;
 
         this.#reader = new WalReader(walDir);
         this.#writer = new WalWriter(walDir, {
@@ -104,9 +107,9 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
                   }
                 : undefined,
         });
-        this.#compressSnapshot = this.#options.compressSnapshot ?? WalStorage.defaults.compressSnapshot;
+        this.#compressSnapshot = this.#options.compressSnapshot ?? WalStorageDriver.defaults.compressSnapshot;
 
-        const headSnapshot = this.#options.headSnapshot ?? WalStorage.defaults.headSnapshot;
+        const headSnapshot = this.#options.headSnapshot ?? WalStorageDriver.defaults.headSnapshot;
         this.#cleaner = new WalCleaner(
             walDir,
             headSnapshot
@@ -119,13 +122,13 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         );
 
         // Start background workers
-        const snapshotInterval = this.#options.snapshotInterval ?? WalStorage.defaults.snapshotInterval;
+        const snapshotInterval = this.#options.snapshotInterval ?? WalStorageDriver.defaults.snapshotInterval;
         this.#workers.add(
             this.#runWorker("wal-snapshot", snapshotInterval, () => this.#runSnapshot()),
             "wal-snapshot",
         );
 
-        const cleanInterval = this.#options.cleanInterval ?? WalStorage.defaults.cleanInterval;
+        const cleanInterval = this.#options.cleanInterval ?? WalStorageDriver.defaults.cleanInterval;
         if (cleanInterval !== undefined) {
             this.#workers.add(
                 this.#runWorker("wal-clean", cleanInterval, () => this.#runClean()),
@@ -136,7 +139,7 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         this.#initialized = true;
     }
 
-    async close(): Promise<void> {
+    override async close(): Promise<void> {
         this.#abort();
         await this.#workers;
 
@@ -149,6 +152,8 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         await this.#writer?.close();
         this.#cache = undefined;
         this.#initialized = false;
+
+        await super.close();
     }
 
     async clone(): Promise<StorageDriver> {
@@ -161,8 +166,8 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
         const tempDir = this.#storageDir.fs.tempDirectory();
         await this.#storageDir.fs.copy(this.#storageDir, tempDir);
 
-        // Return a new WalStorage backed by the copy
-        const clone = new WalStorage(tempDir, this.#options);
+        // Return a new WalStorageDriver backed by the copy (no root lock for the clone)
+        const clone = new WalStorageDriver(undefined, { ...this.#options, storageDir: tempDir });
         await clone.initialize();
         return clone;
     }
@@ -502,12 +507,12 @@ export class WalStorage extends StorageDriver implements CloneableStorage {
 
     #assertInitialized(): void {
         if (!this.#initialized) {
-            throw new StorageError("WalStorage is not initialized");
+            throw new StorageError("WalStorageDriver is not initialized");
         }
     }
 }
 
-export namespace WalStorage {
+export namespace WalStorageDriver {
     export interface Descriptor extends StorageDriver.Descriptor {
         /**
          * Maximum WAL segment size in bytes.
@@ -536,6 +541,12 @@ export namespace WalStorage {
     }
 
     export interface Options {
+        /**
+         * Override the storage directory.  When omitted the directory is derived from the root passed to the
+         * constructor.  Used by {@link WalStorageDriver.clone} to point at a temporary copy.
+         */
+        storageDir?: Directory;
+
         /**
          * Maximum WAL segment size in bytes before the writer rotates to a new file.
          */
@@ -581,5 +592,5 @@ export namespace WalStorage {
         compressSnapshot: Gzip.isAvailable,
         compressLog: Gzip.isAvailable,
         headSnapshot: true,
-    } as const satisfies { [K in keyof Required<Options>]: Options[K] };
+    } as const satisfies { [K in keyof Required<Omit<Options, "storageDir">>]: Omit<Options, "storageDir">[K] };
 }

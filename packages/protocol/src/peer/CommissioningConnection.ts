@@ -16,6 +16,7 @@ import {
     MatterAggregateError,
     NoResponseTimeoutError,
     ServerAddress,
+    TimeoutError,
     UnexpectedDataError,
 } from "@matter/general";
 import { CommissioningConnectionAttempt, CommissioningConnectionPool } from "./CommissioningConnectionPool.js";
@@ -35,10 +36,11 @@ const LOSER_CLEANUP_BUDGET_MS = 5000;
  * parallel.  This is used when addresses are already known (e.g. from a prior mDNS discovery or a
  * pre-configured address list).
  *
- * Each device receives exactly one concurrent PASE attempt at a time.  If an attempt fails with a credential
- * error the device is permanently dropped.  If it fails with a transient network/timeout error the remaining
- * addresses for that device are still in-flight.  The process completes when one session is established, all
- * candidates are exhausted, or the overall timeout fires.
+ * A PASE attempt is launched for each (device, address) candidate, so a single device may have multiple concurrent
+ * attempts if it was discovered at multiple addresses.  If an attempt fails with a credential error the device is
+ * permanently dropped.  If it fails with a transient network/timeout error the remaining addresses for that device
+ * are still in-flight.  The process completes when one session is established, all candidates are exhausted, or the
+ * overall timeout fires.
  *
  * When the first PASE session is established the abort signal passed to
  * {@link CommissioningConnection.Options.establishSession} fires on all remaining in-flight attempts, allowing
@@ -148,6 +150,13 @@ export async function CommissioningConnection(
         throw lastNonRetryableError;
     }
     if (abort.aborted && lastError === undefined) {
+        // If the abort was triggered externally (e.g. caller cancelled), propagate that error rather than masking it
+        // as a timeout.  A TimeoutError from our own timer is the only case that maps to PairRetransmissionLimitReachedError.
+        const reason = abort.reason;
+        if (reason !== undefined && !(reason instanceof TimeoutError)) {
+            // External cancellation — propagate as-is rather than masking as a fake timeout
+            throw reason;
+        }
         throw new PairRetransmissionLimitReachedError("Failed to connect on any discovered server before timeout");
     }
     if (lastError !== undefined) {

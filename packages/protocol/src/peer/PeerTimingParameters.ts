@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Duration, Minutes, Seconds } from "@matter/general";
+import { Duration, merge as mergeObjects, Minutes, Seconds } from "@matter/general";
 
 /**
  * Parameters that control network timing for Matter sessions controlled by matter.js.
@@ -88,6 +88,18 @@ export function PeerTimingParameters(options?: Partial<PeerTimingParameters>) {
 }
 
 export namespace PeerTimingParameters {
+    /**
+     * Merge overrides on top of a base set of timing parameters.
+     *
+     * Unlike calling {@link PeerTimingParameters} directly (which merges on top of {@link defaults}), this starts from
+     * an arbitrary base.  Only override fields that are explicitly defined and non-undefined are applied.
+     */
+    export function merge(base: PeerTimingParameters, overrides: Partial<PeerTimingParameters>): PeerTimingParameters {
+        const result = mergeObjects(base, overrides) as Internal;
+        result[complete] = true;
+        return result;
+    }
+
     // TODO - tune these
     export const defaults: PeerTimingParameters = {
         defaultConnectionTimeout: Seconds(90),

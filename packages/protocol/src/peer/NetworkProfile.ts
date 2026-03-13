@@ -12,6 +12,7 @@ import {
     Environmental,
     Logger,
     MatterError,
+    merge,
     Millis,
     Seconds,
     Semaphore,
@@ -72,20 +73,9 @@ export class NetworkProfiles {
             const override = options[key];
             if (override !== undefined) {
                 const { connect, ...rest } = override;
-                const merged = { ...base[key] };
-                for (const [k, v] of Object.entries(rest)) {
-                    if (v !== undefined) {
-                        (merged as Record<string, unknown>)[k] = v;
-                    }
-                }
+                const merged = merge(base[key], rest);
                 if (connect !== undefined) {
-                    const connectMerged = { ...base[key].connect } as Record<string, unknown>;
-                    for (const [k, v] of Object.entries(connect)) {
-                        if (v !== undefined) {
-                            connectMerged[k] = v;
-                        }
-                    }
-                    merged.connect = connectMerged as unknown as NetworkProfiles.ConcreteLimits;
+                    merged.connect = merge(base[key].connect ?? {}, connect) as NetworkProfiles.ConcreteLimits;
                 }
                 base[key] = merged;
             }
