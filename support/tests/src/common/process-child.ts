@@ -6,7 +6,6 @@
 
 import { asError, InternalError, NodeId } from "@matter/main";
 import { Message } from "./message.js";
-import "./test-environment.js";
 
 /**
  * Set up child process after fork.
