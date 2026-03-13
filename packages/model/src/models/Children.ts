@@ -93,77 +93,83 @@ export interface InternalChildren<T extends Model = Model> extends Children<T> {
 
 type IndexEntry = Model | Model[];
 
-/**
- * Invoked by {@link Model} to instantiate a new child array.
- */
-export function Children<T extends Model = Model>(
-    initial: Children.InputIterable<T>,
-    adopt: (child: Model) => void,
-    reroot: (child: Model, isOwned: boolean) => boolean,
-    disown: (child: Model) => boolean,
-) {
-    // The actual list of children.  We maintain children as elements until they're accessed.  This allows us to build
-    // the full model without instantiating thousands of Models we may never use
-    const children = Array<Model.TaggedDefinition<T>>();
+class ChildList<T extends Model = Model> {
+    #children: Model.TaggedDefinition<T>[];
+    #reified = false;
+    #indices?: Map<
+        abstract new (...args: any[]) => Model,
+        {
+            byId: IndexEntry[];
+            byName: Record<string, IndexEntry>;
+        }
+    >;
+    #onNameChanged?: (name: string, model?: Model) => void;
+    #adopt: (child: Model) => void;
+    #reroot: (child: Model, isOwned: boolean) => boolean;
+    #disown: (child: Model) => boolean;
+    #proxy: InternalChildren<T>;
 
-    // Set to true when we are using the list of children operationally.  After reification the "children" array
-    // contains only models
-    let reified = false;
+    constructor(
+        initial: Children.InputIterable<T>,
+        adopt: (child: Model) => void,
+        reroot: (child: Model, isOwned: boolean) => boolean,
+        disown: (child: Model) => boolean,
+    ) {
+        this.#children = Array<Model.TaggedDefinition<T>>();
+        this.#adopt = adopt;
+        this.#reroot = reroot;
+        this.#disown = disown;
 
-    // Index data.  This is a map of constructor -> (ID index, name index)
-    //
-    // There is an index for any constructor for which lookup has been performed.  Note that models may appear in more
-    // than one constructor slot because we support lookup by any class in the inheritance hierarchy.  E.g.
-    // AttributeModel could appear in an index for both AttributeModel and ValueModel.
-    //
-    // ID indices are sparse arrays.  Name indices are objects.
-    //
-    // We allow for an array in the index slot because we allow duplicate IDs or names.  This may be illegal but we
-    // catch this in validation.  We only return the first entry on index lookup but this way the index remains correct
-    // if e.g. a duplicate entry is inserted temporarily then deleted.
-    //
-    // We also allow for a single Model in the index slot because name/ID duplicates are very uncommon so we can avoid
-    // the array > 99% of the time.
-    let indices:
-        | undefined
-        | Map<
-              abstract new (...args: any[]) => Model,
-              {
-                  byId: IndexEntry[];
-                  byName: Record<string, IndexEntry>;
-              }
-          >;
+        const impl = this;
+        this.#proxy = new Proxy(this.#children, {
+            get(target, name, receiver) {
+                return impl.#proxyGet(target, name, receiver);
+            },
+            set(_target, name, value, receiver) {
+                return impl.#proxySet(name, value, receiver);
+            },
+            deleteProperty(_target, p) {
+                return impl.#proxyDeleteProperty(p);
+            },
+        }) as InternalChildren<T>;
 
-    // Callback; used to maintain external indices
-    let onNameChanged: undefined | ((name: string, model?: Model) => void);
+        // Clone child array because if it references a former parent they'll disappear as we add
+        initial = [...initial];
+
+        this.#proxy.push(...initial);
+    }
+
+    get proxy() {
+        return this.#proxy;
+    }
 
     /**
-     * Enter "reified" mode (see comment above).
+     * Enter "reified" mode.  Converts all element children to Model instances.
      */
-    function reify() {
-        if (reified) {
+    #reify() {
+        if (this.#reified) {
             return;
         }
-        for (let i = 0; i < children.length; i++) {
-            let child = children[i];
+        for (let i = 0; i < this.#children.length; i++) {
+            let child = this.#children[i];
             if (child instanceof ModelConstructor) {
                 continue;
             }
             child = ModelConstructor.create(child as unknown as AnyElement) as T;
-            doAdopt(child);
-            children[i] = child;
+            this.#doAdopt(child);
+            this.#children[i] = child;
         }
-        reified = true;
+        this.#reified = true;
     }
 
     /**
      * Determine if an element has any Model children.  If so we need to upgrade to a model on insertion.
      */
-    function hasModel(child: BaseElement) {
+    #hasModel(child: BaseElement): boolean {
         if (child instanceof ModelConstructor) {
             return true;
         }
-        return child.children?.some(hasModel);
+        return child.children?.some(c => this.#hasModel(c)) ?? false;
     }
 
     /**
@@ -171,12 +177,12 @@ export function Children<T extends Model = Model>(
      * elements to models.  If child or any descendents is a model, we reify so models will have the correct parent
      * after insertion.
      */
-    function insertionFormOf(child: Model.TaggedDefinition<T>) {
+    #insertionFormOf(child: Model.TaggedDefinition<T>) {
         if (child instanceof ModelConstructor) {
             return child;
         }
 
-        if (reified || hasModel(child)) {
+        if (this.#reified || this.#hasModel(child)) {
             return ModelConstructor.create(child as unknown as AnyElement) as T;
         }
 
@@ -186,7 +192,7 @@ export function Children<T extends Model = Model>(
     /**
      * Add a model to a name or ID index.
      */
-    function indexInsert<K extends number | string>(index: Record<K, IndexEntry>, key: K, model: Model) {
+    #indexInsert<K extends number | string>(index: Record<K, IndexEntry>, key: K, model: Model) {
         const existing = index[key];
         if (existing) {
             if (Array.isArray(existing)) {
@@ -202,7 +208,7 @@ export function Children<T extends Model = Model>(
     /**
      * Remove a model from a name or ID index.
      */
-    function indexDelete<K extends number | string>(index: Record<K, IndexEntry>, key: K, model: Model) {
+    #indexDelete<K extends number | string>(index: Record<K, IndexEntry>, key: K, model: Model) {
         const existing = index[key];
         if (existing === model) {
             delete index[key];
@@ -223,30 +229,30 @@ export function Children<T extends Model = Model>(
     /**
      * Populate id and name indices for a specific child type.
      */
-    function buildIndex(type: Model.Type) {
-        reify();
+    #buildIndex(type: Model.Type) {
+        this.#reify();
 
         const byId = Array<Model>();
         const byName = {} as Record<string, Model>;
 
-        for (const child of children) {
+        for (const child of this.#children) {
             if (child instanceof type) {
                 // By caching effectiveId we're assuming that models without an ID do not shift position within their
                 // parent.  As this is effectively static data it should be OK
                 const id = child.effectiveId;
                 if (id !== undefined) {
-                    indexInsert(byId, id, child);
+                    this.#indexInsert(byId, id, child);
                 }
-                indexInsert(byName, child.name, child);
+                this.#indexInsert(byName, child.name, child);
             }
         }
 
         const slot = { byId, byName };
 
-        if (!indices) {
-            indices = new Map();
+        if (!this.#indices) {
+            this.#indices = new Map();
         }
-        indices.set(type, slot);
+        this.#indices.set(type, slot);
 
         return slot;
     }
@@ -254,42 +260,42 @@ export function Children<T extends Model = Model>(
     /**
      * Remove a child of the model.  Clears model from indices and clears "parent" field.
      */
-    function deleteChild(child: Model) {
-        if (indices) {
-            for (const [type, slot] of indices.entries()) {
+    #deleteChild(child: Model) {
+        if (this.#indices) {
+            for (const [type, slot] of this.#indices.entries()) {
                 if (child instanceof type) {
                     if (child.id) {
-                        indexDelete(slot.byId, child.id, child);
+                        this.#indexDelete(slot.byId, child.id, child);
                     }
-                    indexDelete(slot.byName, child.name, child);
+                    this.#indexDelete(slot.byName, child.name, child);
                 }
             }
         }
 
-        onNameChanged?.(child.name, undefined);
-        doDisown(child);
+        this.#onNameChanged?.(child.name, undefined);
+        this.#doDisown(child);
     }
 
     /**
      * Add a child of the model.  Adopts the model and adds to any applicable indices.
      */
-    function addChild(child: Model) {
-        if ((child.parent?.children as unknown) === children) {
+    #addChild(child: Model) {
+        if ((child.parent?.children as unknown) === this.#children) {
             return;
         }
 
-        if (indices) {
-            for (const [type, slot] of indices.entries()) {
+        if (this.#indices) {
+            for (const [type, slot] of this.#indices.entries()) {
                 if (child instanceof type) {
                     if (child.id) {
-                        indexInsert(slot.byId, child.id, child);
+                        this.#indexInsert(slot.byId, child.id, child);
                     }
-                    indexInsert(slot.byName, child.name, child);
+                    this.#indexInsert(slot.byName, child.name, child);
                 }
             }
         }
 
-        doAdopt(child);
+        this.#doAdopt(child);
     }
 
     /**
@@ -297,8 +303,8 @@ export function Children<T extends Model = Model>(
      *
      * Invoked when the child's parent changes.
      */
-    function doReroot(child: Model, isOwned: boolean) {
-        if (!reroot(child, isOwned) || !child.hasChildren) {
+    #doReroot(child: Model, isOwned: boolean) {
+        if (!this.#reroot(child, isOwned) || !child.hasChildren) {
             return;
         }
         (child.children as InternalChildren).rerootAll(isOwned);
@@ -309,37 +315,37 @@ export function Children<T extends Model = Model>(
      *
      * Invoked when the owner's root changes.  Only affects reified models.
      */
-    function rerootAll(isOwned: boolean) {
-        for (const child of children) {
+    #rerootAll(isOwned: boolean) {
+        for (const child of this.#children) {
             if (child instanceof ModelConstructor) {
-                doReroot(child, isOwned);
+                this.#doReroot(child, isOwned);
             }
         }
     }
 
-    function doAdopt(child: Model) {
-        adopt(child);
-        onNameChanged?.(child.name, child);
-        doReroot(child, true);
+    #doAdopt(child: Model) {
+        this.#adopt(child);
+        this.#onNameChanged?.(child.name, child);
+        this.#doReroot(child, true);
     }
 
-    function doDisown(child: Model) {
-        onNameChanged?.(child.name, undefined);
-        if (disown(child)) {
-            doReroot(child, false);
+    #doDisown(child: Model) {
+        this.#onNameChanged?.(child.name, undefined);
+        if (this.#disown(child)) {
+            this.#doReroot(child, false);
         }
     }
 
-    function get(type: typeof Model, idOrName: number | string) {
-        const value = all(type, idOrName);
+    #get(type: typeof Model, idOrName: number | string) {
+        const value = this.#all(type, idOrName);
         if (Array.isArray(value)) {
             return value[0];
         }
         return value;
     }
 
-    function all(type: typeof Model, idOrName?: number | string) {
-        const slot = indices?.get(type) ?? buildIndex(type);
+    #all(type: typeof Model, idOrName?: number | string) {
+        const slot = this.#indices?.get(type) ?? this.#buildIndex(type);
         if (idOrName === undefined) {
             return Object.values(slot.byName).flatMap(entry => entry);
         }
@@ -362,7 +368,7 @@ export function Children<T extends Model = Model>(
         return [result];
     }
 
-    function selectTypes(tags: Children.TagSelector): Model.Type[] {
+    #selectTypes(tags: Children.TagSelector): Model.Type[] {
         if (tags === undefined || tags === "*") {
             return [ModelConstructor];
         }
@@ -383,17 +389,17 @@ export function Children<T extends Model = Model>(
         return result;
     }
 
-    function indexLookup<T>(
+    #indexLookup<R>(
         selector: number | string,
         indexName: "byId" | "byName",
         allowedTags: Children.TagSelector,
         except: Set<Model> | undefined,
-        processor: (model: Model) => T,
+        processor: (model: Model) => R,
     ) {
-        for (const type of selectTypes(allowedTags)) {
-            let slot = indices?.get(type);
+        for (const type of this.#selectTypes(allowedTags)) {
+            let slot = this.#indices?.get(type);
             if (slot === undefined) {
-                slot = buildIndex(type);
+                slot = this.#buildIndex(type);
             }
 
             const index = slot[indexName] as Record<number | string, Model | Model[]>;
@@ -424,11 +430,11 @@ export function Children<T extends Model = Model>(
         }
     }
 
-    function indexApply(selector: (child: Model) => boolean, allowedTags: Children.TagSelector, except?: Set<Model>) {
-        for (const type of selectTypes(allowedTags)) {
-            let index = indices?.get(type)?.byName;
+    #indexApply(selector: (child: Model) => boolean, allowedTags: Children.TagSelector, except?: Set<Model>) {
+        for (const type of this.#selectTypes(allowedTags)) {
+            let index = this.#indices?.get(type)?.byName;
             if (!index) {
-                index = buildIndex(type).byName;
+                index = this.#buildIndex(type).byName;
             }
 
             for (const key in index) {
@@ -456,35 +462,35 @@ export function Children<T extends Model = Model>(
         }
     }
 
-    function select(selector: Children.Selector, allowedTags?: Children.TagSelector, except?: Set<Model>) {
-        reify();
+    #select(selector: Children.Selector, allowedTags?: Children.TagSelector, except?: Set<Model>) {
+        this.#reify();
 
         if (typeof selector === "string") {
-            return indexLookup(selector, "byName", allowedTags, except, model => model);
+            return this.#indexLookup(selector, "byName", allowedTags, except, model => model);
         }
 
         if (typeof selector === "number") {
-            return indexLookup(selector, "byId", allowedTags, except, model => model);
+            return this.#indexLookup(selector, "byId", allowedTags, except, model => model);
         }
 
-        return indexApply(selector, allowedTags, except);
+        return this.#indexApply(selector, allowedTags, except);
     }
 
-    function selectAll(
+    #selectAll(
         selector: Exclude<Children.Selector, (args: any) => any>,
         allowedTags?: Children.TagSelector,
         except?: Set<Model>,
     ) {
-        reify();
+        this.#reify();
 
         const results = Array<Model>();
 
         if (typeof selector === "string") {
-            indexLookup(selector, "byName", allowedTags, except, model => {
+            this.#indexLookup(selector, "byName", allowedTags, except, model => {
                 results.push(model);
             });
         } else {
-            indexLookup(selector, "byId", allowedTags, except, model => {
+            this.#indexLookup(selector, "byId", allowedTags, except, model => {
                 results.push(model);
             });
         }
@@ -492,39 +498,39 @@ export function Children<T extends Model = Model>(
         return results;
     }
 
-    function updateId(child: Model, oldId: number | undefined) {
-        if (!indices) {
+    #updateId(child: Model, oldId: number | undefined) {
+        if (!this.#indices) {
             return;
         }
-        for (const [type, slot] of indices.entries()) {
+        for (const [type, slot] of this.#indices.entries()) {
             if (child instanceof type) {
                 if (oldId !== undefined) {
-                    indexDelete(slot.byId, oldId, child);
+                    this.#indexDelete(slot.byId, oldId, child);
                 }
                 if (child.id !== undefined) {
-                    indexInsert(slot.byId, child.id, child);
+                    this.#indexInsert(slot.byId, child.id, child);
                 }
             }
         }
     }
 
-    function updateName(child: Model, oldName: string) {
-        if (onNameChanged) {
-            onNameChanged(oldName, undefined);
-            onNameChanged(child.name, child);
+    #updateName(child: Model, oldName: string) {
+        if (this.#onNameChanged) {
+            this.#onNameChanged(oldName, undefined);
+            this.#onNameChanged(child.name, child);
         }
 
-        if (!indices) {
+        if (!this.#indices) {
             return;
         }
 
-        for (const [type, slot] of indices.entries()) {
+        for (const [type, slot] of this.#indices.entries()) {
             if (child instanceof type) {
                 if (oldName !== undefined) {
-                    indexDelete(slot.byName, oldName, child);
+                    this.#indexDelete(slot.byName, oldName, child);
                 }
                 if (child.name !== undefined) {
-                    indexInsert(slot.byName, child.name, child);
+                    this.#indexInsert(slot.byName, child.name, child);
                 }
             }
         }
@@ -532,23 +538,23 @@ export function Children<T extends Model = Model>(
 
     // We implement "splice" for efficiency...  The default implementation moves elements one at a time, forcing us to
     // search the array to see if it's already present each time
-    function splice(index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]) {
+    #splice(index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]) {
         // Upgrade elements as necessary and adopt any new models
         toAdd = toAdd.map(child => {
-            child = insertionFormOf(child);
+            child = this.#insertionFormOf(child);
             if (child instanceof ModelConstructor) {
-                doAdopt(child);
+                this.#doAdopt(child);
             }
             return child;
         });
 
         // Perform the actual splice
-        const result = children.splice(index, deleteCount ?? 0, ...toAdd);
+        const result = this.#children.splice(index, deleteCount ?? 0, ...toAdd);
 
         // Convert deleted elements to models and disown elements that are already models
         return result.map(child => {
             if (child instanceof ModelConstructor) {
-                doDisown(child);
+                this.#doDisown(child);
             } else {
                 child = ModelConstructor.create(child as unknown as AnyElement) as T;
             }
@@ -556,14 +562,14 @@ export function Children<T extends Model = Model>(
         });
     }
 
-    function finalize() {
-        for (const child of self) {
+    #finalize() {
+        for (const child of this.#proxy) {
             (child as Model).finalize();
         }
-        Object.freeze(children);
+        Object.freeze(this.#children);
     }
 
-    function validateChild(value: unknown) {
+    #validateChild(value: unknown) {
         if (value instanceof ModelConstructor) {
             return;
         }
@@ -585,136 +591,145 @@ export function Children<T extends Model = Model>(
         }
     }
 
-    const self = new Proxy(children, {
-        get(_target, name, receiver) {
-            if (typeof name === "string" && name.match(/^\d+$/)) {
-                let child = children[name as unknown as number];
-                if (child && !(child instanceof ModelConstructor)) {
-                    child = ModelConstructor.create(child as unknown as AnyElement) as T;
-                    addChild(child);
-                    children[name as unknown as number] = child;
-                }
-
-                return child;
+    #proxyGet(_target: Model.TaggedDefinition<T>[], name: string | symbol, receiver: unknown) {
+        if (typeof name === "string" && name.match(/^\d+$/)) {
+            let child = this.#children[name as unknown as number];
+            if (child && !(child instanceof ModelConstructor)) {
+                child = ModelConstructor.create(child as unknown as AnyElement) as T;
+                this.#addChild(child);
+                this.#children[name as unknown as number] = child;
             }
 
+            return child;
+        }
+
+        switch (name) {
+            case "get":
+                return (type: typeof Model, idOrName: number | string) => this.#get(type, idOrName);
+
+            case "all":
+                return (type: typeof Model, idOrName?: number | string) => this.#all(type, idOrName);
+
+            case "select":
+                return (selector: Children.Selector, allowedTags?: Children.TagSelector, except?: Set<Model>) =>
+                    this.#select(selector, allowedTags, except);
+
+            case "selectAll":
+                return (
+                    selector: Exclude<Children.Selector, (args: any) => any>,
+                    allowedTags?: Children.TagSelector,
+                    except?: Set<Model>,
+                ) => this.#selectAll(selector, allowedTags, except);
+
+            case "updateId":
+                return (child: Model, oldId: number | undefined) => this.#updateId(child, oldId);
+
+            case "updateName":
+                return (child: Model, oldName: string) => this.#updateName(child, oldName);
+
+            case "splice":
+                return (index: number, deleteCount?: number, ...toAdd: Model.TaggedDefinition<T>[]) =>
+                    this.#splice(index, deleteCount, ...toAdd);
+
+            case "freeze":
+                return () => this.#finalize();
+
+            case "toString":
+                return () => `[Children: ${this.#children.length}]`;
+
+            case "rerootAll":
+                return (isOwned: boolean) => this.#rerootAll(isOwned);
+        }
+
+        return Reflect.get(this.#children, name, receiver);
+    }
+
+    #proxySet(name: string | symbol, value: any, receiver: unknown) {
+        if (typeof name !== "string" || !name.match(/^\d+$/)) {
             switch (name) {
-                case "get":
-                    return get;
-
-                case "all":
-                    return all;
-
-                case "select":
-                    return select;
-
-                case "selectAll":
-                    return selectAll;
-
-                case "updateId":
-                    return updateId;
-
-                case "updateName":
-                    return updateName;
-
-                case "splice":
-                    return splice;
-
-                case "freeze":
-                    return finalize;
-
-                case "toString":
-                    return () => `[Children: ${children.length}]`;
-
-                case "rerootAll":
-                    return rerootAll;
-            }
-
-            return Reflect.get(children, name, receiver);
-        },
-
-        set(_target, name, value, receiver) {
-            if (typeof name !== "string" || !name.match(/^\d+$/)) {
-                switch (name) {
-                    case "length":
-                        if (value > children.length) {
-                            // Do not allow preallocation that would create gaps
-                            return true;
-                        }
-                        break;
-
-                    case "onNameChanged":
-                        reify();
-                        onNameChanged = value;
+                case "length":
+                    if (value > this.#children.length) {
+                        // Do not allow preallocation that would create gaps
                         return true;
-                }
-                return Reflect.set(children, name, value, receiver);
-            }
-
-            validateChild(value);
-
-            const existing = children[name as unknown as number];
-            if (existing !== undefined) {
-                if (existing === value) {
-                    return true;
-                }
-                if (existing instanceof ModelConstructor) {
-                    deleteChild(existing);
-                }
-            }
-
-            let targetIndex = name as unknown as number;
-
-            if (value.parent?.children === self) {
-                const currentIndex = children.indexOf(value);
-                if (currentIndex !== -1) {
-                    children.splice(currentIndex, 1);
-
-                    if (currentIndex < targetIndex) {
-                        targetIndex--;
                     }
+                    break;
+
+                case "onNameChanged":
+                    this.#reify();
+                    this.#onNameChanged = value;
+                    return true;
+            }
+            return Reflect.set(this.#children, name, value, receiver);
+        }
+
+        this.#validateChild(value);
+
+        const existing = this.#children[name as unknown as number];
+        if (existing !== undefined) {
+            if (existing === value) {
+                return true;
+            }
+            if (existing instanceof ModelConstructor) {
+                this.#deleteChild(existing);
+            }
+        }
+
+        let targetIndex = name as unknown as number;
+
+        if (value.parent?.children === this.#proxy) {
+            const currentIndex = this.#children.indexOf(value);
+            if (currentIndex !== -1) {
+                this.#children.splice(currentIndex, 1);
+
+                if (currentIndex < targetIndex) {
+                    targetIndex--;
                 }
-            } else {
-                value = insertionFormOf(value);
-                if (value instanceof ModelConstructor) {
-                    addChild(value);
-                }
             }
-
-            if (targetIndex > children.length) {
-                targetIndex = children.length;
+        } else {
+            value = this.#insertionFormOf(value);
+            if (value instanceof ModelConstructor) {
+                this.#addChild(value);
             }
+        }
 
-            children[targetIndex] = value;
+        if (targetIndex > this.#children.length) {
+            targetIndex = this.#children.length;
+        }
 
-            return true;
-        },
+        this.#children[targetIndex] = value;
 
-        deleteProperty: (_target, p) => {
-            let child: undefined | Model.TaggedDefinition<T>;
+        return true;
+    }
 
-            if (typeof p === "string" && p.match(/^\d+$/)) {
-                child = children[p as unknown as number];
-            }
+    #proxyDeleteProperty(p: string | symbol) {
+        let child: undefined | Model.TaggedDefinition<T>;
 
-            // oxlint-disable-next-line @typescript-eslint/no-array-delete
-            delete children[p as unknown as number];
+        if (typeof p === "string" && p.match(/^\d+$/)) {
+            child = this.#children[p as unknown as number];
+        }
 
-            // Child may have been added elsewhere in the index so only delete if not still present
-            if (child instanceof ModelConstructor && !children.includes(child)) {
-                deleteChild(child);
-            }
+        // oxlint-disable-next-line @typescript-eslint/no-array-delete
+        delete this.#children[p as unknown as number];
 
-            return true;
-        },
-    });
+        // Child may have been added elsewhere in the index so only delete if not still present
+        if (child instanceof ModelConstructor && !this.#children.includes(child)) {
+            this.#deleteChild(child);
+        }
 
-    // Clone child array because if it references a former parent they'll disappear as we add
-    initial = [...initial];
+        return true;
+    }
+}
 
-    self.push(...initial);
-
-    return self as InternalChildren<T>;
+/**
+ * Invoked by {@link Model} to instantiate a new child array.
+ */
+export function Children<T extends Model = Model>(
+    initial: Children.InputIterable<T>,
+    adopt: (child: Model) => void,
+    reroot: (child: Model, isOwned: boolean) => boolean,
+    disown: (child: Model) => boolean,
+) {
+    return new ChildList(initial, adopt, reroot, disown).proxy;
 }
 
 export namespace Children {
