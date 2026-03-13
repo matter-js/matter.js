@@ -911,11 +911,17 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
-        const messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-            network: request.network ?? this.#network,
-            abort: session?.abort,
-            connectionTimeout: session?.connectionTimeout,
-        });
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: request.network ?? this.#network,
+                abort: session?.abort,
+                connectionTimeout: session?.connectionTimeout,
+            });
+        } catch (e) {
+            abort[Symbol.dispose]();
+            throw e;
+        }
 
         this.#interactions.add(request);
 
