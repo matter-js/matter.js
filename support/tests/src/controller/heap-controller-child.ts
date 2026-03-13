@@ -43,6 +43,7 @@ boot<ControllerMessage>({
 
     async snapshot(message) {
         await Time.sleep("settle", Seconds.one);
+        globalThis.gc?.();
         writeHeapSnapshot(message.path);
         return { path: message.path };
     },

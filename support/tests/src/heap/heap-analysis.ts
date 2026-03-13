@@ -162,13 +162,52 @@ export async function analyzeHeap(snapshotPath: string, outputDir: string, optio
     const retentionPaths: Record<string, RetentionPathEntry[]> = {};
 
     for (const typeName of trackedTypes ?? []) {
-        const entries: RetentionPathEntry[] = [];
+        // Collect all matching nodes, then sample evenly to get diverse retention paths
+        const matchingNodes: IHeapNode[] = [];
         heap.nodes.forEach((node: IHeapNode) => {
-            if (node.type === "object" && node.name === typeName && entries.length < 3) {
-                const path = traceRetentionPath(node, 15);
-                entries.push({ nodeId: node.id, nodeName: node.name, path });
+            if (node.type === "object" && node.name === typeName) {
+                matchingNodes.push(node);
             }
         });
+
+        // Categorize by direct referrer types
+        const referrerCategories = new Map<string, number>();
+        for (const node of matchingNodes) {
+            const referrers: IHeapEdge[] = node.referrers;
+            const category = referrers
+                .filter((e: IHeapEdge) => e.type !== "weak" && e.fromNode)
+                .map(
+                    (e: IHeapEdge) =>
+                        `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(${e.fromNode.type})`,
+                )
+                .join("; ");
+            referrerCategories.set(category, (referrerCategories.get(category) ?? 0) + 1);
+        }
+
+        // Log categories
+        const sorted = [...referrerCategories.entries()].sort((a, b) => b[1] - a[1]);
+        const entries: RetentionPathEntry[] = [];
+        entries.push({
+            nodeId: 0,
+            nodeName: `${matchingNodes.length} total instances`,
+            path: sorted.slice(0, 20).map(([cat, count]) => `${count}x: ${cat}`),
+        });
+
+        // Also trace a few non-module instances for deeper analysis
+        let tracedCount = 0;
+        for (const node of matchingNodes) {
+            if (tracedCount >= 5) break;
+            const referrers: IHeapEdge[] = node.referrers;
+            const isModule = referrers.some(
+                (e: IHeapEdge) => e.fromNode?.type === "hidden" && e.fromNode?.name?.includes("SourceTextModule"),
+            );
+            if (!isModule) {
+                const path = traceRetentionPath(node, 20);
+                entries.push({ nodeId: node.id, nodeName: node.name, path });
+                tracedCount++;
+            }
+        }
+
         if (entries.length > 0) {
             retentionPaths[typeName] = entries;
         }
