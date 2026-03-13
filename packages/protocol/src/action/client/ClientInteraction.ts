@@ -915,7 +915,7 @@ export class ClientInteraction<
         try {
             messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
                 network: request.network ?? this.#network,
-                abort: session?.abort,
+                abort,
                 connectionTimeout: session?.connectionTimeout,
             });
         } catch (e) {
