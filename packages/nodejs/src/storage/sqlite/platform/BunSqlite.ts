@@ -4,26 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SqliteStorage } from "../SqliteStorage.js";
 // @ts-expect-error - bun:sqlite is only available in Bun runtime
 import { Database } from "bun:sqlite";
 
+import type { DatabaseLike } from "../SqliteTypes.js";
+
 /**
- * `StorageSqliteDisk` for Bun
+ * Create a Bun SQLite database.
  *
- * DO NOT IMPORT DIRECTLY
- * (should import `PlatformSqlite.js`)
+ * DO NOT IMPORT DIRECTLY — use {@link SqliteStorageDriver.create} instead.
  */
-export class BunSqlite extends SqliteStorage {
-    constructor(path: string | null, clear = false) {
-        super({
-            databaseCreator: path =>
-                new Database(path, {
-                    strict: true,
-                    create: true,
-                }),
-            path,
-            clear,
-        });
-    }
+export function createBunDatabase(path: string): DatabaseLike {
+    return new Database(path, {
+        strict: true,
+        create: true,
+    });
 }

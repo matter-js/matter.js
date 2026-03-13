@@ -42,6 +42,7 @@ import { PeerUnreachableError } from "./PeerCommunicationError.js";
 import { PeerConnection } from "./PeerConnection.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerExchangeProvider } from "./PeerExchangeProvider.js";
+import { PeerTimingParameters } from "./PeerTimingParameters.js";
 import type { PhysicalDeviceProperties } from "./PhysicalDeviceProperties.js";
 
 const logger = Logger.get("Peer");
@@ -389,8 +390,12 @@ export class Peer {
         // Abort connection if a session is established from any source
         const added = this.#sessions.added.use(() => abort());
 
+        const timing = options?.timing
+            ? PeerTimingParameters.merge(this.#context.timing, options.timing)
+            : this.#context.timing;
+
         const kicker = new QuietObservable({
-            minimumEmitInterval: this.#context.timing.minimumTimeBetweenMrpKicks,
+            minimumEmitInterval: timing.minimumTimeBetweenMrpKicks,
             skipSuppressedEmits: true,
         });
 
@@ -399,6 +404,7 @@ export class Peer {
 
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
+                timing: options?.timing,
                 abort,
                 kicker,
             }).finally(() => {
@@ -453,6 +459,17 @@ export namespace Peer {
          * If true, {@link connectionTimeout} is not reduced if already connecting.
          */
         kick?: boolean;
+
+        /**
+         * Per-call overrides for timing parameters.
+         *
+         * Merged on top of the global {@link PeerSet.timing} for this connection only.
+         * Other concurrent or future connections are not affected.
+         *
+         * Note: if a connection process is already in progress for this peer, these overrides are not applied to the
+         * ongoing attempt.
+         */
+        timing?: Partial<PeerTimingParameters>;
     }
 }
 

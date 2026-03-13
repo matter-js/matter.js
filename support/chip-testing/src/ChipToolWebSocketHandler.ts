@@ -864,6 +864,7 @@ export class ChipToolWebSocketHandler {
                     this.#subscriptionData.push(data);
                 },
             });
+            this.#subscriptionData.length = 0;
             this.#subscriptionUpdated = updated;
             return {
                 results: values.map(entry => entry),
@@ -1090,6 +1091,7 @@ export class ChipToolWebSocketHandler {
                     });
                 },
             });
+            this.#subscriptionData.length = 0;
             this.#subscriptionUpdated = updated;
             return {
                 results: values.map(entry => ({
@@ -1140,6 +1142,7 @@ export class ChipToolWebSocketHandler {
                     });
                 },
             });
+            this.#subscriptionData.length = 0;
             this.#subscriptionUpdated = updated;
             return {
                 results: values.map(entry => ({

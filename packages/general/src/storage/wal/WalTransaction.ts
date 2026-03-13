@@ -9,7 +9,7 @@ import type { MaybePromise } from "#util/Promises.js";
 import { StorageTransaction } from "../StorageTransaction.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import type { WalCommit, WalCommitId, WalOp } from "./WalCommit.js";
-import type { WalStorage } from "./WalStorage.js";
+import type { WalStorageDriver } from "./WalStorageDriver.js";
 import type { WalWriter } from "./WalWriter.js";
 
 type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
@@ -29,7 +29,7 @@ export class WalTransaction extends StorageTransaction {
     readonly #writer: WalWriter;
     readonly #onCommit: WalCommitNotify;
 
-    constructor(storage: WalStorage, writer: WalWriter, onCommit: WalCommitNotify) {
+    constructor(storage: WalStorageDriver, writer: WalWriter, onCommit: WalCommitNotify) {
         super(storage);
         this.#writer = writer;
         this.#onCommit = onCommit;

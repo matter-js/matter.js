@@ -430,6 +430,17 @@ describe("ClientNode", () => {
         expect(peer1b).undefined;
     });
 
+    it("rejects delete after destroyed", async () => {
+        await using site = new MockSite();
+        const { controller } = await site.addCommissionedPair();
+
+        const peer1 = controller.peers.get("peer1")!;
+
+        await MockTime.resolve(peer1.decommission());
+
+        await expect(MockTime.resolve(peer1.delete())).rejectedWith("is closed");
+    });
+
     it("writes attributes on commit", async () => {
         // *** SETUP ***
 

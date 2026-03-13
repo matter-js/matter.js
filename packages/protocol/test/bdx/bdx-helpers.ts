@@ -3,7 +3,7 @@ import { BdxClient, BdxMessage, BdxMessenger, BdxProtocol, BdxStatusMessage, Sco
 import { Message } from "#codec/MessageCodec.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { SecureSession } from "#session/index.js";
-import { createPromise, MaybePromise, StorageBackendMemory, StorageManager } from "@matter/general";
+import { createPromise, MaybePromise, MemoryStorageDriver, StorageManager } from "@matter/general";
 import { BDX_PROTOCOL_ID, BdxMessageType, SecureMessageType } from "@matter/types";
 
 type MessageRecords = { type: BdxMessageType | SecureMessageType.StatusReport; data: any };
@@ -38,7 +38,7 @@ export async function bdxTransfer(params: {
     const serverExchangeData = new Array<MessageRecords>();
 
     // Create a storage manager with an in-memory backend.
-    const storage = new StorageManager(new StorageBackendMemory());
+    const storage = new StorageManager(new MemoryStorageDriver());
     storage.close = () => {};
     await storage.initialize();
     const clientStorage = new ScopedStorage(storage.createContext("Client"), "ota");

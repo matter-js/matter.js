@@ -976,6 +976,49 @@ export namespace Thermostat {
     export interface SetActiveScheduleRequest extends TypeFromSchema<typeof TlvSetActiveScheduleRequest> {}
 
     /**
+     * The value of Thermostat.requestType
+     */
+    export enum RequestType {
+        BeginWrite = 0,
+        CommitWrite = 1,
+        RollbackWrite = 2
+    }
+
+    /**
+     * Input to the Thermostat atomicRequest command
+     */
+    export const TlvAtomicRequest = TlvObject({
+        requestType: TlvField(0, TlvEnum<RequestType>()),
+        attributeRequests: TlvField(1, TlvArray(TlvAttributeId)),
+        timeout: TlvOptionalField(2, TlvUInt16)
+    });
+
+    /**
+     * Input to the Thermostat atomicRequest command
+     */
+    export interface AtomicRequest extends TypeFromSchema<typeof TlvAtomicRequest> {}
+
+    /**
+     * The value of Thermostat.entry
+     */
+    export const TlvEntry = TlvObject({
+        attributeId: TlvField(0, TlvAttributeId),
+        statusCode: TlvField(1, TlvEnum<Status>())
+    });
+
+    /**
+     * The value of Thermostat.entry
+     */
+    export interface Entry extends TypeFromSchema<typeof TlvEntry> {}
+
+    export const TlvAtomicResponse = TlvObject({
+        statusCode: TlvField(0, TlvEnum<Status>()),
+        attributeStatus: TlvField(1, TlvArray(TlvEntry)),
+        timeout: TlvOptionalField(2, TlvUInt16)
+    });
+    export interface AtomicResponse extends TypeFromSchema<typeof TlvAtomicResponse> {}
+
+    /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5
      */
     export const HvacSystemType = {
@@ -1398,49 +1441,6 @@ export namespace Thermostat {
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
      */
     export interface SetpointRaiseLowerRequest extends TypeFromSchema<typeof TlvSetpointRaiseLowerRequest> {}
-
-    /**
-     * The value of Thermostat.requestType
-     */
-    export enum RequestType {
-        BeginWrite = 0,
-        CommitWrite = 1,
-        RollbackWrite = 2
-    }
-
-    /**
-     * Input to the Thermostat atomicRequest command
-     */
-    export const TlvAtomicRequest = TlvObject({
-        requestType: TlvField(0, TlvEnum<RequestType>()),
-        attributeRequests: TlvField(1, TlvArray(TlvAttributeId)),
-        timeout: TlvOptionalField(2, TlvUInt16)
-    });
-
-    /**
-     * Input to the Thermostat atomicRequest command
-     */
-    export interface AtomicRequest extends TypeFromSchema<typeof TlvAtomicRequest> {}
-
-    /**
-     * The value of Thermostat.entry
-     */
-    export const TlvEntry = TlvObject({
-        attributeId: TlvField(0, TlvAttributeId),
-        statusCode: TlvField(1, TlvEnum<Status>())
-    });
-
-    /**
-     * The value of Thermostat.entry
-     */
-    export interface Entry extends TypeFromSchema<typeof TlvEntry> {}
-
-    export const TlvAtomicResponse = TlvObject({
-        statusCode: TlvField(0, TlvEnum<Status>()),
-        attributeStatus: TlvField(1, TlvArray(TlvEntry)),
-        timeout: TlvOptionalField(2, TlvUInt16)
-    });
-    export interface AtomicResponse extends TypeFromSchema<typeof TlvAtomicResponse> {}
 
     /**
      * A ThermostatCluster supports these elements if it supports feature Occupancy.
@@ -2254,6 +2254,13 @@ export namespace Thermostat {
     });
 
     /**
+     * A ThermostatCluster supports these elements if it supports features Presets or MatterScheduleConfiguration.
+     */
+    export const PresetsOrMatterScheduleConfigurationComponent = MutableCluster.Component({
+        commands: { atomicRequest: Command(0xfe, TlvAtomicRequest, 0xfd, TlvAtomicResponse) }
+    });
+
+    /**
      * These elements and properties are present in all Thermostat clusters.
      */
     export const Base = MutableCluster.Component({
@@ -2661,9 +2668,7 @@ export namespace Thermostat {
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
              */
-            setpointRaiseLower: Command(0x0, TlvSetpointRaiseLowerRequest, 0x0, TlvNoResponse),
-
-            atomicRequest: Command(0xfe, TlvAtomicRequest, 0xfd, TlvAtomicResponse)
+            setpointRaiseLower: Command(0x0, TlvSetpointRaiseLowerRequest, 0x0, TlvNoResponse)
         },
 
         /**
@@ -2683,6 +2688,8 @@ export namespace Thermostat {
             { flags: { setback: true, occupancy: true }, component: SetbackAndOccupancyComponent },
             { flags: { presets: true }, component: PresetsComponent },
             { flags: { matterScheduleConfiguration: true }, component: MatterScheduleConfigurationComponent },
+            { flags: { presets: true }, component: PresetsOrMatterScheduleConfigurationComponent },
+            { flags: { matterScheduleConfiguration: true }, component: PresetsOrMatterScheduleConfigurationComponent },
             { flags: { autoMode: true, heating: false }, component: false },
             { flags: { autoMode: true, cooling: false }, component: false },
             { flags: { heating: false, cooling: false }, component: false }
@@ -2890,6 +2897,10 @@ export namespace Thermostat {
             setActivePresetRequest: MutableCluster.AsConditional(
                 PresetsComponent.commands.setActivePresetRequest,
                 { mandatoryIf: [PRES] }
+            ),
+            atomicRequest: MutableCluster.AsConditional(
+                PresetsOrMatterScheduleConfigurationComponent.commands.atomicRequest,
+                { mandatoryIf: [PRES, MSCH] }
             )
         }
     });

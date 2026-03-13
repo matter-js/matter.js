@@ -5,8 +5,8 @@
  */
 
 import { NodeJsFilesystem } from "#fs/NodeJsFilesystem.js";
-import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
-import { PlatformSqlite } from "#storage/sqlite/index.js";
+import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
+import { SqliteStorageDriver } from "#storage/sqlite/SqliteStorageDriver.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, Environment, Filesystem, StorageDriver, StorageMigration, StorageService } from "@matter/general";
 import * as assert from "node:assert";
@@ -31,7 +31,7 @@ const driverFactories: DriverFactory[] = [
         name: "file",
         async create(namespace) {
             const path = resolve(TEST_STORAGE_LOCATION, namespace);
-            const storage = new StorageBackendDisk(path);
+            const storage = new FileStorageDriver(path);
             await storage.initialize();
             return storage;
         },
@@ -46,7 +46,7 @@ if (supportsSqlite()) {
         name: "sqlite",
         async create(namespace) {
             const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
-            const storage = await PlatformSqlite(path, false);
+            const storage = new SqliteStorageDriver({ namespaceOrPath: path });
             await storage.initialize();
             return storage;
         },
@@ -176,13 +176,13 @@ describe("StorageService migration", () => {
         storageService = env.get(StorageService);
 
         // Register the "file" driver
-        storageService.registerDriver(StorageBackendDisk);
+        storageService.registerDriver(FileStorageDriver);
 
-        // Register a "mock" driver that wraps StorageBackendDisk under a different id
+        // Register a "mock" driver that wraps FileStorageDriver under a different id
         storageService.registerDriver({
             id: "mock",
-            create(dir) {
-                return StorageBackendDisk.create(dir);
+            create(namespace, descriptor) {
+                return FileStorageDriver.create(namespace, descriptor);
             },
         });
 
@@ -211,7 +211,7 @@ describe("StorageService migration", () => {
         const nsDir = resolve(rootDir, NAMESPACE);
         await mkdir(nsDir, { recursive: true });
 
-        const storage = new StorageBackendDisk(nsDir);
+        const storage = new FileStorageDriver(nsDir);
         await storage.initialize();
         await storage.set(["context"], "key1", "value1");
         await storage.set(["context", "sub"], "key2", "value2");
@@ -268,7 +268,7 @@ describe("StorageService migration", () => {
         assert.ok(await dir.exists(), "Source directory should still exist");
 
         // Verify original data is intact by opening with "file" driver
-        const storage = new StorageBackendDisk(resolve(rootDir, NAMESPACE));
+        const storage = new FileStorageDriver(resolve(rootDir, NAMESPACE));
         await storage.initialize();
         assert.equal(await storage.get(["context"], "key1"), "value1");
         await storage.close();

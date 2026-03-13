@@ -99,7 +99,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
         store.write = RemoteWriter(this, initializer.structure);
 
-        initializer.structure.loadCache();
+        initializer.structure.loadCache(store.endpointStores);
 
         const promise = super.initialize();
 
@@ -146,6 +146,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
             await this.act("decommission", agent => agent.commissioning.decommission());
         }
+
         await this.delete();
     }
 

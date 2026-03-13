@@ -5,7 +5,7 @@
  */
 
 import { InternalError, Logger } from "@matter/general";
-import { Environment, NodeId, StorageService } from "@matter/main";
+import { Environment, MockStorageService, NodeId } from "@matter/main";
 import { CommissioningController, ControllerStore } from "@project-chip/matter.js";
 import { mkdirSync } from "node:fs";
 import { rm } from "node:fs/promises";
@@ -80,8 +80,8 @@ export class ControllerTestInstance extends TestInstance {
 
     /** Prepare Controller identities alpha, beta and gamma used by tests. */
     #setupControllers() {
-        const initStorageService = () =>
-            new StorageService(this.#env, namespace => {
+        const initStorageService = (env: Environment) =>
+            new MockStorageService(env, namespace => {
                 const storageDir = getParameter("storage-directory") ?? "/tmp";
                 const storageName = `${storageDir}${getParameter("KVS") ?? "/chip_tool_kvs"}-${namespace}`;
                 logger.info(`Storage service requested for namespace ${namespace}: ${storageName}`);
@@ -92,7 +92,7 @@ export class ControllerTestInstance extends TestInstance {
         // TODO Enhance Controller to allow multiple Fabrics and then each identity is "just" an own Fabric
         //      But Let's do that later with ServerNode. For now it works like this.
         const envAlpha = new Environment(`${this.id}-alpha`, this.#env);
-        envAlpha.set(StorageService, initStorageService());
+        initStorageService(envAlpha);
 
         this.#controllerInstances.set("alpha", {
             env: envAlpha,
@@ -111,7 +111,7 @@ export class ControllerTestInstance extends TestInstance {
         });
 
         const envBeta = new Environment(`${this.id}-beta`, this.#env);
-        envBeta.set(StorageService, initStorageService());
+        initStorageService(envBeta);
         this.#controllerInstances.set("beta", {
             env: envBeta,
             handler: new LegacyControllerCommandHandler(
@@ -129,7 +129,7 @@ export class ControllerTestInstance extends TestInstance {
         });
 
         const envGamma = new Environment(`${this.id}-gamma`, this.#env);
-        envGamma.set(StorageService, initStorageService());
+        initStorageService(envGamma);
         this.#controllerInstances.set("gamma", {
             env: envGamma,
             handler: new LegacyControllerCommandHandler(
