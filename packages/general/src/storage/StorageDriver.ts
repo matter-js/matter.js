@@ -64,6 +64,12 @@ export abstract class StorageDriver {
 
 export namespace StorageDriver {
     /**
+     * Filenames that live in the storage root directory but are not data values.  Storage drivers that enumerate files
+     * to discover keys (e.g. {@link FilesystemStorageDriver}) must ignore these on read and reject them on write.
+     */
+    export const RESERVED_FILENAMES = new Set(["driver.json", "matter.lock", "matter.pid"]);
+
+    /**
      * Serializable descriptor stored as `driver.json` inside the storage directory.  The `kind` field identifies the
      * driver implementation.  Drivers extend this with optional fields for driver-specific options so that a plain
      * `{ kind }` is always a valid descriptor for any driver.

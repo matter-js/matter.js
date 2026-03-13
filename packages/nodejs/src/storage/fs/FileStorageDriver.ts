@@ -11,11 +11,11 @@ import {
     fromJson,
     Logger,
     MatterAggregateError,
+    StorageDriver,
     StorageError,
     SupportedStorageTypes,
     toJson,
     type DataNamespace,
-    type StorageDriver,
 } from "@matter/general";
 import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
@@ -74,6 +74,9 @@ export class FileStorageDriver extends FilesystemStorageDriver {
 
         const files = await readdir(this.#path);
         for (const file of files) {
+            if (StorageDriver.RESERVED_FILENAMES.has(file)) {
+                continue;
+            }
             const parts = decodeURIComponent(file).split(".");
             this.#markValue(parts.slice(0, -1), parts[parts.length - 1]);
         }
@@ -215,6 +218,11 @@ export class FileStorageDriver extends FilesystemStorageDriver {
     /** According to Node.js documentation, writeFile is not atomic. This method ensures atomicity. */
     async #writeFile(contexts: string[], key: string, valueOrStream: string | ReadableStream<Bytes>): Promise<void> {
         const fileName = this.buildStorageKey(contexts, key);
+        if (StorageDriver.RESERVED_FILENAMES.has(fileName)) {
+            throw new StorageError(
+                `Key "${key}" in context "${contexts.join(".")}" maps to reserved file "${fileName}"`,
+            );
+        }
         const blocker = this.#writeFileBlocker.get(fileName);
         if (blocker !== undefined) {
             await blocker;
