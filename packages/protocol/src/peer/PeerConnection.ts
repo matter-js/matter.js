@@ -243,7 +243,7 @@ export async function PeerConnection(
             if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
                 // The "fallback" is now a "real" address
                 attemptingFallback = undefined;
-                kicker?.emit("discover"); // ... and kick the MRP loop
+                kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
             }
 
             return;
