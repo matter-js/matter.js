@@ -8,6 +8,7 @@ import { ElementTag } from "#common/ElementTag.js";
 import { AnyElement, BaseElement } from "#elements/index.js";
 import { camelize, ImplementationError } from "@matter/general";
 import type { Model } from "./Model.js";
+import type { ModelTreePosition } from "./ModelTreePosition.js";
 
 /**
  * Local copy of ModelConstructor allows us to avoid circular dependency.
@@ -104,21 +105,12 @@ class ChildList<T extends Model = Model> {
         }
     >;
     #onNameChanged?: (name: string, model?: Model) => void;
-    #adopt: (child: Model) => void;
-    #reroot: (child: Model, isOwned: boolean) => boolean;
-    #disown: (child: Model) => boolean;
+    #position: ModelTreePosition;
     #proxy: InternalChildren<T>;
 
-    constructor(
-        initial: Children.InputIterable<T>,
-        adopt: (child: Model) => void,
-        reroot: (child: Model, isOwned: boolean) => boolean,
-        disown: (child: Model) => boolean,
-    ) {
+    constructor(initial: Children.InputIterable<T>, position: ModelTreePosition) {
         this.#children = Array<Model.TaggedDefinition<T>>();
-        this.#adopt = adopt;
-        this.#reroot = reroot;
-        this.#disown = disown;
+        this.#position = position;
 
         const impl = this;
         this.#proxy = new Proxy(this.#children, {
@@ -304,7 +296,7 @@ class ChildList<T extends Model = Model> {
      * Invoked when the child's parent changes.
      */
     #doReroot(child: Model, isOwned: boolean) {
-        if (!this.#reroot(child, isOwned) || !child.hasChildren) {
+        if (!this.#position.reroot(child, isOwned) || !child.hasChildren) {
             return;
         }
         (child.children as InternalChildren).rerootAll(isOwned);
@@ -324,14 +316,14 @@ class ChildList<T extends Model = Model> {
     }
 
     #doAdopt(child: Model) {
-        this.#adopt(child);
+        this.#position.adopt(child);
         this.#onNameChanged?.(child.name, child);
         this.#doReroot(child, true);
     }
 
     #doDisown(child: Model) {
         this.#onNameChanged?.(child.name, undefined);
-        if (this.#disown(child)) {
+        if (this.#position.disown(child)) {
             this.#doReroot(child, false);
         }
     }
@@ -723,13 +715,8 @@ class ChildList<T extends Model = Model> {
 /**
  * Invoked by {@link Model} to instantiate a new child array.
  */
-export function Children<T extends Model = Model>(
-    initial: Children.InputIterable<T>,
-    adopt: (child: Model) => void,
-    reroot: (child: Model, isOwned: boolean) => boolean,
-    disown: (child: Model) => boolean,
-) {
-    return new ChildList(initial, adopt, reroot, disown).proxy;
+export function Children<T extends Model = Model>(initial: Children.InputIterable<T>, position: ModelTreePosition) {
+    return new ChildList(initial, position).proxy;
 }
 
 export namespace Children {
