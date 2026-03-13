@@ -22,6 +22,8 @@ import { Abort, AbortedError, Minutes, Observable, QuietObservable, Seconds, Tim
  */
 
 describe("PeerConnection kick redesign", () => {
+    afterEach(() => MockTime.disable());
+
     describe("PeerTimingParameters", () => {
         it("has correct default for mrpKickRestartIntervalDiscover", () => {
             expect(PeerTimingParameters.defaults.mrpKickRestartIntervalDiscover).equals(Minutes(30));
