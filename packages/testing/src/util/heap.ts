@@ -30,6 +30,7 @@ config.externalLeakFilter = {
             case "#wrapPrefix":
             case "#dumps":
             case "_playwrightInstance":
+            case "logs":
                 // Skip stashed log messages, etc. from testing infrastructure
                 return false;
         }

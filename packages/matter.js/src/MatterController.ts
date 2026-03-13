@@ -37,10 +37,10 @@ import {
     Logger,
     MatterError,
     Minutes,
+    MockStorageService,
     ObserverGroup,
     ServerAddress,
     ServerAddressUdp,
-    StorageBackendMemory,
     StorageManager,
     StorageService,
     SupportedStorageTypes,
@@ -235,7 +235,7 @@ export class MatterController {
         environment.set(CertificateAuthority, ca);
 
         // Stored data are temporary anyway and no node will be connected, so just use an in-memory storage
-        environment.set(StorageService, new StorageService(environment, () => new StorageBackendMemory()));
+        new MockStorageService(environment);
 
         const fabric = await Fabric.create(crypto, fabricConfig);
         if (!Bytes.areEqual(fabric.rootCert, ca.rootCert)) {

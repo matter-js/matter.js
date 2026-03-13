@@ -26,11 +26,11 @@ import {
     DnsRecordType,
     Environment,
     isObject,
+    MemoryStorageDriver,
     MockCrypto,
     MockUdpChannel,
     NetworkSimulator,
     Seconds,
-    StorageBackendMemory,
     StorageManager,
     StorageService,
 } from "@matter/general";
@@ -545,7 +545,7 @@ describe("ServerNode", () => {
         const service = environment.get(StorageService);
 
         // Configure storage that will survive node replacement
-        const storage = new StorageManager(new StorageBackendMemory());
+        const storage = new StorageManager(new MemoryStorageDriver());
         storage.close = () => {};
         await storage.initialize();
         service.open = () => Promise.resolve(storage);

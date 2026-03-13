@@ -5,4 +5,8 @@
  */
 
 export { WalSnapshot } from "./WalSnapshot.js";
-export { WalStorage } from "./WalStorage.js";
+export { WalStorageDriver } from "./WalStorageDriver.js";
+import { WalStorageDriver } from "./WalStorageDriver.js";
+
+/** @deprecated Use {@link WalStorageDriver} */
+export const WalStorage = WalStorageDriver;

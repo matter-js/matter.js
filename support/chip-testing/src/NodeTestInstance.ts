@@ -10,6 +10,7 @@ import {
     Environment,
     ImplementationError,
     InternalError,
+    MockStorageService,
     Node,
     Seconds,
     StorageService,
@@ -102,8 +103,8 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
                 const manager = await this.#env.get(StorageService).open(this.id);
                 this.storage = manager.driver;
             }
-            // Install factory so restore() can swap storage via this.storage
-            this.#env.set(StorageService, new StorageService(this.#env, () => this.storage!));
+            // Install MockStorageService so restore() can swap storage via this.storage
+            new MockStorageService(this.#env, () => this.storage!);
             await this.#setupServer();
         } catch (error) {
             // Catch and log error, else the test framework hides issues here

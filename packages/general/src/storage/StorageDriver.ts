@@ -7,11 +7,15 @@ import { Bytes } from "#util/Bytes.js";
 import type { Directory } from "../fs/Directory.js";
 import { ImplementationError, MatterError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
+import { DatafileRoot } from "./DatafileRoot.js";
+import type { DataNamespace } from "./DataNamespace.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
 
 export class StorageError extends MatterError {}
 
 export class StorageCommitError extends StorageError {}
+
+export class StorageLockError extends StorageError {}
 
 /**
  * Matter.js uses this key/value API to manage persistent state.
@@ -75,8 +79,8 @@ export namespace StorageDriver {
         /** Short identifier such as `"file"`, `"sqlite"`, `"wal"`, or `"memory"`. */
         id: string;
 
-        /** Create a storage driver for the given directory and descriptor. */
-        create(dir: Directory, descriptor: D): MaybePromise<StorageDriver>;
+        /** Create a storage driver for the given namespace and descriptor. */
+        create(namespace: DataNamespace, descriptor: D): MaybePromise<StorageDriver>;
 
         /**
          * Optional hook called before {@link create}.  Allows the driver to rearrange files on disk (e.g. move a
@@ -224,6 +228,42 @@ export namespace StorageDriver {
         ): MaybePromise<void> {
             return this.storage.writeBlobFromStream(contexts, key, stream);
         }
+    }
+}
+
+/**
+ * {@link StorageDriver} subclass for drivers backed by the filesystem.
+ *
+ * Manages a {@link DatafileRoot.Lock} that is acquired during {@link initialize} and released during {@link close}.
+ * Filesystem-specific drivers should extend this instead of {@link StorageDriver} directly.
+ */
+export abstract class FilesystemStorageDriver extends StorageDriver {
+    readonly #root?: DatafileRoot;
+    #lock?: DatafileRoot.Lock;
+
+    constructor(namespace?: DataNamespace) {
+        super();
+        if (namespace !== undefined) {
+            if (!(namespace instanceof DatafileRoot)) {
+                throw new ImplementationError("Filesystem storage driver requires a DatafileRoot namespace");
+            }
+            this.#root = namespace;
+        }
+    }
+
+    get root(): DatafileRoot | undefined {
+        return this.#root;
+    }
+
+    async initialize() {
+        if (this.#root) {
+            this.#lock = await this.#root.lock();
+        }
+    }
+
+    async close() {
+        await this.#lock?.close();
+        this.#lock = undefined;
     }
 }
 

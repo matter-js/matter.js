@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageBackendDisk } from "#storage/fs/StorageBackendDisk.js";
-import { SqliteStorageError } from "#storage/sqlite/SqliteStorageError.js";
-import { PlatformSqlite } from "#storage/sqlite/index.js";
+import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
+import { SqliteStorageDriver } from "#storage/sqlite/SqliteStorageDriver.js";
+import { SqliteStorageDriverError } from "#storage/sqlite/SqliteStorageDriverError.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
 import { Bytes, StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
@@ -31,7 +31,7 @@ const drivers: DriverFactory[] = [
         name: "file",
         async create(namespace) {
             const path = resolve(TEST_STORAGE_LOCATION, namespace);
-            const storage = new StorageBackendDisk(path);
+            const storage = new FileStorageDriver(path);
             await storage.initialize();
             return storage;
         },
@@ -46,7 +46,7 @@ if (supportsSqlite()) {
         name: "sqlite",
         async create(namespace) {
             const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
-            const storage = await PlatformSqlite(path, false);
+            const storage = new SqliteStorageDriver({ namespaceOrPath: path });
             await storage.initialize();
             return storage;
         },
@@ -193,7 +193,7 @@ describe("StorageDrivers", () => {
                         await storage.set([""], "key", "value");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Context must not be an empty and not contain dots.");
                         return true;
                     },
@@ -206,7 +206,7 @@ describe("StorageDrivers", () => {
                         await storage.set(CONTEXTx1, "", "value");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Key must not be an empty string.");
                         return true;
                     },
@@ -219,7 +219,7 @@ describe("StorageDrivers", () => {
                         await storage.get([""], "key");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Context must not be an empty and not contain dots.");
                         return true;
                     },
@@ -232,7 +232,7 @@ describe("StorageDrivers", () => {
                         await storage.get(["ok", ""], "key");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Context must not be an empty and not contain dots.");
                         return true;
                     },
@@ -245,7 +245,7 @@ describe("StorageDrivers", () => {
                         await storage.get(CONTEXTx1, "");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Key must not be an empty string.");
                         return true;
                     },

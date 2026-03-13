@@ -6,7 +6,7 @@
 
 import { MatterDclResponseError } from "#dcl/DclClient.js";
 import { DclVendorInfoService } from "#dcl/DclVendorInfoService.js";
-import { Environment, Minutes, MockFetch, StorageBackendMemory, StorageManager, StorageService } from "@matter/general";
+import { Environment, Minutes, MockFetch, MockStorageService } from "@matter/general";
 import { CommissioningFlowType } from "@matter/types";
 
 // Mock DCL vendor info responses
@@ -55,25 +55,16 @@ const mockVendorsPage2 = {
 describe("DclVendorInfoService", () => {
     let environment: Environment;
     let fetchMock: MockFetch;
-    let storage: StorageBackendMemory;
-    let storageManager: StorageManager;
 
     beforeEach(async () => {
         fetchMock = new MockFetch();
         environment = new Environment("test");
 
-        // Set up storage
-        storage = new StorageBackendMemory();
-        storageManager = new StorageManager(storage);
-        await storageManager.initialize();
-
-        // Create StorageService with a factory that returns the storage backend
-        new StorageService(environment, (_namespace: string) => storage);
+        new MockStorageService(environment);
     });
 
     afterEach(async () => {
         fetchMock.uninstall();
-        await storageManager.close();
     });
 
     describe("initialization and basic operations", () => {

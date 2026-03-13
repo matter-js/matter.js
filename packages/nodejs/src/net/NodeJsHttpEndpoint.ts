@@ -10,7 +10,7 @@ import type { Server, ServerResponse } from "node:http";
 import { createServer as createHttpServer, IncomingMessage } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
 import { ListenOptions } from "node:net";
-import { normalize, resolve } from "node:path";
+import { normalize } from "node:path";
 import { Duplex } from "node:stream";
 
 // Node's ReadableStream type definition do not exactly match the standard version so we need to import to support casts
@@ -39,7 +39,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
     #wsAdapter?: WsAdapter;
     #wsAdapterFactory?: WsAdapter.Factory;
 
-    static async create(config: NodeJsHttpEndpoint.Configuration): Promise<NodeJsHttpEndpoint> {
+    static async create(config: HttpEndpoint.Configuration): Promise<NodeJsHttpEndpoint> {
         const endpoint = new NodeJsHttpEndpoint(config);
         await endpoint.ready;
         return endpoint;
@@ -48,10 +48,10 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
     /**
      * Create a new endpoint.
      *
-     * You may pass an existing {@link Server} or pass {@link NodeJsHttpEndpoint.Configuration} to create a server dedicated
+     * You may pass an existing {@link Server} or pass {@link HttpEndpoint.Configuration} to create a server dedicated
      * to this endpoint.
      */
-    constructor(config: Server | NodeJsHttpEndpoint.Configuration) {
+    constructor(config: Server | HttpEndpoint.Configuration) {
         let close, ready, server, notFound;
 
         if ("on" in config) {
@@ -82,7 +82,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
         };
     }
 
-    #createDedicatedServer(options: NodeJsHttpEndpoint.Configuration) {
+    #createDedicatedServer(options: HttpEndpoint.Configuration) {
         const address = AppAddress.for(options.address);
 
         let server;
@@ -115,12 +115,7 @@ export class NodeJsHttpEndpoint implements HttpEndpoint {
                 break;
 
             case "unix":
-                const path = decodeURIComponent(address.hostname);
-                if (options.basePathForUnixSockets) {
-                    opts.path = resolve(options.basePathForUnixSockets, normalize(path));
-                } else {
-                    opts.path = normalize(path);
-                }
+                opts.path = normalize(decodeURIComponent(address.hostname));
                 if (existsSync(opts.path)) {
                     if (statSync(opts.path).isSocket()) {
                         try {
@@ -353,23 +348,9 @@ function respondError(res: ServerResponse, code: number) {
 }
 
 export namespace NodeJsHttpEndpoint {
-    export interface Configuration extends HttpEndpoint.Configuration {
-        basePathForUnixSockets?: string;
-    }
-
     export class Factory extends HttpEndpointFactory {
-        #basePathForUnixSockets?: string;
-
-        constructor(basePathForUnixSockets?: string) {
-            super();
-            this.#basePathForUnixSockets = basePathForUnixSockets;
-        }
-
         async create(config: HttpEndpoint.Configuration) {
-            return NodeJsHttpEndpoint.create({
-                basePathForUnixSockets: this.#basePathForUnixSockets,
-                ...config,
-            });
+            return NodeJsHttpEndpoint.create(config);
         }
     }
 }

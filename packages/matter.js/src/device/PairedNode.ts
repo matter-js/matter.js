@@ -32,7 +32,6 @@ import {
     ClientNode,
     ClusterBehavior,
     Commands,
-    CommissioningClient,
     EndpointLifecycle,
     NetworkClient,
 } from "@matter/node";
@@ -1303,7 +1302,7 @@ export class PairedNode {
             );
         }
 
-        await this.#clientNode.act(agent => agent.get(CommissioningClient).decommission());
+        await this.#clientNode.decommission();
 
         await this.#handleNodeDecommissioning();
     }
@@ -1319,8 +1318,6 @@ export class PairedNode {
         this.#options.stateInformationCallback?.(this.nodeId, NodeStateInformation.Decommissioned);
 
         this.#setConnectionState(NodeStates.Disconnected);
-
-        await this.#commissioningController.removeNode(this.nodeId, false);
 
         this.events.decommissioned.emit();
     }

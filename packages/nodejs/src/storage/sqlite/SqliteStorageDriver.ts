@@ -7,14 +7,19 @@
 import {
     type Bytes,
     type CloneableStorage,
-    type SupportedStorageTypes,
+    type DataNamespace,
+    FilesystemStorageDriver,
     fromJson,
-    StorageDriver,
+    NoProviderError,
+    type StorageDriver,
     StorageTransaction,
+    type SupportedStorageTypes,
     toJson,
 } from "@matter/general";
+import { resolve } from "node:path";
 
-import { SqliteStorageError } from "./SqliteStorageError.js";
+import { isBunjs, supportsSqlite } from "#util/runtimeChecks.js";
+import { SqliteStorageDriverError } from "./SqliteStorageDriverError.js";
 import type { DatabaseCreator, DatabaseLike, SafeUint8Array, SqlRunnable } from "./SqliteTypes.js";
 import { SqliteTransaction as Transaction } from "./SqliteTypes.js";
 import { buildContextKeyLog, buildContextKeyPair, buildContextPath, escapeGlob } from "./SqliteUtil.js";
@@ -47,73 +52,98 @@ type SqlRunnableKV<
 >;
 
 /**
- * SQLite implementation of `StorageBackendDisk.ts`
+ * SQLite implementation of `FileStorageDriver.ts`
  *
  * `DatabaseCreator` is need to use (sqlite).
  *
  * Supports `node:sqlite`, `bun:sqlite`. (maybe also `better-sqlite3` support)
  */
-export class SqliteStorage extends StorageDriver implements CloneableStorage {
+export class SqliteStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
+    static readonly id = "sqlite";
     public static readonly memoryPath = ":memory:";
     public static readonly defaultTableName = "kvstore";
+
+    /**
+     * Create a SqliteStorageDriver for the given namespace using the platform-appropriate database.
+     */
+    static async create(namespace: DataNamespace) {
+        const storage = new SqliteStorageDriver({ namespaceOrPath: namespace });
+        await storage.initialize();
+        return storage;
+    }
 
     protected isInitialized = false;
     #inTransaction = false;
 
     // internal values
-    protected readonly database: DatabaseLike;
+    #database!: DatabaseLike;
+    #databaseCreator?: DatabaseCreator;
     protected readonly dbPath: string;
     protected readonly tableName: string;
     protected readonly clearOnInit: boolean;
-    protected readonly databaseCreator: DatabaseCreator;
 
     // queries
-    readonly #queryInit: SqlRunnable<void, void>;
-    readonly #queryGet: SqlRunnableKV<"context" | "key", "value_json">;
-    readonly #queryGetRaw: SqlRunnable<void, KVStoreType>;
-    readonly #querySet: SqlRunnableKV<"context" | "key" | "value_json", void>;
-    readonly #querySetRaw: SqlRunnable<KVStoreType, void>;
-    readonly #queryDelete: SqlRunnableKV<"context" | "key", void>;
-    readonly #queryKeys: SqlRunnableKV<"context", "key">;
-    readonly #queryValues: SqlRunnable<{ context: string }, { key: string; value_json: string }>;
-    readonly #queryContextSub: SqlRunnable<{ contextGlob: string }, { context: string }>;
-    readonly #queryClearAll: SqlRunnable<{ context: string; contextGlob: string }, void>;
-    readonly #queryHas: SqlRunnable<{ context: string; key: string }, { has_record: 1 }>;
-    readonly #queryOpenBlob: SqlRunnable<
+    #queryGet!: SqlRunnableKV<"context" | "key", "value_json">;
+    #queryGetRaw!: SqlRunnable<void, KVStoreType>;
+    #querySet!: SqlRunnableKV<"context" | "key" | "value_json", void>;
+    #querySetRaw!: SqlRunnable<KVStoreType, void>;
+    #queryDelete!: SqlRunnableKV<"context" | "key", void>;
+    #queryKeys!: SqlRunnableKV<"context", "key">;
+    #queryValues!: SqlRunnable<{ context: string }, { key: string; value_json: string }>;
+    #queryContextSub!: SqlRunnable<{ contextGlob: string }, { context: string }>;
+    #queryClearAll!: SqlRunnable<{ context: string; contextGlob: string }, void>;
+    #queryHas!: SqlRunnable<{ context: string; key: string }, { has_record: 1 }>;
+    #queryOpenBlob!: SqlRunnable<
         Pick<KVStoreType, "context" | "key">,
         Pick<KVStoreType, "value_type" | "value_json" | "value_blob">
     >;
-    readonly #queryWriteBlob: SqlRunnable<Pick<KVStoreType, "context" | "key" | "value_blob">, void>;
+    #queryWriteBlob!: SqlRunnable<Pick<KVStoreType, "context" | "key" | "value_blob">, void>;
 
     /**
-     * Create sqlite-based disk
+     * Create sqlite-based disk storage.
      *
-     * @param args.databaseCreator database instance creator
-     * @param args.path Database path (treats `null` as `:memory:`, DO NOT input `:memory:` directly)
+     * @param args.databaseCreator Optional database instance creator.  If omitted, resolved automatically during
+     *   {@link initialize} via platform detection.
+     * @param args.namespaceOrPath DataNamespace (derives path from root directory), string (direct path), or
+     *   null/undefined for in-memory database
      * @param args.clear Clear on init
      * @param args.tableName table name
      */
-    constructor(args: { databaseCreator: DatabaseCreator; path: string | null; tableName?: string; clear?: boolean }) {
-        super();
-        const { databaseCreator, path, tableName, clear } = args;
+    constructor(args?: {
+        databaseCreator?: DatabaseCreator;
+        namespaceOrPath?: DataNamespace | string | null;
+        tableName?: string;
+        clear?: boolean;
+    }) {
+        const namespaceOrPath = args?.namespaceOrPath;
+        super(typeof namespaceOrPath === "string" || namespaceOrPath == null ? undefined : namespaceOrPath);
 
-        this.dbPath = path === null ? SqliteStorage.memoryPath : path;
-        this.databaseCreator = databaseCreator;
-        this.database = databaseCreator(this.dbPath);
+        this.dbPath =
+            typeof namespaceOrPath === "string"
+                ? namespaceOrPath
+                : namespaceOrPath != null
+                  ? resolve(this.root!.directory.path, "storage.db")
+                  : SqliteStorageDriver.memoryPath;
 
-        // tableName is vulnerable
-        // DO NOT USE FROM USER'S INPUT
-        this.tableName = tableName ?? SqliteStorage.defaultTableName;
-        this.clearOnInit = clear ?? false;
+        // tableName is vulnerable — DO NOT USE FROM USER'S INPUT
+        this.tableName = args?.tableName ?? SqliteStorageDriver.defaultTableName;
+        this.clearOnInit = args?.clear ?? false;
+
+        if (args?.databaseCreator) {
+            this.#openDatabase(args.databaseCreator);
+        }
+    }
+
+    #openDatabase(databaseCreator: DatabaseCreator) {
+        this.#databaseCreator = databaseCreator;
+        this.#database = databaseCreator(this.dbPath);
 
         // ═════════════════════════════════════════════════════════════
         // Query Preparation
         // ═════════════════════════════════════════════════════════════
 
-        // ─────────────────────────────────────────────────────────────
         // Schema Initialization
-        // ─────────────────────────────────────────────────────────────
-        this.#queryInit = this.database.prepare(`
+        const initQuery = this.#database.prepare(`
       CREATE TABLE IF NOT EXISTS ${this.tableName} (
         context TEXT NOT NULL,
         key TEXT NOT NULL,
@@ -123,33 +153,29 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
         CONSTRAINT PKPair PRIMARY KEY (context, key)
       ) STRICT
     `);
-        this.#queryInit.run(); // Run once (prepare requires existing database in bun.js)
+        initQuery.run(); // Run once (prepare requires existing database in bun.js)
 
-        // ─────────────────────────────────────────────────────────────
         // Read Operations
-        // ─────────────────────────────────────────────────────────────
-        this.#queryGet = this.database.prepare(`
+        this.#queryGet = this.#database.prepare(`
       SELECT value_json FROM ${this.tableName} WHERE
         context=$context AND
         key=$key AND
         value_type='json'
     `);
 
-        this.#queryGetRaw = this.database.prepare(`
+        this.#queryGetRaw = this.#database.prepare(`
       SELECT * FROM ${this.tableName}
     `);
 
-        this.#queryHas = this.database.prepare(`
+        this.#queryHas = this.#database.prepare(`
       SELECT EXISTS(
         SELECT 1 FROM ${this.tableName}
         WHERE context=$context AND key=$key
       ) as has_record
     `);
 
-        // ─────────────────────────────────────────────────────────────
         // Write Operations
-        // ─────────────────────────────────────────────────────────────
-        this.#querySet = this.database.prepare(`
+        this.#querySet = this.#database.prepare(`
       INSERT INTO ${this.tableName}
         (context, key, value_type, value_json, value_blob)
       VALUES($context, $key, 'json', $value_json, NULL)
@@ -160,7 +186,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
         value_blob = NULL
     `);
 
-        this.#querySetRaw = this.database.prepare(`
+        this.#querySetRaw = this.#database.prepare(`
       INSERT INTO ${this.tableName}
         (context, key, value_type, value_json, value_blob)
       VALUES($context, $key, $value_type, $value_json, $value_blob)
@@ -171,49 +197,43 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
         value_blob = excluded.value_blob
     `);
 
-        // ─────────────────────────────────────────────────────────────
         // Delete Operations
-        // ─────────────────────────────────────────────────────────────
-        this.#queryDelete = this.database.prepare(`
+        this.#queryDelete = this.#database.prepare(`
       DELETE FROM ${this.tableName} WHERE
         context=$context AND
         key=$key
     `);
 
-        this.#queryClearAll = this.database.prepare(`
+        this.#queryClearAll = this.#database.prepare(`
       DELETE FROM ${this.tableName} WHERE
         context=$context OR context GLOB $contextGlob
     `);
 
-        // ─────────────────────────────────────────────────────────────
         // Context & Key Queries
-        // ─────────────────────────────────────────────────────────────
-        this.#queryKeys = this.database.prepare(`
+        this.#queryKeys = this.#database.prepare(`
       SELECT DISTINCT key FROM ${this.tableName} WHERE
         context=$context
     `);
 
-        this.#queryValues = this.database.prepare(`
+        this.#queryValues = this.#database.prepare(`
       SELECT key, value_json FROM ${this.tableName} WHERE
         context=$context AND
         value_type='json'
     `);
 
-        this.#queryContextSub = this.database.prepare(`
+        this.#queryContextSub = this.#database.prepare(`
       SELECT DISTINCT context FROM ${this.tableName} WHERE
         context GLOB $contextGlob
     `);
 
-        // ─────────────────────────────────────────────────────────────
         // Blob Operations
-        // ─────────────────────────────────────────────────────────────
-        this.#queryOpenBlob = this.database.prepare(`
+        this.#queryOpenBlob = this.#database.prepare(`
       SELECT value_type, value_json, value_blob FROM ${this.tableName} WHERE
         context=$context AND
         key=$key
     `);
 
-        this.#queryWriteBlob = this.database.prepare(`
+        this.#queryWriteBlob = this.#database.prepare(`
       INSERT INTO ${this.tableName}
         (context, key, value_type, value_json, value_blob)
       VALUES($context, $key, 'blob', NULL, $value_blob)
@@ -237,17 +257,17 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
         switch (mode) {
             case Transaction.BEGIN:
                 if (this.#inTransaction) {
-                    throw new SqliteStorageError("transaction", "BEGIN", "Transaction is in progress.");
+                    throw new SqliteStorageDriverError("transaction", "BEGIN", "Transaction is in progress.");
                 }
-                this.database.exec("BEGIN IMMEDIATE TRANSACTION");
+                this.#database.exec("BEGIN IMMEDIATE TRANSACTION");
                 this.#inTransaction = true;
                 break;
 
             case Transaction.COMMIT:
                 if (!this.#inTransaction) {
-                    throw new SqliteStorageError("transaction", "COMMIT", "No transaction in progress.");
+                    throw new SqliteStorageDriverError("transaction", "COMMIT", "No transaction in progress.");
                 }
-                this.database.exec("COMMIT");
+                this.#database.exec("COMMIT");
                 this.#inTransaction = false;
                 break;
 
@@ -255,7 +275,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
                 if (!this.#inTransaction) {
                     return;
                 }
-                this.database.exec("ROLLBACK");
+                this.#database.exec("ROLLBACK");
                 this.#inTransaction = false;
                 break;
         }
@@ -283,16 +303,20 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
     }
 
     override async initialize(): Promise<void> {
+        if (!this.#databaseCreator) {
+            this.#openDatabase(await platformDatabaseCreator());
+        }
+        await super.initialize();
         if (this.clearOnInit) {
-            this.database.prepare(`DELETE FROM ${this.tableName}`).run();
+            this.#database.prepare(`DELETE FROM ${this.tableName}`).run();
         }
         this.isInitialized = true;
     }
 
     public clone(): StorageDriver {
-        const clonedStorage = new SqliteStorage({
-            databaseCreator: this.databaseCreator,
-            path: null,
+        const clonedStorage = new SqliteStorageDriver({
+            databaseCreator: this.#databaseCreator,
+            namespaceOrPath: null,
             tableName: this.tableName,
             clear: false,
         });
@@ -303,9 +327,10 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
         return clonedStorage;
     }
 
-    override close() {
+    override async close() {
         this.isInitialized = false;
-        this.database.close();
+        this.#database.close();
+        await super.close();
     }
 
     override get<T extends SupportedStorageTypes>(contexts: string[], key: string): T | null | undefined {
@@ -318,7 +343,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
             // Shouldn't be happened. (Confused with BLOB?)
             this.delete(contexts, key);
 
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "get",
                 buildContextKeyLog(contexts, key),
                 "path has null json-value! (expected non-null value)",
@@ -343,7 +368,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
             if (value === undefined) {
                 // If user called set(contexts, key),
                 // indented behavior should be error instead of setting `undefined JSON`.
-                throw new SqliteStorageError(
+                throw new SqliteStorageDriverError(
                     "set",
                     buildContextKeyLog(contexts, keyOrValues),
                     "Use null instead of undefined if you want to store null value!",
@@ -373,7 +398,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
             value_json: value,
         });
         if (Number(changes) <= 0) {
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "set",
                 buildContextKeyLog(contexts, key),
                 `Something went wrong! Value wasn't changed.`,
@@ -398,7 +423,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
                 value_blob: raw.value_blob,
             });
             if (Number(changes) <= 0) {
-                throw new SqliteStorageError(
+                throw new SqliteStorageDriverError(
                     "setraw",
                     `${raw.context}$${raw.key}`,
                     `Something went wrong! Value wasn't changed.`,
@@ -417,7 +442,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
                     value_blob: raw.value_blob,
                 });
                 if (Number(changes) <= 0) {
-                    throw new SqliteStorageError(
+                    throw new SqliteStorageDriverError(
                         "setraw",
                         `${raw.context}$${raw.key}`,
                         `Something went wrong! Value wasn't changed.`,
@@ -504,7 +529,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
     }
 
     override clearAll(contexts: string[]) {
-        // Match StorageBackendDisk behavior: if contexts is empty, do nothing
+        // Match FileStorageDriver behavior: if contexts is empty, do nothing
         if (contexts.length === 0) {
             return;
         }
@@ -548,7 +573,7 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
             value_blob: bytes,
         });
         if (Number(queryResult.changes) <= 0) {
-            throw new SqliteStorageError(
+            throw new SqliteStorageDriverError(
                 "writeBlob",
                 buildContextKeyLog(contexts, key),
                 `Something went wrong! Value wasn't changed.`,
@@ -557,12 +582,44 @@ export class SqliteStorage extends StorageDriver implements CloneableStorage {
     }
 
     override begin(): StorageTransaction {
-        return new SqliteStorageTransaction(this);
+        return new SqliteStorageDriverTransaction(this);
     }
 }
 
-class SqliteStorageTransaction extends StorageTransaction {
-    constructor(private readonly sqliteStorage: SqliteStorage) {
+/**
+ * Get the platform-appropriate SQLite database creator.
+ *
+ * Handles both ESM and CJS module formats via {@link findDefaultExport}.
+ */
+async function platformDatabaseCreator(): Promise<DatabaseCreator> {
+    if (!supportsSqlite()) {
+        throw new NoProviderError("SQLite requires Node.js 22+ or Bun");
+    }
+
+    if (isBunjs()) {
+        const module = await import("./platform/BunSqlite.js");
+        return findDefaultExport(module, "createBunDatabase");
+    }
+
+    const module = await import("./platform/NodeJsSqlite.js");
+    return findDefaultExport(module, "createNodeJsDatabase");
+}
+
+/**
+ * Find named export from dynamically imported module.
+ *
+ * Handles both ESM and CJS module formats when using `await import()`:
+ *
+ * - **ESM**: `{ ExportName: [value] }`
+ * - **CJS (wrapped)**: `{ default: { ExportName: [value] } }`
+ * - **CJS (direct)**: `{ default: [value] }`
+ */
+function findDefaultExport<T, N extends keyof T>(moduleLike: T, name: N): T[N] {
+    return moduleLike[name] || (moduleLike as any).default?.[name] || (moduleLike as any).default;
+}
+
+class SqliteStorageDriverTransaction extends StorageTransaction {
+    constructor(private readonly sqliteStorage: SqliteStorageDriver) {
         super(sqliteStorage);
         sqliteStorage.transaction(Transaction.BEGIN);
     }

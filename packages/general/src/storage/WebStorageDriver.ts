@@ -4,46 +4,55 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, StorageDriver, StorageError, SupportedStorageTypes, fromJson, toJson } from "@matter/general";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Bytes } from "#util/Bytes.js";
+import { StorageDriver, StorageError } from "./StorageDriver.js";
+import { SupportedStorageTypes, fromJson, toJson } from "./StringifyTools.js";
 
 /**
- * V2-compatible AsyncStorage backend using the package default export.
+ * Async key-value interface that web-style storage backends must implement.
  *
- * This backend exists as migration path when apps need to keep using the legacy
- * singleton storage behavior before switching to the v3 scoped storage backend.
+ * Mirrors the subset of the `@react-native-async-storage/async-storage` v3 API that storage drivers actually use.
  */
-export class StorageBackendAsyncStorageV2 extends StorageDriver {
-    #namespace: string;
-    protected isInitialized = false;
+export interface WebStorageProvider {
+    getItem(key: string): Promise<string | null>;
+    setItem(key: string, value: string): Promise<void>;
+    removeItem(key: string): Promise<void>;
+    getAllKeys(): Promise<string[]>;
+    getMany(keys: string[]): Promise<Record<string, string | null>>;
+    setMany(entries: Record<string, string>): Promise<void>;
+    removeMany(keys: string[]): Promise<void>;
+    clear(): Promise<void>;
+}
 
-    /**
-     * Creates a new instance of the v2-compatible AsyncStorage backend. If a
-     * namespace is provided, keys are prefixed with "<namespace>#".
-     */
-    constructor(namespace?: string) {
+/**
+ * {@link StorageDriver} for web-style async key-value stores.
+ *
+ * Shared implementation for any backend that satisfies the {@link WebStorageProvider} interface (e.g. React Native
+ * AsyncStorage v2/v3, browser localStorage wrapper, etc.).
+ */
+export class WebStorageDriver extends StorageDriver {
+    #storage: WebStorageProvider;
+    #initialized = false;
+
+    constructor(storage: WebStorageProvider) {
         super();
-        this.#namespace = namespace ?? "";
+        this.#storage = storage;
     }
 
     get initialized() {
-        return this.isInitialized;
+        return this.#initialized;
     }
 
     initialize() {
-        this.isInitialized = true;
+        this.#initialized = true;
     }
 
     close() {
-        this.isInitialized = false;
+        this.#initialized = false;
     }
 
     override clear() {
-        if (!this.#namespace.length) {
-            return AsyncStorage.clear();
-        }
-
-        return this.clearAll([]);
+        return this.#storage.clear();
     }
 
     getContextBaseKey(contexts: string[], allowEmptyContext = false) {
@@ -57,7 +66,7 @@ export class StorageBackendAsyncStorageV2 extends StorageDriver {
             throw new StorageError(
                 "Context must not be empty and must not contain empty segments or leading or trailing dots.",
             );
-        return `${this.#namespace.length ? `${this.#namespace}#` : ""}${contextKey}`;
+        return contextKey;
     }
 
     buildStorageKey(contexts: string[], key: string) {
@@ -69,17 +78,17 @@ export class StorageBackendAsyncStorageV2 extends StorageDriver {
     }
 
     async get<T extends SupportedStorageTypes>(contexts: string[], key: string): Promise<T | undefined> {
-        const value = await AsyncStorage.getItem(this.buildStorageKey(contexts, key));
+        const value = await this.#storage.getItem(this.buildStorageKey(contexts, key));
         if (value === null) return undefined;
         return fromJson(value) as T;
     }
 
     async openBlob(_contexts: string[], _key: string): Promise<Blob> {
-        throw new StorageError("Streams not supported currently in AsyncStorage backend.");
+        throw new StorageError("Blob storage is not supported by WebStorageDriver.");
     }
 
     async writeBlobFromStream(_contexts: string[], _key: string, _stream: ReadableStream<Bytes>): Promise<void> {
-        throw new StorageError("Streams not supported currently in AsyncStorage backend.");
+        throw new StorageError("Blob storage is not supported by WebStorageDriver.");
     }
 
     set(contexts: string[], key: string, value: SupportedStorageTypes): Promise<void>;
@@ -90,26 +99,25 @@ export class StorageBackendAsyncStorageV2 extends StorageDriver {
         value?: SupportedStorageTypes,
     ) {
         if (typeof keyOrValues === "string") {
-            await AsyncStorage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
+            await this.#storage.setItem(this.buildStorageKey(contexts, keyOrValues), toJson(value));
         } else {
             const entries = {} as Record<string, string>;
             for (const [key, value] of Object.entries(keyOrValues)) {
                 entries[this.buildStorageKey(contexts, key)] = toJson(value);
             }
-            await AsyncStorage.setMany(entries);
+            await this.#storage.setMany(entries);
         }
     }
 
     delete(contexts: string[], key: string) {
-        return AsyncStorage.removeItem(this.buildStorageKey(contexts, key));
+        return this.#storage.removeItem(this.buildStorageKey(contexts, key));
     }
 
-    /** Returns all keys of a storage context without keys of sub-contexts */
     async keys(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts);
-        const keys: string[] = [];
+        const keys = [];
         const contextKeyStart = `${contextKey}.`;
-        const allKeys = await AsyncStorage.getAllKeys();
+        const allKeys = await this.#storage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(contextKeyStart) && !key.includes(".", contextKeyStart.length)) {
                 keys.push(key.substring(contextKeyStart.length));
@@ -119,10 +127,9 @@ export class StorageBackendAsyncStorageV2 extends StorageDriver {
     }
 
     async values(contexts: string[]) {
-        // Initialize and context checks are done by keys method
         const keys = await this.keys(contexts);
         const storageKeys = keys.map(key => this.buildStorageKey(contexts, key));
-        const entries = await AsyncStorage.getMany(storageKeys);
+        const entries = await this.#storage.getMany(storageKeys);
         const values = {} as Record<string, SupportedStorageTypes>;
         for (const [index, key] of keys.entries()) {
             const value = entries[storageKeys[index]];
@@ -135,9 +142,9 @@ export class StorageBackendAsyncStorageV2 extends StorageDriver {
 
     async contexts(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = this.buildSubContextPrefix(contextKey);
+        const startContextKey = contextKey.length ? `${contextKey}.` : "";
         const foundContexts = new Set<string>();
-        const allKeys = await AsyncStorage.getAllKeys();
+        const allKeys = await this.#storage.getAllKeys();
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 const subKeys = key.substring(startContextKey.length).split(".");
@@ -151,23 +158,16 @@ export class StorageBackendAsyncStorageV2 extends StorageDriver {
 
     async clearAll(contexts: string[]) {
         const contextKey = this.getContextBaseKey(contexts, true);
-        const startContextKey = this.buildSubContextPrefix(contextKey);
-        const allKeys = await AsyncStorage.getAllKeys();
-        const keysToDelete: string[] = [];
+        const startContextKey = contextKey.length ? `${contextKey}.` : "";
+        const allKeys = await this.#storage.getAllKeys();
+        const keysToDelete = [];
         for (const key of allKeys) {
             if (key.startsWith(startContextKey)) {
                 keysToDelete.push(key);
             }
         }
         if (keysToDelete.length) {
-            await AsyncStorage.removeMany(keysToDelete);
+            await this.#storage.removeMany(keysToDelete);
         }
-    }
-
-    private buildSubContextPrefix(contextKey: string) {
-        if (!contextKey.length) {
-            return "";
-        }
-        return contextKey.endsWith("#") ? contextKey : `${contextKey}.`;
     }
 }
