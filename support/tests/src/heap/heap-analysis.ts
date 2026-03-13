@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { IHeapNode, IHeapSnapshot } from "@memlab/core";
+import type { IHeapEdge, IHeapNode, IHeapSnapshot } from "@memlab/core";
 import { getFullHeapFromFile } from "@memlab/heap-analysis";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -36,18 +36,33 @@ interface ClosureEntry {
     retainedSize: number;
 }
 
+interface RetentionPathEntry {
+    nodeId: number;
+    nodeName: string;
+    path: string[];
+}
+
 interface HeapReport {
     summary: { nodes: number; edges: number; totalShallowSize: number };
     byConstructor: ConstructorEntry[];
     byType: TypeEntry[];
     largeObjects: LargeObjectEntry[];
     closures: ClosureEntry[];
+    retentionPaths: Record<string, RetentionPathEntry[]>;
 }
 
 /**
  * Analyze a heap snapshot and write a JSON report.
  */
-export async function analyzeHeap(snapshotPath: string, outputDir: string): Promise<void> {
+export interface AnalyzeHeapOptions {
+    /**
+     * Trace retention paths for instances of these constructor names.  Up to 3 instances of each type are traced back
+     * to GC roots via BFS.
+     */
+    trackedTypes?: string[];
+}
+
+export async function analyzeHeap(snapshotPath: string, outputDir: string, options?: AnalyzeHeapOptions): Promise<void> {
     const heap: IHeapSnapshot = await getFullHeapFromFile(snapshotPath);
 
     let totalShallowSize = 0;
@@ -139,8 +154,109 @@ export async function analyzeHeap(snapshotPath: string, outputDir: string): Prom
         byType,
         largeObjects,
         closures,
+        retentionPaths: {},
     };
+
+    // Trace retention paths for specific types of interest
+    const trackedTypes = options?.trackedTypes;
+    const retentionPaths: Record<string, RetentionPathEntry[]> = {};
+
+    for (const typeName of trackedTypes ?? []) {
+        const entries: RetentionPathEntry[] = [];
+        heap.nodes.forEach((node: IHeapNode) => {
+            if (node.type === "object" && node.name === typeName && entries.length < 3) {
+                const path = traceRetentionPath(node, 15);
+                entries.push({ nodeId: node.id, nodeName: node.name, path });
+            }
+        });
+        if (entries.length > 0) {
+            retentionPaths[typeName] = entries;
+        }
+    }
+
+    report.retentionPaths = retentionPaths;
 
     await mkdir(outputDir, { recursive: true });
     await writeFile(join(outputDir, "heap-analysis.json"), JSON.stringify(report, null, 2) + "\n");
+}
+
+/**
+ * Trace the shortest retention path from a node back to a GC root using BFS.
+ * Avoids cycles by tracking visited nodes.
+ */
+function traceRetentionPath(target: IHeapNode, maxDepth: number): string[] {
+    // BFS from target node back through referrers to find shortest path to a root
+    interface BfsEntry {
+        node: IHeapNode;
+        edge?: IHeapEdge;
+        parent?: BfsEntry;
+        depth: number;
+    }
+
+    const visited = new Set<number>();
+    visited.add(target.id);
+
+    const queue: BfsEntry[] = [{ node: target, depth: 0 }];
+    let found: BfsEntry | undefined;
+
+    while (queue.length > 0) {
+        const entry = queue.shift()!;
+        if (entry.depth >= maxDepth) continue;
+
+        const referrers: IHeapEdge[] = entry.node.referrers;
+        if (!referrers || referrers.length === 0) {
+            found = entry;
+            break;
+        }
+
+        for (const edge of referrers) {
+            const from = edge.fromNode;
+            if (!from || visited.has(from.id)) continue;
+            // Skip weak references
+            if (edge.type === "weak") continue;
+            visited.add(from.id);
+
+            const child: BfsEntry = { node: from, edge, parent: entry, depth: entry.depth + 1 };
+
+            if (from.name === "(GC roots)" || from.name === "(Internals)") {
+                found = child;
+                break;
+            }
+
+            queue.push(child);
+        }
+
+        if (found) break;
+    }
+
+    if (!found) {
+        // If we couldn't find a GC root, just show the target info and all referrers
+        const result = [`${target.name}(${target.type}, id=${target.id})`];
+        const referrers = target.referrers.filter(
+            (e: IHeapEdge) => e.fromNode && e.fromNode.id !== target.id && e.type !== "weak",
+        );
+        result.push(
+            `referrers(${referrers.length}): ${referrers
+                .slice(0, 10)
+                .map((e: IHeapEdge) => `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(id=${e.fromNode.id})`)
+                .join(", ")}`,
+        );
+        return result;
+    }
+
+    // Reconstruct path from target to root
+    const path: string[] = [];
+    let cur: BfsEntry | undefined = found;
+    while (cur) {
+        if (cur.edge) {
+            path.push(
+                `<- .${cur.edge.name_or_index} [${cur.edge.type}] from ${cur.node.name}(${cur.node.type}, id=${cur.node.id})`,
+            );
+        } else {
+            path.push(`${cur.node.name}(${cur.node.type}, id=${cur.node.id})`);
+        }
+        cur = cur.parent;
+    }
+
+    return path.reverse();
 }
