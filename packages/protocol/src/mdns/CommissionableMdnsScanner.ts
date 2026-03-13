@@ -124,6 +124,12 @@ export class CommissionableMdnsScanner implements Scanner {
         timeout?: Duration,
         cancelSignal?: Promise<void>,
     ): Promise<CommissionableDevice[]> {
+        // Pick up names already discovered before we subscribed (e.g. device broadcasts that arrived
+        // before the scanner was created)
+        for (const name of this.#names.discoveredNames()) {
+            this.#onDiscovered(name);
+        }
+
         const seen = new Set<string>();
         const result: CommissionableDevice[] = [];
 
@@ -253,6 +259,10 @@ function buildCommissionableDevice(name: DnssdName): CommissionableDevice | unde
     const instanceId = name.qname.split(".")[0];
 
     const dd = DiscoveryData(params);
+
+    // Default T and ICD to 0 when absent, matching legacy MdnsClient behavior
+    dd.T ??= 0;
+    dd.ICD ??= 0;
 
     return {
         ...dd,

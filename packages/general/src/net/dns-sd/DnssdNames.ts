@@ -168,6 +168,17 @@ export class DnssdNames {
         return this.#names.get(name.toLowerCase());
     }
 
+    /**
+     * Iterate all currently discovered {@link DnssdName}s.
+     */
+    *discoveredNames() {
+        for (const name of this.#names.values()) {
+            if (name.isDiscovered) {
+                yield name;
+            }
+        }
+    }
+
     #delete(name: DnssdName) {
         this.#names.delete(name.qname.toLowerCase());
     }
