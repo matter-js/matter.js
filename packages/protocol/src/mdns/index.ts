@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./CommissionableMdnsScanner.js";
 export * from "./MdnsClient.js";
 export * from "./MdnsConsts.js";
 export * from "./MdnsServer.js";
