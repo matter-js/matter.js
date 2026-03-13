@@ -9,8 +9,6 @@ import {
     Advertisement,
     CommissioningMode,
     MdnsAdvertiser,
-    MdnsClient,
-    MdnsScannerTargetCriteria,
     MdnsServer,
     ServiceDescription,
 } from "#index.js";
@@ -18,7 +16,6 @@ import {
     ConnectionlessTransport,
     DnsCodec,
     DnsMessage,
-    DnsMessageType,
     DnsRecordType,
     Duration,
     Instant,
@@ -108,7 +105,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         let serverSocket: MdnsSocket;
         let server: MdnsServer;
         let clientSocket: MdnsSocket;
-        let client: MdnsClient;
         let scanListener: UdpChannel;
         let broadcastListener: UdpChannel;
         let scannerInterceptor: MockRouter.Interceptor | undefined;
@@ -136,7 +132,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 enableIpv4: testIpv4Enabled,
                 netInterface: "fake0",
             });
-            client = new MdnsClient(clientSocket);
 
             serverSocket = await MdnsSocket.create(serverNetwork, {
                 enableIpv4: testIpv4Enabled,
@@ -188,7 +183,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         afterEach(async () => {
             await closeAll();
             await server.close();
-            await client.close();
+            await clientSocket.close();
             await scanListener.close();
             await broadcastListener.close();
         });
@@ -926,291 +921,6 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
                 });
 
                 // And expire the announcement for all via close
-                await closeAll();
-            });
-        });
-
-        describe("Disabled discovery", () => {
-            it("the client do not know announced records if scanning is not enabled by criteria", async () => {
-                const collection = waitForMessages({ count: 2 });
-
-                advertise(COMMISSIONABLE_SERVICE);
-                advertise(OPERATIONAL_SERVICE, PORT2);
-
-                await collection;
-
-                // No commissionable devices because never queried
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
-
-                // And expire the announcement
-                await closeAll();
-
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
-            });
-        });
-
-        describe("Only commissionable discovery", () => {
-            const criteria: MdnsScannerTargetCriteria = {
-                commissionable: true,
-            };
-            beforeEach(() => client.targetCriteriaProviders.add(criteria));
-            afterEach(() => client.targetCriteriaProviders.delete(criteria));
-
-            it("the client discovers commissionable records when scanning is enabled by criteria", async () => {
-                const collection = waitForMessages({ count: 2 });
-
-                advertise(COMMISSIONABLE_SERVICE);
-                advertise(OPERATIONAL_SERVICE, PORT2);
-
-                await collection;
-
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([
-                    {
-                        CM: 1,
-                        D: 1234,
-                        DN: "Test Device",
-                        DT: 1,
-                        P: 32768,
-                        PH: 33,
-                        SAI: 300,
-                        SD: 4,
-                        SII: 500,
-                        SAT: 4000,
-                        T: 0,
-                        ICD: 0,
-                        V: 1,
-                        VP: "1+32768",
-                        addresses: IPIntegrationResultsPort1,
-                        deviceIdentifier: "8080808080808080",
-                        discoveredAt: undefined,
-                        ttl: undefined,
-                        instanceId: "8080808080808080",
-                    },
-                ]);
-
-                // And expire the announcement
-                await closeAll();
-
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 })).deep.equal([]);
-            });
-
-            it("removes commissionable device from cache once device and IP TTLs both elapse", async () => {
-                const shortTtl = Seconds(2);
-                const instanceName = "ttltest00000000._matterc._udp.local";
-                const hostname = "ttltesthost.local";
-
-                // Inject a commissionable record with a short TTL directly, bypassing the
-                // advertiser so there are no follow-up re-announcements that would refresh the TTL
-                await serverSocket.send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        answers: [
-                            {
-                                flushCache: false,
-                                name: "_matterc._udp.local",
-                                recordType: DnsRecordType.PTR,
-                                recordClass: 1,
-                                ttl: shortTtl,
-                                value: instanceName,
-                            },
-                        ],
-                        additionalRecords: [
-                            {
-                                flushCache: false,
-                                name: instanceName,
-                                recordType: DnsRecordType.SRV,
-                                recordClass: 1,
-                                ttl: shortTtl,
-                                value: { priority: 0, weight: 0, port: PORT, target: hostname },
-                            },
-                            {
-                                flushCache: false,
-                                name: instanceName,
-                                recordType: DnsRecordType.TXT,
-                                recordClass: 1,
-                                ttl: shortTtl,
-                                value: ["D=9999", "CM=1", "VP=1+1", "DT=1", "PH=33"],
-                            },
-                            {
-                                flushCache: false,
-                                name: hostname,
-                                recordType: DnsRecordType.AAAA,
-                                recordClass: 1,
-                                ttl: shortTtl,
-                                value: SERVER_IPv6,
-                            },
-                        ],
-                    },
-                    "fake0",
-                );
-
-                // Let the DNS response be processed
-                await MockTime.resolve(Time.sleep("process", Millis(50)));
-
-                // Device is in cache
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 9999 })).length(1);
-
-                // Advance past both device and IP TTLs (2s * 1.05 grace factor = 2.1s) plus
-                // one periodic expiry timer cycle (fires every 60s) to trigger the cleanup
-                await MockTime.resolve(Time.sleep("expire", Seconds(63)));
-
-                // Device must be removed — both device record and all IP addresses have expired
-                expect(client.getDiscoveredCommissionableDevices({ longDiscriminator: 9999 })).deep.equal([]);
-            });
-
-            describe("Multiple concurrent waiters for the same commissionable query", () => {
-                it("two timed commissionable discoveries with different timeouts resolve in the correct order", async () => {
-                    // Start two findCommissionableDevices calls with different timeouts
-                    // Neither will find a device (not advertised), so they should timeout
-                    const shortTimeout = Millis(500);
-                    const longTimeout = Millis(1000);
-
-                    const identifier = { longDiscriminator: 1234 };
-                    const shortPromise = client.findCommissionableDevices(identifier, shortTimeout);
-                    const longPromise = client.findCommissionableDevices(identifier, longTimeout);
-
-                    const results: Array<{
-                        which: string;
-                        result: typeof shortPromise extends Promise<infer T> ? T : never;
-                    }> = [];
-
-                    // Track which promise resolves first
-
-                    shortPromise.then(result => results.push({ which: "short", result })).catch(() => {});
-                    longPromise.then(result => results.push({ which: "long", result })).catch(() => {});
-
-                    // Advance past the short timeout
-                    await MockTime.advance(600);
-                    await MockTime.yield3();
-
-                    // Short timeout should have resolved first with empty array
-                    expect(results.length).equals(1);
-                    expect(results[0].which).equals("short");
-                    expect(results[0].result).deep.equals([]);
-
-                    // Advance past the long timeout
-                    await MockTime.advance(500);
-                    await MockTime.yield3();
-
-                    // Long timeout should now also have resolved with empty array
-                    expect(results.length).equals(2);
-                    expect(results[1].which).equals("long");
-                    expect(results[1].result).deep.equals([]);
-                });
-
-                it("two concurrent commissionable queries both resolve when a matching record is found", async () => {
-                    // Start two findCommissionableDevices calls for the same identifier
-                    const timeout = Seconds(10);
-                    const identifier = { longDiscriminator: 1234 };
-
-                    const promise1 = client.findCommissionableDevices(identifier, timeout);
-                    const promise2 = client.findCommissionableDevices(identifier, timeout);
-
-                    // Now advertise the device - both waiters should be notified
-                    advertise(COMMISSIONABLE_SERVICE);
-
-                    // Wait for the broadcast to be processed
-                    const [result1, result2] = await MockTime.resolve(Promise.all([promise1, promise2]));
-
-                    // Both should have found the device
-                    expect(result1.length).equals(1);
-                    expect(result1[0].deviceIdentifier).equals("8080808080808080");
-                    expect(result1[0].addresses).deep.equal(IPIntegrationResultsPort1);
-
-                    expect(result2.length).equals(1);
-                    expect(result2[0].deviceIdentifier).equals("8080808080808080");
-                    expect(result2[0].addresses).deep.equal(IPIntegrationResultsPort1);
-
-                    // Cleanup
-                    await closeAll();
-                });
-            });
-        });
-
-        describe("Goodbye protection against out-of-order packets", () => {
-            const criteria: MdnsScannerTargetCriteria = {
-                commissionable: true,
-            };
-            beforeEach(() => client.targetCriteriaProviders.add(criteria));
-            afterEach(() => client.targetCriteriaProviders.delete(criteria));
-
-            it("ignores goodbye (TTL=0) for commissionable device discovered within 1 second", async () => {
-                // Wait for initial announcement to be received
-                const messages = waitForMessages({ count: 1 });
-                advertise(COMMISSIONABLE_SERVICE);
-                await messages;
-
-                // Verify device is discovered
-                const devices = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
-                expect(devices.length).equals(1);
-                expect(devices[0].deviceIdentifier).equals("8080808080808080");
-
-                // Send a goodbye message (TTL=0) immediately - simulating out-of-order packet
-                await serverSocket.send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        answers: [
-                            {
-                                name: "8080808080808080._matterc._udp.local",
-                                recordType: DnsRecordType.TXT,
-                                recordClass: 1,
-                                ttl: Instant, // TTL=0
-                                value: [],
-                                flushCache: false,
-                            },
-                        ],
-                    },
-                    "fake0",
-                );
-
-                // Wait for message to be processed
-                await MockTime.resolve(Time.sleep("process", Millis(50)));
-
-                // Device should still be there - goodbye was ignored due to protection window
-                const devicesAfter = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
-                expect(devicesAfter.length).equals(1);
-
-                await closeAll();
-            });
-
-            it("accepts goodbye (TTL=0) for commissionable device discovered more than 1 second ago", async () => {
-                // Wait for initial announcement to be received
-                const messages = waitForMessages({ count: 1 });
-                advertise(COMMISSIONABLE_SERVICE);
-                await messages;
-
-                // Verify device is discovered
-                const devices = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
-                expect(devices.length).equals(1);
-
-                // Wait more than 1 second (protection window)
-                await MockTime.resolve(Time.sleep("wait", Millis(1100)));
-
-                // Send a goodbye message (TTL=0) - now outside protection window
-                await serverSocket.send(
-                    {
-                        messageType: DnsMessageType.Response,
-                        answers: [
-                            {
-                                name: "8080808080808080._matterc._udp.local",
-                                recordType: DnsRecordType.TXT,
-                                recordClass: 1,
-                                ttl: Instant, // TTL=0
-                                value: [],
-                                flushCache: false,
-                            },
-                        ],
-                    },
-                    "fake0",
-                );
-
-                // Wait for message to be processed
-                await MockTime.resolve(Time.sleep("process", Millis(50)));
-
-                // Device should be removed - goodbye was accepted
-                const devicesAfter = client.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
-                expect(devicesAfter.length).equals(0);
-
                 await closeAll();
             });
         });

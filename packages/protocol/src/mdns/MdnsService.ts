@@ -18,7 +18,6 @@ import {
     VariableService,
 } from "@matter/general";
 import { MdnsServer } from "../mdns/MdnsServer.js";
-import { MdnsClient } from "./MdnsClient.js";
 
 const logger = Logger.get("MDNS");
 
@@ -30,7 +29,6 @@ export class MdnsService {
 
     #socket?: MdnsSocket;
     #server?: MdnsServer;
-    #client?: MdnsClient;
     #names?: DnssdNames;
 
     get enableIpv4() {
@@ -56,7 +54,6 @@ export class MdnsService {
             });
 
             this.#server = new MdnsServer(this.#socket, this.#construction);
-            this.#client = new MdnsClient(this.#socket, this.#construction);
         });
     }
 
@@ -68,24 +65,13 @@ export class MdnsService {
         return this.#construction.assert("MDNS service", this.#server);
     }
 
-    get client() {
-        return this.#construction.assert("MDNS service", this.#client);
-    }
-
     get names() {
         if (this.#names === undefined) {
             this.#names = new DnssdNames({
                 socket: this.#construction.assert("MDNS socket", this.#socket),
                 lifetime: this.#construction,
                 entropy: this.#entropy,
-                filter: ({ name }) => {
-                    // TODO - only accepting operational records here; add commissionable when we remove MdnsClient
-                    if (name.toLowerCase().match(/_matter(?:[cd]\._udp|\._tcp)\.local$/i)) {
-                        return true;
-                    }
-
-                    return false;
-                },
+                filter: ({ name }) => name.toLowerCase().endsWith("._matter._tcp.local"),
             });
         }
         return this.#names;
@@ -103,7 +89,7 @@ export class MdnsService {
         await this.#construction.close(async () => {
             try {
                 await MatterAggregateError.allSettled(
-                    [this.#server, this.#client, this.#names].map(svc => svc?.close()),
+                    [this.#server, this.#names].map(svc => svc?.close()),
                     "Error disposing MDNS services",
                 );
             } catch (e) {
@@ -114,7 +100,7 @@ export class MdnsService {
                 await this.#socket?.close();
             }
 
-            this.#server = this.#client = this.#names = undefined;
+            this.#server = this.#names = undefined;
         });
     }
 }

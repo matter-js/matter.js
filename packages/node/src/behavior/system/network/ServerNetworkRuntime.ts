@@ -23,6 +23,7 @@ import {
     Advertiser,
     Ble,
     BleAdvertiser,
+    CommissionableMdnsScanner,
     DeviceAdvertiser,
     DeviceCommissioner,
     ExchangeManager,
@@ -296,7 +297,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         // Initialize ScannerSet
-        env.get(ScannerSet).add(env.get(MdnsService).client);
+        env.get(ScannerSet).add(new CommissionableMdnsScanner(env.get(MdnsService).names));
 
         const { timing, profiles } = this.owner.state.network;
         if (timing) {
