@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageBackendJsonFile } from "#storage/index.js";
+import { JsonFileStorageDriver } from "#storage/index.js";
 import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import { readFile, unlink } from "node:fs/promises";
@@ -12,6 +12,12 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 
 const TEST_STORAGE_LOCATION = resolve(tmpdir(), "matterjs-test-storage.json");
+
+async function createJsonFileStorage(path: string) {
+    const storage = new JsonFileStorageDriver(path);
+    await storage.initialize();
+    return storage;
+}
 
 describe("Storage in JSON File", () => {
     beforeEach(async () => {
@@ -23,8 +29,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("write and read success", async () => {
-        const storage = new StorageBackendJsonFile(TEST_STORAGE_LOCATION);
-        storage.initialize();
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
 
         storage.set(["context"], "key", "value");
 
@@ -35,8 +40,7 @@ describe("Storage in JSON File", () => {
 
         await storage.committed;
 
-        const storageRead = new StorageBackendJsonFile(TEST_STORAGE_LOCATION);
-        storageRead.initialize();
+        const storageRead = await createJsonFileStorage(TEST_STORAGE_LOCATION);
 
         const valueRead = storage.get(["context"], "key");
         assert.equal(valueRead, "value");
@@ -56,7 +60,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("write and delete success", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
 
         storage.set(["context"], "key", "value");
 
@@ -70,7 +74,7 @@ describe("Storage in JSON File", () => {
 
         await storage.committed;
 
-        const storageRead = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storageRead = await createJsonFileStorage(TEST_STORAGE_LOCATION);
 
         const valueRead = storage.get(["context"], "key");
         assert.equal(valueRead, undefined);
@@ -88,7 +92,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when context is empty on set", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         assert.throws(
             () => {
                 storage.set([""], "key", "value");
@@ -100,7 +104,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when key is empty on set", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         assert.throws(
             () => {
                 storage.set(["context"], "", "value");
@@ -112,7 +116,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when context is empty on get", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         assert.throws(
             () => {
                 storage.get([""], "key");
@@ -124,7 +128,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("Throws error when key is empty on get", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         assert.throws(
             () => {
                 storage.get(["context"], "");
@@ -136,7 +140,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("writeBlob and readBlob success", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         const data = new Uint8Array([21, 22, 23]);
         const stream = new ReadableStream<Bytes>({
             start(controller) {
@@ -159,7 +163,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("blobSize returns correct size", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         const data = new Uint8Array([31, 32]);
         storage.set(["context"], "blobkey", data);
 
@@ -168,7 +172,7 @@ describe("Storage in JSON File", () => {
     });
 
     it("readBlob returns empty stream for missing key", async () => {
-        const storage = await StorageBackendJsonFile.create(TEST_STORAGE_LOCATION);
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         const blob = storage.openBlob(["context"], "missingkey");
         const reader = blob.stream().getReader();
         const { done } = await reader.read();

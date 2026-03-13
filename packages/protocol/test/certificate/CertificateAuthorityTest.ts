@@ -8,7 +8,7 @@ import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
 import { Icac } from "#certificate/kinds/Icac.js";
 import { Noc } from "#certificate/kinds/Noc.js";
 import { Rcac } from "#certificate/kinds/Rcac.js";
-import { Bytes, StandardCrypto, StorageBackendMemory, StorageContext, StorageManager } from "@matter/general";
+import { Bytes, MemoryStorageDriver, StandardCrypto, StorageContext, StorageManager } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, NodeId } from "@matter/types";
 
 const crypto = new StandardCrypto();
@@ -40,7 +40,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("persists and loads from storage", async () => {
-            const storage = new StorageManager(new StorageBackendMemory());
+            const storage = new StorageManager(new MemoryStorageDriver());
             await storage.initialize();
             const context = storage.createContext("test");
 
@@ -86,7 +86,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("persists ICAC to storage", async () => {
-            const storage = new StorageManager(new StorageBackendMemory());
+            const storage = new StorageManager(new MemoryStorageDriver());
             await storage.initialize();
             const context = storage.createContext("test");
 
@@ -107,7 +107,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("auto-detects ICAC from storage when ica option not provided", async () => {
-            const storage = new StorageManager(new StorageBackendMemory());
+            const storage = new StorageManager(new MemoryStorageDriver());
             await storage.initialize();
             const context = storage.createContext("test");
 
@@ -126,7 +126,7 @@ describe("CertificateAuthority", () => {
         });
 
         it("loads ICAC from storage and sets intermediateCert=true (storage takes precedence)", async () => {
-            const storage = new StorageManager(new StorageBackendMemory());
+            const storage = new StorageManager(new MemoryStorageDriver());
             await storage.initialize();
             const context = storage.createContext("test");
 
@@ -150,7 +150,7 @@ describe("CertificateAuthority", () => {
         let context: StorageContext;
 
         beforeEach(async () => {
-            storage = new StorageManager(new StorageBackendMemory());
+            storage = new StorageManager(new MemoryStorageDriver());
             await storage.initialize();
             context = storage.createContext("test");
         });

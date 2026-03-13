@@ -30,7 +30,7 @@ export class ParentProcess {
     #activeChild?: {
         process: ChildProcess;
         result: Promise<void>;
-        outstandingRequests: Map<number, { resolve(): void; reject(error: Error): void }>;
+        outstandingRequests: Map<number, { resolve(result?: unknown): void; reject(error: Error): void }>;
     };
     #closed = false;
     #nextExchangeNo = 1;
@@ -52,11 +52,11 @@ export class ParentProcess {
         }
     }
 
-    protected send<T extends Message.Acknowledged>(message: Omit<T, "exchangeNo">) {
+    protected send<T extends Message.Acknowledged>(message: Omit<T, "exchangeNo">): Promise<unknown> {
         const exchangeNo = ++this.#nextExchangeNo;
 
         return SafePromise.race([
-            new Promise<void>((resolve, reject) => {
+            new Promise<unknown>((resolve, reject) => {
                 this.#child.process.send({ ...message, exchangeNo }, error => {
                     if (error) {
                         reject(error);
@@ -104,7 +104,7 @@ export class ParentProcess {
                             if (message.error) {
                                 response.reject(new Error(message.error));
                             } else {
-                                response.resolve();
+                                response.resolve(message.result);
                             }
                             break;
 

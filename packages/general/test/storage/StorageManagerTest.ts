@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageBackendMemory } from "#storage/StorageBackendMemory.js";
+import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
 import { StorageError } from "#storage/StorageDriver.js";
 import { StorageManager } from "#storage/StorageManager.js";
 
 describe("StorageManager", () => {
     it("create StorageContext write and read success", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
 
@@ -25,7 +25,7 @@ describe("StorageManager", () => {
     });
 
     it("creating StorageManager without initialize throws error when creating StorageContext", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
 
@@ -35,7 +35,7 @@ describe("StorageManager", () => {
     });
 
     it("creating StorageContext with  dot in name fails", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
         await storageManager.initialize();
@@ -46,7 +46,7 @@ describe("StorageManager", () => {
     });
 
     it("getting same StorageContext context access same data", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
 
@@ -62,7 +62,7 @@ describe("StorageManager", () => {
     });
 
     it("getting same StorageContext context access same data with subcontext", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
 

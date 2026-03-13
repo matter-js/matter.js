@@ -48,6 +48,7 @@ import { GeneralCommissioning } from "@matter/types/clusters/general-commissioni
 import { PeerAddress } from "./PeerAddress.js";
 import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
 import { PeerSet } from "./PeerSet.js";
+import { PeerTimingParameters } from "./PeerTimingParameters.js";
 
 const logger = Logger.get("ControllerCommissioner");
 
@@ -77,6 +78,15 @@ export interface CommissioningOptions extends Partial<ControllerCommissioningFlo
      * Defaults to the matter.js default implementation {@link ControllerCommissioningFlow}.
      */
     commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
+
+    /**
+     * Timing overrides for the step-18 CASE reconnect.
+     *
+     * After commissioning completes, the commissioner establishes the first operational CASE session.  The device is
+     * known to be freshly online at this point, so tighter timing is appropriate.  Any fields provided here are merged
+     * on top of the global {@link PeerSet.timing} for that single connection only.
+     */
+    caseConnectionTiming?: Partial<PeerTimingParameters>;
 }
 
 /**
@@ -441,6 +451,7 @@ export class ControllerCommissioner {
             fabric,
             finalizeCommissioning: performCaseCommissioning,
             commissioningFlowImpl = ControllerCommissioningFlow,
+            caseConnectionTiming,
         } = options;
 
         const commissioningOptions = {
@@ -518,7 +529,7 @@ export class ControllerCommissioner {
 
                 const peer = this.#context.peers.for(address);
                 peer.descriptor.discoveryData = discoveryData;
-                await peer.connect({ connectionTimeout: Minutes(4) });
+                await peer.connect({ connectionTimeout: Minutes(4), timing: caseConnectionTiming });
 
                 return new ClientInteraction({
                     environment: this.#context.environment,

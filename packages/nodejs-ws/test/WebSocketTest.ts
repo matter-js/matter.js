@@ -10,14 +10,14 @@ import "@matter/nodejs";
 // Load node.js WS extension
 import "@matter/nodejs-ws";
 
-import { asError, Bytes, Environment, StorageBackendMemory, StorageService } from "@matter/general";
+import { asError, Bytes, Environment, MockStorageService } from "@matter/general";
 import { Endpoint, RemoteRequest, RemoteResponse, ServerNode, WebSocketServer } from "@matter/node";
 import { OnOffServer } from "@matter/node/behaviors/on-off";
 import { OnOffLightDevice } from "@matter/node/devices/on-off-light";
 import { WebSocketStreams } from "@matter/nodejs-ws";
 import { MdnsService, Val } from "@matter/protocol";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { ErrorEvent, WebSocket } from "ws";
 
 let tempFileNum = 0;
@@ -30,9 +30,7 @@ let environment: Environment;
 describe("WebSocket", () => {
     beforeEach(async () => {
         environment = new Environment("test", Environment.default);
-        const storage = environment.get(StorageService);
-        storage.factory = () => new StorageBackendMemory();
-        storage.resolve = (...paths) => resolve(...paths);
+        new MockStorageService(environment);
     });
 
     afterEach(async () => {
