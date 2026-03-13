@@ -493,6 +493,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             }
             case "command": {
                 if (
+                    id === CommandId.NONE ||
                     (!member.effectiveConformance.isMandatory && !supportedElements.commands.has(name)) ||
                     !member.isRequest
                 ) {

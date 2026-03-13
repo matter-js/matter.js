@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommandElement } from "#elements/CommandElement.js";
 import { CommandModel } from "#models/CommandModel.js";
 import { Decorator } from "@matter/general";
 import { element } from "./element.js";
@@ -23,5 +24,5 @@ export function command(...modifiers: element.Modifier<Decorator.MethodCollector
  * not a valid MEI, these commands are invisible to the Matter protocol layer.
  */
 export function method(...modifiers: element.Modifier<Decorator.MethodCollector>[]) {
-    return element(CommandModel, -1, ...modifiers);
+    return element(CommandModel, CommandElement.NO_ID, ...modifiers);
 }

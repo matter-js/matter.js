@@ -5,6 +5,7 @@
  */
 
 import { Branded } from "@matter/general";
+import { CommandElement } from "@matter/model";
 import { ValidationOutOfBoundsError, validatorOf } from "../common/ValidationError.js";
 import { TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvWrapper } from "../tlv/TlvWrapper.js";
@@ -29,7 +30,7 @@ export function CommandId(commandId: number, validate = true): CommandId {
 }
 
 export namespace CommandId {
-    export const NONE = CommandId(-1, false);
+    export const NONE = CommandId(CommandElement.NO_ID, false);
 
     export const isValid = validatorOf(CommandId);
 
