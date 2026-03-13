@@ -74,6 +74,10 @@ export class DnssdNames {
         const filtered = new Set(records);
         let goodbyesBefore: undefined | Timestamp;
 
+        // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
+        // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
+        const newlyDiscovered: DnssdName[] = [];
+
         /**
          * Handles a record we've decided we're interested in.
          */
@@ -87,7 +91,7 @@ export class DnssdNames {
                 const wasDiscovered = name.isDiscovered;
                 name.installRecord(record);
                 if (!wasDiscovered && name.isDiscovered) {
-                    this.#discovered.emit(name);
+                    newlyDiscovered.push(name);
                 }
             } else {
                 if (goodbyesBefore === undefined) {
@@ -127,6 +131,11 @@ export class DnssdNames {
 
                 handleRecord(record);
             }
+        }
+
+        // Emit discovered events after all records are installed so observers see complete state
+        for (const name of newlyDiscovered) {
+            this.#discovered.emit(name);
         }
     }
 

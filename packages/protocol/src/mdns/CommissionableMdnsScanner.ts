@@ -5,6 +5,7 @@
  */
 
 import {
+    Abort,
     ChannelType,
     Diagnostic,
     DnsRecord,
@@ -13,6 +14,7 @@ import {
     DnssdNames,
     Duration,
     IpService,
+    MatterAggregateError,
     ObserverGroup,
     Seconds,
     ServerAddressUdp,
@@ -74,6 +76,11 @@ export class CommissionableMdnsScanner implements Scanner {
     }
 
     async close() {
+        // Cancel all active discoveries so their promises resolve
+        for (const waiter of this.#waiters) {
+            waiter.cancel();
+        }
+
         this.#names.removeFilter(this.#filter);
         this.#observers.close();
         for (const { ipService } of this.#cache.values()) {
@@ -117,8 +124,6 @@ export class CommissionableMdnsScanner implements Scanner {
         timeout?: Duration,
         cancelSignal?: Promise<void>,
     ): Promise<CommissionableDevice[]> {
-        this.#solicitQueries(identifier);
-
         const seen = new Set<string>();
         const result: CommissionableDevice[] = [];
 
@@ -155,10 +160,16 @@ export class CommissionableMdnsScanner implements Scanner {
         if (sleepTimer) signals.push(sleepTimer);
         if (cancelSignal) signals.push(cancelSignal);
 
+        // Start continuous query retransmission (RFC 6762 schedule)
+        const queryAbort = new Abort();
+        const discoveries = this.#startDiscovery(identifier, queryAbort);
+
         try {
             await Promise.race(signals);
             sleepTimer?.cancel();
         } finally {
+            queryAbort();
+            await discoveries;
             this.#waiters.delete(waiter);
         }
 
@@ -215,15 +226,17 @@ export class CommissionableMdnsScanner implements Scanner {
         }
     }
 
-    #solicitQueries(identifier: CommissionableDeviceIdentifiers) {
+    async #startDiscovery(identifier: CommissionableDeviceIdentifiers, abort: Abort) {
         const solicitor = this.#names.solicitor;
         const qnames = getQueryQnames(identifier);
-        for (const qname of qnames) {
-            solicitor.solicit({
+        const discoveries = qnames.map(qname =>
+            solicitor.discover({
                 name: this.#names.get(qname),
                 recordTypes: [DnsRecordType.PTR],
-            });
-        }
+                abort,
+            }),
+        );
+        await MatterAggregateError.allSettled(discoveries);
     }
 }
 
