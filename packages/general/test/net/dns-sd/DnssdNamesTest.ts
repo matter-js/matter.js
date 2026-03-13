@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { DnsRecord } from "#codec/DnsCodec.js";
 import { Hours, Minutes } from "#index.js";
 import { MockSite, qnameOf } from "./dns-sd-helpers.js";
 
@@ -101,6 +102,43 @@ describe("DnssdNames", () => {
 
         expect(client.names.has(qname)).false;
         expect(client.names.has(server.hostname)).false;
+    });
+
+    describe("dynamic filter", () => {
+        it("accepts records matching a dynamically added filter", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            // No filter initially — accept nothing by default in this test
+            client.configureNames({ filter: () => false });
+
+            // Add a filter that accepts the server's service
+            const filter = (record: DnsRecord) => record.name === qnameOf(1);
+            client.names.addFilter(filter);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast();
+            await discovered;
+
+            expect(client.names.has(qnameOf(1))).true;
+        });
+
+        it("stops accepting records after removeFilter", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const filter = (record: DnsRecord) => record.name === qnameOf(1);
+            client.configureNames({ filter: () => false });
+            client.names.addFilter(filter);
+            client.names.removeFilter(filter);
+
+            await server.broadcast();
+            await MockTime.advance(100);
+
+            expect(client.names.has(qnameOf(1))).false;
+        });
     });
 
     it("filters but tracks and expires SRV even if filtered out", async () => {

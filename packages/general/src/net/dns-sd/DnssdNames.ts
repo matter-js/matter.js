@@ -26,7 +26,7 @@ export class DnssdNames {
     readonly #socket: MdnsSocket;
     readonly #lifetime: Lifetime;
     readonly #entropy: Entropy;
-    readonly #filter?: (record: DnsRecord) => boolean;
+    readonly #filters = new Set<(record: DnsRecord) => boolean>();
     readonly #solicitor: QueryMulticaster;
     readonly #observers = new ObserverGroup();
     readonly #names = new Map<string, DnssdName>();
@@ -46,7 +46,9 @@ export class DnssdNames {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns names");
         this.#entropy = entropy;
-        this.#filter = filter;
+        if (filter) {
+            this.#filters.add(filter);
+        }
         this.#solicitor = new QueryMulticaster(this);
         this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
@@ -97,7 +99,7 @@ export class DnssdNames {
 
         // Process all records explicitly accepted by the filter
         for (const record of records) {
-            if (this.#filter && !this.#filter(record)) {
+            if (this.#filters.size > 0 && ![...this.#filters].some(f => f(record))) {
                 continue;
             }
 
@@ -166,6 +168,21 @@ export class DnssdNames {
         await this.#solicitor.close();
     }
 
+    /**
+     * Register an additional ingress filter. Records accepted by ANY registered filter are processed.
+     * If no filters are registered, all records are accepted.
+     */
+    addFilter(filter: (record: DnsRecord) => boolean) {
+        this.#filters.add(filter);
+    }
+
+    /**
+     * Unregister a previously added filter.
+     */
+    removeFilter(filter: (record: DnsRecord) => boolean) {
+        this.#filters.delete(filter);
+    }
+
     get socket() {
         return this.#socket;
     }
@@ -219,7 +236,7 @@ export namespace DnssdNames {
         entropy: Entropy;
 
         /**
-         * Identify relevant records coming in on the wire for inclusion in the name set.
+         * Initial ingress filter. Additional filters may be added via {@link DnssdNames.addFilter}.
          *
          * Observed names are considered relevant even if filtered here.
          */
