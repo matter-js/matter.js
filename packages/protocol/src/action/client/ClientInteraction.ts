@@ -826,6 +826,10 @@ export class ClientInteraction<
 
         let subscription: ClientSubscription;
         if (request.sustain) {
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort.
+            // Update interactionSession BEFORE constructing SustainedSubscription so closures see the correct value
+            interactionSession = { ...interactionSession, connectionTimeout: Forever } as SessionT;
+
             subscription = new SustainedSubscription({
                 lifetime: this.subscriptions,
                 subscribe,
@@ -836,9 +840,6 @@ export class ClientInteraction<
                 retries: this.#sustainRetries,
                 read,
             });
-
-            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
-            interactionSession = { ...interactionSession, connectionTimeout: Forever } as SessionT;
         } else {
             subscription = await subscribe(request);
         }
