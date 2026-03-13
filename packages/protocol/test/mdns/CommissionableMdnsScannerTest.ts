@@ -7,10 +7,12 @@
 import { CommissionableMdnsScanner } from "#mdns/CommissionableMdnsScanner.js";
 import {
     DnsMessageType,
+    DnsRecord,
     DnsRecordClass,
     DnsRecordType,
     DnssdNames,
     MdnsSocket,
+    Millis,
     MockCrypto,
     MockNetwork,
     NetworkSimulator,
@@ -105,6 +107,346 @@ describe("CommissionableMdnsScanner", () => {
             expect(device.D).equals(3840);
             expect(device.CM).equals(1);
             expect(device.deviceIdentifier).equals(INSTANCE_ID);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("removes device from cache when TTL expires", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        // Use minTtl: 0 so short TTLs are not bumped up
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x03), minTtl: Millis(0) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const shortTtl = Seconds(2);
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: shortTtl,
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: shortTtl,
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: shortTtl,
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+
+            await MockTime.advance(10);
+
+            // Device should be cached immediately after discovery
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+
+            // Advance past the TTL
+            await MockTime.advance(Seconds(3));
+            // Allow async notifications to propagate
+            await MockTime.advance(10);
+
+            // Device should be removed from cache after TTL expires
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("ignores TTL=0 goodbye within protection window", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x04) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                ],
+                additionalRecords: [],
+            });
+
+            await MockTime.advance(10);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+
+            // Send TTL=0 (goodbye) immediately — within the 1-second protection window
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device should still be cached — goodbye is ignored within protection window
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("accepts TTL=0 goodbye after protection window", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x05) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                ],
+                additionalRecords: [],
+            });
+
+            await MockTime.advance(10);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+
+            // Advance past the 1-second goodbye protection window
+            await MockTime.advance(Millis(1100));
+
+            // Send TTL=0 (goodbye) — now outside the protection window
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: 0,
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device should be removed — goodbye was accepted
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("re-discovers device after TTL expiry eviction", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({
+            socket: clientSocket,
+            entropy: MockCrypto(0x07),
+            minTtl: Millis(0),
+        });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            const records = {
+                messageType: DnsMessageType.Response as const,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT as const,
+                        recordClass: DnsRecordClass.IN as const,
+                        ttl: Seconds(2),
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV as const,
+                        recordClass: DnsRecordClass.IN as const,
+                        ttl: Seconds(2),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                ],
+                additionalRecords: [] as DnsRecord[],
+            };
+
+            // First discovery
+            await serverSocket.send(records);
+            await MockTime.advance(10);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+
+            // Wait for TTL expiry
+            await MockTime.advance(Seconds(3));
+            await MockTime.advance(10);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(0);
+
+            // Re-advertise — should be re-discovered
+            await serverSocket.send(records);
+            await MockTime.advance(10);
+            expect(scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 3840 }).length).equals(1);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("concurrent discoveries time out with empty results when no device is present", async () => {
+        const simulator = new NetworkSimulator();
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x06) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const identifier = { longDiscriminator: 1234 };
+            const shortPromise = scanner.findCommissionableDevices(identifier, Millis(500));
+            const longPromise = scanner.findCommissionableDevices(identifier, Millis(1000));
+
+            // Both should resolve with empty arrays once their timeouts elapse
+            const [shortResult, longResult] = await MockTime.resolve(Promise.all([shortPromise, longPromise]));
+            expect(shortResult).deep.equals([]);
+            expect(longResult).deep.equals([]);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("two concurrent discoveries both resolve when device is found", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x07) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const identifier = { longDiscriminator: 3840 };
+            const promise1 = scanner.findCommissionableDevices(identifier, Seconds(10));
+            const promise2 = scanner.findCommissionableDevices(identifier, Seconds(10));
+
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+
+            // Process network messages and allow promises to settle
+            await MockTime.advance(10);
+
+            const [result1, result2] = await MockTime.resolve(Promise.all([promise1, promise2]));
+
+            expect(result1.length).equals(1);
+            expect(result1[0].deviceIdentifier).equals(INSTANCE_ID);
+            expect(result2.length).equals(1);
+            expect(result2[0].deviceIdentifier).equals(INSTANCE_ID);
         } finally {
             await scanner.close();
             await clientNames.close();

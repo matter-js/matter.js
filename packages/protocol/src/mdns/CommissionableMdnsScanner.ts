@@ -11,18 +11,15 @@ import {
     DnsRecordType,
     DnssdName,
     DnssdNames,
+    Duration,
     IpService,
     ObserverGroup,
     Seconds,
     ServerAddressUdp,
+    Time,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
-import {
-    CommissionableDevice,
-    CommissionableDeviceIdentifiers,
-    DiscoveryData,
-    Scanner,
-} from "../common/Scanner.js";
+import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, Scanner } from "../common/Scanner.js";
 import {
     MATTER_COMMISSION_SERVICE_QNAME,
     getCommissionableDeviceQname,
@@ -36,6 +33,8 @@ import {
 interface CachedDevice {
     device: CommissionableDevice;
     ipService: IpService;
+    name: DnssdName;
+    observer: (changes: DnssdName.Changes) => void;
 }
 
 interface Waiter {
@@ -65,12 +64,7 @@ export class CommissionableMdnsScanner implements Scanner {
 
         this.#filter = (record: DnsRecord) => {
             const lower = record.name.toLowerCase();
-            return (
-                lower === base1 ||
-                lower.endsWith(suffix1) ||
-                lower === base2 ||
-                lower.endsWith(suffix2)
-            );
+            return lower === base1 || lower.endsWith(suffix1) || lower === base2 || lower.endsWith(suffix2);
         };
 
         names.addFilter(this.#filter);
@@ -99,17 +93,26 @@ export class CommissionableMdnsScanner implements Scanner {
         }
 
         const found: CommissionableDevice[] = [];
-        const cancelSignal = new Promise<void>(resolve => setTimeout(() => resolve(), timeout));
-        await this.findCommissionableDevicesContinuously(identifier, device => {
-            found.push(device);
-        }, timeout, cancelSignal);
+        let deviceFound!: () => void;
+        const deviceSignal = new Promise<void>(resolve => (deviceFound = resolve));
+        const timeoutSleep = Time.sleep("commissionable device discovery", timeout);
+        const cancelSignal = Promise.race([deviceSignal, timeoutSleep]).then(() => timeoutSleep.cancel());
+        await this.findCommissionableDevicesContinuously(
+            identifier,
+            device => {
+                found.push(device);
+                deviceFound();
+            },
+            undefined, // timeout handled by cancelSignal
+            cancelSignal,
+        );
         return found;
     }
 
     async findCommissionableDevicesContinuously(
         identifier: CommissionableDeviceIdentifiers,
         callback: (device: CommissionableDevice) => void,
-        timeout?: number,
+        timeout?: Duration,
         cancelSignal?: Promise<void>,
     ): Promise<CommissionableDevice[]> {
         this.#solicitQueries(identifier);
@@ -138,22 +141,14 @@ export class CommissionableMdnsScanner implements Scanner {
         };
         this.#waiters.add(waiter);
 
+        const sleepTimer = timeout !== undefined ? Time.sleep("commissionable scanner timeout", timeout) : undefined;
+        const signals = [sleepTimer, cancelSignal].filter(Boolean);
+
         try {
-            await new Promise<void>(resolve => {
-                let timer: ReturnType<typeof setTimeout> | undefined;
-                if (timeout !== undefined) {
-                    timer = setTimeout(() => resolve(), timeout);
-                }
-                if (cancelSignal) {
-                    cancelSignal.then(() => {
-                        if (timer !== undefined) clearTimeout(timer);
-                        resolve();
-                    });
-                }
-                if (timeout === undefined && !cancelSignal) {
-                    resolve();
-                }
-            });
+            if (signals.length > 0) {
+                await Promise.race(signals);
+            }
+            sleepTimer?.cancel();
         } finally {
             this.#waiters.delete(waiter);
         }
@@ -187,7 +182,19 @@ export class CommissionableMdnsScanner implements Scanner {
             return;
         }
 
-        this.#cache.set(lower, { device, ipService });
+        const observer = ({ name: changedName }: DnssdName.Changes) => {
+            if (!changedName.isDiscovered) {
+                const cached = this.#cache.get(lower);
+                if (cached) {
+                    this.#cache.delete(lower);
+                    this.#observers.off(name, cached.observer);
+                    void cached.ipService.close();
+                }
+            }
+        };
+
+        this.#cache.set(lower, { device, ipService, name, observer });
+        this.#observers.on(name, observer);
 
         for (const waiter of this.#waiters) {
             waiter.notify(device);
