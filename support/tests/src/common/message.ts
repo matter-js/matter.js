@@ -14,6 +14,11 @@ import { NodeId } from "@matter/types";
  */
 export type Message = Message.Commission | Message.Subscribe | Message.Reset;
 
+/**
+ * Messages sent to the device process.
+ */
+export type DeviceMessage = DeviceMessage.Start | DeviceMessage.AwaitOnline | DeviceMessage.Stop;
+
 export function Message(definition: Message) {
     return definition;
 }
@@ -54,5 +59,19 @@ export namespace Message {
         kind: "log";
         level: LogLevel;
         message: string;
+    }
+}
+
+export namespace DeviceMessage {
+    export interface Start extends Message.Acknowledged {
+        kind: "start";
+    }
+
+    export interface AwaitOnline extends Message.Acknowledged {
+        kind: "await-online";
+    }
+
+    export interface Stop extends Message.Acknowledged {
+        kind: "stop";
     }
 }

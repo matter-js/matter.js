@@ -12,7 +12,7 @@ import { StorageError } from "@matter/general";
  * `methodType`: Method type of Storage
  * `contextKey`: Context$Key
  */
-export class SqliteStorageError extends StorageError {
+export class SqliteStorageDriverError extends StorageError {
     constructor(
         public readonly methodType: string,
         public readonly contextKey: string,

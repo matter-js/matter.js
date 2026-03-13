@@ -146,6 +146,7 @@ export class ClientNode extends Node<ClientNode.RootEndpoint> {
 
             await this.act("decommission", agent => agent.commissioning.decommission());
         }
+
         await this.delete();
     }
 

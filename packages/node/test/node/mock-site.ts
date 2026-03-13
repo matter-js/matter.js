@@ -12,12 +12,12 @@ import {
     Entropy,
     Environment,
     MatterAggregateError,
+    MemoryStorageDriver,
     MockCrypto,
+    MockStorageService,
     Network,
     NetworkSimulator,
     Seconds,
-    StorageBackendMemory,
-    StorageService,
 } from "@matter/general";
 import { FabricId } from "@matter/types";
 import { MockServerNode } from "./mock-server-node.js";
@@ -61,12 +61,7 @@ export class MockSite {
             env.set(Network, (config.simulator ?? this.#simulator).addHost(index));
         }
 
-        const storage = env.get(StorageService);
-        const location = `/memory/${id}`;
-        if (storage.location !== location) {
-            storage.location = location;
-            storage.factory = () => new StorageBackendMemory(this.storageFor(id));
-        }
+        new MockStorageService(env, () => new MemoryStorageDriver(this.storageFor(id)));
 
         // Note that we don't use MockServerNode as we don't actually want anything mocked
         const node = new ServerNode(config);

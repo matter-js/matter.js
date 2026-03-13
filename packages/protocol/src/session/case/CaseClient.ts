@@ -53,7 +53,7 @@ export class CaseClient {
         const { expectedProcessingTime, caseAuthenticatedTags, abort } = options ?? {};
         const messenger = new CaseClientMessenger(exchange, expectedProcessingTime);
 
-        const localAbort = new Abort({ abort });
+        using localAbort = new Abort({ abort });
 
         try {
             return await this.#doPair(messenger, exchange, fabric, peerNodeId, localAbort, caseAuthenticatedTags, {

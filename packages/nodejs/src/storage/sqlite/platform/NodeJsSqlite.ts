@@ -5,21 +5,13 @@
  */
 import { DatabaseSync } from "node:sqlite";
 
-import { SqliteStorage } from "../SqliteStorage.js";
-import { DatabaseLike } from "../SqliteTypes.js";
+import type { DatabaseLike } from "../SqliteTypes.js";
 
 /**
- * `StorageSqliteDisk` for Node.js
+ * Create a Node.js SQLite database.
  *
- * DO NOT IMPORT DIRECTLY
- * (should import `PlatformSqlite.js`)
+ * DO NOT IMPORT DIRECTLY — use {@link SqliteStorageDriver.create} instead.
  */
-export class NodeJsSqlite extends SqliteStorage {
-    constructor(path: string | null, clear = false) {
-        super({
-            databaseCreator: path => new DatabaseSync(path) as DatabaseLike,
-            path,
-            clear,
-        });
-    }
+export function createNodeJsDatabase(path: string): DatabaseLike {
+    return new DatabaseSync(path) as DatabaseLike;
 }

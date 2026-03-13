@@ -144,6 +144,7 @@ export class Abort
             reason = new AbortedError(reason);
         }
         this.#controller.abort(reason ?? new AbortedError("Operation aborted with no reason given"));
+        this.close();
     }
 
     get signal() {

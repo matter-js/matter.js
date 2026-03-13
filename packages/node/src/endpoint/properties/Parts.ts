@@ -49,7 +49,7 @@ export class Parts extends EndpointContainer implements MutableSet<Endpoint, End
 
         super.add(endpoint);
 
-        endpoint.lifecycle.changed.on((type, endpoint) => this.#bubbleChange(type, endpoint));
+        endpoint.lifecycle.changed.on(this.#bubbleChange);
 
         // If the part is already fully initialized we initialize the child now
         if (this.owner.lifecycle.isPartsReady) {
