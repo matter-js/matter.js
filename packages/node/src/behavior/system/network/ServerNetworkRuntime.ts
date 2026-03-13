@@ -57,6 +57,7 @@ function convertNetworkEnvironmentType(type: string | number) {
  */
 export class ServerNetworkRuntime extends NetworkRuntime {
     #mdnsAdvertiser?: MdnsAdvertiser;
+    #mdnsScanner?: CommissionableMdnsScanner;
     #bleAdvertiser?: BleAdvertiser;
     #bleTransport?: ConnectionlessTransport;
     #ipv6UdpInterface?: UdpInterface;
@@ -297,7 +298,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         // Initialize ScannerSet
-        env.get(ScannerSet).add(new CommissionableMdnsScanner(env.get(MdnsService).names));
+        this.#mdnsScanner = new CommissionableMdnsScanner(env.get(MdnsService).names);
+        env.get(ScannerSet).add(this.#mdnsScanner);
 
         const { timing, profiles } = this.owner.state.network;
         if (timing) {
@@ -377,6 +379,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             await env.close(InteractionServer);
         }
 
+        await this.#mdnsScanner?.close();
+        this.#mdnsScanner = undefined;
         env.delete(ScannerSet);
     }
 

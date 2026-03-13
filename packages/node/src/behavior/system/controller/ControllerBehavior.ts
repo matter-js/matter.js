@@ -66,7 +66,8 @@ export class ControllerBehavior extends Behavior {
         if (this.state.ip !== false) {
             this.internal.services = this.env.asDependent();
             const mdns = await this.internal.services.load(MdnsService);
-            this.env.get(ScannerSet).add(new CommissionableMdnsScanner(mdns.names));
+            this.internal.scanner = new CommissionableMdnsScanner(mdns.names);
+            this.env.get(ScannerSet).add(this.internal.scanner);
         }
 
         if (this.state.ble === undefined) {
@@ -162,6 +163,7 @@ export class ControllerBehavior extends Behavior {
 
     override async [Symbol.asyncDispose]() {
         await this.env.close(ActiveDiscoveries);
+        await this.internal.scanner?.close();
         this.env.delete(FabricAuthority);
         this.env.delete(ScannerSet);
         await this.internal.services?.close();
@@ -219,6 +221,7 @@ export class ControllerBehavior extends Behavior {
 export namespace ControllerBehavior {
     export class Internal {
         services?: SharedEnvironmentServices;
+        scanner?: CommissionableMdnsScanner;
     }
 
     export class State {

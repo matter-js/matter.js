@@ -7,6 +7,7 @@
 import type { DnsRecord } from "#codec/DnsCodec.js";
 import { Diagnostic } from "#log/Diagnostic.js";
 import type { Duration } from "#time/Duration.js";
+import { Time, Timer } from "#time/Time.js";
 import { CancelablePromise } from "#util/Cancelable.js";
 import { ObserverGroup } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
@@ -61,7 +62,7 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
     #isStopped = false;
     #resolve!: (value: T) => void;
     #reject!: (cause?: unknown) => void;
-    #timeout?: ReturnType<typeof setTimeout>;
+    #timeout?: Timer;
 
     constructor(names: DnssdNames, serviceType: string, options?: ServiceDiscovery.Options) {
         let resolve!: (value: T) => void;
@@ -87,7 +88,7 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
         this.#observers.on(names.discovered, this.#onDiscovered.bind(this));
 
         if (options?.timeout !== undefined) {
-            this.#timeout = setTimeout(() => this.stop(), options.timeout);
+            this.#timeout = Time.getTimer("service-discovery timeout", options.timeout, () => this.stop()).start();
         }
     }
 
@@ -111,7 +112,7 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
         this.#isStopped = true;
 
         if (this.#timeout !== undefined) {
-            clearTimeout(this.#timeout);
+            this.#timeout.stop();
             this.#timeout = undefined;
         }
 
@@ -134,6 +135,8 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
 
     protected override onCancel(reason: Error) {
         this.#isStopped = true;
+        this.#timeout?.stop();
+        this.#timeout = undefined;
         this.#cleanup();
         this.#reject(reason);
     }

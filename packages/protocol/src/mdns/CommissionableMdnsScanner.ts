@@ -39,6 +39,8 @@ interface CachedDevice {
 
 interface Waiter {
     notify(device: CommissionableDevice): void;
+    cancel(): void;
+    identifier: CommissionableDeviceIdentifiers;
 }
 
 /**
@@ -121,7 +123,8 @@ export class CommissionableMdnsScanner implements Scanner {
         const result: CommissionableDevice[] = [];
 
         // Deliver cached matches immediately
-        for (const { device } of this.#cache.values()) {
+        for (const cached of this.#cache.values()) {
+            const device = refreshAddresses(cached);
             if (matchesIdentifier(device, identifier)) {
                 seen.add(device.deviceIdentifier);
                 result.push(device);
@@ -129,8 +132,14 @@ export class CommissionableMdnsScanner implements Scanner {
             }
         }
 
+        // Create an internal cancel promise that cancelCommissionableDeviceDiscovery can trigger
+        let cancelResolve!: () => void;
+        const internalCancel = new Promise<void>(resolve => (cancelResolve = resolve));
+
         // Register waiter for new discoveries
         const waiter: Waiter = {
+            identifier,
+            cancel: cancelResolve,
             notify: device => {
                 if (matchesIdentifier(device, identifier) && !seen.has(device.deviceIdentifier)) {
                     seen.add(device.deviceIdentifier);
@@ -142,12 +151,12 @@ export class CommissionableMdnsScanner implements Scanner {
         this.#waiters.add(waiter);
 
         const sleepTimer = timeout !== undefined ? Time.sleep("commissionable scanner timeout", timeout) : undefined;
-        const signals = [sleepTimer, cancelSignal].filter(Boolean);
+        const signals: Promise<unknown>[] = [internalCancel];
+        if (sleepTimer) signals.push(sleepTimer);
+        if (cancelSignal) signals.push(cancelSignal);
 
         try {
-            if (signals.length > 0) {
-                await Promise.race(signals);
-            }
+            await Promise.race(signals);
             sleepTimer?.cancel();
         } finally {
             this.#waiters.delete(waiter);
@@ -158,12 +167,16 @@ export class CommissionableMdnsScanner implements Scanner {
 
     getDiscoveredCommissionableDevices(identifier: CommissionableDeviceIdentifiers): CommissionableDevice[] {
         return [...this.#cache.values()]
-            .map(({ device }) => device)
+            .map(cached => refreshAddresses(cached))
             .filter(device => matchesIdentifier(device, identifier));
     }
 
-    cancelCommissionableDeviceDiscovery(_identifier: CommissionableDeviceIdentifiers, _resolvePromise?: boolean) {
-        // Cancellation is handled via cancelSignal in findCommissionableDevicesContinuously.
+    cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers) {
+        for (const waiter of this.#waiters) {
+            if (matchesWaiterIdentifier(waiter.identifier, identifier)) {
+                waiter.cancel();
+            }
+        }
     }
 
     #onDiscovered(name: DnssdName) {
@@ -176,7 +189,7 @@ export class CommissionableMdnsScanner implements Scanner {
         }
 
         const ipService = new IpService(name.qname, Diagnostic.via("commissionable-scanner"), this.#names);
-        const device = buildCommissionableDevice(name, ipService);
+        const device = buildCommissionableDevice(name);
         if (device === undefined) {
             void ipService.close();
             return;
@@ -193,11 +206,12 @@ export class CommissionableMdnsScanner implements Scanner {
             }
         };
 
-        this.#cache.set(lower, { device, ipService, name, observer });
+        const cached: CachedDevice = { device, ipService, name, observer };
+        this.#cache.set(lower, cached);
         this.#observers.on(name, observer);
 
         for (const waiter of this.#waiters) {
-            waiter.notify(device);
+            waiter.notify(refreshAddresses(cached));
         }
     }
 
@@ -213,7 +227,7 @@ export class CommissionableMdnsScanner implements Scanner {
     }
 }
 
-function buildCommissionableDevice(name: DnssdName, ipService: IpService): CommissionableDevice | undefined {
+function buildCommissionableDevice(name: DnssdName): CommissionableDevice | undefined {
     const params = name.parameters;
     const D = Number(params.get("D"));
     const CM = Number(params.get("CM"));
@@ -232,8 +246,13 @@ function buildCommissionableDevice(name: DnssdName, ipService: IpService): Commi
         deviceIdentifier: instanceId,
         D,
         CM,
-        addresses: [...ipService.addresses] as ServerAddressUdp[],
+        addresses: [] as ServerAddressUdp[],
     };
+}
+
+function refreshAddresses(cached: CachedDevice): CommissionableDevice {
+    cached.device.addresses = [...cached.ipService.addresses] as ServerAddressUdp[];
+    return cached.device;
 }
 
 function matchesIdentifier(device: CommissionableDevice, identifier: CommissionableDeviceIdentifiers): boolean {
@@ -264,6 +283,17 @@ function matchesIdentifier(device: CommissionableDevice, identifier: Commissiona
     }
     // Empty identifier — match any commissioning mode
     return device.CM === 1 || device.CM === 2;
+}
+
+function matchesWaiterIdentifier(a: CommissionableDeviceIdentifiers, b: CommissionableDeviceIdentifiers): boolean {
+    // Both are small flat objects — structural equality suffices
+    const aKeys = Object.keys(a);
+    const bKeys = Object.keys(b);
+    if (aKeys.length !== bKeys.length) return false;
+    for (const key of aKeys) {
+        if ((a as Record<string, unknown>)[key] !== (b as Record<string, unknown>)[key]) return false;
+    }
+    return true;
 }
 
 function getQueryQnames(identifier: CommissionableDeviceIdentifiers): string[] {

@@ -99,8 +99,17 @@ export class DnssdNames {
 
         // Process all records explicitly accepted by the filter
         for (const record of records) {
-            if (this.#filters.size > 0 && ![...this.#filters].some(f => f(record))) {
-                continue;
+            if (this.#filters.size > 0) {
+                let accepted = false;
+                for (const f of this.#filters) {
+                    if (f(record)) {
+                        accepted = true;
+                        break;
+                    }
+                }
+                if (!accepted) {
+                    continue;
+                }
             }
 
             handleRecord(record);
