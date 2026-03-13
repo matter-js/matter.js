@@ -60,6 +60,23 @@ export interface PeerTimingParameters {
      * Minimum delay between MRP loop "kicks".
      */
     minimumTimeBetweenMrpKicks: Duration;
+
+    /**
+     * Minimum time between kick-triggered exchange restarts initiated by DNS-SD address discovery.
+     *
+     * A "discover" kick restarts the CASE handshake exchange from scratch with a fresh MRP backoff,
+     * allowing the new address to be used immediately. This threshold prevents mDNS churn from
+     * restarting the handshake too frequently.
+     */
+    mrpKickRestartIntervalDiscover: Duration;
+
+    /**
+     * Minimum time between kick-triggered exchange restarts initiated by a user/connect call.
+     *
+     * Same mechanic as {@link mrpKickRestartIntervalDiscover} but for explicit `peer.kick()` calls.
+     * Shorter threshold because user intent is stronger than passive discovery.
+     */
+    mrpKickRestartIntervalConnect: Duration;
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -112,5 +129,7 @@ export namespace PeerTimingParameters {
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
         minimumTimeBetweenMrpKicks: Seconds(3),
+        mrpKickRestartIntervalDiscover: Minutes(30),
+        mrpKickRestartIntervalConnect: Minutes(10),
     };
 }

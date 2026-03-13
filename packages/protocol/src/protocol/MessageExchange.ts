@@ -220,8 +220,6 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
-    #kickPending = false;
-    #kick?: () => void;
 
     constructor(config: MessageExchange.Config) {
         const {
@@ -441,9 +439,6 @@ export class MessageExchange {
             }
 
             throw e;
-        } finally {
-            this.#kick = undefined;
-            this.#kickPending = false;
         }
     }
 
@@ -568,15 +563,6 @@ export class MessageExchange {
             this.#retransmissionTimer = Time.getTimer(`retransmitting ${Message.via(this, message)}`, backOff, () =>
                 this.#retransmitMessage(message, expectedProcessingTime),
             );
-            this.#kick = () => {
-                if (this.#retransmissionTimer?.isRunning) {
-                    this.#retransmissionTimer.stop();
-                    this.#retransmitMessage(message, expectedProcessingTime);
-                } else {
-                    // Retransmission is currently in flight; flag so the next backoff is skipped
-                    this.#kickPending = true;
-                }
-            };
             const { promise, resolver } = createPromise<Message | undefined>();
             ackPromise = promise;
             this.#sentMessageAckSuccess = resolver;
@@ -668,13 +654,6 @@ export class MessageExchange {
         return await this.#messagesQueue.read(localAbort);
     }
 
-    /**
-     * If a transmission using MRP is active, short-circuits the MRP loop and sends the next packet immediately.
-     */
-    kick() {
-        this.#kick?.();
-    }
-
     async sendStandaloneAckForMessage(message: Message) {
         const {
             packetHeader: { messageId },
@@ -761,12 +740,7 @@ export class MessageExchange {
     }
 
     #initializeResubmission(message: Message, resubmissionBackoffTime: Duration, expectedProcessingTimeMs?: Duration) {
-        // If a kick arrived while the previous sending was in flight (timer was stopped but channel.send() hadn't
-        // completed yet), honor it by starting the next timer with zero delay so we retransmit immediately
-        // rather than waiting out the full backoff.
-        const interval = this.#kickPending ? Instant : resubmissionBackoffTime;
-        this.#kickPending = false;
-        this.#retransmissionTimer = Time.getTimer("Message retransmission", interval, () =>
+        this.#retransmissionTimer = Time.getTimer("Message retransmission", resubmissionBackoffTime, () =>
             this.#retransmitMessage(message, expectedProcessingTimeMs),
         ).start();
     }
