@@ -5,13 +5,7 @@
  */
 
 import { Fabric } from "#fabric/Fabric.js";
-import {
-    Advertisement,
-    CommissioningMode,
-    MdnsAdvertiser,
-    MdnsServer,
-    ServiceDescription,
-} from "#index.js";
+import { Advertisement, CommissioningMode, MdnsAdvertiser, MdnsServer, ServiceDescription } from "#index.js";
 import {
     ConnectionlessTransport,
     DnsCodec,

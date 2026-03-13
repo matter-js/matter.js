@@ -192,7 +192,6 @@ export class ControllerBehavior extends Behavior {
             this.#enableScanningForFabric(fabric);
         }
         this.reactTo(authority.fabricAdded, this.#enableScanningForFabric);
-
     }
 
     async #nodeGoingOffline() {
@@ -215,7 +214,6 @@ export class ControllerBehavior extends Behavior {
             });
         }
     }
-
 }
 
 export namespace ControllerBehavior {

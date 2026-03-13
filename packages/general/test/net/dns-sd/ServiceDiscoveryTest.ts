@@ -68,8 +68,14 @@ describe("ServiceDiscovery", () => {
         let filterCount = 0;
         const origAdd = client.names.addFilter.bind(client.names);
         const origRemove = client.names.removeFilter.bind(client.names);
-        (client.names as any).addFilter = (f: any) => { filterCount++; origAdd(f); };
-        (client.names as any).removeFilter = (f: any) => { filterCount--; origRemove(f); };
+        (client.names as any).addFilter = (f: any) => {
+            filterCount++;
+            origAdd(f);
+        };
+        (client.names as any).removeFilter = (f: any) => {
+            filterCount--;
+            origRemove(f);
+        };
 
         const discovery = new CollectingDiscovery(client.names);
         expect(filterCount).equals(1);
