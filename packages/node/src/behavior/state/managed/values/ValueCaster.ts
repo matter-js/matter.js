@@ -87,7 +87,7 @@ function StructCaster(schema: ValueModel | ClusterModel, owner: RootSupervisor) 
 function ListCaster(schema: ValueModel, owner: RootSupervisor) {
     const entry = schema.listEntry;
     if (entry === undefined) {
-        throw new SchemaImplementationError(DataModelPath(schema.path), "List schema has no entry definition");
+        throw new SchemaImplementationError(new DataModelPath(schema.path), "List schema has no entry definition");
     }
 
     const castToArray = Metatype.cast.array;

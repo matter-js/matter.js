@@ -161,7 +161,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
 function ListPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSupervisor.Patch {
     const entry = schema.listEntry;
     if (entry === undefined) {
-        throw new SchemaImplementationError(DataModelPath(schema.path), "List schema has no entry definition");
+        throw new SchemaImplementationError(new DataModelPath(schema.path), "List schema has no entry definition");
     }
 
     const entryMetatype = entry?.effectiveMetatype;

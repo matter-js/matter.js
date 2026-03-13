@@ -233,7 +233,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
 
                 // Throw at runtime
                 throw new SchemaImplementationError(
-                    DataModelPath(schema.path),
+                    new DataModelPath(schema.path),
                     `Unsupported conformance AST node type ${(ast as any).type}`,
                 );
         }
@@ -290,7 +290,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     function createGroup(param: Conformance.Ast.Otherwise): DynamicNode {
         if (!Array.isArray(param)) {
             throw new SchemaImplementationError(
-                DataModelPath(schema.path),
+                new DataModelPath(schema.path),
                 "Conformance AST group parameter is not an array",
             );
         }
@@ -518,7 +518,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
 
             default:
                 throw new SchemaImplementationError(
-                    DataModelPath(schema.path),
+                    new DataModelPath(schema.path),
                     `Unknown logical binary operator ${operator}`,
                 );
         }

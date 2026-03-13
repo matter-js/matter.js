@@ -36,7 +36,7 @@ export function BitmapManager(owner: RootSupervisor, schema: Schema): ValueSuper
 
     const byteSize = (schema as ValueModel).metabase?.byteSize;
     if (byteSize === undefined) {
-        throw new SchemaImplementationError(DataModelPath(schema.path), `Base bitmap type has no byteSize defined`);
+        throw new SchemaImplementationError(new DataModelPath(schema.path), `Base bitmap type has no byteSize defined`);
     }
     const maxBit = byteSize * 8;
 
@@ -105,12 +105,12 @@ function configureProperty(name: string, maxBit: number, schema: ValueModel) {
             stopBit = temp;
         }
     } else {
-        throw new SchemaImplementationError(DataModelPath(schema.path), `Bitfield is not properly constrained`);
+        throw new SchemaImplementationError(new DataModelPath(schema.path), `Bitfield is not properly constrained`);
     }
 
     if (stopBit > maxBit) {
         throw new SchemaImplementationError(
-            DataModelPath(schema.path),
+            new DataModelPath(schema.path),
             `Bitfield range end ${stopBit} is too large for a ${maxBit}-bit bitmap`,
         );
     }

@@ -89,16 +89,16 @@ export function ValueValidator(schema: Schema, supervisor: RootSupervisor): Valu
                     // them
                     break;
                 }
-                throw new SchemaImplementationError(DataModelPath(schema.path), `No type defined`);
+                throw new SchemaImplementationError(new DataModelPath(schema.path), `No type defined`);
             }
             throw new SchemaImplementationError(
-                DataModelPath(schema.path),
+                new DataModelPath(schema.path),
                 `Cannot determine metatype for type "${type}"`,
             );
 
         default:
             throw new SchemaImplementationError(
-                DataModelPath((schema as unknown as Schema).path),
+                new DataModelPath((schema as unknown as Schema).path),
                 `Unsupported validation metatype ${metabase?.metatype}`,
             );
     }

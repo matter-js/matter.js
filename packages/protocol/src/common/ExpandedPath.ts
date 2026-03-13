@@ -33,7 +33,7 @@ export function ExpandedPath({ path, matter, base, kind }: ExpandedPath.Definiti
     }
 
     const endpointIdent = path.endpointId ?? "*";
-    base = base ? base.at(endpointIdent, "endpoint") : DataModelPath(endpointIdent, "endpoint");
+    base = base ? base.at(endpointIdent, "endpoint") : new DataModelPath(endpointIdent, "endpoint");
 
     let cluster: ClusterModel | undefined;
     base = base.at(identityOf(matter, ClusterModel, path.clusterId), "cluster");
