@@ -36,8 +36,8 @@ import { ClientCommandMethod } from "./ClientCommandMethod.js";
 
 const BIT_BLOCK_SIZE = Math.log2(Number.MAX_SAFE_INTEGER);
 
-const discoveredCache = {} as Record<string, ClusterBehavior.Type>;
-const knownCache = new WeakMap<ClusterBehavior.Type, ClusterBehavior.Type>();
+const discoveredCaches = new Map<ClusterBehaviorType.CommandFactory, Record<string, ClusterBehavior.Type>>();
+const knownCaches = new Map<ClusterBehaviorType.CommandFactory, WeakMap<ClusterBehavior.Type, ClusterBehavior.Type>>();
 
 const isPeer = Symbol("is-peer");
 
@@ -83,6 +83,7 @@ export namespace PeerBehavior {
         attributes?: AttributeId[];
         commands?: CommandId[];
         generatedCommands?: CommandId[];
+        commandFactory?: ClusterBehaviorType.CommandFactory;
     }
 
     /**
@@ -91,14 +92,21 @@ export namespace PeerBehavior {
     export interface KnownClusterShape {
         kind: "known";
         behavior: ClusterBehavior.Type;
+        commandFactory?: ClusterBehaviorType.CommandFactory;
     }
 }
 
 function instrumentDiscoveredShape(shape: PeerBehavior.DiscoveredClusterShape) {
     const analysis = DiscoveredShapeAnalysis(shape);
+    const factory = shape.commandFactory ?? ClientCommandMethod;
+
+    let cache = discoveredCaches.get(factory);
+    if (!cache) {
+        discoveredCaches.set(factory, (cache = {}));
+    }
 
     const fingerprint = createFingerprint(analysis);
-    let type = discoveredCache[fingerprint];
+    let type = cache[fingerprint];
     if (type) {
         return type;
     }
@@ -109,13 +117,20 @@ function instrumentDiscoveredShape(shape: PeerBehavior.DiscoveredClusterShape) {
         baseType = ClusterBehavior.for(standardCluster);
     }
 
-    type = discoveredCache[fingerprint] = generateDiscoveredType(analysis, baseType);
+    type = cache[fingerprint] = generateDiscoveredType(analysis, baseType, factory);
 
     return type;
 }
 
 function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
-    let type = knownCache.get(shape.behavior);
+    const factory = shape.commandFactory ?? ClientCommandMethod;
+
+    let cache = knownCaches.get(factory);
+    if (!cache) {
+        knownCaches.set(factory, (cache = new WeakMap()));
+    }
+
+    let type = cache.get(shape.behavior);
     if (type) {
         return type;
     }
@@ -128,15 +143,19 @@ function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
         schema: base.schema,
         name: `${base.schema.name}Client`,
         forClient: true,
-        commandFactory: ClientCommandMethod,
+        commandFactory: factory,
     });
 
-    knownCache.set(shape.behavior, type);
+    cache.set(shape.behavior, type);
 
     return type;
 }
 
-function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Behavior.Type): ClusterBehavior.Type {
+function generateDiscoveredType(
+    analysis: DiscoveredShapeAnalysis,
+    baseType?: Behavior.Type,
+    commandFactory: ClusterBehaviorType.CommandFactory = ClientCommandMethod,
+): ClusterBehavior.Type {
     let { schema } = analysis;
 
     let isExtended: boolean;
@@ -170,10 +189,13 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
         supportedFeatures = {};
     }
 
-    // If there are features supported, customize the ClusterModel and ClusterType accordingly
+    // If there are features supported, customize the ClusterModel and ClusterType accordingly.  Filter to features
+    // defined on the cluster — the numeric bitmap path silently drops unknown bits and named bitmaps from wire changes
+    // may include features added in newer spec revisions that the local model doesn't know about
     const featureNames = Object.entries(supportedFeatures)
         .filter(([, v]) => v)
-        .map(([k]) => k);
+        .map(([k]) => k)
+        .filter(name => cluster.features[name] !== undefined);
     if (featureNames.length) {
         extendSchema();
 
@@ -238,7 +260,7 @@ function generateDiscoveredType(analysis: DiscoveredShapeAnalysis, baseType?: Be
         schema,
         name: `${schema.name}Client`,
         forClient: true,
-        commandFactory: ClientCommandMethod,
+        commandFactory,
     });
 
     function extendSchema() {
