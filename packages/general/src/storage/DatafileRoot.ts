@@ -20,7 +20,7 @@ import { DataNamespace } from "./DataNamespace.js";
 export class DatafileRoot extends DataNamespace {
     #directory: Directory;
     #release?: () => MaybePromise<void>;
-    #refCount = 0;
+    #refs = 0;
     #lockPromise?: Promise<DatafileRoot.Lock>;
 
     constructor(directory: Directory) {
@@ -37,7 +37,7 @@ export class DatafileRoot extends DataNamespace {
     }
 
     get isLocked(): boolean {
-        return this.#refCount > 0;
+        return this.#refs > 0;
     }
 
     /**
@@ -62,17 +62,17 @@ export class DatafileRoot extends DataNamespace {
     }
 
     async #acquireRef(): Promise<DatafileRoot.Lock> {
-        if (this.#refCount === 0) {
+        if (this.#refs === 0) {
             this.#release = await this.#directory.lock();
         }
-        this.#refCount++;
+        this.#refs++;
 
         return new DatafileRoot.Lock(this.#directory, () => this.#releaseRef());
     }
 
     async #releaseRef(): Promise<void> {
-        this.#refCount--;
-        if (this.#refCount === 0) {
+        this.#refs--;
+        if (this.#refs === 0) {
             const release = this.#release;
             this.#release = undefined;
             await release?.();
