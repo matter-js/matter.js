@@ -46,7 +46,7 @@ describe("PeerConnection kick redesign", () => {
     describe("KickOrigin through QuietObservable", () => {
         it("passes 'discover' origin to observer", () => {
             const received = new Array<KickOrigin>();
-            const kicker = new QuietObservable<[KickOrigin]>({
+            using kicker = new QuietObservable<[KickOrigin]>({
                 minimumEmitInterval: Seconds(3),
                 skipSuppressedEmits: true,
             });
@@ -61,7 +61,7 @@ describe("PeerConnection kick redesign", () => {
 
         it("passes 'connect' origin to observer", () => {
             const received = new Array<KickOrigin>();
-            const kicker = new QuietObservable<[KickOrigin]>({
+            using kicker = new QuietObservable<[KickOrigin]>({
                 minimumEmitInterval: Seconds(3),
                 skipSuppressedEmits: true,
             });
@@ -78,7 +78,7 @@ describe("PeerConnection kick redesign", () => {
             MockTime.reset();
 
             const received = new Array<KickOrigin>();
-            const kicker = new QuietObservable<[KickOrigin]>({
+            using kicker = new QuietObservable<[KickOrigin]>({
                 minimumEmitInterval: Seconds(3),
                 skipSuppressedEmits: true,
             });
@@ -97,7 +97,7 @@ describe("PeerConnection kick redesign", () => {
             MockTime.reset();
 
             const received = new Array<KickOrigin>();
-            const kicker = new QuietObservable<[KickOrigin]>({
+            using kicker = new QuietObservable<[KickOrigin]>({
                 minimumEmitInterval: Seconds(3),
                 skipSuppressedEmits: true,
             });
@@ -323,7 +323,7 @@ describe("PeerConnection kick redesign", () => {
     describe("Observable<[KickOrigin]> type contract", () => {
         it("Observable<[KickOrigin]> matches QuietObservable<[KickOrigin]>", () => {
             // Verify type compatibility: QuietObservable can be assigned to Observable
-            const quiet = new QuietObservable<[KickOrigin]>({
+            using quiet = new QuietObservable<[KickOrigin]>({
                 minimumEmitInterval: Seconds(3),
                 skipSuppressedEmits: true,
             });
