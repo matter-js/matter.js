@@ -188,24 +188,28 @@ function instrumentSuites(mocha: Mocha) {
     }
 }
 
-export async function runMocha(mocha: Mocha) {
+export async function runMocha(mocha: Mocha, options?: { skipBeforeHooks?: boolean; skipAfterHooks?: boolean }) {
     instrumentSuites(mocha);
 
-    await onlyLogFailure(async () => {
-        for (const hook of beforeRunHooks) {
-            await hook();
-        }
-    });
+    if (!options?.skipBeforeHooks) {
+        await onlyLogFailure(async () => {
+            for (const hook of beforeRunHooks) {
+                await hook();
+            }
+        });
+    }
 
     await new Promise<Mocha.Runner>(resolve => {
         const runner = mocha.run(() => resolve(runner));
     });
 
-    await onlyLogFailure(async () => {
-        for (const hook of afterRunHooks) {
-            await hook();
-        }
-    });
+    if (!options?.skipAfterHooks) {
+        await onlyLogFailure(async () => {
+            for (const hook of afterRunHooks) {
+                await hook();
+            }
+        });
+    }
 
     wtf.dump();
 }
