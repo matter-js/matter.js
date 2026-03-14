@@ -48,17 +48,33 @@ export class Events extends EventEmitter {
     /**
      * Emitted when state associated with this behavior is first mutated by a specific interaction.
      */
-    interactionBegin = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+    declare interactionBegin: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
 
     /**
      * Emitted when a mutating interaction completes.
      */
-    interactionEnd = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+    declare interactionEnd: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
 
     /**
      * Emitted when the state of this behavior changes at the end after all concrete $Changed events were emitted.
      */
-    stateChanged = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+    declare stateChanged: Observable<[context?: ValueSupervisor.Session], MaybePromise>;
+
+    static {
+        for (const name of ["interactionBegin", "interactionEnd", "stateChanged"]) {
+            Object.defineProperty(this.prototype, name, {
+                get(this: EventEmitter) {
+                    if (this.hasEvent(name, true)) {
+                        return this.getEvent(name);
+                    }
+                    const event = Observable<[context?: ValueSupervisor.Session], MaybePromise>();
+                    this.addEvent(name, event);
+                    return event;
+                },
+                enumerable: true,
+            });
+        }
+    }
 
     get endpoint() {
         return this.#endpoint;

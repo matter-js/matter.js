@@ -5,14 +5,7 @@
  */
 
 import { Events, OfflineEvent, OnlineEvent, QuietEvent } from "#behavior/Events.js";
-import {
-    AsyncObservable,
-    camelize,
-    EventEmitter,
-    GeneratedClass,
-    ImplementationError,
-    Observable,
-} from "@matter/general";
+import { AsyncObservable, camelize, EventEmitter, GeneratedClass, ImplementationError } from "@matter/general";
 import {
     ClassSemantics,
     ClusterModel,
@@ -370,10 +363,6 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
         instanceDescriptors,
 
         initialize(this: EventEmitter) {
-            (this as unknown as Record<string, Observable>).interactionBegin = new Observable();
-            (this as unknown as Record<string, Observable>).interactionEnd = new Observable();
-            (this as unknown as Record<string, Observable>).stateChanged = new Observable();
-
             for (const name of eventNames) {
                 this.addEvent(name);
             }
