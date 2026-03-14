@@ -62,7 +62,11 @@ export interface AnalyzeHeapOptions {
     trackedTypes?: string[];
 }
 
-export async function analyzeHeap(snapshotPath: string, outputDir: string, options?: AnalyzeHeapOptions): Promise<void> {
+export async function analyzeHeap(
+    snapshotPath: string,
+    outputDir: string,
+    options?: AnalyzeHeapOptions,
+): Promise<void> {
     const heap: IHeapSnapshot = await getFullHeapFromFile(snapshotPath);
 
     let totalShallowSize = 0;
@@ -176,10 +180,7 @@ export async function analyzeHeap(snapshotPath: string, outputDir: string, optio
             const referrers: IHeapEdge[] = node.referrers;
             const category = referrers
                 .filter((e: IHeapEdge) => e.type !== "weak" && e.fromNode)
-                .map(
-                    (e: IHeapEdge) =>
-                        `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(${e.fromNode.type})`,
-                )
+                .map((e: IHeapEdge) => `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(${e.fromNode.type})`)
                 .join("; ");
             referrerCategories.set(category, (referrerCategories.get(category) ?? 0) + 1);
         }
