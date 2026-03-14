@@ -171,16 +171,25 @@ export class StorageService {
         // Create the driver — pass root so it can acquire a ref-counted lock
         const storage = await impl.create(root, descriptor);
 
-        // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
-        if (await dir.exists()) {
-            await this.#writeDescriptor(dir, descriptor);
+        try {
+            // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
+            if (await dir.exists()) {
+                await this.#writeDescriptor(dir, descriptor);
+            }
+
+            this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
+
+            const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
+            await manager.initialize();
+            return manager;
+        } catch (e) {
+            try {
+                await storage.close();
+            } catch (closeError) {
+                logger.warn("Error closing storage after failed initialization:", closeError);
+            }
+            throw e;
         }
-
-        this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
-
-        const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
-        await manager.initialize();
-        return manager;
     }
 
     async #openSimple(cacheKey: string, dataNs: DataNamespace) {
@@ -194,11 +203,20 @@ export class StorageService {
 
         const storage = await impl.create(dataNs, descriptor);
 
-        this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
+        try {
+            this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
 
-        const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
-        await manager.initialize();
-        return manager;
+            const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
+            await manager.initialize();
+            return manager;
+        } catch (e) {
+            try {
+                await storage.close();
+            } catch (closeError) {
+                logger.warn("Error closing storage after failed initialization:", closeError);
+            }
+            throw e;
+        }
     }
 
     async #release(cacheKey: string) {
