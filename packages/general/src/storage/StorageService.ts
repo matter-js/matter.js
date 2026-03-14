@@ -18,7 +18,6 @@ import { StorageMigration } from "./StorageMigration.js";
 
 const logger = Logger.get("StorageService");
 
-const DRIVER_JSON = "driver.json";
 /**
  * Service adapter for the Matter.js storage API.
  */
@@ -223,7 +222,7 @@ export class StorageService {
         if (!(await dir.exists())) {
             return false;
         }
-        const ignoredFiles = new Set(["matter.lock", "matter.pid", DRIVER_JSON]);
+        const ignoredFiles = StorageDriver.RESERVED_FILENAMES;
         for await (const entry of dir.entries()) {
             if (entry.kind === "file" && !ignoredFiles.has(entry.name)) {
                 return true;
@@ -233,7 +232,7 @@ export class StorageService {
     }
 
     async #readDescriptor(dir: Directory): Promise<StorageDriver.Descriptor | undefined> {
-        const file = dir.file(DRIVER_JSON);
+        const file = dir.file("driver.json");
         try {
             if (!(await file.exists())) {
                 return undefined;
@@ -246,7 +245,7 @@ export class StorageService {
     }
 
     async #writeDescriptor(dir: Directory, descriptor: StorageDriver.Descriptor) {
-        const file = dir.file(DRIVER_JSON);
+        const file = dir.file("driver.json");
         await file.write(JSON.stringify(descriptor, undefined, 2));
     }
 
