@@ -425,7 +425,7 @@ export class Endpoint<T extends EndpointType = EndpointType.Empty> {
         this.#type = config.type;
 
         // Create construction early so other components can hook events
-        this.#construction = Construction(this);
+        this.#construction = new Construction(this);
 
         this.#lifecycle = this.createLifecycle(config.isEssential);
         this.#lifecycle.ready.on(() => this.#logReady());

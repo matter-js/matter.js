@@ -84,7 +84,7 @@ export class OccurrenceManager {
         this.#store = store;
         this.#bufferConfig = bufferConfig;
 
-        this.#construction = Construction(this, () => {
+        this.#construction = new Construction(this, () => {
             return MaybePromise.then(this.#store.load(), index => {
                 // To be sure, sort the entries by number
                 index.sort(

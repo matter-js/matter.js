@@ -55,7 +55,7 @@ export class DclCertificateService {
             }),
         );
 
-        this.#construction = Construction(this, async () => {
+        this.#construction = new Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
             await this.#loadIndex(this.#storage);

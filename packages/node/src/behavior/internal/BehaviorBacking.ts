@@ -60,7 +60,7 @@ export abstract class BehaviorBacking {
         this.store = store;
         this.#options = options;
 
-        this.#construction = Construction(this);
+        this.#construction = new Construction(this);
         this.#construction.onError(error => {
             // The endpoint reports errors during initialization.  For errors occurring later we report the error
             // ourselves

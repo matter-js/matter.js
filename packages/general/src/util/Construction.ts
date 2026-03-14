@@ -91,45 +91,78 @@ export namespace Constructable {
 
 /**
  * The promise implementing by an {@link Constructable#construction}.
+ *
+ * Manages asynchronous object initialization and cleanup of a target object, called the "subject".
  */
-export interface Construction<T> extends Promise<T>, Lifetime.Owner {
+export class Construction<T = Constructable> implements Promise<T>, Lifetime.Owner {
+    #initializerPromise: MaybePromise<void> | undefined;
+    #awaiterPromise: undefined | Promise<T>;
+    #awaiterResolve: undefined | ((subject: T) => void);
+    #awaiterReject: undefined | ((error: any) => void);
+    #closedPromise: undefined | Promise<void>;
+    #closedResolve: undefined | (() => void);
+    #closedReject: undefined | ((error: any) => void);
+    #error: undefined | Error;
+    #errorForDependencies: undefined | CrashedDependencyError;
+    #primaryCauseHandled = false;
+    #change: Observable<[status: Lifecycle.Status, subject: T]> | undefined;
+    #status = Lifecycle.Status.Inactive;
+    #lifetime: Lifetime | undefined;
+    #subject: T & Constructable;
+    #readyThenable: PromiseLike<T> | undefined;
+    #closedThenable: PromiseLike<void> | undefined;
+
+    constructor(subject: T & Constructable, initializer?: () => MaybePromise) {
+        this.#subject = subject;
+
+        if (!initializer) {
+            assertDeferred(subject);
+        }
+
+        if (initializer) {
+            this.#invokeInitializer(initializer);
+        }
+    }
+
+    get [Symbol.toStringTag]() {
+        return "Construction";
+    }
+
     /**
      * If construction ends with an error, the error is saved here.
      */
-    readonly error?: Error;
+    get error() {
+        return this.#error;
+    }
 
     /**
      * Status of the constructed object.
      */
-    readonly status: Lifecycle.Status;
+    get status() {
+        return this.#status;
+    }
 
     /**
      * Notifications of state change.  Normally you just await construction but this offers more granular events and
      * repeating events.
      */
-    readonly change: Observable<[status: Lifecycle.Status, subject: T]>;
+    get change() {
+        if (this.#change === undefined) {
+            this.#change = Observable();
+        }
+        return this.#change;
+    }
 
     /**
      * True iff the primary error has been or will be reported.
      */
-    readonly isErrorHandled: boolean;
+    get isErrorHandled() {
+        return this.#primaryCauseHandled;
+    }
 
-    /**
-     * Resolves when construction completes; rejects if construction crashes.
-     *
-     * Behaves identically to {@link Construction} but always throws the primary cause rather than
-     * {@link CrashedDependencyError}.
-     *
-     * Handling errors on this promise will prevent other handlers from seeing the primary cause.
-     */
-    readonly ready: Promise<T>;
-
-    /**
-     * Resolves when destruction completes; rejects if the component crashes.
-     *
-     * Handling errors on this promise will prevent other handlers from seeing the primary cause.
-     */
-    readonly closed: Promise<T>;
+    join(...name: unknown[]) {
+        return this.#activeLifetime().join(...name);
+    }
 
     /**
      * If you omit the initializer parameter to {@link Construction} execution is deferred until you invoke this
@@ -141,7 +174,148 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
     start<const T, const A extends unknown[], const This extends Construction<Constructable.Deferred<T, A>>>(
         this: This,
         ...args: A
-    ): void;
+    ): void {
+        if (this.#status !== Lifecycle.Status.Inactive) {
+            throw new ImplementationError(`Cannot initialize ${this.#subject} because it is already active`);
+        }
+
+        assertDeferred(this.#subject);
+
+        this.#applyStatus(Lifecycle.Status.Initializing);
+
+        try {
+            const initializeDeferred = () =>
+                (this.#subject as Constructable.Deferred<T, A>)[Construction.construct](...args);
+            this.#invokeInitializer(initializeDeferred);
+        } catch (e) {
+            this.#rejected(e);
+            return;
+        }
+    }
+
+    /**
+     * Throws an error if construction is ongoing or incomplete.
+     */
+    assert(description?: string, dependency?: any) {
+        Lifecycle.assertActive(this.#status, description ?? nameOf(this.#subject));
+
+        if (arguments.length < 2) {
+            return;
+        }
+
+        try {
+            if (dependency === undefined) {
+                throw new ImplementationError(`Property is undefined`);
+            }
+        } catch (e) {
+            let error;
+            if (e instanceof Error) {
+                error = e;
+            } else {
+                error = new ImplementationError(e?.toString() ?? "(unknown error)");
+            }
+            error.message = `Cannot access ${description}: ${error.message}`;
+            throw error;
+        }
+        return dependency;
+    }
+
+    then<TResult1 = T, TResult2 = never>(
+        onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
+        onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
+    ): Promise<TResult1 | TResult2> {
+        const handleRejection = onrejected ? () => onrejected?.(this.#crashedError()) as TResult2 : undefined;
+        if (this.#status === Lifecycle.Status.Inactive || this.#status === Lifecycle.Status.Initializing) {
+            if (!this.#awaiterPromise) {
+                this.#awaiterPromise = new Promise<T>((resolve, reject) => {
+                    this.#awaiterResolve = resolve;
+                    this.#awaiterReject = reject;
+                });
+            }
+
+            return this.#awaiterPromise.then(onfulfilled, handleRejection);
+        }
+
+        const promise = this.#error ? Promise.reject(this.#crashedError()) : Promise.resolve(this.#subject);
+        return promise.then(onfulfilled, handleRejection);
+    }
+
+    catch<TResult = never>(
+        onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
+    ): Promise<T | TResult> {
+        return this.then(undefined, onrejected);
+    }
+
+    /**
+     * Invoke a method after construction completes successfully.
+     *
+     * Errors thrown by this callback are logged but otherwise ignored.
+     */
+    onSuccess(actor: () => MaybePromise<void>) {
+        const onSuccess = () => {
+            const errorHandler = this.#createErrorHandler("onSuccess");
+
+            try {
+                const result = actor();
+                if (MaybePromise.is(result)) {
+                    return Promise.resolve(result).catch(errorHandler);
+                }
+            } catch (e) {
+                errorHandler(e);
+            }
+        };
+
+        this.then(onSuccess).catch(e => {
+            // Failure should result in a CrashedDependencyError which simply means initialization failed.  The
+            // actual error is logged so we can safely ignore.  If the error was not a CrashedDependencyError then
+            // it is unexpected.  We rethrow which will result in the process exiting with an unexpected error
+            CrashedDependencyError.accept(e);
+        });
+    }
+
+    /**
+     * Invoke a method after construction completes unsuccessfully.
+     *
+     * If you register an onError handler then the default error handler will not log the error.
+     *
+     * Errors thrown by this callback are logged but otherwise ignored.
+     */
+    onError(actor: (error: Error) => MaybePromise<void>) {
+        const onError = (error: unknown) => {
+            const errorHandler = this.#createErrorHandler("onError");
+
+            try {
+                const result = actor(errorOf(error));
+                if (MaybePromise.is(result)) {
+                    return result.then(undefined, errorHandler);
+                }
+            } catch (e) {
+                errorHandler(e);
+            }
+        };
+
+        this.ready.then(undefined, onError);
+    }
+
+    /**
+     * Invoke a method after construction completes successfully or onsuccessfully.
+     *
+     * Errors thrown by this callback are logged but otherwise ignored.
+     */
+    onCompletion(actor: () => void) {
+        const onCompletion = () => {
+            const errorHandler = this.#createErrorHandler("onCompletion");
+
+            try {
+                actor();
+            } catch (e) {
+                errorHandler(e);
+            }
+        };
+
+        // Do not use finally() because eslint rule doesn't like it
+        this.then(onCompletion, onCompletion);
+    }
 
     /**
      * Invoke destruction logic then move to destroyed status.
@@ -158,17 +332,80 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
      *
      *   - Makes destruction observable via {@link change} and {@link closed}.
      */
-    close(destructor?: () => MaybePromise): MaybePromise;
+    close(destructor?: () => MaybePromise): MaybePromise {
+        const destructorError = this.#createErrorHandler("destructor");
 
-    /**
-     * Throws an error if construction is ongoing or incomplete.
-     */
-    assert(description?: string): void;
+        // Destruction phase 4 - move to destroyed state
+        const destroyed = () => {
+            this.#applyStatus(Lifecycle.Status.Destroyed);
+            if (this.#closedResolve) {
+                this.#closedResolve();
+                this.#closedResolve = this.#closedReject = undefined;
+            }
+        };
 
-    /**
-     * Asserts construction is complete and that an object is defined.
-     */
-    assert<T>(description: string, dependency: T | undefined): T;
+        // Destruction phase 3 - invoke AsyncDestructable.destruct if present
+        const destruct = (this.#subject as Partial<Constructable.Destructable>)[Construction.destruct];
+        const invokeDestruct = destruct
+            ? () => {
+                  try {
+                      const promise = destruct.bind(this.#subject)();
+                      if (promise) {
+                          return promise.then(undefined, destructorError).then(destroyed);
+                      }
+                  } catch (e) {
+                      destructorError(e);
+                  }
+                  destroyed();
+              }
+            : destroyed;
+
+        // Destruction phase 2 - invoke destructor function if present
+        const invokeDestructor = destructor
+            ? () => {
+                  try {
+                      const promise = destructor();
+                      if (promise) {
+                          return promise.then(undefined, destructorError).then(invokeDestruct);
+                      }
+                  } catch (e) {
+                      destructorError(e);
+                  }
+                  invokeDestruct();
+              }
+            : invokeDestruct;
+
+        // Destruction phase 1 - move to destroying state
+        const beginDestruction = () => {
+            if (this.#status === Lifecycle.Status.Destroying || this.#status === Lifecycle.Status.Destroyed) {
+                return this.closed;
+            }
+            this.#applyStatus(Lifecycle.Status.Destroying);
+            return invokeDestructor();
+        };
+
+        switch (this.#status) {
+            case Lifecycle.Status.Initializing:
+                // Wait for initialization to complete, then close
+                return this.then(beginDestruction, beginDestruction) as Promise<void>;
+
+            case Lifecycle.Status.Destroying:
+                // Wait for previously initiated destruction to complete
+                return this.closed;
+
+            case Lifecycle.Status.Destroyed:
+                // Already destroyed
+                return;
+
+            default:
+                // Begin destruction
+                return beginDestruction();
+        }
+    }
+
+    finally(onfinally?: (() => void) | null): Promise<T> {
+        return Promise.prototype.finally.call(this, onfinally);
+    }
 
     /**
      * Manually force a specific {@link status}.
@@ -178,7 +415,48 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
      *
      * This method fails if initialization is ongoing; await completion first.
      */
-    setStatus(status: Lifecycle.Status): void;
+    setStatus(newStatus: Lifecycle.Status) {
+        if (this.#status === newStatus) {
+            return;
+        }
+
+        switch (this.#status) {
+            case newStatus:
+                return;
+
+            case Lifecycle.Status.Destroying:
+                if (newStatus !== Lifecycle.Status.Destroyed) {
+                    throw new ImplementationError("Cannot change status because destruction is ongoing");
+                }
+                break;
+
+            case Lifecycle.Status.Destroyed:
+                throw new ImplementationError("Cannot change status because destruction is final");
+
+            case Lifecycle.Status.Initializing:
+                throw new ImplementationError("Cannot change status because initialization is ongoing");
+        }
+
+        switch (newStatus) {
+            case Lifecycle.Status.Inactive:
+                this.#awaiterPromise = this.#closedPromise = undefined;
+                this.#primaryCauseHandled = false;
+                this.#error = this.#errorForDependencies = undefined;
+                this.#readyThenable = this.#closedThenable = undefined;
+                break;
+
+            case Lifecycle.Status.Active:
+                this.#awaiterPromise = this.#closedPromise = undefined;
+                this.#error = this.#errorForDependencies = undefined;
+                this.#readyThenable = this.#closedThenable = undefined;
+                break;
+
+            default:
+                break;
+        }
+
+        this.#applyStatus(newStatus);
+    }
 
     /**
      * Move subject to "crashed" state, optionally setting the cause.
@@ -186,546 +464,213 @@ export interface Construction<T> extends Promise<T>, Lifetime.Owner {
      * This happens automatically if there is an error during construction.  It is also useful for post-construction
      * errors to convey crashed state to components such as the environmental runtime service.
      */
-    crash(cause?: any): void;
-
-    /**
-     * Invoke a method after construction completes successfully.
-     *
-     * Errors thrown by this callback are logged but otherwise ignored.
-     */
-    onSuccess(actor: () => MaybePromise<void>): void;
-
-    /**
-     * Invoke a method after construction completes unsuccessfully.
-     *
-     * If you register an onError handler then the default error handler will not log the error.
-     *
-     * Errors thrown by this callback are logged but otherwise ignored.
-     */
-    onError(actor: (error: Error) => MaybePromise<void>): void;
-
-    /**
-     * Invoke a method after construction completes successfully or onsuccessfully.
-     *
-     * Errors thrown by this callback are logged but otherwise ignored.
-     */
-    onCompletion(actor: () => void): void;
-
-    toString(): string;
-}
-
-/**
- * Create an {@link Constructable} and optionally begin async construction.
- */
-export function Construction<const T extends Constructable>(
-    subject: T,
-    initializer?: () => MaybePromise,
-): Construction<T> {
-    if (!initializer) {
-        assertDeferred(subject);
+    crash(newError?: Error) {
+        this.#error = newError;
+        this.#applyStatus(Lifecycle.Status.Crashed);
     }
 
-    // The promise returned by the initializer if initialization is async
-    let initializerPromise: MaybePromise<void>;
-
-    // The promise we use to implement Construction.then() and Construction.ready
-    let awaiterPromise: undefined | Promise<T>;
-    let awaiterResolve: undefined | ((subject: T) => void);
-    let awaiterReject: undefined | ((error: any) => void);
-
-    // The promise we use to implement Constructable.close
-    let closedPromise: undefined | Promise<void>;
-    let closedResolve: undefined | (() => void);
-    let closedReject: undefined | ((error: any) => void);
-
-    let error: undefined | Error;
-    let errorForDependencies: undefined | CrashedDependencyError;
-    let primaryCauseHandled = false;
-    let change: Observable<[status: Lifecycle.Status, subject: T]> | undefined;
-
-    // Lifecycle information that exists
-    let status = Lifecycle.Status.Inactive;
-    let lifetime: Lifetime | undefined;
-
-    const self: Construction<any> = {
-        [Symbol.toStringTag]: "Construction",
-
-        get error() {
-            return error;
-        },
-
-        get status() {
-            return status;
-        },
-
-        get change() {
-            if (change === undefined) {
-                change = Observable();
-            }
-            return change;
-        },
-
-        get isErrorHandled() {
-            return primaryCauseHandled;
-        },
-
-        join(...name: unknown[]) {
-            return activeLifetime().join(...name);
-        },
-
-        start<const T, const A extends [], const This extends Construction<Constructable.Deferred<T, A>>>(
-            this: This,
-            ...args: A
-        ) {
-            if (status !== Lifecycle.Status.Inactive) {
-                throw new ImplementationError(`Cannot initialize ${subject} because it is already active`);
-            }
-
-            assertDeferred(subject);
-
-            setStatus(Lifecycle.Status.Initializing);
-
-            try {
-                const initializeDeferred = () => subject[Construction.construct](...args);
-                invokeInitializer(initializeDeferred);
-            } catch (e) {
-                rejected(e);
-                return;
-            }
-        },
-
-        assert(description?: string, dependency?: any) {
-            Lifecycle.assertActive(status, description ?? nameOf(subject));
-
-            if (arguments.length < 2) {
-                return;
-            }
-
-            try {
-                if (dependency === undefined) {
-                    throw new ImplementationError(`Property is undefined`);
-                }
-            } catch (e) {
-                let error;
-                if (e instanceof Error) {
-                    error = e;
-                } else {
-                    error = new ImplementationError(e?.toString() ?? "(unknown error)");
-                }
-                error.message = `Cannot access ${description}: ${error.message}`;
-                throw error;
-            }
-            return dependency;
-        },
-
-        then<TResult1 = T, TResult2 = never>(
-            onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
-            onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-        ): Promise<TResult1 | TResult2> {
-            const handleRejection = onrejected ? () => onrejected?.(crashedError()) as TResult2 : undefined;
-            if (status === Lifecycle.Status.Inactive || status === Lifecycle.Status.Initializing) {
-                if (!awaiterPromise) {
-                    awaiterPromise = new Promise<T>((resolve, reject) => {
-                        awaiterResolve = resolve;
-                        awaiterReject = reject;
-                    });
-                }
-
-                return awaiterPromise.then(onfulfilled, handleRejection);
-            }
-
-            const promise = error ? Promise.reject(crashedError()) : Promise.resolve(subject);
-            return promise.then(onfulfilled, handleRejection);
-        },
-
-        catch<TResult = never>(
-            onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
-        ): Promise<T | TResult> {
-            return this.then(undefined, onrejected);
-        },
-
-        onSuccess(actor: () => MaybePromise<void>) {
-            const onSuccess = () => {
-                const errorHandler = createErrorHandler("onSuccess");
-
-                try {
-                    const result = actor();
-                    if (MaybePromise.is(result)) {
-                        return Promise.resolve(result).catch(errorHandler);
-                    }
-                } catch (e) {
-                    errorHandler(e);
-                }
-            };
-
-            this.then(onSuccess).catch(e => {
-                // Failure should result in a CrashedDependencyError which simply means initialization failed.  The
-                // actual error is logged so we can safely ignore.  If the error was not a CrashedDependencyError then
-                // it is unexpected.  We rethrow which will result in the process exiting with an unexpected error
-                CrashedDependencyError.accept(e);
-            });
-        },
-
-        onError(actor: (error: Error) => MaybePromise<void>) {
-            const onError = (error: unknown) => {
-                const errorHandler = createErrorHandler("onError");
-
-                try {
-                    const result = actor(errorOf(error));
-                    if (MaybePromise.is(result)) {
-                        return result.then(undefined, errorHandler);
-                    }
-                } catch (e) {
-                    errorHandler(e);
-                }
-            };
-
-            this.ready.catch(onError);
-        },
-
-        onCompletion(actor: () => void) {
-            const onCompletion = () => {
-                const errorHandler = createErrorHandler("onCompletion");
-
-                try {
-                    actor();
-                } catch (e) {
-                    errorHandler(e);
-                }
-            };
-
-            // Do not use finally() because eslint rule doesn't like it
-            this.then(onCompletion, onCompletion);
-        },
-
-        close(destructor): MaybePromise {
-            const destructorError = createErrorHandler("destructor");
-
-            // Destruction phase 4 - move to destroyed state
-            function destroyed() {
-                setStatus(Lifecycle.Status.Destroyed);
-                if (closedResolve) {
-                    closedResolve();
-                    closedResolve = closedReject = undefined;
-                }
-            }
-
-            // Destruction phase 3 - invoke AsyncDestructable.destruct if present
-            const destruct = (subject as Partial<Constructable.Destructable>)[Construction.destruct];
-            const invokeDestruct = destruct
-                ? function invokeDestruct() {
-                      try {
-                          const promise = destruct.bind(subject)();
-                          if (promise) {
-                              return promise.then(undefined, destructorError).then(destroyed);
-                          }
-                      } catch (e) {
-                          destructorError(e);
-                      }
-                      destroyed();
-                  }
-                : destroyed;
-
-            // Destruction phase 2 - invoke destructor function if present
-            const invokeDestructor = destructor
-                ? function invokeDestructor() {
-                      try {
-                          const promise = destructor();
-                          if (promise) {
-                              return promise.then(undefined, destructorError).then(invokeDestruct);
-                          }
-                      } catch (e) {
-                          destructorError(e);
-                      }
-                      invokeDestruct();
-                  }
-                : invokeDestruct;
-
-            // Destruction phase 1 - move to destroying state
-            function beginDestruction() {
-                if (status === Lifecycle.Status.Destroying || status === Lifecycle.Status.Destroyed) {
-                    return self.closed;
-                }
-                setStatus(Lifecycle.Status.Destroying);
-                return invokeDestructor();
-            }
-
-            switch (status) {
-                case Lifecycle.Status.Initializing:
-                    // Wait for initialization to complete, then close
-                    return this.then(beginDestruction, beginDestruction);
-
-                case Lifecycle.Status.Destroying:
-                    // Wait for previously initiated destruction to complete
-                    return this.closed;
-
-                case Lifecycle.Status.Destroyed:
-                    // Already destroyed
-                    return;
-
-                default:
-                    // Begin destruction
-                    return beginDestruction();
-            }
-        },
-
-        finally(onfinally: () => void): Promise<T> {
-            return Promise.prototype.finally.call(this, onfinally);
-        },
-
-        setStatus(newStatus: Lifecycle.Status) {
-            if (this.status === newStatus) {
-                return;
-            }
-
-            switch (status) {
-                case newStatus:
-                    return;
-
-                case Lifecycle.Status.Destroying:
-                    if (newStatus !== Lifecycle.Status.Destroyed) {
-                        throw new ImplementationError("Cannot change status because destruction is ongoing");
-                    }
-                    break;
-
-                case Lifecycle.Status.Destroyed:
-                    throw new ImplementationError("Cannot change status because destruction is final");
-
-                case Lifecycle.Status.Initializing:
-                    throw new ImplementationError("Cannot change status because initialization is ongoing");
-            }
-
-            switch (newStatus) {
-                case Lifecycle.Status.Inactive:
-                    awaiterPromise = closedPromise = undefined;
-                    primaryCauseHandled = false;
-                    error = errorForDependencies = undefined;
-                    break;
-
-                case Lifecycle.Status.Active:
-                    awaiterPromise = closedPromise = undefined;
-                    error = errorForDependencies = undefined;
-                    break;
-
-                default:
-                    break;
-            }
-
-            setStatus(newStatus);
-        },
-
-        crash(newError?: Error) {
-            error = newError;
-            setStatus(Lifecycle.Status.Crashed);
-        },
-
-        get ready() {
-            return {
+    /**
+     * Resolves when construction completes; rejects if construction crashes.
+     *
+     * Behaves identically to {@link Construction} but always throws the primary cause rather than
+     * {@link CrashedDependencyError}.
+     *
+     * Handling errors on this promise will prevent other handlers from seeing the primary cause.
+     */
+    get ready(): PromiseLike<T> {
+        if (this.#readyThenable === undefined) {
+            this.#readyThenable = {
                 [Symbol.toStringTag]: "AsyncConstruction#primary",
 
-                then<TResult1 = T, TResult2 = never>(
+                then: <TResult1 = T, TResult2 = never>(
                     onfulfilled?: ((value: T) => TResult1 | PromiseLike<TResult1>) | null,
                     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-                ): Promise<TResult1 | TResult2> {
+                ): Promise<TResult1 | TResult2> => {
                     let rejectionHandler: undefined | typeof onrejected;
                     if (onrejected) {
-                        primaryCauseHandled = true;
-                        rejectionHandler = () => onrejected(errorOf(error));
+                        this.#primaryCauseHandled = true;
+                        rejectionHandler = () => onrejected(errorOf(this.#error));
                     }
 
-                    return self.then(onfulfilled, rejectionHandler);
+                    return this.then(onfulfilled, rejectionHandler);
                 },
+            } as PromiseLike<T>;
+        }
+        return this.#readyThenable;
+    }
 
-                catch<TResult = never>(
-                    onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
-                ): Promise<T | TResult> {
-                    return this.then(undefined, onrejected);
-                },
+    /**
+     * Resolves when destruction completes; rejects if the component crashes.
+     *
+     * Handling errors on this promise will prevent other handlers from seeing the primary cause.
+     */
+    get closed(): PromiseLike<void> {
+        if (this.#closedPromise === undefined) {
+            this.#closedPromise = new Promise((resolve, reject) => {
+                this.#closedResolve = resolve;
+                this.#closedReject = reject;
+            });
+        }
 
-                finally(onfinally: () => void): Promise<T> {
-                    return Promise.prototype.finally.call(this, onfinally);
-                },
-            };
-        },
-
-        get closed() {
-            if (closedPromise === undefined) {
-                closedPromise = new Promise((resolve, reject) => {
-                    closedResolve = resolve;
-                    closedReject = reject;
-                });
-            }
-
-            return {
+        if (this.#closedThenable === undefined) {
+            this.#closedThenable = {
                 [Symbol.toStringTag]: "AsyncConstruction#primary",
 
-                then<TResult1 = void, TResult2 = never>(
+                then: <TResult1 = void, TResult2 = never>(
                     onfulfilled?: ((value: void) => TResult1 | PromiseLike<TResult1>) | null,
                     onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null,
-                ): Promise<TResult1 | TResult2> {
+                ): Promise<TResult1 | TResult2> => {
                     let rejectionHandler: undefined | typeof onrejected;
                     if (onrejected) {
-                        primaryCauseHandled = true;
-                        rejectionHandler = () => onrejected(errorOf(error));
+                        this.#primaryCauseHandled = true;
+                        rejectionHandler = () => onrejected(errorOf(this.#error));
                     }
 
-                    return (closedPromise as Promise<void>).then(onfulfilled, rejectionHandler);
+                    return (this.#closedPromise as Promise<void>).then(onfulfilled, rejectionHandler);
                 },
-
-                catch<TResult = never>(
-                    onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null,
-                ): Promise<T | TResult> {
-                    return this.then(undefined, onrejected);
-                },
-
-                finally(onfinally: () => void): Promise<T> {
-                    return Promise.prototype.finally.call(this, onfinally);
-                },
-            };
-        },
-    };
-
-    if (initializer) {
-        invokeInitializer(initializer);
+            } as PromiseLike<void>;
+        }
+        return this.#closedThenable!;
     }
 
-    return self;
+    toString() {
+        return `Construction(${nameOf(this.#subject)})`;
+    }
 
-    // Begin initialization.  May throw synchronously or asynchronously
-    function invokeInitializer(initializer: () => MaybePromise<void>) {
-        setStatus(Lifecycle.Status.Initializing);
+    #invokeInitializer(initializer: () => MaybePromise<void>) {
+        this.#applyStatus(Lifecycle.Status.Initializing);
 
-        initializerPromise = initializer();
+        this.#initializerPromise = initializer();
 
-        if (MaybePromise.is(initializerPromise)) {
-            initializerPromise.then(resolved, rejected);
+        if (MaybePromise.is(this.#initializerPromise)) {
+            this.#initializerPromise.then(
+                () => this.#resolved(),
+                (e: any) => this.#rejected(e),
+            );
         } else {
-            resolved();
+            this.#resolved();
         }
     }
 
-    // We return the original error for the first rejection.  The stack trace will point to the source of the error.
-    // This means that the owner of the object should register error handling first.
-    //
-    // For subsequent rejections we throw a new CrashedDependencyError for each listener.  This prevents the logs from
-    // filling with redundant stack traces and ensures the stack trace details the listener's stack rather than the
-    // original error's stack.
-    function crashedError() {
-        if (!primaryCauseHandled && error) {
-            primaryCauseHandled = true;
-            return error;
+    #crashedError() {
+        if (!this.#primaryCauseHandled && this.#error) {
+            this.#primaryCauseHandled = true;
+            return this.#error;
         }
 
-        if (errorForDependencies) {
-            return errorForDependencies;
+        if (this.#errorForDependencies) {
+            return this.#errorForDependencies;
         }
 
-        errorForDependencies = new CrashedDependencyError(nameOf(subject), "unavailable due to initialization error");
-        errorForDependencies.subject = subject;
-        errorForDependencies.cause = error;
-        return errorForDependencies;
+        this.#errorForDependencies = new CrashedDependencyError(
+            nameOf(this.#subject),
+            "unavailable due to initialization error",
+        );
+        this.#errorForDependencies.subject = this.#subject;
+        this.#errorForDependencies.cause = this.#error;
+        return this.#errorForDependencies;
     }
 
-    function setStatus(newStatus: Lifecycle.Status) {
-        if (status === newStatus) {
+    #applyStatus(newStatus: Lifecycle.Status) {
+        if (this.#status === newStatus) {
             return;
         }
 
-        status = newStatus;
+        this.#status = newStatus;
 
-        switch (status) {
+        switch (this.#status) {
             case Lifecycle.Status.Initializing:
             case Lifecycle.Status.Active:
             case Lifecycle.Status.Destroying:
-                if (!lifetime) {
-                    lifetime = joinOwner();
+                if (!this.#lifetime) {
+                    this.#lifetime = this.#joinOwner();
                 }
 
-                if (status === Lifecycle.Status.Destroying) {
-                    lifetime.closing();
+                if (this.#status === Lifecycle.Status.Destroying) {
+                    this.#lifetime.closing();
                 }
                 break;
 
             default:
-                if (lifetime) {
-                    lifetime.closing()[Symbol.dispose]();
-                    lifetime[Symbol.dispose]();
-                    lifetime = undefined;
+                if (this.#lifetime) {
+                    this.#lifetime.closing()[Symbol.dispose]();
+                    this.#lifetime[Symbol.dispose]();
+                    this.#lifetime = undefined;
                 }
                 break;
         }
 
-        if (change) {
-            change.emit(status, subject);
+        if (this.#change) {
+            this.#change.emit(this.#status, this.#subject);
         }
     }
 
-    function resolved() {
-        if (status === Lifecycle.Status.Initializing) {
-            setStatus(Lifecycle.Status.Active);
+    #resolved() {
+        if (this.#status === Lifecycle.Status.Initializing) {
+            this.#applyStatus(Lifecycle.Status.Active);
         }
 
-        if (awaiterResolve) {
-            const resolve = awaiterResolve;
-            awaiterResolve = awaiterReject = undefined;
-            resolve(subject);
+        if (this.#awaiterResolve) {
+            const resolve = this.#awaiterResolve;
+            this.#awaiterResolve = this.#awaiterReject = undefined;
+            resolve(this.#subject);
         }
     }
 
-    function rejected(cause: any) {
-        if (status !== Lifecycle.Status.Destroying && status !== Lifecycle.Status.Destroyed) {
-            error = cause;
-            setStatus(Lifecycle.Status.Crashed);
+    #rejected(cause: any) {
+        if (this.#status !== Lifecycle.Status.Destroying && this.#status !== Lifecycle.Status.Destroyed) {
+            this.#error = cause;
+            this.#applyStatus(Lifecycle.Status.Crashed);
         }
 
-        if (awaiterReject) {
-            const reject = awaiterReject;
-            awaiterResolve = awaiterReject = undefined;
-            reject(crashedError());
+        if (this.#awaiterReject) {
+            const reject = this.#awaiterReject;
+            this.#awaiterResolve = this.#awaiterReject = undefined;
+            reject(this.#crashedError());
         }
 
-        if (closedReject) {
-            primaryCauseHandled = true;
-            const reject = closedReject;
-            closedResolve = closedReject = undefined;
+        if (this.#closedReject) {
+            this.#primaryCauseHandled = true;
+            const reject = this.#closedReject;
+            this.#closedResolve = this.#closedReject = undefined;
             reject(cause);
         }
 
-        if (!primaryCauseHandled) {
-            unhandledError(cause);
+        if (!this.#primaryCauseHandled) {
+            this.#unhandledError(cause);
         }
     }
 
-    function unhandledError(...args: any[]) {
-        const logger = Logger.get(subject.constructor.name);
+    #unhandledError(...args: any[]) {
+        const logger = Logger.get(this.#subject.constructor.name);
         logger.error(...args);
     }
 
-    function createErrorHandler(name: string) {
+    #createErrorHandler(name: string) {
         return (e: any) => {
-            unhandledError(`Unhandled error in ${nameOf(subject)} ${name}:`, e);
+            this.#unhandledError(`Unhandled error in ${nameOf(this.#subject)} ${name}:`, e);
         };
     }
 
-    function activeLifetime() {
-        if (lifetime) {
-            if (status === Lifecycle.Status.Destroying) {
-                return lifetime.closing();
+    #activeLifetime() {
+        if (this.#lifetime) {
+            if (this.#status === Lifecycle.Status.Destroying) {
+                return this.#lifetime.closing();
             }
 
-            return lifetime;
+            return this.#lifetime;
         }
 
         // We are not in fact alive so create a zombie lifetime.  Generally this is a bug but if it happens this allows
         // us to handle without crashing and properly track lifetime spans
-        const zombie = joinOwner();
+        const zombie = this.#joinOwner();
         zombie[Symbol.dispose]();
         return zombie;
     }
 
-    function joinOwner() {
-        const lifetime = Lifetime.of(subject);
-        return lifetime.join(decamelize(nameOf(subject), " "));
+    #joinOwner() {
+        const lifetime = Lifetime.of(this.#subject);
+        return lifetime.join(decamelize(nameOf(this.#subject), " "));
     }
 }
 

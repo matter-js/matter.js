@@ -26,7 +26,7 @@ export class ServerGroupNetworking {
      */
     constructor(env: Environment, udpInterface: UdpInterface) {
         this.#udpInterface = udpInterface;
-        this.#construction = Construction(this);
+        this.#construction = new Construction(this);
         this.#construction.start(env);
     }
 

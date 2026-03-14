@@ -60,7 +60,7 @@ export class FabricAuthority {
         this.#ca = ca;
         this.#fabrics = fabrics;
 
-        this.#construction = Construction(this, async () => {
+        this.#construction = new Construction(this, async () => {
             await this.#ca.construction;
             await this.#fabrics.construction;
         });

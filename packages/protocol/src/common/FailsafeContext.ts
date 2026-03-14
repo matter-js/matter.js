@@ -57,7 +57,7 @@ export abstract class FailsafeContext {
         this.#fabrics = fabrics;
         this.#associatedFabric = session.fabric;
 
-        this.#construction = Construction(this, async () => {
+        this.#construction = new Construction(this, async () => {
             this.#fabricBuilder = await FabricBuilder.create(this.#fabrics.crypto);
             // Ensure derived class construction is complete
             await Promise.resolve();

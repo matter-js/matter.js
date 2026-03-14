@@ -74,7 +74,7 @@ export class FabricManager {
             };
         }
 
-        this.#construction = Construction(this, construct);
+        this.#construction = new Construction(this, construct);
     }
 
     get crypto() {

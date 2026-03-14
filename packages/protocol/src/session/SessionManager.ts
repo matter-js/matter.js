@@ -178,7 +178,7 @@ export class SessionManager {
             session.subscriptions.deleted.on(subscriptionsChanged);
         });
 
-        this.#construction = Construction(this, () => this.#initialize());
+        this.#construction = new Construction(this, () => this.#initialize());
     }
 
     static [Environmental.create](env: Environment) {

@@ -34,7 +34,7 @@ export abstract class NetworkRuntime {
         }
         internals.runtime = this;
 
-        this.#construction = Construction(this);
+        this.#construction = new Construction(this);
     }
 
     async [Construction.construct]() {

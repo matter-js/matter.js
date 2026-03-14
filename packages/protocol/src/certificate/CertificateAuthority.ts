@@ -105,7 +105,7 @@ export class CertificateAuthority {
     ) {
         this.#crypto = crypto;
 
-        this.#construction = Construction(this, async () => {
+        this.#construction = new Construction(this, async () => {
             if (typeof options === "boolean") {
                 generateIntermediateCert = options;
                 options = undefined;

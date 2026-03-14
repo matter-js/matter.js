@@ -159,7 +159,7 @@ export class DclVendorInfoService {
             }),
         );
 
-        this.#construction = Construction(this, async () => {
+        this.#construction = new Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("vendors");
             this.#storage = this.#storageManager.createContext("info");
             await this.#loadVendors(this.#storage);
