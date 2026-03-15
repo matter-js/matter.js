@@ -18,7 +18,7 @@ import {
 
 export const GeneralDiagnostics = Cluster(
     { name: "GeneralDiagnostics", id: 0x33, classification: "node", quality: "K" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "DMTEST", conformance: "desc", constraint: "0", title: "DataModelTest" })
@@ -45,6 +45,7 @@ export const GeneralDiagnostics = Cluster(
     ),
     Attribute({ name: "TestEventTriggersEnabled", id: 0x8, type: "bool", access: "R V", conformance: "M" }),
     Attribute({ name: "DoNotUse", id: 0x9, conformance: "X" }),
+    Attribute({ name: "DeviceLoadStatus", id: 0xa, type: "DeviceLoadStruct", access: "R V", conformance: "desc", quality: "C" }),
 
     Event(
         { name: "HardwareFaultChange", id: 0x0, access: "V", conformance: "O", priority: "critical" },
@@ -192,6 +193,15 @@ export const GeneralDiagnostics = Cluster(
             Field({ name: "entry", type: "ipv6adr" })
         ),
         Field({ name: "Type", id: 0x7, type: "InterfaceTypeEnum", conformance: "M" })
+    ),
+
+    Datatype(
+        { name: "DeviceLoadStruct", type: "struct" },
+        Field({ name: "CurrentSubscriptions", id: 0x0, type: "uint16", conformance: "M" }),
+        Field({ name: "CurrentSubscriptionsForFabric", id: 0x1, type: "uint16", conformance: "M" }),
+        Field({ name: "TotalSubscriptionsEstablished", id: 0x2, type: "uint32", conformance: "M" }),
+        Field({ name: "TotalInteractionModelMessagesSent", id: 0x3, type: "uint32", conformance: "M" }),
+        Field({ name: "TotalInteractionModelMessagesReceived", id: 0x4, type: "uint32", conformance: "M" })
     )
 );
 

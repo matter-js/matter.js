@@ -182,7 +182,7 @@ export class MessageExchange {
     readonly #messagesQueue = new DataReadQueue<Message>();
     readonly #lifetime: Lifetime;
     readonly #onSend?: MessageExchange.SendNotifier;
-    readonly #onReceive?: MessageExchange.ReceiveNotifier;
+    #onReceive?: MessageExchange.ReceiveNotifier;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -282,6 +282,16 @@ export class MessageExchange {
 
     get isInitiator() {
         return this.#isInitiator;
+    }
+
+    /**
+     * Sets the receive-notifier when none was provided at construction time.  This allows code that obtains an
+     * exchange after its creation (e.g., via protocol handler dispatch) to hook into message receipt.
+     */
+    set onReceive(fn: MessageExchange.ReceiveNotifier) {
+        if (this.#onReceive === undefined) {
+            this.#onReceive = fn;
+        }
     }
 
     /** Emits when the exchange is actually closed. This happens after all Retries and Communication are done. */

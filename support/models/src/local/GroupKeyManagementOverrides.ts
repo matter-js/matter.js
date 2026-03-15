@@ -32,5 +32,64 @@ LocalMatter.children.push({
                 { tag: "field", id: 0x0, name: "GroupKeySetIDs", conformance: "X" },
             ],
         },
+
+        // Matter 1.6 Groupcast additions
+        // Spec: src/data_model/Group-Key-Management-Cluster.adoc (guarded by ifdef::in-progress,groupcast[])
+
+        // Bump revision to 3: refocus on pure key management; group management moves to Groupcast cluster
+        { tag: "attribute", id: 0xfffd, name: "ClusterRevision", default: 3 },
+
+        // New feature: GCAST (bit 1) — device supports groups using the Groupcast cluster
+        // Include existing CS feature too so the position-based merge preserves it
+        {
+            tag: "attribute",
+            id: 0xfffc,
+            name: "FeatureMap",
+            children: [
+                { tag: "field", name: "CS", constraint: "0" }, // preserve existing CacheAndSync feature
+                {
+                    tag: "field",
+                    name: "GCAST",
+                    constraint: "1",
+                    conformance: "M",
+                    title: "Groupcast",
+                    details: "When set, group management is done using the Groupcast cluster. This cluster is used solely for key management.",
+                },
+            ],
+        },
+
+        // New struct for Groupcast adoption state (Fabric-Scoped)
+        {
+            tag: "datatype",
+            name: "GroupcastAdoptionStruct",
+            type: "struct",
+            children: [
+                {
+                    tag: "field",
+                    id: 0x0,
+                    name: "GroupcastAdopted",
+                    type: "bool",
+                    access: "F",
+                    conformance: "M",
+                    details: "Indicates whether Groupcast was adopted by the associated Fabric's administrators.",
+                },
+                { tag: "field", id: 0xfe, name: "FabricIndex", type: "FabricIndex" },
+            ],
+        },
+
+        // New attribute: GroupcastAdoption (0x0004)
+        // When GroupcastAdopted=true for a fabric: GroupKeyMap is empty and read-only (INVALID_IN_STATE on write)
+        // When GroupcastAdopted=false/missing: GroupKeyMap reflects Groupcast Membership-derived mappings
+        {
+            tag: "attribute",
+            id: 0x0004,
+            name: "GroupcastAdoption",
+            type: "list",
+            access: "RW A F",
+            conformance: "GCAST",
+            constraint: "desc",
+            quality: "N",
+            children: [{ tag: "field", name: "entry", type: "GroupcastAdoptionStruct" }],
+        },
     ],
 });

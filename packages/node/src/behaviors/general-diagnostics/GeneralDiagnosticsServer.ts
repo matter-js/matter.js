@@ -11,6 +11,7 @@ import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { TimeSynchronizationBehavior } from "#behaviors/time-synchronization";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { NodeLifecycle } from "#node/NodeLifecycle.js";
+import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     Bytes,
     Duration,
@@ -26,10 +27,12 @@ import {
     Time,
     Timer,
     Timespan,
+    UINT16_MAX,
+    UINT32_MAX,
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
-import { assertRemoteActor, MdnsService, Val } from "@matter/protocol";
-import { CommandId, StatusCode, StatusResponseError, TlvInvokeResponse } from "@matter/types";
+import { assertRemoteActor, MdnsService, SessionManager, Val } from "@matter/protocol";
+import { CommandId, FabricIndex, StatusCode, StatusResponseError, TlvInvokeResponse } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -406,7 +409,7 @@ export namespace GeneralDiagnosticsServer {
         /** The TestEnableKey set for this device for the test commands. Default means "not enabled"." */
         deviceTestEnableKey: Bytes = new Uint8Array(16).fill(0);
 
-        [Val.properties](endpoint: Endpoint, _session: ValueSupervisor.Session) {
+        [Val.properties](endpoint: Endpoint, session: ValueSupervisor.Session) {
             return {
                 /**
                  * Report uptime
@@ -447,6 +450,65 @@ export namespace GeneralDiagnosticsServer {
                     const totalOperationalTime = Millis(timeAsOfLastUpdate + timeSinceLastUpdate);
 
                     return Hours.of(totalOperationalTime);
+                },
+
+                /**
+                 * Dynamically compute device load metrics from InteractionServer counters and SessionManager.
+                 * Quality "C" means changes are not pushed to subscribers; clients must re-read.
+                 *
+                 * Returns a zeroed struct before the interaction server is online (so the attribute appears in
+                 * attributeList). Throws StatusResponseError if the node is online but the required services are
+                 * unexpectedly absent.
+                 */
+                get deviceLoadStatus() {
+                    const isOnline = (endpoint.lifecycle as NodeLifecycle).isOnline;
+
+                    if (!endpoint.env.has(InteractionServer) || !endpoint.env.has(SessionManager)) {
+                        if (isOnline) {
+                            throw new StatusResponseError(
+                                "DeviceLoadStatus unavailable: InteractionServer or SessionManager missing",
+                                StatusCode.Failure,
+                            );
+                        }
+                        // During initialization the interaction server is not yet registered; return zeroed struct so
+                        // the attribute is included in the attributeList once the server comes online.
+                        return {
+                            currentSubscriptions: 0,
+                            currentSubscriptionsForFabric: 0,
+                            totalSubscriptionsEstablished: 0,
+                            totalInteractionModelMessagesSent: 0,
+                            totalInteractionModelMessagesReceived: 0,
+                        };
+                    }
+
+                    const sessionManager = endpoint.env.get(SessionManager);
+                    const { counters } = endpoint.env.get(InteractionServer);
+
+                    const accessingFabric = session.fabric ?? FabricIndex.NO_FABRIC;
+
+                    let currentSubscriptions = 0;
+                    let currentSubscriptionsForFabric = 0;
+                    for (const sess of sessionManager.sessions) {
+                        const count = sess.subscriptions.size;
+                        currentSubscriptions += count;
+                        if (sess.fabric?.fabricIndex === accessingFabric) {
+                            currentSubscriptionsForFabric += count;
+                        }
+                    }
+
+                    return {
+                        currentSubscriptions: Math.min(currentSubscriptions, UINT16_MAX),
+                        currentSubscriptionsForFabric: Math.min(currentSubscriptionsForFabric, UINT16_MAX),
+                        totalSubscriptionsEstablished: Math.min(counters.totalSubscriptionsEstablished, UINT32_MAX),
+                        totalInteractionModelMessagesSent: Math.min(
+                            counters.totalInteractionModelMessagesSent,
+                            UINT32_MAX,
+                        ),
+                        totalInteractionModelMessagesReceived: Math.min(
+                            counters.totalInteractionModelMessagesReceived,
+                            UINT32_MAX,
+                        ),
+                    };
                 },
             };
         }
