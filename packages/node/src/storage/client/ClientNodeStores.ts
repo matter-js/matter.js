@@ -37,7 +37,7 @@ export class ClientNodeStores {
 
     constructor(storage: StorageContext) {
         this.#storage = storage;
-        this.#construction = new Construction(this);
+        this.#construction = Construction(this);
         this.#construction.start();
     }
 

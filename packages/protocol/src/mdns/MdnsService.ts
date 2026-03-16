@@ -48,7 +48,7 @@ export class MdnsService {
         this.#enableIpv4 = vars.boolean("mdns.ipv4") ?? options?.ipv4 ?? true;
         this.limitedToNetInterface = vars.get("mdns.networkInterface", options?.networkInterface);
 
-        this.#construction = new Construction(this, async () => {
+        this.#construction = Construction(this, async () => {
             this.#socket = await MdnsSocket.create(network, {
                 lifetime: this.#construction,
                 enableIpv4: this.enableIpv4,

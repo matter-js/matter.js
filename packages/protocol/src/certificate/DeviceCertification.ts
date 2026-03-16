@@ -62,7 +62,7 @@ export class DeviceCertification {
             };
         }
 
-        this.#construction = new Construction(this, async () => {
+        this.#construction = Construction(this, async () => {
             const config = await configProvider();
 
             this.#privateKey = Bytes.isBytes(config.privateKey) ? PrivateKey(config.privateKey) : config.privateKey;

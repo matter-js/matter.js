@@ -320,7 +320,7 @@ export class MatterController {
             basicInformation = {},
         } = options;
 
-        this.#construction = new Construction(this, async () => {
+        this.#construction = Construction(this, async () => {
             // Now after all Legacy stuff is prepared, initialize the ServerNode
             this.#node = await ServerNode.create(ServerNode.RootEndpoint.with(ControllerBehavior), {
                 environment,

@@ -111,7 +111,7 @@ export class PersistedMessageCounter extends MessageCounter {
         rolloverInfoDifference = ROLLOVER_INFO_DIFFERENCE,
     ) {
         super(crypto, aboutToRolloverCallback, rolloverInfoDifference);
-        this.#construction = new Construction(this, async () => {
+        this.#construction = Construction(this, async () => {
             if (await storageContext.has(storageKey)) {
                 this.messageCounter = await storageContext.get<number>(storageKey);
                 if (this.messageCounter < 0 || this.messageCounter > MAX_COUNTER_VALUE_32BIT) {

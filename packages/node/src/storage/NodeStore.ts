@@ -34,7 +34,7 @@ export abstract class NodeStore {
 
     constructor(storageFactory: StorageContextFactory) {
         this.#storageFactory = storageFactory;
-        this.#construction = new Construction(this);
+        this.#construction = Construction(this);
     }
 
     toString() {

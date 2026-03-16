@@ -86,7 +86,7 @@ export class DclOtaUpdateService {
         );
 
         // THe construction is async and will be enforced when needed
-        this.#construction = new Construction(this, async () => {
+        this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("ota");
             this.#storage = new ScopedStorage(this.#storageManager.createContext("bin"), "ota");
             await this.#migrateStorage();

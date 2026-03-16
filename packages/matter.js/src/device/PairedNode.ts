@@ -370,7 +370,7 @@ export class PairedNode {
         this.#nodeDetails = new DeviceInformation(clientNode);
         logger.info(this.#peerAddress, `Created paired node with device data`, this.#nodeDetails.meta);
 
-        this.#construction = new Construction(this, async () => {
+        this.#construction = Construction(this, async () => {
             // We try to initialize from stored data already
             await this.#initializeFromStoredData();
 
