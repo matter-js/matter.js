@@ -7,6 +7,7 @@
 export * from "./client/ClientNodeStore.js";
 export * from "./client/ClientNodeStores.js";
 export * from "./client/DatasourceCache.js";
+export * from "./client/LocalWriter.js";
 export * from "./NodeStore.js";
 export * from "./server/DatasourceStore.js";
 export * from "./server/ServerEndpointStore.js";

@@ -61,6 +61,7 @@ export class RootSupervisor implements ValueSupervisor {
     #root: ValueSupervisor;
     #memberNames?: Set<string>;
     #propertyNamesAndIds?: Map<string, AttributeId | undefined>;
+    #propertyIdsAndNames?: Map<string, string>;
 
     /**
      * Create a new supervisor.
@@ -188,6 +189,24 @@ export class RootSupervisor implements ValueSupervisor {
             this.#propertyNamesAndIds = names;
         }
         return names;
+    }
+
+    /**
+     * Reverse of {@link propertyNamesAndIds}: maps attribute ID strings to property names.
+     */
+    get propertyIdsAndNames() {
+        let ids = this.#propertyIdsAndNames;
+        if (!ids) {
+            ids = new Map();
+            for (const member of this.#members) {
+                const id = member.id;
+                if (id !== undefined) {
+                    ids.set(id.toString(), camelize(member.name));
+                }
+            }
+            this.#propertyIdsAndNames = ids;
+        }
+        return ids;
     }
 
     /**
