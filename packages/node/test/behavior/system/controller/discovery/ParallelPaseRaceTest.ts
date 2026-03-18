@@ -119,20 +119,26 @@ describe("ParallelPaseDiscovery race pattern", () => {
             const harness = createRaceHarness<string>(false /* no fix */);
 
             // Winner: calls winOnPase during "PASE", then resolves after a short "commissioning" phase.
-            harness.registerAttempt(async winOnPase => {
-                // Simulate PASE establishment
-                await new Promise(r => setTimeout(r, 10));
-                winOnPase();
-                // Simulate commissioning
-                await new Promise(r => setTimeout(r, 50));
-                return "winner-result";
-            }, result => result);
+            harness.registerAttempt(
+                async winOnPase => {
+                    // Simulate PASE establishment
+                    await new Promise(r => setTimeout(r, 10));
+                    winOnPase();
+                    // Simulate commissioning
+                    await new Promise(r => setTimeout(r, 50));
+                    return "winner-result";
+                },
+                result => result,
+            );
 
             // Loser: takes longer, then rejects (simulating abort-induced failure).
-            harness.registerAttempt(async () => {
-                await new Promise(r => setTimeout(r, 30));
-                throw new Error("loser: aborted");
-            }, result => result);
+            harness.registerAttempt(
+                async () => {
+                    await new Promise(r => setTimeout(r, 30));
+                    throw new Error("loser: aborted");
+                },
+                result => result,
+            );
 
             // Wait for the winner to win PASE + complete commissioning, then run onComplete.
             await new Promise(r => setTimeout(r, 80));
@@ -157,18 +163,24 @@ describe("ParallelPaseDiscovery race pattern", () => {
             const harness = createRaceHarness<string>(true /* with fix */);
 
             // Winner
-            harness.registerAttempt(async winOnPase => {
-                await new Promise(r => setTimeout(r, 10));
-                winOnPase();
-                await new Promise(r => setTimeout(r, 50));
-                return "winner-result";
-            }, result => result);
+            harness.registerAttempt(
+                async winOnPase => {
+                    await new Promise(r => setTimeout(r, 10));
+                    winOnPase();
+                    await new Promise(r => setTimeout(r, 50));
+                    return "winner-result";
+                },
+                result => result,
+            );
 
             // Loser
-            harness.registerAttempt(async () => {
-                await new Promise(r => setTimeout(r, 30));
-                throw new Error("loser: aborted");
-            }, result => result);
+            harness.registerAttempt(
+                async () => {
+                    await new Promise(r => setTimeout(r, 30));
+                    throw new Error("loser: aborted");
+                },
+                result => result,
+            );
 
             await new Promise(r => setTimeout(r, 80));
             const result = await harness.onComplete();
@@ -188,12 +200,15 @@ describe("ParallelPaseDiscovery race pattern", () => {
         const harness = createRaceHarness<string>(true /* with fix */);
 
         // Winner that fails during "commissioning"
-        harness.registerAttempt(async winOnPase => {
-            await new Promise(r => setTimeout(r, 10));
-            winOnPase();
-            // Commissioning fails
-            throw new Error("commissioning failed");
-        }, result => result);
+        harness.registerAttempt(
+            async winOnPase => {
+                await new Promise(r => setTimeout(r, 10));
+                winOnPase();
+                // Commissioning fails
+                throw new Error("commissioning failed");
+            },
+            result => result,
+        );
 
         await new Promise(r => setTimeout(r, 30));
 
@@ -208,20 +223,26 @@ describe("ParallelPaseDiscovery race pattern", () => {
             const harness = createRaceHarness<string>(true /* with fix */);
 
             // Winner
-            harness.registerAttempt(async winOnPase => {
-                await new Promise(r => setTimeout(r, 10));
-                winOnPase();
-                await new Promise(r => setTimeout(r, 20));
-                return "winner";
-            }, result => result);
+            harness.registerAttempt(
+                async winOnPase => {
+                    await new Promise(r => setTimeout(r, 10));
+                    winOnPase();
+                    await new Promise(r => setTimeout(r, 20));
+                    return "winner";
+                },
+                result => result,
+            );
 
             // Three losers at different timings
             for (let i = 0; i < 3; i++) {
                 const delay = 20 + i * 10;
-                harness.registerAttempt(async () => {
-                    await new Promise(r => setTimeout(r, delay));
-                    throw new Error(`loser-${i}: aborted`);
-                }, result => result);
+                harness.registerAttempt(
+                    async () => {
+                        await new Promise(r => setTimeout(r, delay));
+                        throw new Error(`loser-${i}: aborted`);
+                    },
+                    result => result,
+                );
             }
 
             await new Promise(r => setTimeout(r, 100));

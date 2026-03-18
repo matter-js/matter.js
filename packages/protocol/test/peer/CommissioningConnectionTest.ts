@@ -7,7 +7,14 @@
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
-import { AbortedError, Millis, NoResponseTimeoutError, Seconds, ServerAddressUdp, UnexpectedDataError } from "@matter/general";
+import {
+    AbortedError,
+    Millis,
+    NoResponseTimeoutError,
+    Seconds,
+    ServerAddressUdp,
+    UnexpectedDataError,
+} from "@matter/general";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
     return { type: "udp", ip, port };
