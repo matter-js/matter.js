@@ -64,12 +64,19 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
             this.#winnerPromise = attempt.then(result => {
                 this.#winner = extractWinner(result);
             });
+            // Prevent unhandled rejection if the winner rejects before onComplete awaits
+            void this.#winnerPromise.catch(() => {});
             return true;
         };
 
         attempt = Promise.resolve(factory(winOnPase)).finally(() => {
             this.#pending.delete(attempt);
         });
+
+        // Prevent unhandled rejection for losing attempts that settle (and get removed from
+        // #pending by .finally()) before onComplete drains #pending via allSettled.  Winner
+        // errors still propagate through #winnerPromise which is awaited in onComplete.
+        void attempt.catch(() => {});
 
         this.#pending.add(attempt);
     }
