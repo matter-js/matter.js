@@ -16,11 +16,9 @@ import { MatterAggregateError } from "@matter/general";
  */
 describe("ParallelPaseDiscovery race pattern", () => {
     /**
-     * Mimics ParallelPaseDiscovery's registerAttempt + onComplete logic.
-     *
-     * @param withCatchFix  When true, applies `void attempt.catch(() => {})` — the fix for #394.
+     * Mimics ParallelPaseDiscovery's registerAttempt + onComplete logic (with the catch fix from #394).
      */
-    function createRaceHarness<W>(withCatchFix: boolean) {
+    function createRaceHarness<W>() {
         let paseWon = false;
         const pending = new Set<Promise<unknown>>();
         let winner: W | undefined;
@@ -41,9 +39,7 @@ describe("ParallelPaseDiscovery race pattern", () => {
                 winnerPromise = attempt.then(result => {
                     winner = extractWinner(result);
                 });
-                if (withCatchFix) {
-                    void winnerPromise.catch(() => {});
-                }
+                void winnerPromise.catch(() => {});
                 return true;
             };
 
@@ -51,9 +47,7 @@ describe("ParallelPaseDiscovery race pattern", () => {
                 pending.delete(attempt);
             });
 
-            if (withCatchFix) {
-                void attempt.catch(() => {});
-            }
+            void attempt.catch(() => {});
 
             pending.add(attempt);
         }
@@ -97,7 +91,7 @@ describe("ParallelPaseDiscovery race pattern", () => {
         if (typeof globalThis.addEventListener === "function") {
             const handler = (event: Event) => {
                 collected.push((event as PromiseRejectionEvent).reason);
-                event.preventDefault(); // prevent default logging
+                event.preventDefault();
             };
             globalThis.addEventListener("unhandledrejection", handler);
             return {
@@ -112,62 +106,38 @@ describe("ParallelPaseDiscovery race pattern", () => {
         return { collected, dispose: () => collected };
     }
 
-    it("WITHOUT fix: losing attempt produces unhandled rejection when winner completes first", async () => {
+    /** Creates a deferred promise for deterministic sequencing. */
+    function deferred<T = void>() {
+        let resolve!: (value: T) => void;
+        let reject!: (reason?: unknown) => void;
+        const promise = new Promise<T>((res, rej) => {
+            resolve = res;
+            reject = rej;
+        });
+        return { promise, resolve, reject };
+    }
+
+    // Note: a "WITHOUT fix" test is intentionally absent — the unhandled rejection it would
+    // produce crashes the test runner (which IS the bug).  The crash was verified manually:
+    //   git stash -- ParallelPaseDiscovery.ts && npm test --fgrep "ParallelPaseDiscovery"
+    // produces: "Caused by: loser: aborted" unhandled rejection → exit code 1.
+
+    it("losing attempt rejection is handled, no unhandled rejection", async () => {
         const tracker = trackUnhandledRejections();
 
         try {
-            const harness = createRaceHarness<string>(false /* no fix */);
+            const harness = createRaceHarness<string>();
 
-            // Winner: calls winOnPase during "PASE", then resolves after a short "commissioning" phase.
-            harness.registerAttempt(
-                async winOnPase => {
-                    // Simulate PASE establishment
-                    await new Promise(r => setTimeout(r, 10));
-                    winOnPase();
-                    // Simulate commissioning
-                    await new Promise(r => setTimeout(r, 50));
-                    return "winner-result";
-                },
-                result => result,
-            );
-
-            // Loser: takes longer, then rejects (simulating abort-induced failure).
-            harness.registerAttempt(
-                async () => {
-                    await new Promise(r => setTimeout(r, 30));
-                    throw new Error("loser: aborted");
-                },
-                result => result,
-            );
-
-            // Wait for the winner to win PASE + complete commissioning, then run onComplete.
-            await new Promise(r => setTimeout(r, 80));
-            const result = await harness.onComplete();
-            expect(result).equals("winner-result");
-
-            // Give the event loop time to fire the unhandledRejection event for the loser.
-            await new Promise(r => setTimeout(r, 50));
-
-            // Without the fix, the loser's rejection escapes because .finally() removes it from
-            // pending before onComplete's allSettled can catch it.
-            expect(tracker.collected.length).greaterThanOrEqual(1);
-        } finally {
-            tracker.dispose();
-        }
-    });
-
-    it("WITH fix: losing attempt rejection is handled, no unhandled rejection", async () => {
-        const tracker = trackUnhandledRejections();
-
-        try {
-            const harness = createRaceHarness<string>(true /* with fix */);
+            const winnerPase = deferred();
+            const winnerCommissioning = deferred();
+            const loserGate = deferred();
 
             // Winner
             harness.registerAttempt(
                 async winOnPase => {
-                    await new Promise(r => setTimeout(r, 10));
+                    await winnerPase.promise;
                     winOnPase();
-                    await new Promise(r => setTimeout(r, 50));
+                    await winnerCommissioning.promise;
                     return "winner-result";
                 },
                 result => result,
@@ -176,18 +146,29 @@ describe("ParallelPaseDiscovery race pattern", () => {
             // Loser
             harness.registerAttempt(
                 async () => {
-                    await new Promise(r => setTimeout(r, 30));
+                    await loserGate.promise;
                     throw new Error("loser: aborted");
                 },
                 result => result,
             );
 
-            await new Promise(r => setTimeout(r, 80));
+            // Step 1: Winner wins PASE
+            winnerPase.resolve();
+            await MockTime.yield();
+
+            // Step 2: Loser fails
+            loserGate.resolve();
+            await MockTime.yield();
+
+            // Step 3: Winner finishes
+            winnerCommissioning.resolve();
+            await MockTime.yield();
+
             const result = await harness.onComplete();
             expect(result).equals("winner-result");
 
-            // Give time for any unhandled rejection to fire.
-            await new Promise(r => setTimeout(r, 50));
+            // Allow microtasks to settle
+            await MockTime.yield3();
 
             // With the fix, no unhandled rejections should occur.
             expect(tracker.collected).deep.equals([]);
@@ -197,20 +178,22 @@ describe("ParallelPaseDiscovery race pattern", () => {
     });
 
     it("WITH fix: winner error propagates through onComplete even with catch guard", async () => {
-        const harness = createRaceHarness<string>(true /* with fix */);
+        const harness = createRaceHarness<string>();
+
+        const winnerPase = deferred();
 
         // Winner that fails during "commissioning"
         harness.registerAttempt(
             async winOnPase => {
-                await new Promise(r => setTimeout(r, 10));
+                await winnerPase.promise;
                 winOnPase();
-                // Commissioning fails
                 throw new Error("commissioning failed");
             },
             result => result,
         );
 
-        await new Promise(r => setTimeout(r, 30));
+        winnerPase.resolve();
+        await MockTime.yield3();
 
         // The winner's error must still propagate through onComplete.
         await expect(harness.onComplete()).rejectedWith("commissioning failed");
@@ -220,36 +203,53 @@ describe("ParallelPaseDiscovery race pattern", () => {
         const tracker = trackUnhandledRejections();
 
         try {
-            const harness = createRaceHarness<string>(true /* with fix */);
+            const harness = createRaceHarness<string>();
+
+            const winnerPase = deferred();
+            const winnerCommissioning = deferred();
+            const loserGates = [deferred(), deferred(), deferred()];
 
             // Winner
             harness.registerAttempt(
                 async winOnPase => {
-                    await new Promise(r => setTimeout(r, 10));
+                    await winnerPase.promise;
                     winOnPase();
-                    await new Promise(r => setTimeout(r, 20));
+                    await winnerCommissioning.promise;
                     return "winner";
                 },
                 result => result,
             );
 
-            // Three losers at different timings
+            // Three losers
             for (let i = 0; i < 3; i++) {
-                const delay = 20 + i * 10;
+                const gate = loserGates[i];
                 harness.registerAttempt(
                     async () => {
-                        await new Promise(r => setTimeout(r, delay));
+                        await gate.promise;
                         throw new Error(`loser-${i}: aborted`);
                     },
                     result => result,
                 );
             }
 
-            await new Promise(r => setTimeout(r, 100));
+            // Winner wins PASE
+            winnerPase.resolve();
+            await MockTime.yield();
+
+            // All losers fail
+            for (const gate of loserGates) {
+                gate.resolve();
+            }
+            await MockTime.yield();
+
+            // Winner finishes
+            winnerCommissioning.resolve();
+            await MockTime.yield();
+
             const result = await harness.onComplete();
             expect(result).equals("winner");
 
-            await new Promise(r => setTimeout(r, 50));
+            await MockTime.yield3();
             expect(tracker.collected).deep.equals([]);
         } finally {
             tracker.dispose();

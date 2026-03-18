@@ -157,8 +157,8 @@ describe("CommissioningConnection", () => {
             },
         });
 
-        // Let the attempt start, then fire external abort.
-        await new Promise(r => setTimeout(r, 10));
+        // establishSession registers the abort listener before its first await, so a yield is enough.
+        await MockTime.yield();
         ac.abort(new AbortedError("caller cancelled"));
 
         // Should throw the external abort reason, NOT PairRetransmissionLimitReachedError.
@@ -184,8 +184,8 @@ describe("CommissioningConnection", () => {
             },
         });
 
-        // Give the attempt time to start, then fire external abort (simulating another device winning).
-        await new Promise(r => setTimeout(r, 10));
+        // establishSession registers the abort listener synchronously; yield to let it settle.
+        await MockTime.yield();
         ac.abort(new AbortedError("another device won PASE"));
 
         // The loser must reject with the abort reason, not PairRetransmissionLimitReachedError.
