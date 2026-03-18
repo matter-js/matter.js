@@ -138,12 +138,13 @@ describe("CommissioningConnection", () => {
         // Start a connection that will be cancelled externally before it can establish PASE.
         const p = CommissioningConnection({
             devices: [device("a", [udp("fd00::1")])],
-            timeout: Seconds(10),
+            timeout: Millis(500),
             externalAbort: ac.signal,
             establishSession: async (_address, _discoveryData, signal) => {
-                // Wait indefinitely — the external abort will cancel us.
+                // Wait for the abort signal — reject with the signal's reason so we can verify
+                // CommissioningConnection propagates the caller's reason, not a generic timeout.
                 await new Promise<void>((_resolve, reject) => {
-                    signal.addEventListener("abort", () => reject(new AbortedError("cancelled")), { once: true });
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
                 });
                 return {} as any;
             },
@@ -154,7 +155,7 @@ describe("CommissioningConnection", () => {
         ac.abort(new AbortedError("caller cancelled"));
 
         // Should throw the external abort reason, NOT PairRetransmissionLimitReachedError.
-        await expect(p).rejectedWith(AbortedError);
+        await expect(p).rejectedWith(AbortedError, "caller cancelled");
     });
 
     it("external abort cancels in-flight connection and rejects with abort reason", async () => {
@@ -166,11 +167,11 @@ describe("CommissioningConnection", () => {
         // The "loser" connection is externally aborted while its PASE attempt is in-flight.
         const loserPromise = CommissioningConnection({
             devices: [device("loser", [udp("fd00::1")])],
-            timeout: Seconds(10),
+            timeout: Millis(500),
             externalAbort: ac.signal,
             establishSession: async (_address, _discoveryData, signal) => {
                 await new Promise<void>((_resolve, reject) => {
-                    signal.addEventListener("abort", () => reject(new AbortedError("cancelled")), { once: true });
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
                 });
                 return {} as any;
             },
@@ -182,7 +183,7 @@ describe("CommissioningConnection", () => {
 
         // The loser must reject with the abort reason, not PairRetransmissionLimitReachedError.
         // Critically, this must not become an unhandled rejection (which would crash the process).
-        await expect(loserPromise).rejectedWith(AbortedError);
+        await expect(loserPromise).rejectedWith(AbortedError, "another device won PASE");
     });
 
     it("passes abort signal to establishSession and aborts early when timeout fires", async () => {
