@@ -170,7 +170,7 @@ export class Peer {
     }
 
     get basicInformation() {
-        return this.#protocol?.[0]?.[BasicInformation.Cluster.id]?.readState({}) as Peer.BasicInformation | undefined;
+        return this.#protocol?.[0]?.[BasicInformation.id]?.readState({}) as Peer.BasicInformation | undefined;
     }
 
     get limits() {

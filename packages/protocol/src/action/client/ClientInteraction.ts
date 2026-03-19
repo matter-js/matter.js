@@ -46,7 +46,15 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
+import {
+    Status,
+    TlvAttributeReport,
+    TlvNoResponse,
+    TlvOfModel,
+    TlvSchema,
+    TlvSubscribeResponse,
+    TypeFromSchema,
+} from "@matter/types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -330,7 +338,16 @@ export class ClientInteraction<
                                     `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
-                            const responseSchema = Invoke.commandOf(cmd).responseSchema;
+                            let responseSchema: TlvSchema<any>;
+                            if (Invoke.isLegacy(cmd)) {
+                                responseSchema = cmd.command.responseSchema ?? TlvNoResponse;
+                            } else {
+                                const command = Invoke.commandOf(cmd);
+                                const responseModel = command.schema.responseModel;
+                                responseSchema = responseModel
+                                    ? (TlvOfModel(responseModel) ?? TlvNoResponse)
+                                    : TlvNoResponse;
+                            }
                             if (commandFields === undefined && responseSchema !== TlvNoResponse) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
@@ -338,14 +355,14 @@ export class ClientInteraction<
                             }
 
                             const data =
-                                commandFields === undefined ? undefined : responseSchema.decodeTlv(commandFields);
+                                commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
                             logger.info(
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
                                 messenger.exchange.diagnostics,
-                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
 
@@ -385,7 +402,7 @@ export class ClientInteraction<
                                     Mark.INBOUND,
                                     messenger.exchange.via,
                                     messenger.exchange.diagnostics,
-                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                    Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                     Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
                                 );
                             }
@@ -436,7 +453,7 @@ export class ClientInteraction<
                             const { commandRef } = cmd;
                             const fields = "fields" in cmd ? cmd.fields : undefined;
                             return [
-                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                 "with",
                                 isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
                                 commandRef !== undefined ? `(ref ${commandRef})` : "",
