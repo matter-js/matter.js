@@ -188,13 +188,13 @@ describe("WebSocket", () => {
 
         await cx.receiveUpdate("test", 0, "parts", "a");
         await cx.receiveUpdate("test", 0, "index", "a");
-        await cx.receiveUpdate("test", 0, "basicInformation", "a");
         await cx.receiveUpdate("test", 0, "accessControl", "a");
-        await cx.receiveUpdate("test", 0, "groupKeyManagement", "a");
+        await cx.receiveUpdate("test", 0, "basicInformation", "a");
         await cx.receiveUpdate("test", 0, "generalCommissioning", "a");
+        await cx.receiveUpdate("test", 0, "generalDiagnostics", "a");
         await cx.receiveUpdate("test", 0, "administratorCommissioning", "a");
         await cx.receiveUpdate("test", 0, "operationalCredentials", "a");
-        await cx.receiveUpdate("test", 0, "generalDiagnostics", "a");
+        await cx.receiveUpdate("test", 0, "groupKeyManagement", "a");
         await cx.receiveUpdate("test", 0, "commissioning", "a");
         await cx.receiveUpdate("test", 0, "network", "a");
         await cx.receiveUpdate("test", 0, "productDescription", "a");
@@ -205,8 +205,8 @@ describe("WebSocket", () => {
         await cx.receiveUpdate("test", 0, "descriptor", "a");
         await cx.receiveUpdate("test", 1, "identify", "a");
         await cx.receiveUpdate("test", 1, "groups", "a");
-        await cx.receiveUpdate("test", 1, "scenesManagement", "a");
         await cx.receiveUpdate("test", 1, "onOff", "a");
+        await cx.receiveUpdate("test", 1, "scenesManagement", "a");
         await cx.receiveUpdate("test", 1, "descriptor", "a");
         await cx.receiveUpdate("test", 0, "productDescription", "a");
 

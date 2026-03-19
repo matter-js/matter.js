@@ -469,8 +469,8 @@ describe("ServerNode", () => {
         expect(node.stateOf(DescriptorBehavior).partsList).deep.equals([aggregator.number, light.number, pump.number]);
         expect(aggregator.stateOf(DescriptorBehavior).partsList).deep.equals([light.number, pump.number]);
 
-        expect(light.stateOf(DescriptorBehavior).serverList).deep.equals([3, 4, 98, 6, 29]);
-        expect(pump.stateOf(DescriptorBehavior).serverList).deep.equals([6, 3, 512, 29]);
+        expect(light.stateOf(DescriptorBehavior).serverList).deep.equals([3, 4, 6, 98, 29]);
+        expect(pump.stateOf(DescriptorBehavior).serverList).deep.equals([3, 6, 512, 29]);
 
         await node.close();
     });
