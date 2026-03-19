@@ -130,8 +130,15 @@ export const ConstraintStr = (el: HTMLElement) => {
     return parts.join(" ");
 };
 
-/** String with no space at all */
-export const NoSpace = (el: HTMLElement) => Str(el).replace(/\s/g, "");
+/** String with no space at all.  Cleans up verbose Asciidoctor cross-reference link text */
+export const NoSpace = (el: HTMLElement) => {
+    // Asciidoctor sometimes renders type references as verbose links like
+    // <a href="#ref_CurrencyStruct">Section 7.19.2.51, "CurrencyStruct"</a>
+    // Strip the "Section X.Y.Z, " prefix and curly quotes to extract just the type name
+    let str = Str(el);
+    str = str.replace(/Section\s+[\d.]+,\s*[\u201c"]([\w-]+)[\u201d"]/g, "$1");
+    return str.replace(/\s/g, "");
+};
 
 /** Number parsed as integer */
 export const Integer = (el: HTMLElement) => {

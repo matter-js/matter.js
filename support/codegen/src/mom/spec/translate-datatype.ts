@@ -217,15 +217,28 @@ export function translateValueChildren(
                 ["name", "type", "statuscode", "priority", "description"],
             );
 
-            let records = translateTable("value", definition, {
+            const schema = {
                 id: Alias(Integer, ...ids),
                 name: Alias(Identifier, ...names),
                 conformance: Optional(ConformanceCode),
                 description: Optional(Alias(StrWithSuperscripts, "summary", "notes")),
                 meaning: Optional(Str),
-            });
+            };
 
+            let records = translateTable("value", definition, schema);
             records = records.filter(r => r.name !== "Reserved");
+
+            // If the first table produced no valid records (e.g. range-based enum like ClosureErrorEnum),
+            // try subsequent tables which may contain the concrete values
+            if (!records.length && definition.tables) {
+                for (let i = 1; i < definition.tables.length; i++) {
+                    records = translateTable("value", definition, schema, definition.tables[i]);
+                    records = records.filter(r => r.name !== "Reserved");
+                    if (records.length) {
+                        break;
+                    }
+                }
+            }
 
             return translateRecordsToMatter("value", records, FieldElement);
         }
@@ -285,7 +298,7 @@ export function accessModifierOf(details?: HtmlReference) {
 
     // Determine what the access flag should be
     let flag: string | undefined;
-    for (const n of details.tables[0].notes) {
+    for (const { note: n } of details.tables[0].notes) {
         const match = n.textContent?.match(/access (?:quality|modifier): fabric[\s-](\w+)/i);
         if (match) {
             const quality = match[1].toLowerCase();

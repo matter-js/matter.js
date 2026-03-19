@@ -45,6 +45,17 @@ export function* translateCluster(definition: ClusterReference) {
 
     const metadata = translateMetadata(definition, children);
     if (!metadata) {
+        // No cluster IDs but may have shared datatypes (e.g. WebRTC Transport common section).
+        // Emit datatypes as standalone globals
+        if (definition.datatypes?.length) {
+            logger.info(`emitting ${definition.datatypes.length} datatypes from ${definition.name} as globals`);
+            translateDatatypes(definition, children);
+            for (const child of children) {
+                if (child.tag === DatatypeElement.Tag) {
+                    yield child as DatatypeElement;
+                }
+            }
+        }
         return;
     }
 

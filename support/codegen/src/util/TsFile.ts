@@ -130,7 +130,7 @@ export abstract class Entry {
             }
 
             return `${linePrefix}/**\n${lines
-                .map(l => `${linePrefix} * ${l}`.trimEnd())
+                .map(l => `${linePrefix} * ${l.replace(/\*\//g, "* /")}`.trimEnd())
                 .join("\n")}\n${linePrefix} */\n`;
         }
 

@@ -19,8 +19,8 @@ export type Table = {
     /** Column name -> defining HTML element */
     rows: { [name: string]: HTMLElement | undefined }[];
 
-    /** Single-cell rows, tend to be informational */
-    notes: HTMLElement[];
+    /** Single-cell rows, tend to be informational; beforeRowIndex indicates which row index they precede */
+    notes: Array<{ note: HTMLElement; beforeRowIndex: number }>;
 };
 
 /**
@@ -71,8 +71,10 @@ export interface DeviceReference extends HtmlReference {
     classification?: HtmlReference;
     revisions?: HtmlReference;
     conditionSets?: HtmlReference[];
+    conditionRequirements?: HtmlReference;
     clusters?: HtmlReference;
     elements?: HtmlReference;
     composingTypes?: HtmlReference;
+    composingClusters?: HtmlReference;
     composingElements?: HtmlReference;
 }

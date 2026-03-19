@@ -91,7 +91,7 @@ function* translateDatatypes(ref: GlobalReference): Generator<DatatypeElement> {
                     detail.name = "semtag";
                     break;
 
-                case "LocationDescriptorStruct":
+                case "LocationDescriptorStruct Type":
                     detail.name = "locationdesc";
             }
         }
