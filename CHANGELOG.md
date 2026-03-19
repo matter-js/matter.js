@@ -11,8 +11,15 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- Breaking: Matter 1.5 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
+    - Some Namespaces were renamed and now have a "Common*" prefix
+    - Several previous "Zigbee only" features or attributes were removed because they were never allowed for Matter which removes attributes and commands 
+
 - @matter/model
     - Enhancement: First Model preparations for Matter 1.5
+
+- @matter/\*:
+  - Upgraded to Matter specification version 1.5
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
