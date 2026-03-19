@@ -398,6 +398,7 @@ export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
                 epochKey0: null,
                 epochKey1: null,
                 epochKey2: null,
+                fabricIndex: fabric.fabricIndex,
             },
         };
     }

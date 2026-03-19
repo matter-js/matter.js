@@ -40,6 +40,18 @@ export namespace CooktopRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { mandatory: { OnOff: OnOffServer }, optional: { Identify: IdentifyServer } };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            /**
+             * The CookSurface device type is optional per the Matter specification.
+             */
+            CookSurface: { deviceType: 0x77 }
+        }
+    };
 }
 
 export const CooktopDeviceDefinition = MutableEndpoint({

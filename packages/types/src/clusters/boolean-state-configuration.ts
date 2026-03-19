@@ -287,6 +287,8 @@ export namespace BooleanStateConfiguration {
 
         commands: {
             /**
+             * This command allows setting the enable or disable value for the specified alarm modes.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
              */
             enableDisableAlarm: Command(0x1, TlvEnableDisableAlarmRequest, 0x1, TlvNoResponse)
@@ -333,6 +335,8 @@ export namespace BooleanStateConfiguration {
 
         commands: {
             /**
+             * This command will suppress the alarm modes specified.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
              */
             suppressAlarm: Command(0x0, TlvSuppressAlarmRequest, 0x0, TlvNoResponse)

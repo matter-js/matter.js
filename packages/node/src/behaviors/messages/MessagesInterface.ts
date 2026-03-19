@@ -37,6 +37,8 @@ export namespace MessagesInterface {
         presentMessagesRequest(request: Messages.PresentMessagesRequest): MaybePromise;
 
         /**
+         * This command will cancel the message IDs specified.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
          */
         cancelMessagesRequest(request: Messages.CancelMessagesRequest): MaybePromise;

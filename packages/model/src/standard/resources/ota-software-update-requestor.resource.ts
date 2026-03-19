@@ -10,6 +10,7 @@ import { Resource } from "#models/Resource.js";
 
 Resource.add({
     tag: "cluster", name: "OtaSoftwareUpdateRequestor", pics: "OTAR", xref: "core§11.20.7",
+    details: "This cluster implements the Requestor role in the OTA process.",
 
     children: [
         {

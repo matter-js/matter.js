@@ -23,46 +23,46 @@ export enum Namespace {
      * > This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these tags, since
      *   the tags could be used by a server certified on a previous revision of Matter.
      */
-    Closure = 1,
+    CommonClosure = 1,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
      * movement into a certain compass direction. Note the difference with Chapter 4, Common Compass Location Semantic
      * Tag Namespace.
      */
-    CompassDirection = 2,
+    CommonCompassDirection = 2,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
      * position in a certain compass direction (e.g. an outdoor sensor in the North garden). Note the difference with
      * Chapter 3, Common Compass Direction Semantic Tag Namespace.
      */
-    CompassLocation = 3,
+    CommonCompassLocation = 3,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
      * movement in a certain direction relative to the device. Note the difference with Chapter 9, Common Position
      * Semantic Tag Namespace.
      */
-    Direction = 4,
+    CommonDirection = 4,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
      * certain level for a feature of a device (e.g. a button to set the speed of a fan).
      */
-    Level = 5,
+    CommonLevel = 5,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
      * location of a device (e.g. an outdoor temperature sensor).
      */
-    Location = 6,
+    CommonLocation = 6,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
      * certain numeric feature of a device (e.g. a numeric input button).
      */
-    Number = 7,
+    CommonNumber = 7,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
@@ -81,13 +81,25 @@ export enum Namespace {
      * (e.g. "one", "two", etc.) shall NOT be used to describe the position of the item. The first row/column shall use
      * Label "1".
      */
-    Position = 8,
+    CommonPosition = 8,
 
     /**
      * The tags contained in this namespace are restricted for use in the electrical measurement domain and shall NOT be
      * used in any other domain or context.
      */
     ElectricalMeasurement = 10,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the energy calendar domain and shall NOT be used
+     * in any other domain or context.
+     */
+    CommodityTariffChronology = 11,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the Commodity Tariff commodity domain and shall
+     * NOT be used in any other domain or context.
+     */
+    CommodityTariffCommodity = 13,
 
     /**
      * The tags contained in this namespace are restricted for use in the laundry domain and shall NOT be used in any
@@ -105,13 +117,13 @@ export enum Namespace {
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with an
      * indoor or outdoor area of a home.
      */
-    AreaNamespace = 16,
+    CommonAreaNamespace = 16,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a home
      * landmark.
      */
-    LandmarkNamespace = 17,
+    CommonLandmarkNamespace = 17,
 
     /**
      * The tags contained in this namespace may be used in any domain or context, to indicate an association with a
@@ -120,7 +132,13 @@ export enum Namespace {
      * the difference with Chapter 9, Common Position Semantic Tag Namespace, which contains tags indicating the
      * position relative to the device.
      */
-    RelativePosition = 18,
+    CommonRelativePosition = 18,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the Commodity Tariff flow domain and shall NOT be
+     * used in any other domain or context.
+     */
+    CommodityTariffFlow = 19,
 
     /**
      * The tags contained in this namespace are restricted for use in the refrigerator domain and shall NOT be used in
@@ -143,5 +161,35 @@ export enum Namespace {
      * See the rules for applying these and other tags for switch devices, e.g. from the Common Position Namespace and
      * the Common Number Namespace in the Generic Switch device type section in the Device Library.
      */
-    Switches = 67
+    Switches = 67,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the closure domain and shall NOT be used in any
+     * other domain or context.
+     */
+    Closure = 68,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the closure panel domain and shall NOT be used in
+     * any other domain or context.
+     */
+    ClosurePanel = 69,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the closure domain and shall NOT be used in any
+     * other domain or context.
+     */
+    ClosureCovering = 70,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the closure domain and shall NOT be used in any
+     * other domain or context.
+     */
+    ClosureWindow = 71,
+
+    /**
+     * The tags contained in this namespace are restricted for use in the closure domain and shall NOT be used in any
+     * other domain or context.
+     */
+    ClosureCabinet = 72
 }

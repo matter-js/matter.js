@@ -15,8 +15,8 @@ export const FlowSensorDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 774, revision: 2 } ], element: "attribute" })
     ),
-    Requirement({ name: "FlowMeasurement", id: 0x404, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" })
+    Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
+    Requirement({ name: "FlowMeasurement", id: 0x404, conformance: "M", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(FlowSensorDt);

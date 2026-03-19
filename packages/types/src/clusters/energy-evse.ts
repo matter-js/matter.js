@@ -54,11 +54,11 @@ export namespace EnergyEvse {
          * requirement can be converted into a daily energy demand with a target charging completion time.
          *
          * The EVSE itself can use this information (or may allow a controller such as an EMS) to compute an optimized
-         * charging schedule.
+         * charging schedule. For example, an optimizer may be able to use the Commodity Price cluster to determine the
+         * cheapest and lowest GHG based charging schedule for the vehicle.
          *
          * An EVSE device which includes a Device Energy Management device with the Device Energy Management cluster PFR
-         * (Power Forecast Reporting) feature can use the charging preferences information to produce its power
-         * forecast.
+         * (PowerForecastReporting) feature can use the charging preferences information to produce its power forecast.
          *
          * EVSE devices that support the Device Energy Management cluster’s FA feature can have their charging profiles
          * set by a controller device such as an EMS. For example, if the EVSE advertises a simple power forecast which
@@ -126,7 +126,7 @@ export namespace EnergyEvse {
          *
          * The charging and discharging may be controlled by a home Energy Management System (EMS) using the Device
          * Energy Management cluster of the associated Device Energy Management device. For example, an EMS may use the
-         * PA (Power Adjustment) feature to continually adjust the charge/discharge current to/from the EV so as to
+         * PA (PowerAdjustment) feature to continually adjust the charge/discharge current to/from the EV so as to
          * minimise the energy flow from/to the grid as the demand in the home and the solar supply to the home both
          * fluctuate.
          *
@@ -1100,7 +1100,7 @@ export namespace EnergyEvse {
     export const Base = MutableCluster.Component({
         id: 0x99,
         name: "EnergyEvse",
-        revision: 3,
+        revision: 4,
 
         features: {
             /**
@@ -1110,10 +1110,11 @@ export namespace EnergyEvse {
              * requirement can be converted into a daily energy demand with a target charging completion time.
              *
              * The EVSE itself can use this information (or may allow a controller such as an EMS) to compute an
-             * optimized charging schedule.
+             * optimized charging schedule. For example, an optimizer may be able to use the Commodity Price cluster to
+             * determine the cheapest and lowest GHG based charging schedule for the vehicle.
              *
              * An EVSE device which includes a Device Energy Management device with the Device Energy Management cluster
-             * PFR (Power Forecast Reporting) feature can use the charging preferences information to produce its power
+             * PFR (PowerForecastReporting) feature can use the charging preferences information to produce its power
              * forecast.
              *
              * EVSE devices that support the Device Energy Management cluster’s FA feature can have their charging
@@ -1174,7 +1175,7 @@ export namespace EnergyEvse {
              *
              * The charging and discharging may be controlled by a home Energy Management System (EMS) using the Device
              * Energy Management cluster of the associated Device Energy Management device. For example, an EMS may use
-             * the PA (Power Adjustment) feature to continually adjust the charge/discharge current to/from the EV so as
+             * the PA (PowerAdjustment) feature to continually adjust the charge/discharge current to/from the EV so as
              * to minimise the energy flow from/to the grid as the demand in the home and the solar supply to the home
              * both fluctuate.
              *

@@ -14,8 +14,8 @@ Resource.add({
         "that are all capable of heating food. Examples of consumer products implementing this device type " +
         "include ovens, wall ovens, convection ovens, etc.",
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§13.9.6" },
-        { tag: "requirement", name: "TemperatureControlledCabinet", xref: "device§13.9.5" },
-        { tag: "requirement", name: "Cooktop", xref: "device§13.9.5" }
+        { tag: "requirement", name: "Identify", xref: "device§13.9.7" },
+        { tag: "requirement", name: "TemperatureControlledCabinet", xref: "device§13.9.6" },
+        { tag: "requirement", name: "Cooktop", xref: "device§13.9.6" }
     ]
 });

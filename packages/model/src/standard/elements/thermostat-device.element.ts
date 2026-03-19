@@ -17,18 +17,13 @@ export const ThermostatDt = DeviceType(
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "Active", element: "serverCluster" }),
-
+    Requirement({ name: "EnergyPreference", id: 0x9b, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "Thermostat", id: 0x201, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "SCHEDULECONFIGURATION", conformance: "X", element: "feature" }),
-        Requirement({ name: "AlarmMask", conformance: "X", element: "attribute" }),
-        Requirement({ name: "GetRelayStatusLog", conformance: "X", element: "command" }),
-        Requirement({ name: "GetRelayStatusLogResponse", conformance: "X", element: "command" })
+        Requirement({ name: "SCHEDULECONFIGURATION", conformance: "X", element: "feature" })
     ),
-
-    Requirement({ name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster" }),
-    Requirement({ name: "EnergyPreference", id: 0x9b, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "FanControl", id: 0x202, conformance: "O", element: "clientCluster" }),
+    Requirement({ name: "ThermostatUserInterfaceConfiguration", id: 0x204, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "RelativeHumidityMeasurement", id: 0x405, conformance: "O", element: "clientCluster" }),
     Requirement({ name: "OccupancySensing", id: 0x406, conformance: "O", element: "clientCluster" })

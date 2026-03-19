@@ -9,7 +9,7 @@
 import { Resource } from "#models/Resource.js";
 
 Resource.add({
-    tag: "semanticNamespace", name: "RoomAirConditioner", xref: "namespace§17",
+    tag: "semanticNamespace", name: "RoomAirConditioner", xref: "namespace§20",
     details: "The tags contained in this namespace are restricted for use in the room air conditioner domain and " +
         "shall NOT be used in any other domain or context."
 });

@@ -17,7 +17,7 @@ import {
 
 export const ColorControl = Cluster(
     { name: "ColorControl", id: 0x300, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 8 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -134,33 +134,17 @@ export const ColorControl = Cluster(
         name: "Primary6Intensity", id: 0x2a, type: "uint8", access: "R V",
         conformance: "NumberOfPrimaries > 5", quality: "X F"
     }),
-    Attribute(
-        { name: "WhitePointX", id: 0x30, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "WhitePointY", id: 0x31, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointRx", id: 0x32, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointRy", id: 0x33, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute({ name: "ColorPointRIntensity", id: 0x34, type: "uint8", access: "RW VM", conformance: "O", quality: "X" }),
-    Attribute(
-        { name: "ColorPointGx", id: 0x36, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointGy", id: 0x37, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute({ name: "ColorPointGIntensity", id: 0x38, type: "uint8", access: "RW VM", conformance: "O", quality: "X" }),
-    Attribute(
-        { name: "ColorPointBx", id: 0x3a, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute(
-        { name: "ColorPointBy", id: 0x3b, type: "uint16", access: "RW VM", conformance: "O", constraint: "max 65279" }
-    ),
-    Attribute({ name: "ColorPointBIntensity", id: 0x3c, type: "uint8", access: "RW VM", conformance: "O", quality: "X" }),
+    Attribute({ name: "WhitePointX", id: 0x30, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "WhitePointY", id: 0x31, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointRx", id: 0x32, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointRy", id: 0x33, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointRIntensity", id: 0x34, type: "uint8", access: "R V", conformance: "O", quality: "X" }),
+    Attribute({ name: "ColorPointGx", id: 0x36, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointGy", id: 0x37, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointGIntensity", id: 0x38, type: "uint8", access: "R V", conformance: "O", quality: "X" }),
+    Attribute({ name: "ColorPointBx", id: 0x3a, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointBy", id: 0x3b, type: "uint16", access: "R V", conformance: "O", constraint: "max 65279" }),
+    Attribute({ name: "ColorPointBIntensity", id: 0x3c, type: "uint8", access: "R V", conformance: "O", quality: "X" }),
     Attribute({ name: "EnhancedCurrentHue", id: 0x4000, type: "uint16", access: "R V", conformance: "EHUE", quality: "N S Q" }),
     Attribute({
         name: "EnhancedColorMode", id: 0x4001, type: "EnhancedColorModeEnum", access: "R V",

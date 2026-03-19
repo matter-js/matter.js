@@ -6,13 +6,13 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     PumpConfigurationAndControlServer as BasePumpConfigurationAndControlServer
 } from "../behaviors/pump-configuration-and-control/PumpConfigurationAndControlServer.js";
-import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
@@ -52,6 +52,13 @@ export interface PumpDevice extends Identity<typeof PumpDeviceDefinition> {}
 
 export namespace PumpRequirements {
     /**
+     * The Identify cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
+     */
+    export const IdentifyServer = BaseIdentifyServer;
+
+    /**
      * The OnOff cluster is required by the Matter specification.
      *
      * We provide this alias to the default implementation {@link OnOffServer} for convenience.
@@ -66,11 +73,11 @@ export namespace PumpRequirements {
     export const PumpConfigurationAndControlServer = BasePumpConfigurationAndControlServer;
 
     /**
-     * The Identify cluster is required by the Matter specification.
+     * The Groups cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
+     * We provide this alias to the default implementation {@link GroupsServer} for convenience.
      */
-    export const IdentifyServer = BaseIdentifyServer;
+    export const GroupsServer = BaseGroupsServer;
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
@@ -78,13 +85,6 @@ export namespace PumpRequirements {
      * We provide this alias to the default implementation {@link LevelControlServer} for convenience.
      */
     export const LevelControlServer = BaseLevelControlServer;
-
-    /**
-     * The Groups cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link GroupsServer} for convenience.
-     */
-    export const GroupsServer = BaseGroupsServer;
 
     /**
      * The ScenesManagement cluster is optional per the Matter specification.
@@ -147,14 +147,14 @@ export namespace PumpRequirements {
      */
     export const server = {
         mandatory: {
+            Identify: IdentifyServer,
             OnOff: OnOffServer,
-            PumpConfigurationAndControl: PumpConfigurationAndControlServer,
-            Identify: IdentifyServer
+            PumpConfigurationAndControl: PumpConfigurationAndControlServer
         },
 
         optional: {
-            LevelControl: LevelControlServer,
             Groups: GroupsServer,
+            LevelControl: LevelControlServer,
             ScenesManagement: ScenesManagementServer,
             TemperatureMeasurement: TemperatureMeasurementServer,
             PressureMeasurement: PressureMeasurementServer,
@@ -182,7 +182,7 @@ export const PumpDeviceDefinition = MutableEndpoint({
     deviceType: 0x303,
     deviceRevision: 3,
     requirements: PumpRequirements,
-    behaviors: SupportedBehaviors(PumpRequirements.server.mandatory.OnOff, PumpRequirements.server.mandatory.Identify)
+    behaviors: SupportedBehaviors(PumpRequirements.server.mandatory.Identify, PumpRequirements.server.mandatory.OnOff)
 });
 
 Object.freeze(PumpDeviceDefinition);

@@ -2172,7 +2172,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "AliroCredentialIssuerKey",
-                        description: "A Credential Issuer public key as defined in [Aliro]", xref: "cluster§5.2.6.9.1",
+                        description: "A Credential Issuer public key as defined in Aliro", xref: "cluster§5.2.6.9.1",
 
                         details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                             "section 2.3.3 of SEC 1." +
@@ -2213,7 +2213,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "AliroEvictableEndpointKey",
-                        description: "An Endpoint public key as defined in [Aliro] which can be evicted if space is needed for another endpoint key",
+                        description: "An Endpoint public key as defined in Aliro which can be evicted if space is needed for another endpoint key",
                         xref: "cluster§5.2.6.9.2",
                         details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                             "section 2.3.3 of SEC 1."
@@ -2221,7 +2221,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "AliroNonEvictableEndpointKey",
-                        description: "An Endpoint public key as defined in [Aliro] which cannot be evicted if space is needed for another endpoint key",
+                        description: "An Endpoint public key as defined in Aliro which cannot be evicted if space is needed for another endpoint key",
                         xref: "cluster§5.2.6.9.3",
                         details: "Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in " +
                             "section 2.3.3 of SEC 1."
@@ -2442,7 +2442,7 @@ Resource.add(
                     },
                     {
                         tag: "field", name: "Aliro",
-                        description: "Lock/unlock operation came from an interaction defined in [Aliro], or user change operation was a step-up credential provisioning as defined in [Aliro]"
+                        description: "Lock/unlock operation came from an interaction defined in Aliro, or user change operation was a step-up credential provisioning as defined in Aliro"
                     }
                 ]
             },

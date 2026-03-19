@@ -60,6 +60,18 @@ export namespace RefrigeratorRequirements {
         },
         mandatory: {}
     };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: {
+            /**
+             * The TemperatureControlledCabinet device type is required per the Matter specification.
+             */
+            TemperatureControlledCabinet: { deviceType: 0x71 }
+        }
+    };
 }
 
 export const RefrigeratorDeviceDefinition = MutableEndpoint({

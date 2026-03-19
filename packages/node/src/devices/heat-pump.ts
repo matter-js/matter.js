@@ -48,6 +48,45 @@ export namespace HeatPumpRequirements {
      * A definition for each client cluster supported by the endpoint per the Matter specification.
      */
     export const client = { optional: { Thermostat: ThermostatBehavior }, mandatory: {} };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            /**
+             * The Thermostat device type is optional per the Matter specification.
+             */
+            Thermostat: { deviceType: 0x301 },
+
+            /**
+             * The TemperatureSensor device type is optional per the Matter specification.
+             */
+            TemperatureSensor: { deviceType: 0x302 },
+
+            /**
+             * The WaterHeater device type is optional per the Matter specification.
+             */
+            WaterHeater: { deviceType: 0x50f }
+        },
+
+        mandatory: {
+            /**
+             * The PowerSource device type is required per the Matter specification.
+             */
+            PowerSource: { deviceType: 0x11 },
+
+            /**
+             * The DeviceEnergyManagement device type is required per the Matter specification.
+             */
+            DeviceEnergyManagement: { deviceType: 0x50d },
+
+            /**
+             * The ElectricalSensor device type is required per the Matter specification.
+             */
+            ElectricalSensor: { deviceType: 0x510 }
+        }
+    };
 }
 
 export const HeatPumpDeviceDefinition = MutableEndpoint({

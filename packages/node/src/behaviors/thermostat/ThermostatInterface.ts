@@ -12,6 +12,8 @@ import { Thermostat } from "@matter/types/clusters/thermostat";
 export namespace ThermostatInterface {
     export interface Base {
         /**
+         * This command will raise or lower the setpoint based on the provided values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
          */
         setpointRaiseLower(request: Thermostat.SetpointRaiseLowerRequest): MaybePromise;
@@ -32,6 +34,8 @@ export namespace ThermostatInterface {
         setWeeklySchedule(request: Thermostat.SetWeeklyScheduleRequest): MaybePromise;
 
         /**
+         * This command will return the weekly schedule for the values provided.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
          */
         getWeeklySchedule(request: Thermostat.GetWeeklyScheduleRequest): MaybePromise<Thermostat.GetWeeklyScheduleResponse>;
@@ -49,14 +53,18 @@ export namespace ThermostatInterface {
 
     export interface Presets {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+         * This command will set the active preset to the provided preset handle.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
          */
         setActivePresetRequest(request: Thermostat.SetActivePresetRequest): MaybePromise;
     }
 
     export interface MatterScheduleConfiguration {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+         * This command will set the active schedule to the provided schedule handle.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
          */
         setActiveScheduleRequest(request: Thermostat.SetActiveScheduleRequest): MaybePromise;
     }

@@ -21,8 +21,8 @@ Resource.add({
 
     children: [
         { tag: "requirement", name: "NetworkCommissioning", xref: "device§2.8.3" },
-        { tag: "requirement", name: "EthernetNetworkDiagnostics", xref: "device§2.8.3" },
+        { tag: "requirement", name: "ThreadNetworkDiagnostics", xref: "device§2.8.3" },
         { tag: "requirement", name: "WiFiNetworkDiagnostics", xref: "device§2.8.3" },
-        { tag: "requirement", name: "ThreadNetworkDiagnostics", xref: "device§2.8.3" }
+        { tag: "requirement", name: "EthernetNetworkDiagnostics", xref: "device§2.8.3" }
     ]
 });

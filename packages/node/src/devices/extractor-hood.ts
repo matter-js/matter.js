@@ -83,6 +83,18 @@ export namespace ExtractorHoodRequirements {
             ActivatedCarbonFilterMonitoring: ActivatedCarbonFilterMonitoringServer
         }
     };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            /**
+             * The OnOffLight device type is optional per the Matter specification.
+             */
+            OnOffLight: { deviceType: 0x100 }
+        }
+    };
 }
 
 export const ExtractorHoodDeviceDefinition = MutableEndpoint({

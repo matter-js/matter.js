@@ -20,11 +20,15 @@ export namespace OtaSoftwareUpdateProviderInterface {
         queryImage(request: OtaSoftwareUpdateProvider.QueryImageRequest): MaybePromise<OtaSoftwareUpdateProvider.QueryImageResponse>;
 
         /**
+         * This command requests the specified version be installed on the device.
+         *
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
          */
         applyUpdateRequest(request: OtaSoftwareUpdateProvider.ApplyUpdateRequest): MaybePromise<OtaSoftwareUpdateProvider.ApplyUpdateResponse>;
 
         /**
+         * This command tells the Provider that the specified update has been applied.
+         *
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
          */
         notifyUpdateApplied(request: OtaSoftwareUpdateProvider.NotifyUpdateAppliedRequest): MaybePromise;

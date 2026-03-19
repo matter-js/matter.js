@@ -236,6 +236,8 @@ export namespace ScenesManagement {
     export interface AddSceneRequest extends TypeFromSchema<typeof TlvAddSceneRequest> {}
 
     /**
+     * This command is sent in response to the AddScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
     export const TlvAddSceneResponse = TlvObject({
@@ -262,6 +264,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the AddScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
     export interface AddSceneResponse extends TypeFromSchema<typeof TlvAddSceneResponse> {}
@@ -295,6 +299,8 @@ export namespace ScenesManagement {
     export interface ViewSceneRequest extends TypeFromSchema<typeof TlvViewSceneRequest> {}
 
     /**
+     * This command is sent in response to the ViewScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
      */
     export const TlvViewSceneResponse = TlvObject({
@@ -342,6 +348,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the ViewScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
      */
     export interface ViewSceneResponse extends TypeFromSchema<typeof TlvViewSceneResponse> {}
@@ -375,6 +383,8 @@ export namespace ScenesManagement {
     export interface RemoveSceneRequest extends TypeFromSchema<typeof TlvRemoveSceneRequest> {}
 
     /**
+     * This command is sent in response to the RemoveScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
      */
     export const TlvRemoveSceneResponse = TlvObject({
@@ -401,6 +411,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the RemoveScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
      */
     export interface RemoveSceneResponse extends TypeFromSchema<typeof TlvRemoveSceneResponse> {}
@@ -427,6 +439,8 @@ export namespace ScenesManagement {
     export interface RemoveAllScenesRequest extends TypeFromSchema<typeof TlvRemoveAllScenesRequest> {}
 
     /**
+     * This command is sent in response to the RemoveAllScenes command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
      */
     export const TlvRemoveAllScenesResponse = TlvObject({
@@ -446,6 +460,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the RemoveAllScenes command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
      */
     export interface RemoveAllScenesResponse extends TypeFromSchema<typeof TlvRemoveAllScenesResponse> {}
@@ -479,6 +495,8 @@ export namespace ScenesManagement {
     export interface StoreSceneRequest extends TypeFromSchema<typeof TlvStoreSceneRequest> {}
 
     /**
+     * This command is sent in response to the StoreScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
      */
     export const TlvStoreSceneResponse = TlvObject({
@@ -505,6 +523,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the StoreScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
      */
     export interface StoreSceneResponse extends TypeFromSchema<typeof TlvStoreSceneResponse> {}
@@ -566,6 +586,8 @@ export namespace ScenesManagement {
     export interface GetSceneMembershipRequest extends TypeFromSchema<typeof TlvGetSceneMembershipRequest> {}
 
     /**
+     * This command is sent in response to the GetSceneMembership command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
      */
     export const TlvGetSceneMembershipResponse = TlvObject({
@@ -609,6 +631,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the GetSceneMembership command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
      */
     export interface GetSceneMembershipResponse extends TypeFromSchema<typeof TlvGetSceneMembershipResponse> {}
@@ -681,6 +705,8 @@ export namespace ScenesManagement {
     export interface CopySceneRequest extends TypeFromSchema<typeof TlvCopySceneRequest> {}
 
     /**
+     * This command is sent in response to the CopyScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
     export const TlvCopySceneResponse = TlvObject({
@@ -707,6 +733,8 @@ export namespace ScenesManagement {
     });
 
     /**
+     * This command is sent in response to the CopyScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
     export interface CopySceneResponse extends TypeFromSchema<typeof TlvCopySceneResponse> {}
@@ -824,6 +852,8 @@ export namespace ScenesManagement {
 
         commands: {
             /**
+             * This command is used to add a new scene.
+             *
              * It is not mandatory for an extension field set to be included in the command for every cluster on that
              * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case
              * of no extension field sets at all.
@@ -833,11 +863,15 @@ export namespace ScenesManagement {
             addScene: Command(0x0, TlvAddSceneRequest, 0x0, TlvAddSceneResponse, { invokeAcl: AccessLevel.Manage }),
 
             /**
+             * This command returns the details for the requested scene.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
              */
             viewScene: Command(0x1, TlvViewSceneRequest, 0x1, TlvViewSceneResponse),
 
             /**
+             * This command removes the specified scene.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
              */
             removeScene: Command(
@@ -849,6 +883,8 @@ export namespace ScenesManagement {
             ),
 
             /**
+             * This command removes all scenes for the specified GroupID.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
              */
             removeAllScenes: Command(
@@ -860,6 +896,8 @@ export namespace ScenesManagement {
             ),
 
             /**
+             * This command will create a new entry for the requested scene.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
              */
             storeScene: Command(
@@ -871,6 +909,8 @@ export namespace ScenesManagement {
             ),
 
             /**
+             * This command will cause the specified scene to be recalled.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
              */
             recallScene: Command(0x5, TlvRecallSceneRequest, 0x5, TlvNoResponse),

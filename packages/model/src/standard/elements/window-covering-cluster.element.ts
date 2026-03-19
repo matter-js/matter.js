@@ -17,38 +17,19 @@ import {
 
 export const WindowCovering = Cluster(
     { name: "WindowCovering", id: 0x102, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 6 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "LF", conformance: "O.a+", constraint: "0", title: "Lift" }),
         Field({ name: "TL", conformance: "O.a+", constraint: "1", title: "Tilt" }),
         Field({ name: "PA_LF", conformance: "[LF]", constraint: "2", title: "PositionAwareLift" }),
-        Field({ name: "ABS", conformance: "P, O", constraint: "3", title: "AbsolutePosition" }),
         Field({ name: "PA_TL", conformance: "[TL]", constraint: "4", title: "PositionAwareTilt" })
     ),
 
     Attribute({
         name: "Type", id: 0x0, type: "TypeEnum", access: "R V", conformance: "M", constraint: "desc",
         default: 0, quality: "F"
-    }),
-    Attribute({
-        name: "PhysicalClosedLimitLift", id: 0x1, type: "uint16", access: "R V",
-        conformance: "P, [LF & PA_LF & ABS]", default: 0, quality: "F"
-    }),
-    Attribute({
-        name: "PhysicalClosedLimitTilt", id: 0x2, type: "uint16", access: "R V",
-        conformance: "P, [TL & PA_TL & ABS]", default: 0, quality: "F"
-    }),
-    Attribute({
-        name: "CurrentPositionLift", id: 0x3, type: "uint16", access: "R V",
-        conformance: "P, [LF & PA_LF & ABS]",
-        constraint: "installedOpenLimitLift to installedClosedLimitLift", default: null, quality: "X N"
-    }),
-    Attribute({
-        name: "CurrentPositionTilt", id: 0x4, type: "uint16", access: "R V",
-        conformance: "P, [TL & PA_TL & ABS]",
-        constraint: "installedOpenLimitTilt to installedClosedLimitTilt", default: null, quality: "X N"
     }),
     Attribute({
         name: "NumberOfActuationsLift", id: 0x5, type: "uint16", access: "R V", conformance: "[LF]",
@@ -95,30 +76,9 @@ export const WindowCovering = Cluster(
         conformance: "TL & PA_TL", constraint: "max 10000", default: null, quality: "X N P"
     }),
     Attribute({
-        name: "InstalledOpenLimitLift", id: 0x10, type: "uint16", access: "R V",
-        conformance: "P, LF & PA_LF & ABS", constraint: "max 65534", default: 0, quality: "N"
-    }),
-    Attribute({
-        name: "InstalledClosedLimitLift", id: 0x11, type: "uint16", access: "R V",
-        conformance: "P, LF & PA_LF & ABS", constraint: "max 65534", default: 65534, quality: "N"
-    }),
-    Attribute({
-        name: "InstalledOpenLimitTilt", id: 0x12, type: "uint16", access: "R V",
-        conformance: "P, TL & PA_TL & ABS", constraint: "max 65534", default: 0, quality: "N"
-    }),
-    Attribute({
-        name: "InstalledClosedLimitTilt", id: 0x13, type: "uint16", access: "R V",
-        conformance: "P, TL & PA_TL & ABS", constraint: "max 65534", default: 65534, quality: "N"
-    }),
-    Attribute({ name: "VelocityLift", id: 0x14, conformance: "D" }),
-    Attribute({ name: "AccelerationTimeLift", id: 0x15, conformance: "D" }),
-    Attribute({ name: "DecelerationTimeLift", id: 0x16, conformance: "D" }),
-    Attribute({
         name: "Mode", id: 0x17, type: "ModeBitmap", access: "RW VM", conformance: "M", constraint: "max 15",
         default: 0, quality: "N"
     }),
-    Attribute({ name: "IntermediateSetpointsLift", id: 0x18, conformance: "D" }),
-    Attribute({ name: "IntermediateSetpointsTilt", id: 0x19, conformance: "D" }),
     Attribute({
         name: "SafetyStatus", id: 0x1a, type: "SafetyStatusBitmap", access: "R V", conformance: "O",
         constraint: "desc", default: 0, quality: "P"
@@ -129,33 +89,11 @@ export const WindowCovering = Cluster(
 
     Command(
         {
-            name: "GoToLiftValue", id: 0x4, access: "O", conformance: "P, [LF & ABS]", direction: "request",
-            response: "status"
-        },
-        Field({
-            name: "LiftValue", id: 0x0, type: "uint16", conformance: "M",
-            constraint: "installedOpenLimitLift to installedClosedLimitLift"
-        })
-    ),
-
-    Command(
-        {
             name: "GoToLiftPercentage", id: 0x5, access: "O", conformance: "LF & PA_LF, [LF]",
             direction: "request", response: "status"
         },
         Field({ name: "LiftPercent100thsValue", id: 0x0, type: "percent100ths", conformance: "M", constraint: "desc" }),
         Field({ name: "Ignored", id: 0x1, conformance: "X" })
-    ),
-
-    Command(
-        {
-            name: "GoToTiltValue", id: 0x7, access: "O", conformance: "P, [TL & ABS]", direction: "request",
-            response: "status"
-        },
-        Field({
-            name: "TiltValue", id: 0x0, type: "uint16", conformance: "M",
-            constraint: "installedOpenLimitTilt to installedClosedLimitTilt"
-        })
     ),
 
     Command(

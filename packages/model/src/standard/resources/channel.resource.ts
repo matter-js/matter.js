@@ -59,7 +59,7 @@ Resource.add({
             details: "Change the channel to the channel case-insensitive exact matching the value passed as an argument." +
                 "\n" +
                 "The match priority order shall be: Identifier, AffiliateCallSign, CallSign, Name, Number. In the " +
-                "match string, the Channel number should be presented in the \"Major.Minor\" format, such as \"13.1\"." +
+                "match string, the Channel number should be presented in the Major.Minor format, such as 13.1." +
                 "\n" +
                 "Upon receipt, this shall generate a ChangeChannelResponse command." +
                 "\n" +
@@ -347,7 +347,7 @@ Resource.add({
         {
             tag: "datatype", name: "LineupInfoStruct", xref: "cluster§6.6.5.6",
             details: "The Lineup Info allows references to external lineup sources like Gracenote. The combination of " +
-                "OperatorName, LineupName, and PostalCode MUST uniquely identify a lineup.",
+                "OperatorName, LineupName, and PostalCode shall uniquely identify a lineup.",
 
             children: [
                 {

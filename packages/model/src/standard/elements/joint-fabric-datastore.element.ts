@@ -91,7 +91,7 @@ export const JointFabricDatastore = Cluster(
         Field({ name: "GroupCatVersion", id: 0x4, type: "uint16", conformance: "M", constraint: "1 to 65535", quality: "X" }),
         Field({
             name: "GroupPermission", id: 0x5, type: "DatastoreAccessControlEntryPrivilegeEnum",
-            conformance: "M", constraint: "x"
+            conformance: "M", quality: "X"
         })
     ),
 

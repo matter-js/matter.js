@@ -17,7 +17,7 @@ import {
     Command,
     TlvNoResponse
 } from "../cluster/Cluster.js";
-import { BitFlag, BitsFromPartial, BitField } from "../schema/BitmapSchema.js";
+import { BitFlag, BitField } from "../schema/BitmapSchema.js";
 import { TlvUInt8, TlvBitmap, TlvInt16, TlvInt8, TlvEnum, TlvUInt16, TlvEpochS, TlvUInt32 } from "../tlv/TlvNumber.js";
 import { AccessLevel } from "@matter/model";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
@@ -111,7 +111,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.3
      */
     export const Occupancy = {
         /**
@@ -120,13 +120,13 @@ export namespace Thermostat {
          * If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall indicate the
          * unoccupied state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.3.1
          */
         occupied: BitFlag(0)
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.22
      */
     export enum ThermostatRunningMode {
         /**
@@ -146,7 +146,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.23
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.20
      */
     export enum StartOfWeek {
         Sunday = 0,
@@ -159,7 +159,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.12
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.9
      */
     export const ScheduleDayOfWeek = {
         /**
@@ -204,7 +204,7 @@ export namespace Thermostat {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.13
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.10
      */
     export const ScheduleMode = {
         /**
@@ -221,7 +221,7 @@ export namespace Thermostat {
     /**
      * This represents a single transition in a Thermostat schedule
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26
      */
     export const TlvWeeklyScheduleTransition = TlvObject({
         /**
@@ -229,21 +229,21 @@ export namespace Thermostat {
          * be represented by a 16 bits unsigned integer to designate the minutes since midnight. For example, 6am will
          * be represented by 360 minutes since midnight and 11:30pm will be represented by 1410 minutes since midnight.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.1
          */
         transitionTime: TlvField(0, TlvUInt16.bound({ max: 1439 })),
 
         /**
          * This field shall represent the heat setpoint to be applied at this associated transition start time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.2
          */
         heatSetpoint: TlvField(1, TlvNullable(TlvInt16)),
 
         /**
          * This field shall represent the cool setpoint to be applied at this associated transition start time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.3
          */
         coolSetpoint: TlvField(2, TlvNullable(TlvInt16))
     });
@@ -251,7 +251,7 @@ export namespace Thermostat {
     /**
      * This represents a single transition in a Thermostat schedule
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26
      */
     export interface WeeklyScheduleTransition extends TypeFromSchema<typeof TlvWeeklyScheduleTransition> {}
 
@@ -373,7 +373,7 @@ export namespace Thermostat {
     export interface GetWeeklyScheduleResponse extends TypeFromSchema<typeof TlvGetWeeklyScheduleResponse> {}
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18
      */
     export enum PresetScenario {
         /**
@@ -382,7 +382,7 @@ export namespace Thermostat {
          * This value shall indicate the preset for periods when the thermostat’s temperature-controlled area is
          * occupied. It is intended for thermostats that can automatically determine occupancy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.2
          */
         Occupied = 1,
 
@@ -392,7 +392,7 @@ export namespace Thermostat {
          * This value shall indicate the preset for periods when the thermostat’s temperature-controlled area is
          * unoccupied. It is intended for thermostats that can automatically determine occupancy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.3
          */
         Unoccupied = 2,
 
@@ -401,7 +401,7 @@ export namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be asleep.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.4
          */
         Sleep = 3,
 
@@ -410,7 +410,7 @@ export namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be waking up.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.5
          */
         Wake = 4,
 
@@ -420,7 +420,7 @@ export namespace Thermostat {
          * This value shall indicate the preset for periods when users are on vacation, or otherwise out-of-home for
          * extended periods of time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.6
          */
         Vacation = 5,
 
@@ -429,7 +429,7 @@ export namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be going to sleep.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.7
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.7
          */
         GoingToSleep = 6,
 
@@ -438,13 +438,13 @@ export namespace Thermostat {
          *
          * This value shall indicate a free-form preset; when set, the Name field on PresetStruct shall NOT be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.8
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.8
          */
         UserDefined = 254
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.7
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.4
      */
     export const PresetTypeFeatures = {
         /**
@@ -459,38 +459,38 @@ export namespace Thermostat {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25
      */
     export const TlvPresetType = TlvObject({
         /**
          * This field shall specify a PresetScenarioEnum value supported by this thermostat.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.1
          */
         presetScenario: TlvField(0, TlvEnum<PresetScenario>()),
 
         /**
          * This field shall specify a limit for the number of presets for this PresetScenarioEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.2
          */
         numberOfPresets: TlvField(1, TlvUInt8),
 
         /**
          * This field shall specify a bitmap of features for this PresetTypeStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.3
          */
         presetTypeFeatures: TlvField(2, TlvBitmap(TlvUInt16, PresetTypeFeatures))
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25
      */
     export interface PresetType extends TypeFromSchema<typeof TlvPresetType> {}
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
      */
     export const TlvPreset = TlvObject({
         /**
@@ -500,14 +500,14 @@ export namespace Thermostat {
          * This field shall only be null when the encompassing PresetStruct is appended to the Presets attribute for the
          * purpose of creating a new Preset. Refer to Presets for the creation of Preset handles.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.1
          */
         presetHandle: TlvField(0, TlvNullable(TlvByteString.bound({ maxLength: 16 }))),
 
         /**
          * This field shall indicate the associated PresetScenarioEnum value for this preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.2
          */
         presetScenario: TlvField(1, TlvEnum<PresetScenario>()),
 
@@ -517,7 +517,7 @@ export namespace Thermostat {
          * Within each subset of presets sharing the same PresetScenario field value, there shall NOT be any presets
          * with the same value, including null as a value, in the Name field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.3
          */
         name: TlvOptionalField(2, TlvNullable(TlvString.bound({ maxLength: 64 }))),
 
@@ -525,7 +525,7 @@ export namespace Thermostat {
          * This field shall indicate the cooling setpoint for the preset. Refer to Setpoint Limits for value
          * constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.4
          */
         coolingSetpoint: TlvOptionalField(3, TlvInt16),
 
@@ -533,7 +533,7 @@ export namespace Thermostat {
          * This field shall indicate the heating setpoint for the preset. Refer to Setpoint Limits for value
          * constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.5
          */
         heatingSetpoint: TlvOptionalField(4, TlvInt16),
 
@@ -541,27 +541,27 @@ export namespace Thermostat {
          * This field shall indicate whether the preset is marked as "built-in", meaning that it can be modified, but it
          * cannot be deleted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.6
          */
         builtIn: TlvField(5, TlvNullable(TlvBoolean))
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
      */
     export interface Preset extends TypeFromSchema<typeof TlvPreset> {}
 
     /**
      * Input to the Thermostat setActivePresetRequest command
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
      */
     export const TlvSetActivePresetRequest = TlvObject({
         /**
          * This field shall specify the value of the PresetHandle field on the PresetStruct to be made active. If the
          * field is set to null, that indicates there should be no active preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7.1
          */
         presetHandle: TlvField(0, TlvNullable(TlvByteString.bound({ maxLength: 16 })))
     });
@@ -569,12 +569,12 @@ export namespace Thermostat {
     /**
      * Input to the Thermostat setActivePresetRequest command
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
      */
     export interface SetActivePresetRequest extends TypeFromSchema<typeof TlvSetActivePresetRequest> {}
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21
      */
     export enum SystemMode {
         /**
@@ -613,7 +613,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8
      */
     export const ScheduleTypeFeatures = {
         /**
@@ -623,7 +623,7 @@ export namespace Thermostat {
          * field on the encompassing ScheduleTypeStruct supports specifying presets on ScheduleTransitionStructs
          * contained in its Transitions field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.1
          */
         supportsPresets: BitFlag(0),
 
@@ -634,7 +634,7 @@ export namespace Thermostat {
          * field on the encompassing ScheduleTypeStruct supports specifying setpoints on ScheduleTransitionStructs
          * contained in its Transitions field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.2
          */
         supportsSetpoints: BitFlag(1),
 
@@ -644,7 +644,7 @@ export namespace Thermostat {
          * This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the SystemMode
          * field on the encompassing ScheduleTypeStruct supports setting the value of the Name field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.3
          */
         supportsNames: BitFlag(2),
 
@@ -654,27 +654,27 @@ export namespace Thermostat {
          * This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the SystemMode
          * field on the encompassing ScheduleTypeStruct supports setting its SystemMode field to Off.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.4
          */
         supportsOff: BitFlag(3)
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
      */
     export const TlvScheduleType = TlvObject({
         /**
          * This field shall specify a SystemModeEnum supported by this thermostat for Schedules. The only valid values
          * for this field shall be Auto, Heat, and Cool.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.1
          */
         systemMode: TlvField(0, TlvEnum<SystemMode>()),
 
         /**
          * This field shall specify a limit for the number of Schedules for this SystemMode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.2
          */
         numberOfSchedules: TlvField(1, TlvUInt8),
 
@@ -682,13 +682,13 @@ export namespace Thermostat {
          * This field shall specify a bitmap of features for this schedule entry. At least one of SupportsPresets and
          * SupportsSetpoints shall be set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.3
          */
         scheduleTypeFeatures: TlvField(2, TlvBitmap(TlvUInt16, ScheduleTypeFeatures))
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
      */
     export interface ScheduleType extends TypeFromSchema<typeof TlvScheduleType> {}
 
@@ -752,14 +752,14 @@ export namespace Thermostat {
      *   - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Cool or Auto
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
      */
     export const TlvScheduleTransition = TlvObject({
         /**
          * This field shall specify a bitmask of days of the week that the transition applies to. The Vacation bit shall
          * NOT be set; vacation schedules shall be set via the vacation preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.1
          */
         dayOfWeek: TlvField(0, TlvBitmap(TlvUInt8, ScheduleDayOfWeek)),
 
@@ -769,7 +769,7 @@ export namespace Thermostat {
          *
          * Handling of transitions during the changeover of Daylight Saving Time is implementation-dependent.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.2
          */
         transitionTime: TlvField(1, TlvUInt16.bound({ max: 1439 })),
 
@@ -777,7 +777,7 @@ export namespace Thermostat {
          * This field shall specify the preset used at the TransitionTime. If this field is provided, then the
          * SystemMode, CoolingSetpoint and HeatingSetpoint fields shall NOT be provided.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.3
          */
         presetHandle: TlvOptionalField(2, TlvByteString.bound({ maxLength: 16 })),
 
@@ -786,7 +786,7 @@ export namespace Thermostat {
          * default for the schedule. The only valid values for this field shall be Auto, Heat, Cool and Off. This field
          * shall only be included when the required system mode differs from the schedule’s default SystemMode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.4
          */
         systemMode: TlvOptionalField(3, TlvEnum<SystemMode>()),
 
@@ -794,7 +794,7 @@ export namespace Thermostat {
          * This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field shall
          * NOT be included. Refer to Setpoint Limits for value constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.5
          */
         coolingSetpoint: TlvOptionalField(4, TlvInt16),
 
@@ -802,7 +802,7 @@ export namespace Thermostat {
          * This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field shall
          * NOT be included. Refer to Setpoint Limits for value constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.6
          */
         heatingSetpoint: TlvOptionalField(5, TlvInt16)
     });
@@ -867,12 +867,12 @@ export namespace Thermostat {
      *   - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Cool or Auto
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
      */
     export interface ScheduleTransition extends TypeFromSchema<typeof TlvScheduleTransition> {}
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
      */
     export const TlvSchedule = TlvObject({
         /**
@@ -882,7 +882,7 @@ export namespace Thermostat {
          * This field shall only be null when the encompassing ScheduleStruct is appended to the Schedules attribute for
          * the purpose of creating a new Schedule. Refer to Schedules for the creation of Schedule handles.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.1
          */
         scheduleHandle: TlvField(0, TlvNullable(TlvByteString.bound({ maxLength: 16 }))),
 
@@ -890,21 +890,21 @@ export namespace Thermostat {
          * This field shall specify the default thermostat system mode for transitions in this schedule. The only valid
          * values for this field shall be Auto, Heat, and Cool.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.2
          */
         systemMode: TlvField(1, TlvEnum<SystemMode>()),
 
         /**
          * This field shall specify a name for the ScheduleStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.3
          */
         name: TlvOptionalField(2, TlvString.bound({ maxLength: 64 })),
 
         /**
          * This field shall indicate the default PresetHandle value for transitions in this schedule.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.4
          */
         presetHandle: TlvOptionalField(3, TlvByteString.bound({ maxLength: 16 })),
 
@@ -914,9 +914,9 @@ export namespace Thermostat {
          * This field shall NOT contain more than one ScheduleStruct with the same TransitionTime field and overlapping
          * DayOfWeek fields; i.e. there shall be no duplicate transitions.
          *
-         * If the NumberOfScheduleTransitionsPerDay attribute is not null, then for each bit in ScheduleDayOfWeekBitmap,
+         * If the NumberOfScheduleTransitionPerDay attribute is not null, then for each bit in ScheduleDayOfWeekBitmap,
          * the number of transitions with that bit set in DayOfWeek shall NOT be greater than the value of the
-         * NumberOfScheduleTransitionsPerDay attribute.
+         * NumberOfScheduleTransitionPerDay attribute.
          *
          * For the purposes of determining which ScheduleStruct in this list is currently active, the current time shall
          * be the number of minutes past midnight in the display value of the current time, not the actual number of
@@ -936,7 +936,7 @@ export namespace Thermostat {
          * ScheduleTransitionStruct with the largest TransitionTime field from the set of ScheduleTransitionStructs
          * whose DayOfWeek field matches the current day of the week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.5
          */
         transitions: TlvField(4, TlvArray(TlvScheduleTransition, { minLength: 1 })),
 
@@ -944,26 +944,26 @@ export namespace Thermostat {
          * This field shall indicate whether the schedule is marked as "built-in", meaning that it can be modified, but
          * it cannot be deleted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.6
          */
         builtIn: TlvField(5, TlvNullable(TlvBoolean))
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
      */
     export interface Schedule extends TypeFromSchema<typeof TlvSchedule> {}
 
     /**
      * Input to the Thermostat setActiveScheduleRequest command
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
      */
     export const TlvSetActiveScheduleRequest = TlvObject({
         /**
          * This field shall specify the value of the ScheduleHandle field on the ScheduleStruct to be made active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6.1
          */
         scheduleHandle: TlvField(0, TlvByteString.bound({ maxLength: 16 }))
     });
@@ -971,7 +971,7 @@ export namespace Thermostat {
     /**
      * Input to the Thermostat setActiveScheduleRequest command
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
      */
     export interface SetActiveScheduleRequest extends TypeFromSchema<typeof TlvSetActiveScheduleRequest> {}
 
@@ -1019,7 +1019,7 @@ export namespace Thermostat {
     export interface AtomicResponse extends TypeFromSchema<typeof TlvAtomicResponse> {}
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2
      */
     export const HvacSystemType = {
         /**
@@ -1035,7 +1035,7 @@ export namespace Thermostat {
          *
          *   - 11 = Reserved
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.1
          */
         coolingStage: BitField(0, 2),
 
@@ -1052,7 +1052,7 @@ export namespace Thermostat {
          *
          *   - 11 = Reserved
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.2
          */
         heatingStage: BitField(2, 2),
 
@@ -1065,7 +1065,7 @@ export namespace Thermostat {
          *
          *   - 1 = Heat Pump
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.3
          */
         heatingIsHeatPump: BitFlag(4),
 
@@ -1078,13 +1078,13 @@ export namespace Thermostat {
          *
          *   - 1 = Uses fuel
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.4
          */
         heatingUsesFuel: BitFlag(5)
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.10
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.7
      */
     export const RemoteSensing = {
         /**
@@ -1114,7 +1114,7 @@ export namespace Thermostat {
      * > Systems which support cooling or heating, requiring external intervention to change modes or where the whole
      *   building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.20
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.17
      */
     export enum ControlSequenceOfOperation {
         /**
@@ -1149,7 +1149,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.23
      */
     export enum TemperatureSetpointHold {
         /**
@@ -1164,7 +1164,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5
      */
     export const ProgrammingOperationMode = {
         /**
@@ -1184,7 +1184,7 @@ export namespace Thermostat {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.9
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6
      */
     export const RelayState = {
         /**
@@ -1224,7 +1224,7 @@ export namespace Thermostat {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.22
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.19
      */
     export enum SetpointChangeSource {
         /**
@@ -1244,7 +1244,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.15
      */
     export enum AcType {
         /**
@@ -1274,7 +1274,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.17
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.14
      */
     export enum AcRefrigerantType {
         /**
@@ -1299,7 +1299,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.15
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.12
      */
     export enum AcCompressorType {
         /**
@@ -1324,7 +1324,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.4
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.1
      */
     export const AcErrorCode = {
         /**
@@ -1354,7 +1354,7 @@ export namespace Thermostat {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.16
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.13
      */
     export enum AcLouverPosition {
         /**
@@ -1384,7 +1384,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.14
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11
      */
     export enum AcCapacityFormat {
         /**
@@ -1394,7 +1394,7 @@ export namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.19
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.16
      */
     export enum SetpointRaiseLowerMode {
         /**
@@ -1453,11 +1453,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.4
              */
-            occupancy: Attribute(
-                0x2,
-                TlvBitmap(TlvUInt8, Occupancy),
-                { default: BitsFromPartial(Occupancy, { occupied: true }) }
-            )
+            occupancy: Attribute(0x2, TlvBitmap(TlvUInt8, Occupancy))
         }
     });
 
@@ -1798,14 +1794,14 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.27
              */
-            numberOfWeeklyTransitions: FixedAttribute(0x21, TlvUInt8, { default: 0 }),
+            numberOfWeeklyTransitions: FixedAttribute(0x21, TlvUInt8),
 
             /**
              * Indicates how many daily schedule transitions the thermostat is capable of handling.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.28
              */
-            numberOfDailyTransitions: FixedAttribute(0x22, TlvUInt8, { default: 0 })
+            numberOfDailyTransitions: FixedAttribute(0x22, TlvUInt8)
         },
 
         commands: {
@@ -1829,6 +1825,8 @@ export namespace Thermostat {
             ),
 
             /**
+             * This command will return the weekly schedule for the values provided.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
              */
             getWeeklySchedule: Command(0x2, TlvGetWeeklyScheduleRequest, 0x0, TlvGetWeeklyScheduleResponse),
@@ -1876,7 +1874,7 @@ export namespace Thermostat {
             occupiedSetback: WritableAttribute(
                 0x34,
                 TlvNullable(TlvUInt8),
-                { persistent: true, default: null, writeAcl: AccessLevel.Manage }
+                { persistent: true, writeAcl: AccessLevel.Manage }
             ),
 
             /**
@@ -1887,7 +1885,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.37
              */
-            occupiedSetbackMin: FixedAttribute(0x35, TlvNullable(TlvUInt8), { default: null }),
+            occupiedSetbackMin: FixedAttribute(0x35, TlvNullable(TlvUInt8)),
 
             /**
              * Indicates the maximum value that the Thermostat server will allow the OccupiedSetback attribute to be
@@ -1897,7 +1895,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.38
              */
-            occupiedSetbackMax: FixedAttribute(0x36, TlvNullable(TlvUInt8.bound({ max: 254 })), { default: null })
+            occupiedSetbackMax: FixedAttribute(0x36, TlvNullable(TlvUInt8.bound({ max: 254 })))
         }
     });
 
@@ -1933,7 +1931,7 @@ export namespace Thermostat {
             unoccupiedSetback: WritableAttribute(
                 0x37,
                 TlvNullable(TlvUInt8),
-                { persistent: true, default: null, writeAcl: AccessLevel.Manage }
+                { persistent: true, writeAcl: AccessLevel.Manage }
             ),
 
             /**
@@ -1944,7 +1942,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.40
              */
-            unoccupiedSetbackMin: FixedAttribute(0x38, TlvNullable(TlvUInt8), { default: null }),
+            unoccupiedSetbackMin: FixedAttribute(0x38, TlvNullable(TlvUInt8)),
 
             /**
              * Indicates the maximum value that the Thermostat server will allow the UnoccupiedSetback attribute to be
@@ -1954,7 +1952,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.41
              */
-            unoccupiedSetbackMax: FixedAttribute(0x39, TlvNullable(TlvUInt8.bound({ max: 254 })), { default: null })
+            unoccupiedSetbackMax: FixedAttribute(0x39, TlvNullable(TlvUInt8.bound({ max: 254 })))
         }
     });
 
@@ -1967,16 +1965,20 @@ export namespace Thermostat {
              * Indicates the supported PresetScenarioEnum values, limits on how many presets can be created for each
              * PresetScenarioEnum, and whether or not a thermostat can transition automatically to a given scenario.
              *
+             * The list shall contain at least one entry. The list shall NOT be larger than the number of supported
+             * PresetScenarioEnum values (maximum 7). The list shall NOT contain any PresetTypeStruct entries with
+             * duplicate PresetScenarioEnum values.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.51
              */
-            presetTypes: FixedAttribute(0x48, TlvArray(TlvPresetType), { default: [] }),
+            presetTypes: FixedAttribute(0x48, TlvArray(TlvPresetType, { minLength: 1, maxLength: 7 })),
 
             /**
              * Indicates the maximum number of entries supported by the Presets attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.53
              */
-            numberOfPresets: FixedAttribute(0x4a, TlvUInt8, { default: 0 }),
+            numberOfPresets: FixedAttribute(0x4a, TlvUInt8.bound({ min: 1 })),
 
             /**
              * Indicates the PresetHandle of the active preset. If this attribute is null, then there is no active
@@ -1987,7 +1989,7 @@ export namespace Thermostat {
             activePresetHandle: Attribute(
                 0x4e,
                 TlvNullable(TlvByteString.bound({ maxLength: 16 })),
-                { persistent: true, default: null }
+                { persistent: true }
             ),
 
             /**
@@ -2075,7 +2077,9 @@ export namespace Thermostat {
 
         commands: {
             /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+             * This command will set the active preset to the provided preset handle.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
              */
             setActivePresetRequest: Command(0x6, TlvSetActivePresetRequest, 0x6, TlvNoResponse)
         }
@@ -2091,28 +2095,35 @@ export namespace Thermostat {
              * each SystemMode value, and whether or not a given SystemMode value supports transitions to Presets,
              * target setpoints, or both.
              *
+             * The list shall contain at least one entry. The list shall NOT be larger than the number of supported
+             * schedule SystemMode values (maximum 3, since the data type only allows Auto, Heat and Cool). The list
+             * shall NOT contain any ScheduleTypeStruct entries with duplicate SystemModeEnum values.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.52
              */
-            scheduleTypes: FixedAttribute(0x49, TlvArray(TlvScheduleType), { default: [] }),
+            scheduleTypes: FixedAttribute(0x49, TlvArray(TlvScheduleType, { minLength: 1, maxLength: 3 })),
 
             /**
              * Indicates the maximum number of entries supported by the Schedules attribute.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.54
              */
-            numberOfSchedules: FixedAttribute(0x4b, TlvUInt8, { default: 0 }),
+            numberOfSchedules: FixedAttribute(0x4b, TlvUInt8.bound({ min: 1 })),
 
             /**
              * Indicates the maximum number of transitions per Schedules attribute entry.
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.55
              */
-            numberOfScheduleTransitions: FixedAttribute(0x4c, TlvUInt8, { default: 0 }),
+            numberOfScheduleTransitions: FixedAttribute(0x4c, TlvUInt8.bound({ min: 1 })),
 
             /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
+             * Indicates the maximum number of transitions per day of the week supported by each Schedules attribute
+             * entry. If this value is null, there is no limit on the number of transitions per day.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.56
              */
-            numberOfScheduleTransitionPerDay: FixedAttribute(0x4d, TlvNullable(TlvUInt8), { default: null }),
+            numberOfScheduleTransitionPerDay: FixedAttribute(0x4d, TlvNullable(TlvUInt8.bound({ min: 1 }))),
 
             /**
              * Indicates the ScheduleHandle of the active schedule. A null value in this attribute indicates that there
@@ -2123,7 +2134,7 @@ export namespace Thermostat {
             activeScheduleHandle: Attribute(
                 0x4f,
                 TlvNullable(TlvByteString.bound({ maxLength: 16 })),
-                { persistent: true, default: null }
+                { persistent: true }
             ),
 
             /**
@@ -2159,8 +2170,8 @@ export namespace Thermostat {
              *     d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the
              *        status code RESOURCE_EXHAUSTED shall be returned.
              *
-             *     e. If the value of the NumberOfScheduleTransitionsPerDay attribute is not null, and the number of
-             *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay value, a
+             *     e. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
+             *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a
              *        response with the status code RESOURCE_EXHAUSTED shall be returned.
              *
              *     f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
@@ -2247,7 +2258,9 @@ export namespace Thermostat {
 
         commands: {
             /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+             * This command will set the active schedule to the provided schedule handle.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
              */
             setActiveScheduleRequest: Command(0x5, TlvSetActiveScheduleRequest, 0x5, TlvNoResponse)
         }
@@ -2286,6 +2299,8 @@ export namespace Thermostat {
 
             /**
              * Supports remote configuration of a weekly schedule of setpoint transitions
+             *
+             * @deprecated
              */
             scheduleConfiguration: BitFlag(3),
 
@@ -2522,7 +2537,7 @@ export namespace Thermostat {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.35
              */
-            setpointChangeSourceTimestamp: OptionalAttribute(0x32, TlvEpochS, { default: 0 }),
+            setpointChangeSourceTimestamp: OptionalAttribute(0x32, TlvEpochS),
 
             /**
              * Indicates the delta between the Calculated Local Temperature and the OccupiedHeatingSetpoint or
@@ -2666,6 +2681,8 @@ export namespace Thermostat {
 
         commands: {
             /**
+             * This command will raise or lower the setpoint based on the provided values.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
              */
             setpointRaiseLower: Command(0x0, TlvSetpointRaiseLowerRequest, 0x0, TlvNoResponse)
@@ -2692,6 +2709,7 @@ export namespace Thermostat {
             { flags: { matterScheduleConfiguration: true }, component: PresetsOrMatterScheduleConfigurationComponent },
             { flags: { autoMode: true, heating: false }, component: false },
             { flags: { autoMode: true, cooling: false }, component: false },
+            { flags: { scheduleConfiguration: true }, component: false },
             { flags: { heating: false, cooling: false }, component: false }
         )
     });

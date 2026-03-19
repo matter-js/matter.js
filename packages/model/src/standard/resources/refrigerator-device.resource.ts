@@ -15,9 +15,9 @@ Resource.add({
         "refrigerators, freezers, and wine coolers.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§13.2.6" },
-        { tag: "requirement", name: "RefrigeratorAndTemperatureControlledCabinetMode", xref: "device§13.2.6" },
-        { tag: "requirement", name: "RefrigeratorAlarm", xref: "device§13.2.6" },
-        { tag: "requirement", name: "TemperatureControlledCabinet", xref: "device§13.2.5" }
+        { tag: "requirement", name: "Identify", xref: "device§13.2.7" },
+        { tag: "requirement", name: "RefrigeratorAndTemperatureControlledCabinetMode", xref: "device§13.2.7" },
+        { tag: "requirement", name: "RefrigeratorAlarm", xref: "device§13.2.7" },
+        { tag: "requirement", name: "TemperatureControlledCabinet", xref: "device§13.2.6" }
     ]
 });

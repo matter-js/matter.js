@@ -16,11 +16,11 @@ import {
 } from "../behaviors/power-source-configuration/PowerSourceConfigurationServer.js";
 import { PowerSourceServer as BasePowerSourceServer } from "../behaviors/power-source/PowerSourceServer.js";
 import {
-    EcosystemInformationServer as BaseEcosystemInformationServer
-} from "../behaviors/ecosystem-information/EcosystemInformationServer.js";
-import {
     AdministratorCommissioningServer as BaseAdministratorCommissioningServer
 } from "../behaviors/administrator-commissioning/AdministratorCommissioningServer.js";
+import {
+    EcosystemInformationServer as BaseEcosystemInformationServer
+} from "../behaviors/ecosystem-information/EcosystemInformationServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -58,18 +58,18 @@ export namespace BridgedNodeRequirements {
     export const PowerSourceServer = BasePowerSourceServer;
 
     /**
-     * The EcosystemInformation cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link EcosystemInformationServer} for convenience.
-     */
-    export const EcosystemInformationServer = BaseEcosystemInformationServer;
-
-    /**
      * The AdministratorCommissioning cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link AdministratorCommissioningServer} for convenience.
      */
     export const AdministratorCommissioningServer = BaseAdministratorCommissioningServer;
+
+    /**
+     * The EcosystemInformation cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link EcosystemInformationServer} for convenience.
+     */
+    export const EcosystemInformationServer = BaseEcosystemInformationServer;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -84,8 +84,20 @@ export namespace BridgedNodeRequirements {
         optional: {
             PowerSourceConfiguration: PowerSourceConfigurationServer,
             PowerSource: PowerSourceServer,
-            EcosystemInformation: EcosystemInformationServer,
-            AdministratorCommissioning: AdministratorCommissioningServer
+            AdministratorCommissioning: AdministratorCommissioningServer,
+            EcosystemInformation: EcosystemInformationServer
+        }
+    };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            /**
+             * The PowerSource device type is optional per the Matter specification.
+             */
+            PowerSource: { deviceType: 0x11 }
         }
     };
 }

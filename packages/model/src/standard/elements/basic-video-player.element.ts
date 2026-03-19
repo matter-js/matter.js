@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import {
     DeviceTypeElement as DeviceType,
     RequirementElement as Requirement,
-    FieldElement as Field
+    ConditionElement as Condition
 } from "../../elements/index.js";
 
 export const BasicVideoPlayerDt = DeviceType(
@@ -20,6 +20,7 @@ export const BasicVideoPlayerDt = DeviceType(
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 40, revision: 2 } ], element: "attribute" })
     ),
     Requirement({ name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" }),
+    Requirement({ name: "Messages", id: 0x97, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "WakeOnLan", id: 0x503, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "Channel", id: 0x504, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "TargetNavigator", id: 0x505, conformance: "O", element: "serverCluster" }),
@@ -29,8 +30,7 @@ export const BasicVideoPlayerDt = DeviceType(
     Requirement({ name: "KeypadInput", id: 0x509, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "AudioOutput", id: 0x50b, conformance: "O", element: "serverCluster" }),
     Requirement({ name: "ContentControl", id: 0x50f, conformance: "P, O", element: "serverCluster" }),
-    Requirement({ name: "Messages", id: 0x97, conformance: "O", element: "serverCluster" }),
-    Field({ name: "conditions", type: "enum8" }, Field({ name: "PhysicalInputs" }))
+    Condition({ name: "PhysicalInputs" })
 );
 
 MatterDefinition.children.push(BasicVideoPlayerDt);

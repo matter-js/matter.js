@@ -12,36 +12,50 @@ import { ColorControl } from "@matter/types/clusters/color-control";
 export namespace ColorControlInterface {
     export interface HueSaturation {
         /**
+         * This command will move the device to the requested hue value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
          */
         moveToHue(request: ColorControl.MoveToHueRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested hue value using a step rate.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
          */
         moveHue(request: ColorControl.MoveHueRequest): MaybePromise;
 
         /**
+         * This command will change the device to the requested hue value using a step and transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
          */
         stepHue(request: ColorControl.StepHueRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested saturation value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
          */
         moveToSaturation(request: ColorControl.MoveToSaturationRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested saturation value using a rate.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
          */
         moveSaturation(request: ColorControl.MoveSaturationRequest): MaybePromise;
 
         /**
+         * This command will change the device to the requested saturation value using a step transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
          */
         stepSaturation(request: ColorControl.StepSaturationRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested hue and saturation value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
          */
         moveToHueAndSaturation(request: ColorControl.MoveToHueAndSaturationRequest): MaybePromise;
@@ -49,16 +63,22 @@ export namespace ColorControlInterface {
 
     export interface Xy {
         /**
+         * This command will move the device to the requested color value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
          */
         moveToColor(request: ColorControl.MoveToColorRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested color using a step rate.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
          */
         moveColor(request: ColorControl.MoveColorRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested color using a step transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
          */
         stepColor(request: ColorControl.StepColorRequest): MaybePromise;
@@ -66,6 +86,8 @@ export namespace ColorControlInterface {
 
     export interface ColorTemperature {
         /**
+         * This command will move the device to the requested color temperate using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
          */
         moveToColorTemperature(request: ColorControl.MoveToColorTemperatureRequest): MaybePromise;

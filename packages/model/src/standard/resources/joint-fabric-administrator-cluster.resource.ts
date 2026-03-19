@@ -34,13 +34,18 @@ Resource.add(
                 details: "This command shall be generated during Joint Commissioning Method and subsequently be responded in " +
                     "the form of an ICACCSRResponse command." +
                     "\n" +
-                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
-                    "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                    "### Effect on Receipt" +
+                    "\n" +
+                    "This command shall be received over a CASE session otherwise it shall fail with an INVALID_COMMAND " +
+                    "status code." +
+                    "\n" +
+                    "If this command is received without an armed fail-safe context (see Section 11.10.7.2, " +
+                    "“ArmFailSafe”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
                     "initiator." +
                     "\n" +
-                    "If this command is received from a peer against FabricFabric Table Vendor ID Verification Procedure " +
-                    "hasn’t been executed then it shall fail with a JfVidNotVerified status code sent back to the " +
-                    "initiator." +
+                    "If the FabricFabric Table Vendor ID Verification Procedure has not been executed against the " +
+                    "initiator of this command, the command shall fail with a JfVidNotVerified status code shall be sent " +
+                    "back to the initiator." +
                     "\n" +
                     "If a prior AddICAC command was successfully executed within the fail-safe timer period, then this " +
                     "command shall fail with a CONSTRAINT_ERROR status code sent back to the initiator."
@@ -81,12 +86,15 @@ Resource.add(
                             "\n" +
                             "### Effect on Receipt" +
                             "\n" +
-                            "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
-                            "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
-                            "initiator." +
-                            "\n" +
                             "This command shall be received over a CASE session otherwise it shall fail with an INVALID_COMMAND " +
                             "status code." +
+                            "\n" +
+                            "If this command is received without an armed fail-safe context (see Section 11.10.7.2, " +
+                            "“ArmFailSafe”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                            "initiator." +
+                            "\n" +
+                            "If a prior AddICAC command was successfully executed within the fail-safe timer period, then this " +
+                            "command shall fail with a CONSTRAINT_ERROR status code sent back to the initiator." +
                             "\n" +
                             "Upon receipt, the ICACValue shall be validated in the following ways:" +
                             "\n" +
@@ -131,7 +139,7 @@ Resource.add(
                     "and parameters." +
                     "\n" +
                     "This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the " +
-                    "initiator if the AdministratorFabricIndex field has the value of null." +
+                    "initiator if the AdministratorFabricIndex attribute has the value of null." +
                     "\n" +
                     "The parameters for OpenJointCommissioningWindow command are as follows:"
             },
@@ -162,8 +170,7 @@ Resource.add(
 
             {
                 tag: "datatype", name: "ICACResponseStatusEnum", xref: "core§11.25.4.1",
-                details: "This enumeration is used by the ICACResponse command to convey the outcome of this cluster’s " +
-                    "operations.",
+                details: "This enumeration is used by the AddICAC command to convey the outcome of this cluster’s operations.",
 
                 children: [
                     { tag: "field", name: "Ok", description: "No error" },

@@ -8,10 +8,10 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     OccupancySensingBehavior as BaseOccupancySensingBehavior
@@ -24,16 +24,16 @@ import { Identity } from "@matter/general";
  * A Mounted On/Off Control is a fixed device that provides power to another device or power circuit that is connected
  * to it, and is capable of switching that provided power on or off.
  *
- * This device type is intended for any wall-mounted or hardwired load controller, while On/Off Plug-in Unit is intended
- * only for smart plugs and other power switching devices that are not permanently connected, and which can be unplugged
- * from their power source.
+ * This device type is intended for any wall-mounted or hardwired load controller, while Section 5.1, “On/Off Plug-in
+ * Unit” is intended only for smart plugs and other power switching devices that are not permanently connected, and
+ * which can be unplugged from their power source.
  *
  * > [!NOTE]
  *
  * > Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add the
- *   subset device type On/Off Plug-in Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
- *   backward compatibility with existing clients. See [ref_MountedOnOffClientGuidance] for client guidance with these
- *   two device types.
+ *   subset device type Section 5.1, “On/Off Plug-in Unit” to the DeviceTypeList of the Descriptor cluster on the same
+ *   endpoint for backward compatibility with existing clients. See [ref_MountedOnOffClientGuidance] for client guidance
+ *   with these two device types.
  *
  * @see {@link MatterSpecification.v142.Device} § 5.3
  */
@@ -55,19 +55,19 @@ export namespace MountedOnOffControlRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
+     * The OnOff cluster is required by the Matter specification.
+     *
+     * This version of {@link OnOffServer} is specialized per the specification.
+     */
+    export const OnOffServer = BaseOnOffServer.with("Lighting");
+
+    /**
      * The ScenesManagement cluster is required by the Matter specification.
      *
      * This version of {@link ScenesManagementServer} is specialized per the specification.
      */
     export const ScenesManagementServer = BaseScenesManagementServer
         .alter({ commands: { copyScene: { optional: false } } });
-
-    /**
-     * The OnOff cluster is required by the Matter specification.
-     *
-     * This version of {@link OnOffServer} is specialized per the specification.
-     */
-    export const OnOffServer = BaseOnOffServer.with("Lighting");
 
     /**
      * The LevelControl cluster is optional per the Matter specification.
@@ -98,8 +98,8 @@ export namespace MountedOnOffControlRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
-            ScenesManagement: ScenesManagementServer,
-            OnOff: OnOffServer
+            OnOff: OnOffServer,
+            ScenesManagement: ScenesManagementServer
         },
 
         optional: { LevelControl: LevelControlServer }
@@ -120,8 +120,8 @@ export const MountedOnOffControlDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(
         MountedOnOffControlRequirements.server.mandatory.Identify,
         MountedOnOffControlRequirements.server.mandatory.Groups,
-        MountedOnOffControlRequirements.server.mandatory.ScenesManagement,
-        MountedOnOffControlRequirements.server.mandatory.OnOff
+        MountedOnOffControlRequirements.server.mandatory.OnOff,
+        MountedOnOffControlRequirements.server.mandatory.ScenesManagement
     )
 });
 

@@ -989,7 +989,7 @@ export namespace DeviceEnergyManagement {
     export const TlvStartTimeAdjustRequest = TlvObject({
         /**
          * This field shall indicate the requested start time, in UTC, that the client would like the appliance to shift
-         * its Forecast to. This value MUST be in the future.
+         * its Forecast to. This value shall be in the future.
          *
          * A client can estimate the entire Forecast sequence duration by computing the EndTime - StartTime fields from
          * the Forecast attribute, and therefore avoid scheduling the start time too late.
@@ -1030,7 +1030,7 @@ export namespace DeviceEnergyManagement {
         slotIndex: TlvField(0, TlvUInt8),
 
         /**
-         * This field shall indicate the new requested power that the ESA shall operate at. It MUST be between the
+         * This field shall indicate the new requested power that the ESA shall operate at. It shall be between the
          * AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports PFR.
          *
          * This is a signed value and can be used to indicate charging or discharging.
@@ -1043,7 +1043,7 @@ export namespace DeviceEnergyManagement {
 
         /**
          * This field shall indicate the new requested duration, in seconds, that the ESA shall extend or shorten the
-         * slot duration to. It MUST be between the MinDurationAdjustment and MaxDurationAdjustment for the slot as
+         * slot duration to. It shall be between the MinDurationAdjustment and MaxDurationAdjustment for the slot as
          * advertised by the ESA.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15.3
@@ -1104,7 +1104,7 @@ export namespace DeviceEnergyManagement {
          * This field shall indicate the start time of the constraint period that the client wishes the ESA to compute a
          * new Forecast.
          *
-         * This value is in UTC and MUST be in the future.
+         * This value is in UTC and shall be in the future.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.1
          */
@@ -1119,8 +1119,8 @@ export namespace DeviceEnergyManagement {
 
         /**
          * This field shall indicate the nominal power that client wishes the ESA to operate at during the constrained
-         * period. It MUST be between the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports
-         * PFR.
+         * period. It shall be between the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it
+         * supports PFR.
          *
          * This is a signed value and can be used to indicate charging or discharging.
          *

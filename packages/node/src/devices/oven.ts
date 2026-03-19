@@ -32,6 +32,25 @@ export namespace OvenRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: {
+            /**
+             * The TemperatureControlledCabinet device type is required per the Matter specification.
+             */
+            TemperatureControlledCabinet: { deviceType: 0x71 }
+        },
+
+        optional: {
+            /**
+             * The Cooktop device type is optional per the Matter specification.
+             */
+            Cooktop: { deviceType: 0x78 }
+        }
+    };
 }
 
 export const OvenDeviceDefinition = MutableEndpoint({

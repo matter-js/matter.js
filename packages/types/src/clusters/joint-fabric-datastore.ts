@@ -687,7 +687,7 @@ export namespace JointFabricDatastore {
         groupKeySetId: TlvField(2, TlvNullable(TlvUInt16.bound({ min: 1 }))),
         groupCat: TlvField(3, TlvNullable(TlvUInt16)),
         groupCatVersion: TlvField(4, TlvNullable(TlvUInt16.bound({ min: 1 }))),
-        groupPermission: TlvField(5, TlvEnum<DatastoreAccessControlEntryPrivilege>())
+        groupPermission: TlvField(5, TlvNullable(TlvEnum<DatastoreAccessControlEntryPrivilege>()))
     });
 
     /**
@@ -1849,6 +1849,13 @@ export namespace JointFabricDatastore {
      * provided by the user. To address lack of knowledge, the Joint Fabric Datastore provides the information required
      * for all Ecosystem Administrators to maintain a consistent view of the Joint Fabric including Nodes, Groups,
      * settings and privileges.
+     *
+     * The Joint Fabric Datastore contains the access control configuration for the Joint Fabric - the groups, the group
+     * keys, the group membership (expressed in terms of binding and ACL entries), as well as the CAT value and version
+     * for each group. This section describes how all changes to the Joint Fabric access control configuration are made
+     * via the Joint Fabric Datastore: a change is first made to the Datastore where the impacted configuration of
+     * individual nodes is marked as pending; the Datastore is then responsible for propagating the change to all
+     * impacted nodes and then updating its per-node (and sometimes per-endpoint) pending state to committed.
      *
      * The Joint Fabric Datastore cluster server shall only be accessible on a Node which is acting as the Joint Fabric
      * Anchor Administrator. When not acting as the Joint Fabric Anchor Administrator, the Joint Fabric Datastore

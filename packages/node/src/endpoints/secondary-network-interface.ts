@@ -10,14 +10,14 @@ import {
     NetworkCommissioningServer as BaseNetworkCommissioningServer
 } from "../behaviors/network-commissioning/NetworkCommissioningServer.js";
 import {
-    EthernetNetworkDiagnosticsServer as BaseEthernetNetworkDiagnosticsServer
-} from "../behaviors/ethernet-network-diagnostics/EthernetNetworkDiagnosticsServer.js";
+    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
+} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
 import {
     WiFiNetworkDiagnosticsServer as BaseWiFiNetworkDiagnosticsServer
 } from "../behaviors/wi-fi-network-diagnostics/WiFiNetworkDiagnosticsServer.js";
 import {
-    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
-} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
+    EthernetNetworkDiagnosticsServer as BaseEthernetNetworkDiagnosticsServer
+} from "../behaviors/ethernet-network-diagnostics/EthernetNetworkDiagnosticsServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -48,11 +48,11 @@ export namespace SecondaryNetworkInterfaceRequirements {
     export const NetworkCommissioningServer = BaseNetworkCommissioningServer;
 
     /**
-     * The EthernetNetworkDiagnostics cluster is optional per the Matter specification.
+     * The ThreadNetworkDiagnostics cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link EthernetNetworkDiagnosticsServer} for convenience.
+     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
      */
-    export const EthernetNetworkDiagnosticsServer = BaseEthernetNetworkDiagnosticsServer;
+    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
 
     /**
      * The WiFiNetworkDiagnostics cluster is optional per the Matter specification.
@@ -62,11 +62,11 @@ export namespace SecondaryNetworkInterfaceRequirements {
     export const WiFiNetworkDiagnosticsServer = BaseWiFiNetworkDiagnosticsServer;
 
     /**
-     * The ThreadNetworkDiagnostics cluster is optional per the Matter specification.
+     * The EthernetNetworkDiagnostics cluster is optional per the Matter specification.
      *
-     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
+     * We provide this alias to the default implementation {@link EthernetNetworkDiagnosticsServer} for convenience.
      */
-    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
+    export const EthernetNetworkDiagnosticsServer = BaseEthernetNetworkDiagnosticsServer;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -74,9 +74,9 @@ export namespace SecondaryNetworkInterfaceRequirements {
     export const server = {
         mandatory: { NetworkCommissioning: NetworkCommissioningServer },
         optional: {
-            EthernetNetworkDiagnostics: EthernetNetworkDiagnosticsServer,
+            ThreadNetworkDiagnostics: ThreadNetworkDiagnosticsServer,
             WiFiNetworkDiagnostics: WiFiNetworkDiagnosticsServer,
-            ThreadNetworkDiagnostics: ThreadNetworkDiagnosticsServer
+            EthernetNetworkDiagnostics: EthernetNetworkDiagnosticsServer
         }
     };
 }

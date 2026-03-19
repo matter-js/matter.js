@@ -10,7 +10,7 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const ExtendedColorLightDt = DeviceType(
-    { name: "ExtendedColorLight", id: 0x10d, classification: "simple" },
+    { name: "ExtendedColorLight", id: 0x10d, type: "ColorTemperatureLight", classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 269, revision: 4 } ], element: "attribute" })
@@ -20,10 +20,6 @@ export const ExtendedColorLightDt = DeviceType(
         Requirement({ name: "TriggerEffect", conformance: "M", element: "command" })
     ),
     Requirement({ name: "Groups", id: 0x4, conformance: "M", element: "serverCluster" }),
-    Requirement(
-        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
-        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
-    ),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "M", element: "serverCluster" },
         Requirement({ name: "LIGHTING", conformance: "M", element: "feature" })
@@ -36,6 +32,11 @@ export const ExtendedColorLightDt = DeviceType(
         Requirement({ name: "CurrentLevel", constraint: "1 to 254", element: "attribute" }),
         Requirement({ name: "MinLevel", constraint: "1", element: "attribute" }),
         Requirement({ name: "MaxLevel", constraint: "254", element: "attribute" })
+    ),
+
+    Requirement(
+        { name: "ScenesManagement", id: 0x62, conformance: "M", element: "serverCluster" },
+        Requirement({ name: "CopyScene", conformance: "M", element: "command" })
     ),
 
     Requirement(

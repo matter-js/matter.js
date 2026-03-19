@@ -794,9 +794,9 @@ export namespace AccessControl {
          * For Group authentication, the Group ID identifies the required group, as defined in the Group Key Management
          * Cluster.
          *
-         * E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111,
-         * 0x0000_0000_2222_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111_1111 or 0x2222_2222,
-         * but will not grant access to Nodes in Group 0x3333_3333, even if they share Operational Group Keys.
+         * E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_0000_1111,
+         * 0x0000_0000_0000_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111 or 0x2222, but will
+         * not grant access to Nodes in Group 0x3333, even if they share Operational Group Keys.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.5.6.3
          */
@@ -928,7 +928,7 @@ export namespace AccessControl {
 
         events: {
             /**
-             * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
+             * The server shall generate AccessControlExtensionChanged events whenever its extension attribute data is
              * changed by an Administrator.
              *
              *   - Each added extension shall generate an event with ChangeType Added.
@@ -1028,7 +1028,7 @@ export namespace AccessControl {
 
         events: {
             /**
-             * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
+             * The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
              * restriction review. Due to the requirement to generate this event within a bound time frame of successful
              * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client
              * may present to the user in order to help the user locate the user interface for the Managed Device
@@ -1197,7 +1197,7 @@ export namespace AccessControl {
 
         events: {
             /**
-             * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by
+             * The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by
              * an Administrator.
              *
              *   - Each added entry shall generate an event with ChangeType Added.

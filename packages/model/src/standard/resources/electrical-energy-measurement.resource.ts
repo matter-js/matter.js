@@ -40,7 +40,10 @@ Resource.add({
                     details: "The feature indicates the server is capable of measuring how much energy has been imported or " +
                         "exported by the server during a certain period of time. The start and end times for measurement " +
                         "periods shall be determined by the server, and may represent overlapping periods."
-                }
+                },
+
+                { tag: "field", name: "APPE", details: "Measurements report apparent energy" },
+                { tag: "field", name: "REAE", details: "Measurements report reactive energy" }
             ]
         },
 
@@ -284,6 +287,34 @@ Resource.add({
                         "Otherwise, if the server had determined the time in UTC by the end of the measurement period, this " +
                         "field may be omitted; if it is indicated, its value shall be the time elapsed since boot at the UTC " +
                         "time indicated in EndTimestamp."
+                },
+
+                {
+                    tag: "field", name: "ApparentEnergy", xref: "cluster§2.12.5.2.6",
+
+                    details: "This field shall indicate the reported apparent energy." +
+                        "\n" +
+                        "If the EnergyMeasurementStruct represents cumulative energy, then this shall represent the " +
+                        "cumulative apparent energy recorded at either the value of the EndTimestamp field or the value of " +
+                        "the EndSystime field, or both." +
+                        "\n" +
+                        "If the EnergyMeasurementStruct represents periodic energy, then this shall represent the apparent " +
+                        "energy recorded during the period specified by either the StartTimestamp and EndTimestamp fields, " +
+                        "the period specified by the StartSystime and EndSystime fields, or both."
+                },
+
+                {
+                    tag: "field", name: "ReactiveEnergy", xref: "cluster§2.12.5.2.7",
+
+                    details: "This field shall be the reported reactive energy." +
+                        "\n" +
+                        "If the EnergyMeasurementStruct represents cumulative energy, then this shall represent the " +
+                        "cumulative reactive energy recorded at either the value of the EndTimestamp field or the value of " +
+                        "the EndSystime field, or both." +
+                        "\n" +
+                        "If the EnergyMeasurementStruct represents periodic energy, then this shall represent the reactive " +
+                        "energy recorded during the period specified by either the StartTimestamp and EndTimestamp fields, " +
+                        "the period specified by the StartSystime and EndSystime fields, or both."
                 }
             ]
         },

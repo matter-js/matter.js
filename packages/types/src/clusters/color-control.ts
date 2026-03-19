@@ -1081,36 +1081,50 @@ export namespace ColorControl {
 
         commands: {
             /**
+             * This command will move the device to the requested hue value using a transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
              */
             moveToHue: Command(0x0, TlvMoveToHueRequest, 0x0, TlvNoResponse),
 
             /**
+             * This command will move the device to the requested hue value using a step rate.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
              */
             moveHue: Command(0x1, TlvMoveHueRequest, 0x1, TlvNoResponse),
 
             /**
+             * This command will change the device to the requested hue value using a step and transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
              */
             stepHue: Command(0x2, TlvStepHueRequest, 0x2, TlvNoResponse),
 
             /**
+             * This command will move the device to the requested saturation value using a transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
              */
             moveToSaturation: Command(0x3, TlvMoveToSaturationRequest, 0x3, TlvNoResponse),
 
             /**
+             * This command will move the device to the requested saturation value using a rate.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
              */
             moveSaturation: Command(0x4, TlvMoveSaturationRequest, 0x4, TlvNoResponse),
 
             /**
+             * This command will change the device to the requested saturation value using a step transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
              */
             stepSaturation: Command(0x5, TlvStepSaturationRequest, 0x5, TlvNoResponse),
 
             /**
+             * This command will move the device to the requested hue and saturation value using a transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
              */
             moveToHueAndSaturation: Command(0x6, TlvMoveToHueAndSaturationRequest, 0x6, TlvNoResponse)
@@ -1165,16 +1179,22 @@ export namespace ColorControl {
 
         commands: {
             /**
+             * This command will move the device to the requested color value using a transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
              */
             moveToColor: Command(0x7, TlvMoveToColorRequest, 0x7, TlvNoResponse),
 
             /**
+             * This command will move the device to the requested color using a step rate.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
              */
             moveColor: Command(0x8, TlvMoveColorRequest, 0x8, TlvNoResponse),
 
             /**
+             * This command will move the device to the requested color using a step transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
              */
             stepColor: Command(0x9, TlvStepColorRequest, 0x9, TlvNoResponse)
@@ -1265,6 +1285,8 @@ export namespace ColorControl {
 
         commands: {
             /**
+             * This command will move the device to the requested color temperate using a transition.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
              */
             moveToColorTemperature: Command(0xa, TlvMoveToColorTemperatureRequest, 0xa, TlvNoResponse),
@@ -1435,7 +1457,7 @@ export namespace ColorControl {
     export const Base = MutableCluster.Component({
         id: 0x300,
         name: "ColorControl",
-        revision: 7,
+        revision: 8,
 
         features: {
             /**
@@ -1666,11 +1688,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.29
              */
-            whitePointX: OptionalWritableAttribute(
-                0x30,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            whitePointX: OptionalAttribute(0x30, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the current
@@ -1682,11 +1700,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.30
              */
-            whitePointY: OptionalWritableAttribute(
-                0x31,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            whitePointY: OptionalAttribute(0x31, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the red color
@@ -1698,11 +1712,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.31
              */
-            colorPointRx: OptionalWritableAttribute(
-                0x32,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointRx: OptionalAttribute(0x32, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the red color
@@ -1714,11 +1724,7 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.32
              */
-            colorPointRy: OptionalWritableAttribute(
-                0x33,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointRy: OptionalAttribute(0x33, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3,
@@ -1729,65 +1735,37 @@ export namespace ColorControl {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.33
              */
-            colorPointRIntensity: OptionalWritableAttribute(
-                0x34,
-                TlvNullable(TlvUInt8),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointRIntensity: OptionalAttribute(0x34, TlvNullable(TlvUInt8)),
 
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
              */
-            colorPointGx: OptionalWritableAttribute(
-                0x36,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointGx: OptionalAttribute(0x36, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
              */
-            colorPointGy: OptionalWritableAttribute(
-                0x37,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointGy: OptionalAttribute(0x37, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
              */
-            colorPointGIntensity: OptionalWritableAttribute(
-                0x38,
-                TlvNullable(TlvUInt8),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointGIntensity: OptionalAttribute(0x38, TlvNullable(TlvUInt8)),
 
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
              */
-            colorPointBx: OptionalWritableAttribute(
-                0x3a,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointBx: OptionalAttribute(0x3a, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
              */
-            colorPointBy: OptionalWritableAttribute(
-                0x3b,
-                TlvUInt16.bound({ max: 65279 }),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointBy: OptionalAttribute(0x3b, TlvUInt16.bound({ max: 65279 })),
 
             /**
              * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
              */
-            colorPointBIntensity: OptionalWritableAttribute(
-                0x3c,
-                TlvNullable(TlvUInt8),
-                { writeAcl: AccessLevel.Manage }
-            ),
+            colorPointBIntensity: OptionalAttribute(0x3c, TlvNullable(TlvUInt8)),
 
             /**
              * Indicates which attributes are currently determining the color of the device.

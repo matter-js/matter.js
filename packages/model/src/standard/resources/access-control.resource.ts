@@ -209,7 +209,7 @@ Resource.add(
             {
                 tag: "event", name: "AccessControlEntryChanged", xref: "core§9.10.9.1",
 
-                details: "The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is " +
+                details: "The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is " +
                     "changed by an Administrator." +
                     "\n" +
                     "  - Each added entry shall generate an event with ChangeType Added." +
@@ -256,8 +256,8 @@ Resource.add(
             {
                 tag: "event", name: "AccessControlExtensionChanged", xref: "core§9.10.9.2",
 
-                details: "The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute " +
-                    "data is changed by an Administrator." +
+                details: "The server shall generate AccessControlExtensionChanged events whenever its extension attribute data " +
+                    "is changed by an Administrator." +
                     "\n" +
                     "  - Each added extension shall generate an event with ChangeType Added." +
                     "\n" +
@@ -302,7 +302,7 @@ Resource.add(
 
             {
                 tag: "event", name: "FabricRestrictionReviewUpdate", xref: "core§9.10.9.3",
-                details: "The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric " +
+                details: "The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric " +
                     "restriction review. Due to the requirement to generate this event within a bound time frame of " +
                     "successful receipt of the ReviewFabricRestrictions command, this event may include additional steps " +
                     "that the client may present to the user in order to help the user locate the user interface for the " +
@@ -707,10 +707,9 @@ Resource.add(
                             "For Group authentication, the Group ID identifies the required group, as defined in the Group Key " +
                             "Management Cluster." +
                             "\n" +
-                            "E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_1111_1111, " +
-                            "0x0000_0000_2222_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111_1111 or " +
-                            "0x2222_2222, but will not grant access to Nodes in Group 0x3333_3333, even if they share Operational " +
-                            "Group Keys."
+                            "E.g. an entry with Group AuthMode that grants privileges to Subject IDs [ 0x0000_0000_0000_1111, " +
+                            "0x0000_0000_0000_2222 ] (which are Group IDs) will grant access to Nodes in Group 0x1111 or 0x2222, " +
+                            "but will not grant access to Nodes in Group 0x3333, even if they share Operational Group Keys."
                     },
 
                     {

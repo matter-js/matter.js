@@ -661,7 +661,7 @@ export namespace DoorLock {
         Face = 5,
 
         /**
-         * A Credential Issuer public key as defined in [Aliro]
+         * A Credential Issuer public key as defined in Aliro
          *
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
          * of SEC 1.
@@ -701,7 +701,7 @@ export namespace DoorLock {
         AliroCredentialIssuerKey = 6,
 
         /**
-         * An Endpoint public key as defined in [Aliro] which can be evicted if space is needed for another endpoint key
+         * An Endpoint public key as defined in Aliro which can be evicted if space is needed for another endpoint key
          *
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
          * of SEC 1.
@@ -711,7 +711,7 @@ export namespace DoorLock {
         AliroEvictableEndpointKey = 7,
 
         /**
-         * An Endpoint public key as defined in [Aliro] which cannot be evicted if space is needed for another endpoint
+         * An Endpoint public key as defined in Aliro which cannot be evicted if space is needed for another endpoint
          * key
          *
          * Credentials of this type shall be 65-byte uncompressed elliptic curve public keys as defined in section 2.3.3
@@ -1271,8 +1271,8 @@ export namespace DoorLock {
         Biometric = 9,
 
         /**
-         * Lock/unlock operation came from an interaction defined in [Aliro], or user change operation was a step-up
-         * credential provisioning as defined in [Aliro]
+         * Lock/unlock operation came from an interaction defined in Aliro, or user change operation was a step-up
+         * credential provisioning as defined in Aliro
          */
         Aliro = 10
     }

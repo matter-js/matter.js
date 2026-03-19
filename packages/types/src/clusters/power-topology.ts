@@ -11,6 +11,11 @@ import { FixedAttribute, Attribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
+import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
+import { TlvNodeId } from "../datatype/NodeId.js";
+import { TlvString } from "../tlv/TlvString.js";
+import { TlvFabricIndex } from "../datatype/FabricIndex.js";
+import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -51,6 +56,45 @@ export namespace PowerTopology {
     }
 
     /**
+     * This indicates a device on the circuit represented by this server.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+     */
+    export const TlvCircuitNode = TlvObject({
+        /**
+         * This field shall indicate the ID of a node which is on the electrical circuit represented by this server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1.1
+         */
+        node: TlvField(1, TlvNodeId),
+
+        /**
+         * This field shall indicate the endpoint ID of the indicated node which is on the electrical circuit
+         * represented by this server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1.2
+         */
+        endpoint: TlvOptionalField(2, TlvEndpointNumber),
+
+        /**
+         * This field shall indicate a friendly name for the node, to be used when the client does not have access to
+         * the node’s fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1.3
+         */
+        label: TlvOptionalField(3, TlvString.bound({ maxLength: 128 })),
+
+        fabricIndex: TlvField(254, TlvFabricIndex)
+    });
+
+    /**
+     * This indicates a device on the circuit represented by this server.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+     */
+    export interface CircuitNode extends TypeFromSchema<typeof TlvCircuitNode> {}
+
+    /**
      * A PowerTopologyCluster supports these elements if it supports feature SetTopology.
      */
     export const SetTopologyComponent = MutableCluster.Component({
@@ -59,7 +103,7 @@ export namespace PowerTopology {
              * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
              * hosting this server.
              *
-             * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+             * @see {@link MatterSpecification.v142.Core} § 11.8.6.1
              */
             availableEndpoints: FixedAttribute(0x0, TlvArray(TlvEndpointNumber, { maxLength: 20 }), { default: [] })
         }
@@ -74,7 +118,7 @@ export namespace PowerTopology {
              * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
              * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
              *
-             * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+             * @see {@link MatterSpecification.v142.Core} § 11.8.6.2
              */
             activeEndpoints: Attribute(
                 0x1,

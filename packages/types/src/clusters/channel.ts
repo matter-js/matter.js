@@ -175,7 +175,7 @@ export namespace Channel {
 
     /**
      * The Lineup Info allows references to external lineup sources like Gracenote. The combination of OperatorName,
-     * LineupName, and PostalCode MUST uniquely identify a lineup.
+     * LineupName, and PostalCode shall uniquely identify a lineup.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6
      */
@@ -213,7 +213,7 @@ export namespace Channel {
 
     /**
      * The Lineup Info allows references to external lineup sources like Gracenote. The combination of OperatorName,
-     * LineupName, and PostalCode MUST uniquely identify a lineup.
+     * LineupName, and PostalCode shall uniquely identify a lineup.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6
      */
@@ -936,7 +936,7 @@ export namespace Channel {
              * Change the channel to the channel case-insensitive exact matching the value passed as an argument.
              *
              * The match priority order shall be: Identifier, AffiliateCallSign, CallSign, Name, Number. In the match
-             * string, the Channel number should be presented in the "Major.Minor" format, such as "13.1".
+             * string, the Channel number should be presented in the Major.Minor format, such as 13.1.
              *
              * Upon receipt, this shall generate a ChangeChannelResponse command.
              *
