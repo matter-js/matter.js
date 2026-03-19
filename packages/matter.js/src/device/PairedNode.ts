@@ -607,7 +607,7 @@ export class PairedNode {
                 }
 
                 const state = endpoint.stateOf(behavior);
-                const attributes = behavior.cluster.attributes;
+                const attributes = behavior.cluster.attributes ?? {};
                 for (const attribute of properties ?? Object.keys(attributes)) {
                     let attributeId = parseInt(attribute, 10);
                     if (isNaN(attributeId)) {
@@ -815,16 +815,16 @@ export class PairedNode {
         _value: any,
     ) {
         // Any change in the Descriptor Cluster partsList attribute requires a reinitialization of the endpoint structure
-        if (clusterId === Descriptor.Complete.id) {
+        if (clusterId === Descriptor.id) {
             switch (attributeId) {
-                case Descriptor.Complete.attributes.partsList.id:
-                case Descriptor.Complete.attributes.serverList.id:
-                case Descriptor.Complete.attributes.clientList.id:
-                case Descriptor.Complete.attributes.deviceTypeList.id:
+                case Descriptor.attributes.partsList.id:
+                case Descriptor.attributes.serverList.id:
+                case Descriptor.attributes.clientList.id:
+                case Descriptor.attributes.deviceTypeList.id:
                     this.#registeredEndpointStructureChanges.set(endpointId, null); // full endpoint update needed
                     return;
             }
-        } else if (clusterId === BasicInformation.Cluster.id) {
+        } else if (clusterId === BasicInformation.id) {
             this.#deviceInformationUpdateNeeded = true;
         }
         switch (attributeId) {
@@ -845,8 +845,8 @@ export class PairedNode {
         /*
         TODO: Do we want to move the "longer reconnection timeframe for OTA reboots into new logic?
         if (
-            clusterId === OtaSoftwareUpdateRequestor.Cluster.id &&
-            attributeId == OtaSoftwareUpdateRequestor.Cluster.attributes.updateState.id
+            clusterId === OtaSoftwareUpdateRequestor.id &&
+            attributeId == OtaSoftwareUpdateRequestor.attributes.updateState.id
         ) {
             if (value === OtaSoftwareUpdateRequestor.UpdateState.Applying) {
                 this.#nodeShutdownReason = NodeShutDownReason.ForUpdate;
@@ -857,7 +857,7 @@ export class PairedNode {
 
     #checkEventsForNeededStructureUpdate(_endpointId: EndpointNumber, clusterId: ClusterId, eventId: EventId) {
         // When we subscribe all data here then we can also catch this case and handle it
-        if (clusterId === BasicInformation.Cluster.id && eventId === BasicInformation.Cluster.events.shutDown.id) {
+        if (clusterId === BasicInformation.id && eventId === BasicInformation.events.shutDown.id) {
             this.#handleNodeShutdown();
         }
     }
