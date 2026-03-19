@@ -291,14 +291,14 @@ export const CameraAvStreamManagement = Cluster(
     Command(
         {
             name: "CaptureSnapshot", id: 0xc, access: "O", conformance: "SNP", direction: "request",
-            response: "CaptureSnapshotResponse"
+            quality: "L", response: "CaptureSnapshotResponse"
         },
         Field({ name: "SnapshotStreamId", id: 0x0, type: "SnapshotStreamID", conformance: "M", quality: "X" }),
         Field({ name: "RequestedResolution", id: 0x1, type: "VideoResolutionStruct", conformance: "M" })
     ),
 
     Command(
-        { name: "CaptureSnapshotResponse", id: 0xd, conformance: "SNP", direction: "response" },
+        { name: "CaptureSnapshotResponse", id: 0xd, conformance: "SNP", direction: "response", quality: "L" },
         Field({ name: "Data", id: 0x0, type: "octstr", conformance: "M" }),
         Field({ name: "ImageCodec", id: 0x1, type: "ImageCodecEnum", conformance: "M" }),
         Field({ name: "Resolution", id: 0x2, type: "VideoResolutionStruct", conformance: "M" })

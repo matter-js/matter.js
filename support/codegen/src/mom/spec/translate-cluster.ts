@@ -303,6 +303,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             direction: Optional(Str),
             response: Optional(Identifier),
             access: Optional(Str),
+            quality: Optional(Str),
             conformance: Optional(ConformanceCode),
             children: Details(translateValueChildren),
         });
@@ -346,6 +347,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
             id: Integer,
             name: Identifier,
             priority: Optional(LowerIdentifier),
+            quality: Optional(Str),
             access: Optional(Str),
             conformance: Optional(ConformanceCode),
             children: Details(translateValueChildren),

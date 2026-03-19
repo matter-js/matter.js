@@ -34,7 +34,7 @@ export const TlsClientManagement = Cluster(
     Command(
         {
             name: "ProvisionEndpoint", id: 0x0, access: "F A", conformance: "M", direction: "request",
-            response: "ProvisionEndpointResponse"
+            quality: "L", response: "ProvisionEndpointResponse"
         },
         Field({ name: "Hostname", id: 0x0, type: "octstr", conformance: "M", constraint: "4 to 253" }),
         Field({ name: "Port", id: 0x1, type: "uint16", conformance: "M", constraint: "1 to 65535" }),
@@ -44,24 +44,24 @@ export const TlsClientManagement = Cluster(
     ),
 
     Command(
-        { name: "ProvisionEndpointResponse", id: 0x1, conformance: "M", direction: "response" },
+        { name: "ProvisionEndpointResponse", id: 0x1, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "EndpointId", id: 0x0, type: "TLSEndpointID", conformance: "M", constraint: "0 to 65534" })
     ),
 
     Command(
         {
-            name: "FindEndpoint", id: 0x2, access: "F O", conformance: "M", direction: "request",
+            name: "FindEndpoint", id: 0x2, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "FindEndpointResponse"
         },
         Field({ name: "EndpointId", id: 0x0, type: "TLSEndpointID", conformance: "M", constraint: "0 to 65534" })
     ),
 
     Command(
-        { name: "FindEndpointResponse", id: 0x3, conformance: "M", direction: "response" },
+        { name: "FindEndpointResponse", id: 0x3, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "Endpoint", id: 0x0, type: "TLSEndpointStruct", conformance: "M", constraint: "0 to 65534" })
     ),
     Command(
-        { name: "RemoveEndpoint", id: 0x4, access: "F A", conformance: "M", direction: "request" },
+        { name: "RemoveEndpoint", id: 0x4, access: "F A", conformance: "M", direction: "request", quality: "L" },
         Field({ name: "EndpointId", id: 0x0, type: "TLSEndpointID", conformance: "M", constraint: "0 to 65534" })
     ),
     Datatype({ name: "TLSEndpointID", type: "uint16" }),

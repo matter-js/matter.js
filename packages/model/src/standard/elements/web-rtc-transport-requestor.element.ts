@@ -24,7 +24,10 @@ export const WebRtcTransportRequestor = Cluster(
     ),
 
     Command(
-        { name: "Offer", id: 0x0, access: "O", conformance: "M", direction: "request", response: "status" },
+        {
+            name: "Offer", id: 0x0, access: "O", conformance: "M", direction: "request", quality: "L",
+            response: "status"
+        },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({ name: "Sdp", id: 0x1, type: "string", conformance: "M" }),
         Field(
@@ -35,13 +38,19 @@ export const WebRtcTransportRequestor = Cluster(
     ),
 
     Command(
-        { name: "Answer", id: 0x1, access: "O", conformance: "M", direction: "request", response: "status" },
+        {
+            name: "Answer", id: 0x1, access: "O", conformance: "M", direction: "request", quality: "L",
+            response: "status"
+        },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({ name: "Sdp", id: 0x1, type: "string", conformance: "M" })
     ),
 
     Command(
-        { name: "IceCandidates", id: 0x2, access: "O", conformance: "M", direction: "request", response: "status" },
+        {
+            name: "IceCandidates", id: 0x2, access: "O", conformance: "M", direction: "request", quality: "L",
+            response: "status"
+        },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field(
             { name: "IceCandidates", id: 0x1, type: "list", conformance: "M", constraint: "min 1" },
@@ -50,7 +59,7 @@ export const WebRtcTransportRequestor = Cluster(
     ),
 
     Command(
-        { name: "End", id: 0x3, access: "O", conformance: "M", direction: "request", response: "status" },
+        { name: "End", id: 0x3, access: "O", conformance: "M", direction: "request", quality: "L", response: "status" },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({ name: "Reason", id: 0x1, type: "WebRTCEndReasonEnum", conformance: "M" })
     ),

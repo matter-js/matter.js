@@ -29,7 +29,7 @@ export const WebRtcTransportProvider = Cluster(
 
     Command(
         {
-            name: "SolicitOffer", id: 0x0, access: "F O", conformance: "M", direction: "request",
+            name: "SolicitOffer", id: 0x0, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "SolicitOfferResponse"
         },
         Field({ name: "StreamUsage", id: 0x0, type: "StreamUsageEnum", conformance: "M" }),
@@ -52,7 +52,7 @@ export const WebRtcTransportProvider = Cluster(
     ),
 
     Command(
-        { name: "SolicitOfferResponse", id: 0x1, conformance: "M", direction: "response" },
+        { name: "SolicitOfferResponse", id: 0x1, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({ name: "DeferredOffer", id: 0x1, type: "bool", conformance: "M" }),
         Field({
@@ -67,7 +67,7 @@ export const WebRtcTransportProvider = Cluster(
 
     Command(
         {
-            name: "ProvideOffer", id: 0x2, access: "F O", conformance: "M", direction: "request",
+            name: "ProvideOffer", id: 0x2, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "ProvideOfferResponse"
         },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M", quality: "X" }),
@@ -92,7 +92,7 @@ export const WebRtcTransportProvider = Cluster(
     ),
 
     Command(
-        { name: "ProvideOfferResponse", id: 0x3, conformance: "M", direction: "response" },
+        { name: "ProvideOfferResponse", id: 0x3, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({
             name: "VideoStreamId", id: 0x1, type: "CameraAvStreamManagement.VideoStreamID",
@@ -105,7 +105,10 @@ export const WebRtcTransportProvider = Cluster(
     ),
 
     Command(
-        { name: "ProvideAnswer", id: 0x4, access: "F O", conformance: "M", direction: "request", response: "status" },
+        {
+            name: "ProvideAnswer", id: 0x4, access: "F O", conformance: "M", direction: "request", quality: "L",
+            response: "status"
+        },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({ name: "Sdp", id: 0x1, type: "string", conformance: "M" })
     ),
@@ -113,7 +116,7 @@ export const WebRtcTransportProvider = Cluster(
     Command(
         {
             name: "ProvideIceCandidates", id: 0x5, access: "F O", conformance: "M", direction: "request",
-            response: "status"
+            quality: "L", response: "status"
         },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field(
@@ -123,7 +126,10 @@ export const WebRtcTransportProvider = Cluster(
     ),
 
     Command(
-        { name: "EndSession", id: 0x6, access: "F O", conformance: "M", direction: "request", response: "status" },
+        {
+            name: "EndSession", id: 0x6, access: "F O", conformance: "M", direction: "request", quality: "L",
+            response: "status"
+        },
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
         Field({ name: "Reason", id: 0x1, type: "WebRTCEndReasonEnum", conformance: "M" })
     ),

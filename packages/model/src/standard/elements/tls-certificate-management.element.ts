@@ -47,27 +47,27 @@ export const TlsCertificateManagement = Cluster(
     Command(
         {
             name: "ProvisionRootCertificate", id: 0x0, access: "F A", conformance: "M", direction: "request",
-            response: "ProvisionRootCertificateResponse"
+            quality: "L", response: "ProvisionRootCertificateResponse"
         },
         Field({ name: "Certificate", id: 0x0, type: "octstr", conformance: "M", constraint: "max 3000" }),
         Field({ name: "Caid", id: 0x1, type: "TLSCAID", conformance: "M", quality: "X" })
     ),
 
     Command(
-        { name: "ProvisionRootCertificateResponse", id: 0x1, conformance: "M", direction: "response" },
+        { name: "ProvisionRootCertificateResponse", id: 0x1, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "Caid", id: 0x0, type: "TLSCAID", conformance: "M", constraint: "0 to 65534" })
     ),
 
     Command(
         {
             name: "FindRootCertificate", id: 0x2, access: "F O", conformance: "M", direction: "request",
-            response: "FindRootCertificateResponse"
+            quality: "L", response: "FindRootCertificateResponse"
         },
         Field({ name: "Caid", id: 0x0, type: "TLSCAID", conformance: "M", quality: "X" })
     ),
 
     Command(
-        { name: "FindRootCertificateResponse", id: 0x3, conformance: "M", direction: "response" },
+        { name: "FindRootCertificateResponse", id: 0x3, conformance: "M", direction: "response", quality: "L" },
 
         Field(
             {
@@ -81,27 +81,27 @@ export const TlsCertificateManagement = Cluster(
     Command(
         {
             name: "LookupRootCertificate", id: 0x4, access: "F O", conformance: "M", direction: "request",
-            response: "LookupRootCertificateResponse"
+            quality: "L", response: "LookupRootCertificateResponse"
         },
         Field({ name: "Fingerprint", id: 0x0, type: "octstr", conformance: "M", constraint: "max 64" })
     ),
 
     Command(
-        { name: "LookupRootCertificateResponse", id: 0x5, conformance: "M", direction: "response" },
+        { name: "LookupRootCertificateResponse", id: 0x5, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "Caid", id: 0x0, type: "TLSCAID", conformance: "M", constraint: "0 to 65534" })
     ),
 
     Command(
         {
             name: "RemoveRootCertificate", id: 0x6, access: "F A", conformance: "M", direction: "request",
-            response: "status"
+            quality: "L", response: "status"
         },
         Field({ name: "Caid", id: 0x0, type: "TLSCAID", conformance: "M", constraint: "0 to 65534" })
     ),
 
     Command(
         {
-            name: "ClientCsr", id: 0x7, access: "F A", conformance: "M", direction: "request",
+            name: "ClientCsr", id: 0x7, access: "F A", conformance: "M", direction: "request", quality: "L",
             response: "ClientCsrResponse"
         },
         Field({ name: "Nonce", id: 0x0, type: "octstr", conformance: "M", constraint: "32" }),
@@ -109,7 +109,7 @@ export const TlsCertificateManagement = Cluster(
     ),
 
     Command(
-        { name: "ClientCsrResponse", id: 0x8, conformance: "M", direction: "response" },
+        { name: "ClientCsrResponse", id: 0x8, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "Ccdid", id: 0x0, type: "TLSCCDID", conformance: "M", constraint: "0 to 65534" }),
         Field({ name: "Csr", id: 0x1, type: "octstr", conformance: "M", constraint: "max 3000" }),
         Field({ name: "NonceSignature", id: 0x2, type: "octstr", conformance: "M", constraint: "max 128" })
@@ -118,7 +118,7 @@ export const TlsCertificateManagement = Cluster(
     Command(
         {
             name: "ProvisionClientCertificate", id: 0x9, access: "F A", conformance: "M", direction: "request",
-            response: "status"
+            quality: "L", response: "status"
         },
         Field({ name: "Ccdid", id: 0x0, type: "TLSCCDID", conformance: "M", constraint: "0 to 65534" }),
         Field({ name: "ClientCertificate", id: 0x1, type: "octstr", conformance: "M", constraint: "max 3000" }),
@@ -135,13 +135,13 @@ export const TlsCertificateManagement = Cluster(
     Command(
         {
             name: "FindClientCertificate", id: 0xa, access: "F O", conformance: "M", direction: "request",
-            response: "FindClientCertificateResponse"
+            quality: "L", response: "FindClientCertificateResponse"
         },
         Field({ name: "Ccdid", id: 0x0, type: "TLSCCDID", conformance: "M", quality: "X" })
     ),
 
     Command(
-        { name: "FindClientCertificateResponse", id: 0xb, conformance: "M", direction: "response" },
+        { name: "FindClientCertificateResponse", id: 0xb, conformance: "M", direction: "response", quality: "L" },
 
         Field(
             {
@@ -155,20 +155,20 @@ export const TlsCertificateManagement = Cluster(
     Command(
         {
             name: "LookupClientCertificate", id: 0xc, access: "F O", conformance: "M", direction: "request",
-            response: "LookupClientCertificateResponse"
+            quality: "L", response: "LookupClientCertificateResponse"
         },
         Field({ name: "Fingerprint", id: 0x0, type: "octstr", conformance: "M", constraint: "max 64" })
     ),
 
     Command(
-        { name: "LookupClientCertificateResponse", id: 0xd, conformance: "M", direction: "response" },
+        { name: "LookupClientCertificateResponse", id: 0xd, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "Ccdid", id: 0x0, type: "TLSCCDID", conformance: "M", constraint: "0 to 65534" })
     ),
 
     Command(
         {
             name: "RemoveClientCertificate", id: 0xe, access: "F A", conformance: "M", direction: "request",
-            response: "status"
+            quality: "L", response: "status"
         },
         Field({ name: "Ccdid", id: 0x0, type: "TLSCCDID", conformance: "M", constraint: "0 to 65534" })
     ),

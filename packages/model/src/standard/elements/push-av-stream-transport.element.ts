@@ -65,13 +65,13 @@ export const PushAvStreamTransport = Cluster(
     Command(
         {
             name: "AllocatePushTransport", id: 0x0, access: "F M", conformance: "M", direction: "request",
-            response: "AllocatePushTransportResponse"
+            quality: "L", response: "AllocatePushTransportResponse"
         },
         Field({ name: "TransportOptions", id: 0x0, type: "TransportOptionsStruct", conformance: "M" })
     ),
 
     Command(
-        { name: "AllocatePushTransportResponse", id: 0x1, conformance: "M", direction: "response" },
+        { name: "AllocatePushTransportResponse", id: 0x1, conformance: "M", direction: "response", quality: "L" },
         Field({ name: "TransportConfiguration", id: 0x0, type: "TransportConfigurationStruct", conformance: "M" })
     ),
 
@@ -123,14 +123,14 @@ export const PushAvStreamTransport = Cluster(
 
     Command(
         {
-            name: "FindTransport", id: 0x6, access: "F O", conformance: "M", direction: "request",
+            name: "FindTransport", id: 0x6, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "FindTransportResponse"
         },
         Field({ name: "ConnectionId", id: 0x0, type: "PushTransportConnectionID", conformance: "M", quality: "X" })
     ),
 
     Command(
-        { name: "FindTransportResponse", id: 0x7, conformance: "M", direction: "response" },
+        { name: "FindTransportResponse", id: 0x7, conformance: "M", direction: "response", quality: "L" },
         Field(
             { name: "TransportConfigurations", id: 0x0, type: "list", conformance: "M" },
             Field({ name: "entry", type: "TransportConfigurationStruct" })

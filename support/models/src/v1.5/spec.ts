@@ -24522,7 +24522,8 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "GetDetailedForecastRequest", id: 0x2, access: "O", conformance: "[FORE]",
-                direction: "request", response: "GetDetailedForecastResponse", xref: "cluster§9.9.7.3",
+                direction: "request", quality: "L", response: "GetDetailedForecastResponse",
+                xref: "cluster§9.9.7.3",
                 details: "Upon receipt, this shall generate a GetDetailedForecast Response command."
             },
 
@@ -24537,7 +24538,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "GetDetailedForecastResponse", id: 0x3, conformance: "GetDetailedForecastRequest",
-                direction: "response", xref: "cluster§9.9.7.4",
+                direction: "response", quality: "L", xref: "cluster§9.9.7.4",
                 details: "This command shall be generated in response to a GetDetailedForecast Request command."
             },
 
@@ -27061,7 +27062,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "CaptureSnapshot", id: 0xc, access: "O", conformance: "SNP", direction: "request",
-                response: "CaptureSnapshotResponse", xref: "cluster§11.2.8.13",
+                quality: "L", response: "CaptureSnapshotResponse", xref: "cluster§11.2.8.13",
                 details: "This command shall return a Snapshot from the camera."
             },
 
@@ -27082,7 +27083,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "CaptureSnapshotResponse", id: 0xd, conformance: "SNP", direction: "response",
+                name: "CaptureSnapshotResponse", id: 0xd, conformance: "SNP", direction: "response", quality: "L",
                 xref: "cluster§11.2.8.14",
                 details: "This command shall be sent by the device in response to the CaptureSnapshot command, carrying the " +
                     "requested snapshot."
@@ -28267,7 +28268,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "SolicitOffer", id: 0x0, access: "F O", conformance: "M", direction: "request",
+                name: "SolicitOffer", id: 0x0, access: "F O", conformance: "M", direction: "request", quality: "L",
                 response: "SolicitOfferResponse", xref: "cluster§11.5.7.1",
                 details: "Requests that the Provider initiates a new session with the Offer / Answer flow in a way that allows " +
                     "for options to be passed and work with devices needing the standby flow."
@@ -28350,7 +28351,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "SolicitOfferResponse", id: 0x1, conformance: "M", direction: "response",
+                name: "SolicitOfferResponse", id: 0x1, conformance: "M", direction: "response", quality: "L",
                 xref: "cluster§11.5.7.2",
 
                 details: "This command shall be generated in response to a SolicitOffer command." +
@@ -28405,7 +28406,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ProvideOffer", id: 0x2, access: "F O", conformance: "M", direction: "request",
+                name: "ProvideOffer", id: 0x2, access: "F O", conformance: "M", direction: "request", quality: "L",
                 response: "ProvideOfferResponse", xref: "cluster§11.5.7.3",
                 details: "This command allows an SDP Offer to be set and start a new session. This command can also be used in " +
                     "the re-offer flow of an existing session to change the details of the SDP (e.g. to enable/disable " +
@@ -28499,7 +28500,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ProvideOfferResponse", id: 0x3, conformance: "M", direction: "response",
+                name: "ProvideOfferResponse", id: 0x3, conformance: "M", direction: "response", quality: "L",
                 xref: "cluster§11.5.7.4",
 
                 details: "This command contains information about the session and streams created as a response to the " +
@@ -28534,7 +28535,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ProvideAnswer", id: 0x4, access: "F O", conformance: "M", direction: "request",
+                name: "ProvideAnswer", id: 0x4, access: "F O", conformance: "M", direction: "request", quality: "L",
                 response: "status", xref: "cluster§11.5.7.5",
 
                 details: "This command shall be initiated from a Node in response to an Offer that was previously received " +
@@ -28561,7 +28562,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "ProvideIceCandidates", id: 0x5, access: "F O", conformance: "M", direction: "request",
-                response: "status", xref: "cluster§11.5.7.6",
+                quality: "L", response: "status", xref: "cluster§11.5.7.6",
 
                 details: "This command allows for string based ICE candidates generated after the initial Offer / Answer " +
                     "exchange, via a JSEP onicecandidate event, a DOM rtcpeerconnectioniceevent event, or other WebRTC " +
@@ -28592,7 +28593,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "EndSession", id: 0x6, access: "F O", conformance: "M", direction: "request",
+                name: "EndSession", id: 0x6, access: "F O", conformance: "M", direction: "request", quality: "L",
                 response: "status", xref: "cluster§11.5.7.7",
                 details: "This command instructs the stream provider to end the WebRTC session."
             },
@@ -28661,8 +28662,8 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "Offer", id: 0x0, access: "O", conformance: "M", direction: "request", response: "status",
-                xref: "cluster§11.6.5.1",
+                name: "Offer", id: 0x0, access: "O", conformance: "M", direction: "request", quality: "L",
+                response: "status", xref: "cluster§11.6.5.1",
 
                 details: "This command provides the stream requestor with WebRTC session details. It is sent following the " +
                     "receipt of a SolicitOffer command or a re-Offer initiated by the Provider." +
@@ -28706,8 +28707,8 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "Answer", id: 0x1, access: "O", conformance: "M", direction: "request", response: "status",
-                xref: "cluster§11.6.5.2",
+                name: "Answer", id: 0x1, access: "O", conformance: "M", direction: "request", quality: "L",
+                response: "status", xref: "cluster§11.6.5.2",
 
                 details: "This command provides the stream requestor with the WebRTC session details (i.e. Session ID and SDP " +
                     "answer), It is the next command in the Offer/Answer flow to the ProvideOffer command." +
@@ -28732,7 +28733,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "IceCandidates", id: 0x2, access: "O", conformance: "M", direction: "request",
+                name: "IceCandidates", id: 0x2, access: "O", conformance: "M", direction: "request", quality: "L",
                 response: "status", xref: "cluster§11.6.5.3",
 
                 details: "This command allows for the object based ICE candidates generated after the initial Offer / Answer " +
@@ -28764,8 +28765,8 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "End", id: 0x3, access: "O", conformance: "M", direction: "request", response: "status",
-                xref: "cluster§11.6.5.4",
+                name: "End", id: 0x3, access: "O", conformance: "M", direction: "request", quality: "L",
+                response: "status", xref: "cluster§11.6.5.4",
                 details: "This command notifies the stream requestor that the provider has ended the WebRTC session."
             },
             Field({
@@ -28913,7 +28914,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "AllocatePushTransport", id: 0x0, access: "F M", conformance: "M", direction: "request",
-                response: "AllocatePushTransportResponse", xref: "cluster§11.7.9.1",
+                quality: "L", response: "AllocatePushTransportResponse", xref: "cluster§11.7.9.1",
                 details: "This command shall allocate a transport and return a PushTransportConnectionID."
             },
             Field({
@@ -28926,7 +28927,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "AllocatePushTransportResponse", id: 0x1, conformance: "M", direction: "response",
-                xref: "cluster§11.7.9.2",
+                quality: "L", xref: "cluster§11.7.9.2",
                 details: "This command shall be generated in response to a successful AllocatePushTransport command."
             },
 
@@ -29028,7 +29029,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "FindTransport", id: 0x6, access: "F O", conformance: "M", direction: "request",
+                name: "FindTransport", id: 0x6, access: "F O", conformance: "M", direction: "request", quality: "L",
                 response: "FindTransportResponse", xref: "cluster§11.7.9.7",
                 details: "This command shall return the Transport Configuration for the specified push transport or all " +
                     "allocated transports for the fabric if null."
@@ -29043,7 +29044,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "FindTransportResponse", id: 0x7, conformance: "M", direction: "response",
+                name: "FindTransportResponse", id: 0x7, conformance: "M", direction: "response", quality: "L",
                 xref: "cluster§11.7.9.8",
                 details: "This command shall be generated in response to a successful FindTransport command."
             },
@@ -44125,7 +44126,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "ProvisionRootCertificate", id: 0x0, access: "F A", conformance: "M", direction: "request",
-                response: "ProvisionRootCertificateResponse", xref: "core§14.4.6.1",
+                quality: "L", response: "ProvisionRootCertificateResponse", xref: "core§14.4.6.1",
                 details: "This command shall provision a newly provided certificate, or rotate an existing one, based on the " +
                     "contents of the CAID field."
             },
@@ -44203,7 +44204,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "ProvisionRootCertificateResponse", id: 0x1, conformance: "M", direction: "response",
-                xref: "core§14.4.6.2",
+                quality: "L", xref: "core§14.4.6.2",
                 details: "This command shall be generated in response to a ProvisionRootCertificate command."
             },
             Field({
@@ -44216,7 +44217,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "FindRootCertificate", id: 0x2, access: "F O", conformance: "M", direction: "request",
-                response: "FindRootCertificateResponse", xref: "core§14.4.6.3",
+                quality: "L", response: "FindRootCertificateResponse", xref: "core§14.4.6.3",
                 details: "This command shall return the specified TLS root certificate, or all provisioned TLS root " +
                     "certificates for the accessing fabric, based on the contents of the CAID field."
             },
@@ -44273,7 +44274,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "FindRootCertificateResponse", id: 0x3, conformance: "M", direction: "response",
+                name: "FindRootCertificateResponse", id: 0x3, conformance: "M", direction: "response", quality: "L",
                 xref: "core§14.4.6.4",
                 details: "This command shall be generated in response to a FindRootCertificate command."
             },
@@ -44291,7 +44292,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "LookupRootCertificate", id: 0x4, access: "F O", conformance: "M", direction: "request",
-                response: "LookupRootCertificateResponse", xref: "core§14.4.6.5",
+                quality: "L", response: "LookupRootCertificateResponse", xref: "core§14.4.6.5",
                 details: "This command shall return the CAID for the passed in fingerprint."
             },
 
@@ -44323,7 +44324,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "LookupRootCertificateResponse", id: 0x5, conformance: "M", direction: "response",
-                xref: "core§14.4.6.6",
+                quality: "L", xref: "core§14.4.6.6",
                 details: "This command shall be generated in response to a LookupRootCertificate command."
             },
             Field({
@@ -44336,7 +44337,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "RemoveRootCertificate", id: 0x6, access: "F A", conformance: "M", direction: "request",
-                response: "status", xref: "core§14.4.6.7",
+                quality: "L", response: "status", xref: "core§14.4.6.7",
                 details: "This command shall be generated to request the server removes the certificate provisioned to the " +
                     "provided Certificate Authority ID."
             },
@@ -44380,7 +44381,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ClientCsr", id: 0x7, access: "F A", conformance: "M", direction: "request",
+                name: "ClientCsr", id: 0x7, access: "F A", conformance: "M", direction: "request", quality: "L",
                 response: "ClientCsrResponse", xref: "core§14.4.6.8",
                 details: "This command shall be generated to request the Node generates a certificate signing request for a " +
                     "new TLS key pair or use an existing CCDID for certificate rotation."
@@ -44464,7 +44465,8 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ClientCsrResponse", id: 0x8, conformance: "M", direction: "response", xref: "core§14.4.6.9",
+                name: "ClientCsrResponse", id: 0x8, conformance: "M", direction: "response", quality: "L",
+                xref: "core§14.4.6.9",
                 details: "This command shall be generated in response to a ClientCSR command."
             },
             Field({
@@ -44489,7 +44491,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "ProvisionClientCertificate", id: 0x9, access: "F A", conformance: "M", direction: "request",
-                response: "status", xref: "core§14.4.6.10",
+                quality: "L", response: "status", xref: "core§14.4.6.10",
                 details: "This command shall be generated to request the Node provisions newly provided Client Certificate " +
                     "Details, or rotate an existing client certificate." +
                     "\n" +
@@ -44574,7 +44576,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "FindClientCertificate", id: 0xa, access: "F O", conformance: "M", direction: "request",
-                response: "FindClientCertificateResponse", xref: "core§14.4.6.11",
+                quality: "L", response: "FindClientCertificateResponse", xref: "core§14.4.6.11",
                 details: "This command shall return the TLSClientCertificateDetailStruct for the passed in CCDID, or all TLS " +
                     "client certificates for the accessing fabric, based on the contents of the CCDID field."
             },
@@ -44636,7 +44638,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "FindClientCertificateResponse", id: 0xb, conformance: "M", direction: "response",
-                xref: "core§14.4.6.12",
+                quality: "L", xref: "core§14.4.6.12",
                 details: "This command shall be generated in response to a FindClientCertificate command."
             },
 
@@ -44653,7 +44655,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "LookupClientCertificate", id: 0xc, access: "F O", conformance: "M", direction: "request",
-                response: "LookupClientCertificateResponse", xref: "core§14.4.6.13",
+                quality: "L", response: "LookupClientCertificateResponse", xref: "core§14.4.6.13",
                 details: "This command shall return the CCDID for the passed in Fingerprint."
             },
 
@@ -44691,7 +44693,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "LookupClientCertificateResponse", id: 0xd, conformance: "M", direction: "response",
-                xref: "core§14.4.6.14",
+                quality: "L", xref: "core§14.4.6.14",
                 details: "This command shall be generated in response to a LookupClientCertificate command."
             },
             Field({
@@ -44704,7 +44706,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "RemoveClientCertificate", id: 0xe, access: "F A", conformance: "M", direction: "request",
-                response: "status", xref: "core§14.4.6.15",
+                quality: "L", response: "status", xref: "core§14.4.6.15",
                 details: "This command shall be used to request the Node removes all stored information for the provided " +
                     "CCDID."
             },
@@ -44876,7 +44878,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "ProvisionEndpoint", id: 0x0, access: "F A", conformance: "M", direction: "request",
-                response: "ProvisionEndpointResponse", xref: "core§14.5.7.1",
+                quality: "L", response: "ProvisionEndpointResponse", xref: "core§14.5.7.1",
                 details: "This command is used to provision a TLS Endpoint for the provided Hostname / Port combination."
             },
             Field({
@@ -44987,7 +44989,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "ProvisionEndpointResponse", id: 0x1, conformance: "M", direction: "response",
+                name: "ProvisionEndpointResponse", id: 0x1, conformance: "M", direction: "response", quality: "L",
                 xref: "core§14.5.7.2",
                 details: "This command is used to report the result of the ProvisionEndpoint command."
             },
@@ -45000,7 +45002,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "FindEndpoint", id: 0x2, access: "F O", conformance: "M", direction: "request",
+                name: "FindEndpoint", id: 0x2, access: "F O", conformance: "M", direction: "request", quality: "L",
                 response: "FindEndpointResponse", xref: "core§14.5.7.3",
                 details: "This command is used to find a TLS Endpoint by its ID." +
                     "\n" +
@@ -45039,7 +45041,7 @@ export const SpecMatter = Matter(
 
         Command(
             {
-                name: "FindEndpointResponse", id: 0x3, conformance: "M", direction: "response",
+                name: "FindEndpointResponse", id: 0x3, conformance: "M", direction: "response", quality: "L",
                 xref: "core§14.5.7.4",
                 details: "This command is used to report the result of the FindEndpoint command."
             },
@@ -45053,7 +45055,7 @@ export const SpecMatter = Matter(
         Command(
             {
                 name: "RemoveEndpoint", id: 0x4, access: "F A", conformance: "M", direction: "request",
-                xref: "core§14.5.7.5",
+                quality: "L", xref: "core§14.5.7.5",
                 details: "This command is used to remove a TLS Endpoint by its ID." +
                     "\n" +
                     "This command shall be generated to request the Node remove any TLS Endpoint."

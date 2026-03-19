@@ -53,7 +53,7 @@ export const CommodityPrice = Cluster(
     Command(
         {
             name: "GetDetailedForecastRequest", id: 0x2, access: "O", conformance: "[FORE]",
-            direction: "request", response: "GetDetailedForecastResponse"
+            direction: "request", quality: "L", response: "GetDetailedForecastResponse"
         },
         Field({ name: "Details", id: 0x0, type: "CommodityPriceDetailBitmap", conformance: "M" })
     ),
@@ -61,7 +61,7 @@ export const CommodityPrice = Cluster(
     Command(
         {
             name: "GetDetailedForecastResponse", id: 0x3, conformance: "GetDetailedForecastRequest",
-            direction: "response"
+            direction: "response", quality: "L"
         },
         Field(
             { name: "PriceForecast", id: 0x0, type: "list", conformance: "M", constraint: "max 56" },
