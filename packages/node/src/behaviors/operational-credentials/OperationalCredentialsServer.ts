@@ -38,10 +38,10 @@ import {
 import {
     Command,
     FabricIndex,
-    NodeId,
     StatusCode,
     StatusResponse,
     StatusResponseError,
+    SubjectId,
     TlvBoolean,
     TlvByteString,
     TlvField,
@@ -311,7 +311,7 @@ export class OperationalCredentialsServer extends OperationalCredentialsBehavior
         //  accessing fabric.
 
         logger.info(
-            `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${NodeId.strOf(caseAdminSubject)}`,
+            `addNoc success, adminVendorId ${adminVendorId}, caseAdminSubject ${SubjectId.strOf(caseAdminSubject)}`,
         );
 
         return {
