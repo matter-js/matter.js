@@ -7,7 +7,7 @@
 import { Specification } from "@matter/model";
 import { AttributeSubscriptionResponse, DirtyState, Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber } from "@matter/types";
-import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs } from "./read-helpers.js";
 import INTERACTION_MODEL_REVISION = Specification.INTERACTION_MODEL_REVISION;
@@ -18,7 +18,7 @@ describe("AttributeSubscriptionResponse", () => {
             await MockServerNode.createOnline(),
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(1)]) } },
             Read.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
             }),
         );
@@ -46,7 +46,7 @@ describe("AttributeSubscriptionResponse", () => {
             await MockServerNode.createOnline(),
             { [EndpointNumber(0)]: { [ClusterId(40)]: new Set([AttributeId(2)]) } },
             Read.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
             }),
         );
@@ -70,7 +70,7 @@ describe("AttributeSubscriptionResponse", () => {
                 },
             },
             Read.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
             }),
         );
 

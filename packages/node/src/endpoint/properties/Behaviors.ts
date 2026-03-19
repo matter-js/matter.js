@@ -28,9 +28,9 @@ import {
     MaybePromise,
     Transaction,
 } from "@matter/general";
-import { FeatureSet } from "@matter/model";
+import { ClusterModel, FeatureSet } from "@matter/model";
 import { ClusterTypeProtocol, Val } from "@matter/protocol";
-import { ClusterType, VoidSchema } from "@matter/types";
+import type { ClusterNamespace } from "@matter/types";
 import type { Agent } from "../Agent.js";
 import type { Endpoint } from "../Endpoint.js";
 import { BehaviorInitializationError, EndpointBehaviorsError } from "../errors.js";
@@ -111,7 +111,7 @@ export class Behaviors {
             const result = [
                 Diagnostic(backing?.status ?? Lifecycle.Status.Inactive, name),
                 Diagnostic.dict({
-                    id: cluster ? Diagnostic.hex(cluster.id) : undefined,
+                    id: cluster?.id !== undefined ? Diagnostic.hex(cluster.id) : undefined,
                 }),
             ];
 
@@ -119,10 +119,11 @@ export class Behaviors {
                 return result;
             }
 
+            const schema = type.schema;
             const elements = this.elementsOf(type);
             const elementDiagnostic = Array<unknown>();
 
-            const features = new FeatureSet(cluster.supportedFeatures);
+            const features = schema instanceof ClusterModel ? schema.supportedFeatures : new FeatureSet();
             if (features.size) {
                 elementDiagnostic.push([Diagnostic.strong("features"), features]);
             }
@@ -130,7 +131,7 @@ export class Behaviors {
             if (elements.attributes.size) {
                 const behaviorData = new Array<unknown>();
                 for (const attributeName of elements.attributes) {
-                    const attr = cluster.attributes[attributeName];
+                    const attr = cluster.attributes?.[attributeName];
                     if (attr) {
                         behaviorData.push([
                             attributeName,
@@ -138,7 +139,7 @@ export class Behaviors {
                                 id: Diagnostic.hex(attr.id),
                                 val: (backing?.stateView as Val.Struct | undefined)?.[attributeName],
                                 flags: Diagnostic.asFlags({
-                                    fabricScoped: attr.fabricScoped,
+                                    fabricScoped: attr.schema.fabricScoped,
                                 }),
                             }),
                         ]);
@@ -150,12 +151,19 @@ export class Behaviors {
                 elementDiagnostic.push([
                     Diagnostic.strong("commands"),
                     Diagnostic.list(
-                        [...elements.commands].map(name => [
-                            name,
-                            Diagnostic.weak(
-                                `(${Diagnostic.hex(cluster.commands[name].requestId)}${cluster.commands[name].responseSchema instanceof VoidSchema ? "" : `/${Diagnostic.hex(cluster.commands[name].responseId)}`})`,
-                            ),
-                        ]),
+                        [...elements.commands].map(name => {
+                            const command = cluster.commands?.[name];
+                            if (!command) {
+                                return [name];
+                            }
+                            const response = command.schema.responseModel;
+                            return [
+                                name,
+                                Diagnostic.weak(
+                                    `(${Diagnostic.hex(command.id)}${response ? `/${Diagnostic.hex(response.id)}` : ""})`,
+                                ),
+                            ];
+                        }),
                     ),
                 ]);
             }
@@ -163,10 +171,10 @@ export class Behaviors {
                 elementDiagnostic.push(
                     Diagnostic.strong("events"),
                     Diagnostic.list([
-                        [...elements.events].map(name => [
-                            name,
-                            Diagnostic.weak(`(${Diagnostic.hex(cluster.events[name].id)})`),
-                        ]),
+                        [...elements.events].map(name => {
+                            const event = cluster.events?.[name];
+                            return event ? [name, Diagnostic.weak(`(${Diagnostic.hex(event.id)})`)] : [name];
+                        }),
                     ]),
                 );
             }
@@ -581,7 +589,9 @@ export class Behaviors {
                     continue;
                 }
 
-                name = `${name} (${Diagnostic.hex(cluster.id)})`;
+                if (cluster.id !== undefined) {
+                    name = `${name} (${Diagnostic.hex(cluster.id)})`;
+                }
             }
 
             missing.push(name);
@@ -841,7 +851,7 @@ export class Behaviors {
     }
 }
 
-function clusterOf(behavior?: Behavior.Type): ClusterType | undefined {
+function clusterOf(behavior?: Behavior.Type): ClusterNamespace | undefined {
     return (behavior as ClusterBehavior.Type)?.cluster;
 }
 

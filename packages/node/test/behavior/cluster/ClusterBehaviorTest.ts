@@ -326,7 +326,7 @@ describe("ClusterBehavior", () => {
                 };
             };
 
-            expect(AwesomeBehavior.cluster.supportedFeatures).deep.equals({ awesome: true });
+            expect(AwesomeBehavior.features).deep.equals({ awesome: true });
             expect(AwesomeBehavior.schema.supportedFeatures).deep.equals(new Set(["AWE"]));
         });
 
@@ -345,9 +345,9 @@ describe("ClusterBehavior", () => {
         it("adds feature elements on NetworkCommissioningServer", () => {
             const EthernetCommissioningServer = NetworkCommissioningServer.with("EthernetNetworkInterface");
 
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.ethernetNetworkInterface).true;
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.wiFiNetworkInterface).false;
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.threadNetworkInterface).false;
+            expect(EthernetCommissioningServer.features.ethernetNetworkInterface).true;
+            expect(EthernetCommissioningServer.features.wiFiNetworkInterface).false;
+            expect(EthernetCommissioningServer.features.threadNetworkInterface).false;
         });
 
         it("prevents feature mismatch", async () => {
@@ -393,15 +393,17 @@ describe("ClusterBehavior", () => {
             });
 
             interface TestInterface {
-                components: [
-                    {
-                        flags: {};
-                        methods: {
-                            realCommand(request: number): MaybePromise<number>;
-                            nonMatterMethod(request: number): MaybePromise;
-                        };
-                    },
-                ];
+                Commands: {
+                    Components: [
+                        {
+                            flags: {};
+                            methods: {
+                                realCommand(request: number): MaybePromise<number>;
+                                nonMatterMethod(request: number): MaybePromise;
+                            };
+                        },
+                    ];
+                };
             }
 
             const TestSchema = new ClusterModel({

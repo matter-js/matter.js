@@ -7,7 +7,7 @@
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Read } from "@matter/protocol";
 import { AttributeId, ClusterId, EndpointNumber, StatusCode } from "@matter/types";
-import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 import { countAttrs, readAttr, readAttrRaw } from "./read-helpers.js";
 
@@ -33,7 +33,7 @@ describe("AttributeReadResponse", () => {
             node,
             Read.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
             }),
         );
@@ -60,7 +60,7 @@ describe("AttributeReadResponse", () => {
         const response = await readAttr(
             await MockServerNode.createOnline(),
             Read.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
             }),
         );
@@ -108,7 +108,7 @@ describe("AttributeReadResponse", () => {
             await MockServerNode.createOnline(),
             Read.Attribute({
                 endpoint: EndpointNumber(2),
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
             }),
         );
@@ -135,7 +135,7 @@ describe("AttributeReadResponse", () => {
             node,
             Read.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "serialNumber",
             }),
         );
@@ -160,7 +160,7 @@ describe("AttributeReadResponse", () => {
         const response = await readAttr(
             await MockServerNode.createOnline(),
             Read.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
             }),
         );
 

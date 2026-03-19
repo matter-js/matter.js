@@ -44,10 +44,10 @@ import { PeerBehavior } from "./PeerBehavior.js";
 
 const logger = Logger.get("ClientStructure");
 
-const DESCRIPTOR_ID = Descriptor.Cluster.id;
-const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
-const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
-const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
+const DESCRIPTOR_ID = Descriptor.id;
+const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.attributes.deviceTypeList.id;
+const SERVER_LIST_ATTR_ID = Descriptor.attributes.serverList.id;
+const PARTS_LIST_ATTR_ID = Descriptor.attributes.partsList.id;
 
 const DEVICE_TYPE_LIST_ATTR_NAME = "deviceTypeList";
 const SERVER_LIST_ATTR_NAME = "serverList";
@@ -574,7 +574,7 @@ export class ClientStructure {
         }
 
         // Special handling for descriptor cluster
-        if (cluster.id === Descriptor.Cluster.id) {
+        if (cluster.id === Descriptor.id) {
             let attrs;
             if (cluster.behavior && endpoint.behaviors.isActive(cluster.behavior.id)) {
                 attrs = endpoint.stateOf(cluster.behavior);
