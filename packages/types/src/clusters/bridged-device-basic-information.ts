@@ -20,19 +20,256 @@ import {
 } from "../cluster/Cluster.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvUInt32, TlvUInt16 } from "../tlv/TlvNumber.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { Priority } from "../globals/Priority.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { TlvVendorId } from "../datatype/VendorId.js";
-import { AccessLevel } from "@matter/model";
+import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
+import { AccessLevel, BridgedDeviceBasicInformation as BridgedDeviceBasicInformationModel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { BasicInformation } from "./basic-information.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "@matter/general";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the BridgedDeviceBasicInformation cluster.
+ */
 export namespace BridgedDeviceBasicInformation {
+    /**
+     * Attributes that may appear in {@link BridgedDeviceBasicInformation}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall be used to indicate whether the bridged device is reachable by the bridge, so a Matter
+         * Node which wants to communicate with a bridged device can get an indication that this might fail (when the
+         * attribute is False). Determination of reachability might not be perfect (e.g. depending on technology
+         * employed), so the Matter Node SHOULD be aware of the risk of false positives and negatives on reachability
+         * determination. For example, a bridged device may be marked as unreachable while it could actually be reached,
+         * and vice-versa. Also, detection (and indication) that a bridged device is not longer reachable may be delayed
+         * due to the technique employed (e.g. detecting that a number of expected messages from the bridged device did
+         * not arrive). Also see event ReachableChanged below.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.2
+         */
+        reachable: boolean;
+
+        /**
+         * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
+         * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
+         * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
+         * the bridge shall generate a unique id on behalf of the bridged device.
+         *
+         * > [!NOTE]
+         *
+         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
+         */
+        uniqueId: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        vendorName: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        vendorId: VendorId;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productName: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productId: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        nodeLabel: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        hardwareVersion: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        hardwareVersionString: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        softwareVersion: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        softwareVersionString: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        manufacturingDate: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        partNumber: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productUrl: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productLabel: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        serialNumber: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productAppearance: BasicInformation.ProductAppearance;
+
+        /**
+         * This attribute shall contain the current version number for the configuration of the bridged device.
+         *
+         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
+         * bridged device, it shall increase this attribute as described in Section 9.2.9, “Node Configuration Changes”.
+         *
+         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         */
+        configurationVersion: number;
+    }
+
+    export namespace Attributes {
+        export type Components = [{
+            flags: {},
+            mandatory: "reachable" | "uniqueId",
+            optional: "vendorName" | "vendorId" | "productName" | "productId" | "nodeLabel" | "hardwareVersion" | "hardwareVersionString" | "softwareVersion" | "softwareVersionString" | "manufacturingDate" | "partNumber" | "productUrl" | "productLabel" | "serialNumber" | "productAppearance" | "configurationVersion"
+        }];
+    }
+
+    export interface Commands extends Commands.BridgedIcdSupport {}
+
+    export namespace Commands {
+        /**
+         * {@link BridgedDeviceBasicInformation} supports these commands if it supports feature "BridgedIcdSupport".
+         */
+        export interface BridgedIcdSupport {
+            /**
+             * Upon receipt, the server shall attempt to keep the bridged device active for the duration specified by
+             * the command, when the device is next active.
+             *
+             * The implementation of this is best-effort since it may interact with non-native protocols. However,
+             * several specific protocol requirements are:
+             *
+             *   - If the bridged device is a Matter Intermittently Connected Device, then the server shall send a
+             *     StayActiveRequest command with the StayActiveDuration field set to value of the StayActiveDuration
+             *     field in the received command to the bridged device when the bridged device next sends a checks-in
+             *     message or subscription report. See Intermittently Connected Devices Behavior for details on ICD
+             *     state management.
+             *
+             * When the bridge detects that the bridged device goes into an active state, an ActiveChanged event shall
+             * be generated.
+             *
+             * In order to avoid unnecessary power consumption in the bridged device:
+             *
+             *   - The server shall enter a "pending active" state for the associated device when the KeepActive command
+             *     is received. The server "pending active" state shall expire after the amount of time defined by the
+             *     TimeoutMs field, in milliseconds, if no subsequent KeepActive command is received. When a KeepActive
+             *     command is received, the "pending active" state is set, the StayActiveDuration is updated to the
+             *     greater of the new value and the previously stored value, and the TimeoutMs is updated to the greater
+             *     of the new value and the remaining time until the prior "pending active" state expires.
+             *
+             *   - The server shall only keep the bridged device active once for a request. (The server shall only
+             *     consider the operation performed if an associated ActiveChanged event was generated.)
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
+             */
+            keepActive(request: KeepActiveRequest): MaybePromise;
+        }
+
+        export type Components = [{ flags: { bridgedIcdSupport: true }, methods: BridgedIcdSupport }];
+    }
+
+    /**
+     * Events that may appear in {@link BridgedDeviceBasicInformation}.
+     *
+     * Devices may not support all of these events. Device support for events may also be affected by a device's
+     * supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated when there is a change in the Reachable attribute. Its purpose is to provide an
+         * indication towards interested parties that the reachability of a bridged device has changed over its native
+         * connectivity technology, so they may take appropriate action. After (re)start of a bridge this event may be
+         * generated.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
+         */
+        reachableChanged: ReachableChangedEvent;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7
+         */
+        startUp: StartUpEvent;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7
+         */
+        shutDown: void;
+
+        /**
+         * The Leave event SHOULD be generated by the bridge when it detects that the associated device has left the
+         * non-Matter network.
+         *
+         * > [!NOTE]
+         *
+         * > The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the context
+         *   of Bridged Device Basic Information cluster, has no usable fields, but the original Basic Information
+         *   cluster’s field definition is kept for completeness.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7.1
+         */
+        leave: void;
+
+        /**
+         * This event (when supported) shall be generated the next time a bridged device becomes active after a
+         * KeepActive command is received. See KeepActive for more details.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
+         */
+        activeChanged: ActiveChangedEvent;
+    }
+
+    export namespace Events {
+        export type Components = [
+            { flags: {}, mandatory: "reachableChanged", optional: "startUp" | "shutDown" | "leave" },
+            { flags: { bridgedIcdSupport: true }, mandatory: "activeChanged" }
+        ];
+    }
+
+    export type Features = "BridgedIcdSupport";
+
     /**
      * These are optional features supported by BridgedDeviceBasicInformationCluster.
      *
@@ -45,6 +282,131 @@ export namespace BridgedDeviceBasicInformation {
          * Support bridged ICDs.
          */
         BridgedIcdSupport = "BridgedIcdSupport"
+    }
+
+    /**
+     * Upon receipt, the server shall attempt to keep the bridged device active for the duration specified by the
+     * command, when the device is next active.
+     *
+     * The implementation of this is best-effort since it may interact with non-native protocols. However, several
+     * specific protocol requirements are:
+     *
+     *   - If the bridged device is a Matter Intermittently Connected Device, then the server shall send a
+     *     StayActiveRequest command with the StayActiveDuration field set to value of the StayActiveDuration field in
+     *     the received command to the bridged device when the bridged device next sends a checks-in message or
+     *     subscription report. See Intermittently Connected Devices Behavior for details on ICD state management.
+     *
+     * When the bridge detects that the bridged device goes into an active state, an ActiveChanged event shall be
+     * generated.
+     *
+     * In order to avoid unnecessary power consumption in the bridged device:
+     *
+     *   - The server shall enter a "pending active" state for the associated device when the KeepActive command is
+     *     received. The server "pending active" state shall expire after the amount of time defined by the TimeoutMs
+     *     field, in milliseconds, if no subsequent KeepActive command is received. When a KeepActive command is
+     *     received, the "pending active" state is set, the StayActiveDuration is updated to the greater of the new
+     *     value and the previously stored value, and the TimeoutMs is updated to the greater of the new value and the
+     *     remaining time until the prior "pending active" state expires.
+     *
+     *   - The server shall only keep the bridged device active once for a request. (The server shall only consider the
+     *     operation performed if an associated ActiveChanged event was generated.)
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
+     */
+    export interface KeepActiveRequest {
+        /**
+         * This field shall indicate the duration, in milliseconds, that the device is requested to remain active, once
+         * the device becomes active again.
+         *
+         * The value of this field may be longer than the value supported by the bridged device and would, typically, be
+         * used by the client to request the server of the bridged device to stay active and responsive for this period
+         * to allow a sequence of message exchanges during that period.
+         *
+         * The client may slightly overestimate the duration it wants the bridged device to be active for, in order to
+         * account for network delays.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.1
+         */
+        stayActiveDuration: number;
+
+        /**
+         * This field shall indicate the period, in milliseconds, that the server will wait before the "pending active"
+         * state expires. See the KeepActive Command description for details.
+         *
+         * > [!NOTE]
+         *
+         * > TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The server will wait for
+         *   up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the server will not
+         *   perform any actions.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.2
+         */
+        timeoutMs: number;
+    }
+
+    /**
+     * This event (when supported) shall be generated the next time a bridged device becomes active after a KeepActive
+     * command is received. See KeepActive for more details.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
+     */
+    export interface ActiveChangedEvent {
+        /**
+         * This field shall indicate the minimum duration, in milliseconds, that the bridged device will remain active
+         * after receiving the initial request from the KeepActive processing steps.
+         *
+         * If the bridged device is a Matter Intermittently Connected Device, PromisedActiveDuration shall be set to the
+         * PromisedActiveDuration value returned in the StayActiveResponse command.
+         *
+         * If the bridged device is not a Matter Intermittently Connected Device, the implementation of this is
+         * best-effort since it may interact with non-native protocol.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.7.3.1
+         */
+        promisedActiveDuration: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7
+     */
+    export interface StartUpEvent {
+        /**
+         * This field shall be set to the same value as the one available in the SoftwareVersion attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.6.1.1
+         */
+        softwareVersion: number;
+    }
+
+    /**
+     * The Leave event SHOULD be generated by the bridge when it detects that the associated device has left the
+     * non-Matter network.
+     *
+     * > [!NOTE]
+     *
+     * > The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the context of
+     *   Bridged Device Basic Information cluster, has no usable fields, but the original Basic Information cluster’s
+     *   field definition is kept for completeness.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.1
+     */
+    export interface LeaveEvent {    }
+
+    /**
+     * This event shall be generated when there is a change in the Reachable attribute. Its purpose is to provide an
+     * indication towards interested parties that the reachability of a bridged device has changed over its native
+     * connectivity technology, so they may take appropriate action. After (re)start of a bridge this event may be
+     * generated.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
+     */
+    export interface ReachableChangedEvent {
+        /**
+         * This field shall indicate the value of the Reachable attribute after it was changed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.6.4.1
+         */
+        reachableNewValue: boolean;
     }
 
     /**
@@ -84,13 +446,6 @@ export namespace BridgedDeviceBasicInformation {
     });
 
     /**
-     * Input to the BridgedDeviceBasicInformation keepActive command
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
-     */
-    export interface KeepActiveRequest extends TypeFromSchema<typeof TlvKeepActiveRequest> {}
-
-    /**
      * Body of the BridgedDeviceBasicInformation activeChanged event
      *
      * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
@@ -112,13 +467,6 @@ export namespace BridgedDeviceBasicInformation {
     });
 
     /**
-     * Body of the BridgedDeviceBasicInformation activeChanged event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
-     */
-    export interface ActiveChangedEvent extends TypeFromSchema<typeof TlvActiveChangedEvent> {}
-
-    /**
      * Body of the BridgedDeviceBasicInformation startUp event
      *
      * @see {@link MatterSpecification.v142.Core} § 9.13.7
@@ -133,13 +481,6 @@ export namespace BridgedDeviceBasicInformation {
     });
 
     /**
-     * Body of the BridgedDeviceBasicInformation startUp event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.7
-     */
-    export interface StartUpEvent extends TypeFromSchema<typeof TlvStartUpEvent> {}
-
-    /**
      * Body of the BridgedDeviceBasicInformation reachableChanged event
      *
      * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
@@ -152,13 +493,6 @@ export namespace BridgedDeviceBasicInformation {
          */
         reachableNewValue: TlvField(0, TlvBoolean)
     });
-
-    /**
-     * Body of the BridgedDeviceBasicInformation reachableChanged event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
-     */
-    export interface ReachableChangedEvent extends TypeFromSchema<typeof TlvReachableChangedEvent> {}
 
     /**
      * A BridgedDeviceBasicInformationCluster supports these elements if it supports feature BridgedIcdSupport.
@@ -467,8 +801,22 @@ export namespace BridgedDeviceBasicInformation {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x39);
+    export const name = "BridgedDeviceBasicInformation" as const;
+    export const revision = 5;
+    export const schema = BridgedDeviceBasicInformationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
+    export declare const events: EventObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: BridgedDeviceBasicInformation;
 }
 
 export type BridgedDeviceBasicInformationCluster = BridgedDeviceBasicInformation.Cluster;
 export const BridgedDeviceBasicInformationCluster = BridgedDeviceBasicInformation.Cluster;
 ClusterRegistry.register(BridgedDeviceBasicInformation.Complete);
+ClusterNamespace.define(BridgedDeviceBasicInformation);
+export interface BridgedDeviceBasicInformation extends ClusterTyping { Attributes: BridgedDeviceBasicInformation.Attributes & { Components: BridgedDeviceBasicInformation.Attributes.Components }; Commands: BridgedDeviceBasicInformation.Commands & { Components: BridgedDeviceBasicInformation.Commands.Components }; Events: BridgedDeviceBasicInformation.Events & { Components: BridgedDeviceBasicInformation.Events.Components }; Features: BridgedDeviceBasicInformation.Features }

@@ -10,14 +10,109 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Command } from "../cluster/Cluster.js";
 import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
-import { Identity } from "@matter/general";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ContentAppObserver as ContentAppObserverModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the ContentAppObserver cluster.
+ */
 export namespace ContentAppObserver {
+    export interface Commands extends Commands.Base {}
+
+    export namespace Commands {
+        /**
+         * {@link ContentAppObserver} always supports these commands.
+         */
+        export interface Base {
+            /**
+             * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content
+             * App. A Content App may when possible read attributes from the Basic Information Cluster on the Observer
+             * and use this to determine the Message encoding.
+             *
+             * This command returns a ContentAppMessage Response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
+             */
+            contentAppMessage(request: ContentAppMessageRequest): MaybePromise<ContentAppMessageResponse>;
+        }
+
+        export type Components = [{ flags: {}, methods: Base }];
+    }
+
+    /**
+     * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content App. A
+     * Content App may when possible read attributes from the Basic Information Cluster on the Observer and use this to
+     * determine the Message encoding.
+     *
+     * This command returns a ContentAppMessage Response.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
+     */
+    export interface ContentAppMessageRequest {
+        /**
+         * This field shall indicate content app-specific data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1.1
+         */
+        data: string;
+
+        /**
+         * This optional field shall indicate a content app-specific hint to the encoding of the data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1.2
+         */
+        encodingHint?: string;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.4.1
+     */
+    export enum Status {
+        /**
+         * Command succeeded
+         */
+        Success = 0,
+
+        /**
+         * Data field in command was not understood by the Observer
+         */
+        UnexpectedData = 1
+    }
+
+    /**
+     * This command shall be generated in response to ContentAppMessage command.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2
+     */
+    export interface ContentAppMessageResponse {
+        /**
+         * This field shall indicate the status of the command which resulted in this response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.1
+         */
+        status: Status;
+
+        /**
+         * This optional field shall indicate content app-specific data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.2
+         */
+        data?: string;
+
+        /**
+         * This optional field shall indicate a content app-specific hint to the encoding of the data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2.3
+         */
+        encodingHint?: string;
+    }
+
     /**
      * Input to the ContentAppObserver contentAppMessage command
      *
@@ -38,28 +133,6 @@ export namespace ContentAppObserver {
          */
         encodingHint: TlvOptionalField(1, TlvString.bound({ maxLength: 100 }))
     });
-
-    /**
-     * Input to the ContentAppObserver contentAppMessage command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
-     */
-    export interface ContentAppMessageRequest extends TypeFromSchema<typeof TlvContentAppMessageRequest> {}
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.4.1
-     */
-    export enum Status {
-        /**
-         * Command succeeded
-         */
-        Success = 0,
-
-        /**
-         * Data field in command was not understood by the Observer
-         */
-        UnexpectedData = 1
-    }
 
     /**
      * Thrown for cluster status code {@link Status.UnexpectedData}.
@@ -103,13 +176,6 @@ export namespace ContentAppObserver {
          */
         encodingHint: TlvOptionalField(2, TlvString.bound({ maxLength: 100 }))
     });
-
-    /**
-     * This command shall be generated in response to ContentAppMessage command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.2
-     */
-    export interface ContentAppMessageResponse extends TypeFromSchema<typeof TlvContentAppMessageResponse> {}
 
     /**
      * @see {@link Cluster}
@@ -178,8 +244,17 @@ export namespace ContentAppObserver {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x510);
+    export const name = "ContentAppObserver" as const;
+    export const revision = 1;
+    export const schema = ContentAppObserverModel;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export declare const Typing: ContentAppObserver;
 }
 
 export type ContentAppObserverCluster = ContentAppObserver.Cluster;
 export const ContentAppObserverCluster = ContentAppObserver.Cluster;
 ClusterRegistry.register(ContentAppObserver.Complete);
+ClusterNamespace.define(ContentAppObserver);
+export interface ContentAppObserver extends ClusterTyping { Commands: ContentAppObserver.Commands & { Components: ContentAppObserver.Commands.Components } }

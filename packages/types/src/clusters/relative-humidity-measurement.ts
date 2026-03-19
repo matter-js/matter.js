@@ -12,8 +12,70 @@ import { TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { RelativeHumidityMeasurement as RelativeHumidityMeasurementModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the RelativeHumidityMeasurement cluster.
+ */
 export namespace RelativeHumidityMeasurement {
+    /**
+     * Attributes that may appear in {@link RelativeHumidityMeasurement}.
+     *
+     * Optional properties represent attributes that devices are not required to support.
+     */
+    export interface Attributes {
+        /**
+         * MeasuredValue represents the water content in % as follows:
+         *
+         * MeasuredValue = 100 x water content
+         *
+         * Where 0% < = water content < = 100%, corresponding to a MeasuredValue in the range 0 to 10000.
+         *
+         * The maximum resolution this format allows is 0.01%.
+         *
+         * MinMeasuredValue and MaxMeasuredValue define the range of the sensor.
+         *
+         * The null value indicates that the measurement is unknown, otherwise the range shall be as described in
+         * Measured Value.
+         *
+         * MeasuredValue is updated continuously as new measurements are made.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.1
+         */
+        measuredValue: number | null;
+
+        /**
+         * The MinMeasuredValue attribute indicates the minimum value of MeasuredValue that can be measured. The null
+         * value means this attribute is not defined. See Measured Value for more details.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.2
+         */
+        minMeasuredValue: number | null;
+
+        /**
+         * The MaxMeasuredValue attribute indicates the maximum value of MeasuredValue that can be measured. The null
+         * value means this attribute is not defined. See Measured Value for more details.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.3
+         */
+        maxMeasuredValue: number | null;
+
+        /**
+         * See Measured Value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.6.4.4
+         */
+        tolerance: number;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue", optional: "tolerance" }
+        ];
+    }
+
     /**
      * @see {@link Cluster}
      */
@@ -79,8 +141,17 @@ export namespace RelativeHumidityMeasurement {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x405);
+    export const name = "RelativeHumidityMeasurement" as const;
+    export const revision = 3;
+    export const schema = RelativeHumidityMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const Typing: RelativeHumidityMeasurement;
 }
 
 export type RelativeHumidityMeasurementCluster = RelativeHumidityMeasurement.Cluster;
 export const RelativeHumidityMeasurementCluster = RelativeHumidityMeasurement.Cluster;
 ClusterRegistry.register(RelativeHumidityMeasurement.Complete);
+ClusterNamespace.define(RelativeHumidityMeasurement);
+export interface RelativeHumidityMeasurement extends ClusterTyping { Attributes: RelativeHumidityMeasurement.Attributes & { Components: RelativeHumidityMeasurement.Attributes.Components } }

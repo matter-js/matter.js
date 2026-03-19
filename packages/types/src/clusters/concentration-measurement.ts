@@ -12,8 +12,124 @@ import { TlvFloat, TlvEnum, TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ConcentrationMeasurement as ConcentrationMeasurementModel } from "@matter/model";
 
+/**
+ * Definitions for the ConcentrationMeasurement cluster.
+ */
 export namespace ConcentrationMeasurement {
+    /**
+     * Attributes that may appear in {@link ConcentrationMeasurement}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
+         */
+        measurementMedium: MeasurementMedium;
+
+        /**
+         * Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s unit is
+         * represented by MeasurementUnit.
+         *
+         * A value of null indicates that the measurement is unknown or outside the valid range.
+         *
+         * MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
+         */
+        measuredValue: number | null;
+
+        /**
+         * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of null
+         * indicates that the MinMeasuredValue is not defined.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
+         */
+        minMeasuredValue: number | null;
+
+        /**
+         * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of null
+         * indicates that the MaxMeasuredValue is not defined.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
+         */
+        maxMeasuredValue: number | null;
+
+        /**
+         * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
+         */
+        measurementUnit: MeasurementUnit;
+
+        /**
+         * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This is
+         * considered a +/- value and should be considered to be in MeasurementUnit.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
+         */
+        uncertainty: number;
+
+        /**
+         * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow. If
+         * this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
+         */
+        peakMeasuredValue: number | null;
+
+        /**
+         * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
+         */
+        peakMeasuredValueWindow: number;
+
+        /**
+         * Indicates the average value of MeasuredValue that has been measured during the AverageMeasuredValueWindow. If
+         * this attribute is provided, the AverageMeasuredValueWindow attribute shall also be provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
+         */
+        averageMeasuredValue: number | null;
+
+        /**
+         * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
+         */
+        averageMeasuredValueWindow: number;
+
+        /**
+         * Indicates the level of the substance detected. See LevelValueEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
+         */
+        levelValue: LevelValue;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "measurementMedium" },
+            {
+                flags: { numericMeasurement: true },
+                mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue" | "measurementUnit",
+                optional: "uncertainty"
+            },
+            { flags: { peakMeasurement: true }, mandatory: "peakMeasuredValue" | "peakMeasuredValueWindow" },
+            { flags: { averageMeasurement: true }, mandatory: "averageMeasuredValue" | "averageMeasuredValueWindow" },
+            { flags: { levelIndication: true }, mandatory: "levelValue" }
+        ];
+    }
+
+    export type Features = "NumericMeasurement" | "LevelIndication" | "MediumLevel" | "CriticalLevel" | "PeakMeasurement" | "AverageMeasurement";
+
     /**
      * These are optional features supported by ConcentrationMeasurementCluster.
      *
@@ -402,4 +518,14 @@ export namespace ConcentrationMeasurement {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const name = "ConcentrationMeasurement" as const;
+    export const revision = 3;
+    export const schema = ConcentrationMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: ConcentrationMeasurement;
 }
+
+ClusterNamespace.define(ConcentrationMeasurement);
+export interface ConcentrationMeasurement extends ClusterTyping { Attributes: ConcentrationMeasurement.Attributes & { Components: ConcentrationMeasurement.Attributes.Components }; Features: ConcentrationMeasurement.Features }

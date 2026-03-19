@@ -9,13 +9,52 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, UnitLocalization as UnitLocalizationModel } from "@matter/model";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the UnitLocalization cluster.
+ */
 export namespace UnitLocalization {
+    /**
+     * Attributes that may appear in {@link UnitLocalization}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the unit for the Node to use only when conveying temperature in communication to the user, for
+         * example such as via a user interface on the device. If provided, this value shall take priority over any unit
+         * implied through the ActiveLocale Attribute.
+         *
+         * An attempt to write to this attribute with a value not included in the SupportedTemperatureUnits attribute
+         * list shall result in a CONSTRAINT_ERROR.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.5.6.1
+         */
+        temperatureUnit: TempUnit;
+
+        /**
+         * Indicates a list of units supported by the Node to be used when writing the TemperatureUnit attribute of this
+         * cluster. Each entry in the list shall be unique.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.5.6.2
+         */
+        supportedTemperatureUnits: TempUnit[];
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: { temperatureUnit: true }, mandatory: "temperatureUnit" | "supportedTemperatureUnits" }
+        ];
+    }
+    export type Features = "TemperatureUnit";
+
     /**
      * These are optional features supported by UnitLocalizationCluster.
      *
@@ -160,8 +199,18 @@ export namespace UnitLocalization {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x2d);
+    export const name = "UnitLocalization" as const;
+    export const revision = 2;
+    export const schema = UnitLocalizationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: UnitLocalization;
 }
 
 export type UnitLocalizationCluster = UnitLocalization.Cluster;
 export const UnitLocalizationCluster = UnitLocalization.Cluster;
 ClusterRegistry.register(UnitLocalization.Complete);
+ClusterNamespace.define(UnitLocalization);
+export interface UnitLocalization extends ClusterTyping { Attributes: UnitLocalization.Attributes & { Components: UnitLocalization.Attributes.Components }; Features: UnitLocalization.Features }

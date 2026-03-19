@@ -8,10 +8,102 @@
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ResourceMonitoring } from "./resource-monitoring.js";
-import { Identity } from "@matter/general";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { HepaFilterMonitoring as HepaFilterMonitoringModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the HepaFilterMonitoring cluster.
+ */
 export namespace HepaFilterMonitoring {
+    /**
+     * Attributes that may appear in {@link HepaFilterMonitoring}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the current
+         * requirement to change the resource.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
+         */
+        changeIndication: ResourceMonitoring.ChangeIndication;
+
+        /**
+         * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
+         * installed. A value of false shall indicate that a resource is not installed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
+         */
+        inPlaceIndicator: boolean;
+
+        /**
+         * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
+         * attribute shall be null if it was never set or is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5
+         */
+        lastChangedTime: number | null;
+
+        /**
+         * Indicates the current condition of the resource in percent.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
+         */
+        condition: number;
+
+        /**
+         * Indicates the direction of change for the condition of the resource over time, which helps to determine
+         * whether a higher or lower condition value is considered optimal.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
+         */
+        degradationDirection: ResourceMonitoring.DegradationDirection;
+
+        /**
+         * Indicates the list of supported products that may be used as replacements for the current resource. Each item
+         * in this list represents a unique ReplacementProductStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
+         */
+        replacementProductList: ResourceMonitoring.ReplacementProduct[];
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "changeIndication", optional: "inPlaceIndicator" | "lastChangedTime" },
+            { flags: { condition: true }, mandatory: "condition" | "degradationDirection" },
+            { flags: { replacementProductList: true }, mandatory: "replacementProductList" }
+        ];
+    }
+
+    export interface Commands extends Commands.Base {}
+
+    export namespace Commands {
+        /**
+         * {@link HepaFilterMonitoring} always supports these commands.
+         */
+        export interface Base {
+            /**
+             * Upon receipt, the device shall reset the Condition and ChangeIndicator attributes, indicating full
+             * resource availability and readiness for use, as initially configured. Invocation of this command may
+             * cause the LastChangedTime to be updated automatically based on the clock of the server, if the server
+             * supports setting the attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
+             */
+            resetCondition(): MaybePromise;
+        }
+
+        export type Components = [{ flags: {}, methods: Base }];
+    }
+
+    export type Features = "Condition" | "Warning" | "ReplacementProductList";
+
     export const Base = { ...ResourceMonitoring.Base, id: 0x71, name: "HepaFilterMonitoring" } as const;
 
     /**
@@ -43,8 +135,20 @@ export namespace HepaFilterMonitoring {
 
     export interface Complete extends Identity<typeof CompleteInstance> {}
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x71);
+    export const name = "HepaFilterMonitoring" as const;
+    export const revision = 1;
+    export const schema = HepaFilterMonitoringModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: HepaFilterMonitoring;
 }
 
 export type HepaFilterMonitoringCluster = HepaFilterMonitoring.Cluster;
 export const HepaFilterMonitoringCluster = HepaFilterMonitoring.Cluster;
 ClusterRegistry.register(HepaFilterMonitoring.Complete);
+ClusterNamespace.define(HepaFilterMonitoring);
+export interface HepaFilterMonitoring extends ClusterTyping { Attributes: HepaFilterMonitoring.Attributes & { Components: HepaFilterMonitoring.Attributes.Components }; Commands: HepaFilterMonitoring.Commands & { Components: HepaFilterMonitoring.Commands.Components }; Features: HepaFilterMonitoring.Features }

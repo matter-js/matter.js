@@ -9,11 +9,57 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, OptionalWritableAttribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "@matter/model";
+import {
+    AccessLevel,
+    ThermostatUserInterfaceConfiguration as ThermostatUserInterfaceConfigurationModel
+} from "@matter/model";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the ThermostatUserInterfaceConfiguration cluster.
+ */
 export namespace ThermostatUserInterfaceConfiguration {
+    /**
+     * Attributes that may appear in {@link ThermostatUserInterfaceConfiguration}.
+     *
+     * Optional properties represent attributes that devices are not required to support.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the units of the temperature displayed on the thermostat screen.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
+         */
+        temperatureDisplayMode: TemperatureDisplayMode;
+
+        /**
+         * Indicates the level of functionality that is available to the user via the keypad.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
+         */
+        keypadLockout: KeypadLockout;
+
+        /**
+         * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
+         * user to prevent local user programming of the weekly schedule. The schedule programming may still be
+         * performed via a remote interface, and the thermostat may operate in schedule programming mode.
+         *
+         * This attribute is designed to prevent local tampering with or disabling of schedules that may have been
+         * programmed by users or service providers via a more capable remote interface. The programming schedule shall
+         * continue to run even though it is not visible to the user locally at the thermostat.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
+         */
+        scheduleProgrammingVisibility: ScheduleProgrammingVisibility;
+    }
+
+    export namespace Attributes {
+        export type Components = [{ flags: {}, mandatory: "temperatureDisplayMode" | "keypadLockout", optional: "scheduleProgrammingVisibility" }];
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.5.5.1
      */
@@ -133,8 +179,17 @@ export namespace ThermostatUserInterfaceConfiguration {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x204);
+    export const name = "ThermostatUserInterfaceConfiguration" as const;
+    export const revision = 2;
+    export const schema = ThermostatUserInterfaceConfigurationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const Typing: ThermostatUserInterfaceConfiguration;
 }
 
 export type ThermostatUserInterfaceConfigurationCluster = ThermostatUserInterfaceConfiguration.Cluster;
 export const ThermostatUserInterfaceConfigurationCluster = ThermostatUserInterfaceConfiguration.Cluster;
 ClusterRegistry.register(ThermostatUserInterfaceConfiguration.Complete);
+ClusterNamespace.define(ThermostatUserInterfaceConfiguration);
+export interface ThermostatUserInterfaceConfiguration extends ClusterTyping { Attributes: ThermostatUserInterfaceConfiguration.Attributes & { Components: ThermostatUserInterfaceConfiguration.Attributes.Components } }

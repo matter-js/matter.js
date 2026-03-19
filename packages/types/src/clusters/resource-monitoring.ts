@@ -19,14 +19,104 @@ import { TlvPercent, TlvEnum, TlvEpochS } from "../tlv/TlvNumber.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity } from "@matter/general";
+import { Identity, MaybePromise } from "@matter/general";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ResourceMonitoring as ResourceMonitoringModel } from "@matter/model";
 
+/**
+ * Definitions for the ResourceMonitoring cluster.
+ */
 export namespace ResourceMonitoring {
+    /**
+     * Attributes that may appear in {@link ResourceMonitoring}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the current
+         * requirement to change the resource.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
+         */
+        changeIndication: ChangeIndication;
+
+        /**
+         * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
+         * installed. A value of false shall indicate that a resource is not installed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
+         */
+        inPlaceIndicator: boolean;
+
+        /**
+         * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
+         * attribute shall be null if it was never set or is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5
+         */
+        lastChangedTime: number | null;
+
+        /**
+         * Indicates the current condition of the resource in percent.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
+         */
+        condition: number;
+
+        /**
+         * Indicates the direction of change for the condition of the resource over time, which helps to determine
+         * whether a higher or lower condition value is considered optimal.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
+         */
+        degradationDirection: DegradationDirection;
+
+        /**
+         * Indicates the list of supported products that may be used as replacements for the current resource. Each item
+         * in this list represents a unique ReplacementProductStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
+         */
+        replacementProductList: ReplacementProduct[];
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "changeIndication", optional: "inPlaceIndicator" | "lastChangedTime" },
+            { flags: { condition: true }, mandatory: "condition" | "degradationDirection" },
+            { flags: { replacementProductList: true }, mandatory: "replacementProductList" }
+        ];
+    }
+
+    export interface Commands extends Commands.Base {}
+
+    export namespace Commands {
+        /**
+         * {@link ResourceMonitoring} always supports these commands.
+         */
+        export interface Base {
+            /**
+             * Upon receipt, the device shall reset the Condition and ChangeIndicator attributes, indicating full
+             * resource availability and readiness for use, as initially configured. Invocation of this command may
+             * cause the LastChangedTime to be updated automatically based on the clock of the server, if the server
+             * supports setting the attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
+             */
+            resetCondition(): MaybePromise;
+        }
+
+        export type Components = [{ flags: {}, methods: Base }];
+    }
+
+    export type Features = "Condition" | "Warning" | "ReplacementProductList";
+
     /**
      * These are optional features supported by ResourceMonitoringCluster.
      *
@@ -110,17 +200,10 @@ export namespace ResourceMonitoring {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.4
      */
-    export const TlvReplacementProduct = TlvObject({
-        productIdentifierType: TlvField(0, TlvEnum<ProductIdentifierType>()),
-        productIdentifierValue: TlvField(1, TlvString.bound({ maxLength: 20 }))
-    });
-
-    /**
-     * Indicates the product identifier that can be used as a replacement for the resource.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.4
-     */
-    export interface ReplacementProduct extends TypeFromSchema<typeof TlvReplacementProduct> {}
+    export interface ReplacementProduct {
+        productIdentifierType: ProductIdentifierType;
+        productIdentifierValue: string;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.2
@@ -141,6 +224,16 @@ export namespace ResourceMonitoring {
          */
         Critical = 2
     }
+
+    /**
+     * Indicates the product identifier that can be used as a replacement for the resource.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.4
+     */
+    export const TlvReplacementProduct = TlvObject({
+        productIdentifierType: TlvField(0, TlvEnum<ProductIdentifierType>()),
+        productIdentifierValue: TlvField(1, TlvString.bound({ maxLength: 20 }))
+    });
 
     /**
      * A ResourceMonitoringCluster supports these elements if it supports feature Condition.
@@ -296,4 +389,16 @@ export namespace ResourceMonitoring {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const name = "ResourceMonitoring" as const;
+    export const revision = 1;
+    export const schema = ResourceMonitoringModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: ResourceMonitoring;
 }
+
+ClusterNamespace.define(ResourceMonitoring);
+export interface ResourceMonitoring extends ClusterTyping { Attributes: ResourceMonitoring.Attributes & { Components: ResourceMonitoring.Attributes.Components }; Commands: ResourceMonitoring.Commands & { Components: ResourceMonitoring.Commands.Components }; Features: ResourceMonitoring.Features }

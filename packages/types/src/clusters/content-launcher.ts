@@ -10,19 +10,102 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvUInt32, TlvBitmap, TlvDouble, TlvEnum, TlvUInt64, TlvUInt8 } from "../tlv/TlvNumber.js";
 import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { MediaPlayback } from "./media-playback.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { Identity } from "@matter/general";
+import { BitFlag } from "../schema/BitmapSchema.js";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ContentLauncher as ContentLauncherModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the ContentLauncher cluster.
+ */
 export namespace ContentLauncher {
+    /**
+     * Attributes that may appear in {@link ContentLauncher}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
+         * of entries in the HTTP "Accept" request header.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+         */
+        acceptHeader: string[];
+
+        /**
+         * This attribute shall provide information about supported streaming protocols.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+         */
+        supportedStreamingProtocols: SupportedProtocols;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: { urlPlayback: true }, mandatory: "acceptHeader" | "supportedStreamingProtocols" }
+        ];
+    }
+    export interface Commands extends Commands.UrlPlayback, Commands.ContentSearchComponent {}
+
+    export namespace Commands {
+        /**
+         * {@link ContentLauncher} supports these commands if it supports feature "UrlPlayback".
+         */
+        export interface UrlPlayback {
+            /**
+             * Upon receipt, this shall launch content from the specified URL.
+             *
+             * The content types supported include those identified in the AcceptHeader and SupportedStreamingProtocols
+             * attributes.
+             *
+             * A check shall be made to ensure the URL is secure (uses HTTPS).
+             *
+             * When playing a video stream in response to this command, an indication (ex. visual) of the identity of
+             * the origin node of the video stream shall be provided. This could be in the form of a friendly name label
+             * which uniquely identifies the node to the user. This friendly name label is typically assigned by the
+             * Matter Admin (ex. TV) at the time of commissioning and, when it’s a device, is often editable by the
+             * user. It might be a combination of a company name and friendly name, for example, ”Acme” or “Acme
+             * Streaming Service on Alice’s Phone”.
+             *
+             * This command returns a Launch Response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
+             */
+            launchUrl(request: LaunchUrlRequest): MaybePromise<LauncherResponse>;
+        }
+
+        /**
+         * {@link ContentLauncher} supports these commands if it supports feature "ContentSearch".
+         */
+        export interface ContentSearchComponent {
+            /**
+             * Upon receipt, this shall launch the specified content with optional search criteria.
+             *
+             * This command returns a Launch Response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
+             */
+            launchContent(request: LaunchContentRequest): MaybePromise<LauncherResponse>;
+        }
+
+        export type Components = [
+            { flags: { urlPlayback: true }, methods: UrlPlayback },
+            { flags: { contentSearch: true }, methods: ContentSearchComponent }
+        ];
+    }
+
+    export type Features = "ContentSearch" | "UrlPlayback" | "AdvancedSeek" | "TextTracks" | "AudioTracks";
+
     /**
      * These are optional features supported by ContentLauncherCluster.
      *
@@ -81,6 +164,18 @@ export namespace ContentLauncher {
         hls: BitFlag(1)
     };
 
+    export interface SupportedProtocols {
+        /**
+         * Device supports Dynamic Adaptive Streaming over HTTP (DASH)
+         */
+        dash?: boolean;
+
+        /**
+         * Device supports HTTP Live Streaming (HLS)
+         */
+        hls?: boolean;
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.4
      */
@@ -113,35 +208,28 @@ export namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8
      */
-    export const TlvDimension = TlvObject({
+    export interface Dimension {
         /**
          * This field shall indicate the width using the metric defined in Metric
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.1
          */
-        width: TlvField(0, TlvDouble),
+        width: number;
 
         /**
          * This field shall indicate the height using the metric defined in Metric
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.2
          */
-        height: TlvField(1, TlvDouble),
+        height: number;
 
         /**
          * This field shall indicate metric used for defining Height/Width.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.3
          */
-        metric: TlvField(2, TlvEnum<MetricType>())
-    });
-
-    /**
-     * This object defines dimension which can be used for defining Size of background images.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8
-     */
-    export interface Dimension extends TypeFromSchema<typeof TlvDimension> {}
+        metric: MetricType;
+    }
 
     /**
      * This object defines style information which can be used by content providers to change the Media Player’s style
@@ -149,7 +237,7 @@ export namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9
      */
-    export const TlvStyleInformation = TlvObject({
+    export interface StyleInformation {
         /**
          * This field shall indicate the URL of image used for Styling different Video Player sections like Logo,
          * Watermark etc. The syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the
@@ -157,7 +245,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.1
          */
-        imageUrl: TlvOptionalField(0, TlvString.bound({ maxLength: 8192 })),
+        imageUrl?: string;
 
         /**
          * This field shall indicate the color, in RGB or RGBA, used for styling different Video Player sections like
@@ -170,7 +258,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.2
          */
-        color: TlvOptionalField(1, TlvString),
+        color?: string;
 
         /**
          * This field shall indicate the size of the image used for Styling different Video Player sections like Logo,
@@ -178,16 +266,8 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.3
          */
-        size: TlvOptionalField(2, TlvDimension)
-    });
-
-    /**
-     * This object defines style information which can be used by content providers to change the Media Player’s style
-     * related properties.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9
-     */
-    export interface StyleInformation extends TypeFromSchema<typeof TlvStyleInformation> {}
+        size?: Dimension;
+    }
 
     /**
      * This object defines Branding Information which can be provided by the client in order to customize the skin of
@@ -195,13 +275,13 @@ export namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10
      */
-    export const TlvBrandingInformation = TlvObject({
+    export interface BrandingInformation {
         /**
          * This field shall indicate name of the provider for the given content.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.1
          */
-        providerName: TlvField(0, TlvString.bound({ maxLength: 256 })),
+        providerName: string;
 
         /**
          * This field shall indicate background of the Video Player while content launch request is being processed by
@@ -209,7 +289,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.2
          */
-        background: TlvOptionalField(1, TlvStyleInformation),
+        background?: StyleInformation;
 
         /**
          * This field shall indicate the logo shown when the Video Player is launching. This is also used when the Video
@@ -217,14 +297,14 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.3
          */
-        logo: TlvOptionalField(2, TlvStyleInformation),
+        logo?: StyleInformation;
 
         /**
          * This field shall indicate the style of progress bar for media playback.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.4
          */
-        progressBar: TlvOptionalField(3, TlvStyleInformation),
+        progressBar?: StyleInformation;
 
         /**
          * This field shall indicate the screen shown when the Video Player is in an idle state. If this property is not
@@ -232,37 +312,29 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.5
          */
-        splash: TlvOptionalField(4, TlvStyleInformation),
+        splash?: StyleInformation;
 
         /**
          * This field shall indicate watermark shown when the media is playing.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.6
          */
-        watermark: TlvOptionalField(5, TlvStyleInformation)
-    });
-
-    /**
-     * This object defines Branding Information which can be provided by the client in order to customize the skin of
-     * the Video Player during playback.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10
-     */
-    export interface BrandingInformation extends TypeFromSchema<typeof TlvBrandingInformation> {}
+        watermark?: StyleInformation;
+    }
 
     /**
      * This structure defines Text/Audio Track preferences.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12
      */
-    export const TlvTrackPreference = TlvObject({
+    export interface TrackPreference {
         /**
          * This field shall contain one of the standard Tags for Identifying Languages RFC 5646, which identifies the
          * primary language used in the Track.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.1
          */
-        languageCode: TlvField(0, TlvString.bound({ maxLength: 32 })),
+        languageCode: string;
 
         /**
          * This field shall contain a list of enumerated CharacteristicEnum values that indicate a purpose, trait or
@@ -271,7 +343,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.2
          */
-        characteristics: TlvOptionalField(1, TlvNullable(TlvArray(TlvEnum<MediaPlayback.Characteristic>()))),
+        characteristics?: MediaPlayback.Characteristic[] | null;
 
         /**
          * This field if present shall indicate the index of the OutputInfoStruct from the OutputList attribute (from
@@ -284,15 +356,8 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.3
          */
-        audioOutputIndex: TlvOptionalField(2, TlvNullable(TlvUInt8))
-    });
-
-    /**
-     * This structure defines Text/Audio Track preferences.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12
-     */
-    export interface TrackPreference extends TypeFromSchema<typeof TlvTrackPreference> {}
+        audioOutputIndex?: number | null;
+    }
 
     /**
      * PlaybackPreferencesStruct defines the preferences sent by the client to the receiver in the ContentLauncher
@@ -300,7 +365,7 @@ export namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11
      */
-    export const TlvPlaybackPreferences = TlvObject({
+    export interface PlaybackPreferences {
         /**
          * This field shall indicate the preferred position (in milliseconds) in the media to launch playback from. In
          * case the position falls in the middle of a frame, the server shall set the position to the beginning of that
@@ -310,7 +375,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.1
          */
-        playbackPosition: TlvOptionalField(0, TlvNullable(TlvUInt64)),
+        playbackPosition?: number | bigint | null;
 
         /**
          * This field shall indicate the user’s preferred Text Track. A value of null shall indicate that the user did
@@ -319,7 +384,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.2
          */
-        textTrack: TlvOptionalField(1, TlvNullable(TlvTrackPreference)),
+        textTrack?: TrackPreference | null;
 
         /**
          * This field shall indicate the list of the user’s preferred Audio Tracks. If the list contains multiple
@@ -329,30 +394,35 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.3
          */
-        audioTracks: TlvOptionalField(2, TlvNullable(TlvArray(TlvTrackPreference)))
-    });
+        audioTracks?: TrackPreference[] | null;
+    }
 
     /**
-     * PlaybackPreferencesStruct defines the preferences sent by the client to the receiver in the ContentLauncher
-     * LaunchURL or LaunchContent commands.
+     * Upon receipt, this shall launch content from the specified URL.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11
-     */
-    export interface PlaybackPreferences extends TypeFromSchema<typeof TlvPlaybackPreferences> {}
-
-    /**
-     * Input to the ContentLauncher launchUrl command
+     * The content types supported include those identified in the AcceptHeader and SupportedStreamingProtocols
+     * attributes.
+     *
+     * A check shall be made to ensure the URL is secure (uses HTTPS).
+     *
+     * When playing a video stream in response to this command, an indication (ex. visual) of the identity of the origin
+     * node of the video stream shall be provided. This could be in the form of a friendly name label which uniquely
+     * identifies the node to the user. This friendly name label is typically assigned by the Matter Admin (ex. TV) at
+     * the time of commissioning and, when it’s a device, is often editable by the user. It might be a combination of a
+     * company name and friendly name, for example, ”Acme” or “Acme Streaming Service on Alice’s Phone”.
+     *
+     * This command returns a Launch Response.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
      */
-    export const TlvLaunchUrlRequest = TlvObject({
+    export interface LaunchUrlRequest {
         /**
          * This field shall indicate the URL of content to launch. The syntax of this field shall follow the syntax as
          * specified in RFC 1738 and shall use the https scheme.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.1
          */
-        contentUrl: TlvField(0, TlvString),
+        contentUrl: string;
 
         /**
          * This field, if present, shall provide a string that may be used to describe the content being accessed at the
@@ -360,7 +430,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.2
          */
-        displayString: TlvOptionalField(1, TlvString),
+        displayString?: string;
 
         /**
          * This field, if present, shall indicate the branding information that may be displayed when playing back the
@@ -368,7 +438,7 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.3
          */
-        brandingInformation: TlvOptionalField(2, TlvBrandingInformation),
+        brandingInformation?: BrandingInformation;
 
         /**
          * This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition for the
@@ -382,15 +452,8 @@ export namespace ContentLauncher {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.4
          */
-        playbackPreferences: TlvOptionalField(3, TlvPlaybackPreferences)
-    });
-
-    /**
-     * Input to the ContentLauncher launchUrl command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
-     */
-    export interface LaunchUrlRequest extends TypeFromSchema<typeof TlvLaunchUrlRequest> {}
+        playbackPreferences?: PlaybackPreferences;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
@@ -423,92 +486,25 @@ export namespace ContentLauncher {
     }
 
     /**
-     * Thrown for cluster status code {@link Status.UrlNotAvailable}.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
-     */
-    export class UrlNotAvailableError extends StatusResponseError {
-        constructor(
-            message = "Requested URL could not be reached by device",
-            code = GlobalStatus.Failure,
-            clusterCode = Status.UrlNotAvailable
-        ) {
-            super(message, code, clusterCode);
-        }
-    }
-
-    /**
-     * Thrown for cluster status code {@link Status.AuthFailed}.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
-     */
-    export class AuthFailedError extends StatusResponseError {
-        constructor(
-            message = "Requested URL returned 401 error code",
-            code = GlobalStatus.Failure,
-            clusterCode = Status.AuthFailed
-        ) {
-            super(message, code, clusterCode);
-        }
-    }
-
-    /**
-     * Thrown for cluster status code {@link Status.TextTrackNotAvailable}.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
-     */
-    export class TextTrackNotAvailableError extends StatusResponseError {
-        constructor(
-            message = "Requested Text Track (in PlaybackPreferences) not available",
-            code = GlobalStatus.Failure,
-            clusterCode = Status.TextTrackNotAvailable
-        ) {
-            super(message, code, clusterCode);
-        }
-    }
-
-    /**
-     * Thrown for cluster status code {@link Status.AudioTrackNotAvailable}.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
-     */
-    export class AudioTrackNotAvailableError extends StatusResponseError {
-        constructor(
-            message = "Requested Audio Track (in PlaybackPreferences) not available",
-            code = GlobalStatus.Failure,
-            clusterCode = Status.AudioTrackNotAvailable
-        ) {
-            super(message, code, clusterCode);
-        }
-    }
-
-    /**
      * This command shall be generated in response to LaunchContent and LaunchURL commands.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3
      */
-    export const TlvLauncherResponse = TlvObject({
+    export interface LauncherResponse {
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.1
          */
-        status: TlvField(0, TlvEnum<Status>()),
+        status: Status;
 
         /**
          * This field shall indicate Optional app-specific data.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.2
          */
-        data: TlvOptionalField(1, TlvString)
-    });
-
-    /**
-     * This command shall be generated in response to LaunchContent and LaunchURL commands.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3
-     */
-    export interface LauncherResponse extends TypeFromSchema<typeof TlvLauncherResponse> {}
+        data?: string;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.3
@@ -614,6 +610,450 @@ export namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5
      */
+    export interface AdditionalInfo {
+        /**
+         * This field shall indicate the name of external id, ex. "musicbrainz".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5.1
+         */
+        name: string;
+
+        /**
+         * This field shall indicate the value for external id, ex. "ST0000000666661".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5.2
+         */
+        value: string;
+    }
+
+    /**
+     * This object defines inputs to a search for content for display or playback.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6
+     */
+    export interface ParameterStruct {
+        /**
+         * This field shall indicate the entity type.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.1
+         */
+        type: Parameter;
+
+        /**
+         * This field shall indicate the entity value, which is a search string, ex. “Manchester by the Sea”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.2
+         */
+        value: string;
+
+        /**
+         * This field shall indicate the list of additional external content identifiers.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.3
+         */
+        externalIdList?: AdditionalInfo[];
+    }
+
+    /**
+     * This object defines inputs to a search for content for display or playback.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7
+     */
+    export interface ContentSearch {
+        /**
+         * This field shall indicate the list of parameters comprising the search. If multiple parameters are provided,
+         * the search parameters shall be joined with 'AND' logic. e.g. action movies with Tom Cruise will be
+         * represented as [{Actor: 'Tom Cruise'}, {Type: 'Movie'}, {Genre: 'Action'}]
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7.1
+         */
+        parameterList: ParameterStruct[];
+    }
+
+    /**
+     * Upon receipt, this shall launch the specified content with optional search criteria.
+     *
+     * This command returns a Launch Response.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
+     */
+    export interface LaunchContentRequest {
+        /**
+         * This field shall indicate the content to launch.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.1
+         */
+        search: ContentSearch;
+
+        /**
+         * This field shall indicate whether to automatically start playing content, where:
+         *
+         *   - TRUE means best match should start playing automatically.
+         *
+         *   - FALSE means matches should be displayed on screen for user selection.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.2
+         */
+        autoPlay: boolean;
+
+        /**
+         * This field, if present, shall indicate app-specific data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.3
+         */
+        data?: string;
+
+        /**
+         * This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition for the
+         * media, sent from the client to the server. If the server does not find an available track for the title being
+         * played exactly matching a Track requested here, in the list of available tracks, it may default to picking
+         * another track that closely matches the requested track. Alternately, it may go with user preferences set on
+         * the server side (it will use this option if these PlaybackPreferences are not specified). In the case of text
+         * tracks, that may mean that the subtitle text is not displayed at all. In the cases where the preferred
+         * Text/AudioTracks are not available, the server shall return the TextTrackNotAvailable and/or
+         * AudioTrackNotAvailable Status(es) in the LauncherResponse.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.4
+         */
+        playbackPreferences?: PlaybackPreferences;
+
+        /**
+         * This field, if present, shall indicate whether to consider the context of current ongoing activity on the
+         * receiver to fulfill the request. For example if the request only includes data in ContentSearch that
+         * specifies an Episode number, and UseCurrentContent is set to TRUE, if there is a TV series on going, the
+         * request refers to the specific episode of the ongoing season of the TV series. TRUE means current activity
+         * context may be considered FALSE means current activity context shall NOT be considered
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.5
+         */
+        useCurrentContext?: boolean;
+    }
+
+    /**
+     * This object defines dimension which can be used for defining Size of background images.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8
+     */
+    export const TlvDimension = TlvObject({
+        /**
+         * This field shall indicate the width using the metric defined in Metric
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.1
+         */
+        width: TlvField(0, TlvDouble),
+
+        /**
+         * This field shall indicate the height using the metric defined in Metric
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.2
+         */
+        height: TlvField(1, TlvDouble),
+
+        /**
+         * This field shall indicate metric used for defining Height/Width.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.3
+         */
+        metric: TlvField(2, TlvEnum<MetricType>())
+    });
+
+    /**
+     * This object defines style information which can be used by content providers to change the Media Player’s style
+     * related properties.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9
+     */
+    export const TlvStyleInformation = TlvObject({
+        /**
+         * This field shall indicate the URL of image used for Styling different Video Player sections like Logo,
+         * Watermark etc. The syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the
+         * https scheme.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.1
+         */
+        imageUrl: TlvOptionalField(0, TlvString.bound({ maxLength: 8192 })),
+
+        /**
+         * This field shall indicate the color, in RGB or RGBA, used for styling different Video Player sections like
+         * Logo, Watermark, etc. The value shall conform to the 6-digit or 8-digit format defined for CSS sRGB
+         * hexadecimal color notation. Examples:
+         *
+         *   - #76DE19 for R=0x76, G=0xDE, B=0x19, A absent
+         *
+         *   - #76DE1980 for R=0x76, G=0xDE, B=0x19, A=0x80
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.2
+         */
+        color: TlvOptionalField(1, TlvString),
+
+        /**
+         * This field shall indicate the size of the image used for Styling different Video Player sections like Logo,
+         * Watermark etc.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.3
+         */
+        size: TlvOptionalField(2, TlvDimension)
+    });
+
+    /**
+     * This object defines Branding Information which can be provided by the client in order to customize the skin of
+     * the Video Player during playback.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10
+     */
+    export const TlvBrandingInformation = TlvObject({
+        /**
+         * This field shall indicate name of the provider for the given content.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.1
+         */
+        providerName: TlvField(0, TlvString.bound({ maxLength: 256 })),
+
+        /**
+         * This field shall indicate background of the Video Player while content launch request is being processed by
+         * it. This background information may also be used by the Video Player when it is in idle state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.2
+         */
+        background: TlvOptionalField(1, TlvStyleInformation),
+
+        /**
+         * This field shall indicate the logo shown when the Video Player is launching. This is also used when the Video
+         * Player is in the idle state and Splash field is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.3
+         */
+        logo: TlvOptionalField(2, TlvStyleInformation),
+
+        /**
+         * This field shall indicate the style of progress bar for media playback.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.4
+         */
+        progressBar: TlvOptionalField(3, TlvStyleInformation),
+
+        /**
+         * This field shall indicate the screen shown when the Video Player is in an idle state. If this property is not
+         * populated, the Video Player shall default to logo or the provider name.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.5
+         */
+        splash: TlvOptionalField(4, TlvStyleInformation),
+
+        /**
+         * This field shall indicate watermark shown when the media is playing.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.6
+         */
+        watermark: TlvOptionalField(5, TlvStyleInformation)
+    });
+
+    /**
+     * This structure defines Text/Audio Track preferences.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12
+     */
+    export const TlvTrackPreference = TlvObject({
+        /**
+         * This field shall contain one of the standard Tags for Identifying Languages RFC 5646, which identifies the
+         * primary language used in the Track.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.1
+         */
+        languageCode: TlvField(0, TlvString.bound({ maxLength: 32 })),
+
+        /**
+         * This field shall contain a list of enumerated CharacteristicEnum values that indicate a purpose, trait or
+         * feature associated with the Track. A value of null shall indicate that there are no Characteristics
+         * corresponding to the Track.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.2
+         */
+        characteristics: TlvOptionalField(1, TlvNullable(TlvArray(TlvEnum<MediaPlayback.Characteristic>()))),
+
+        /**
+         * This field if present shall indicate the index of the OutputInfoStruct from the OutputList attribute (from
+         * the AudioOutput cluster) and indicates which audio output the Audio Track should be played on.
+         *
+         * This field shall NOT be present if the track is not an audio track.
+         *
+         * If the track is an audio track, this field MUST be present. A value of null shall indicate that the server
+         * can choose the audio output(s) to play the Audio Track on.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.3
+         */
+        audioOutputIndex: TlvOptionalField(2, TlvNullable(TlvUInt8))
+    });
+
+    /**
+     * PlaybackPreferencesStruct defines the preferences sent by the client to the receiver in the ContentLauncher
+     * LaunchURL or LaunchContent commands.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11
+     */
+    export const TlvPlaybackPreferences = TlvObject({
+        /**
+         * This field shall indicate the preferred position (in milliseconds) in the media to launch playback from. In
+         * case the position falls in the middle of a frame, the server shall set the position to the beginning of that
+         * frame and set the SampledPosition attribute on the MediaPlayback cluster accordingly. A value of null shall
+         * indicate that playback position is not applicable for the current state of the media playback. (For example :
+         * Live media with no known duration and where seek is not supported).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.1
+         */
+        playbackPosition: TlvOptionalField(0, TlvNullable(TlvUInt64)),
+
+        /**
+         * This field shall indicate the user’s preferred Text Track. A value of null shall indicate that the user did
+         * not specify a preferred Text Track on the client. In such a case, the decision to display and select a Text
+         * Track is up to the server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.2
+         */
+        textTrack: TlvOptionalField(1, TlvNullable(TlvTrackPreference)),
+
+        /**
+         * This field shall indicate the list of the user’s preferred Audio Tracks. If the list contains multiple
+         * values, each AudioTrack must also specify a unique audioOutputIndex to play the track on. A value of null
+         * shall indicate that the user did not specify a preferred Audio Track on the client. In such a case, the
+         * decision to play and select an Audio Track is up to the server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.3
+         */
+        audioTracks: TlvOptionalField(2, TlvNullable(TlvArray(TlvTrackPreference)))
+    });
+
+    /**
+     * Input to the ContentLauncher launchUrl command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
+     */
+    export const TlvLaunchUrlRequest = TlvObject({
+        /**
+         * This field shall indicate the URL of content to launch. The syntax of this field shall follow the syntax as
+         * specified in RFC 1738 and shall use the https scheme.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.1
+         */
+        contentUrl: TlvField(0, TlvString),
+
+        /**
+         * This field, if present, shall provide a string that may be used to describe the content being accessed at the
+         * given URL.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.2
+         */
+        displayString: TlvOptionalField(1, TlvString),
+
+        /**
+         * This field, if present, shall indicate the branding information that may be displayed when playing back the
+         * given content.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.3
+         */
+        brandingInformation: TlvOptionalField(2, TlvBrandingInformation),
+
+        /**
+         * This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition for the
+         * media, sent from the client to the server. If the server does not find an available track for the title being
+         * played exactly matching a Track requested here, in the list of available tracks, it may default to picking
+         * another track that closely matches the requested track. Alternately, it may go with user preferences set on
+         * the server side (it will use this option if these PlaybackPreferences are not specified). In the case of text
+         * tracks, that may mean that the subtitle text is not displayed at all. In the cases where the preferred
+         * Text/AudioTracks are not available, the server shall return the TextTrackNotAvailable and/or
+         * AudioTrackNotAvailable Status(es) in the LauncherResponse.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.4
+         */
+        playbackPreferences: TlvOptionalField(3, TlvPlaybackPreferences)
+    });
+
+    /**
+     * Thrown for cluster status code {@link Status.UrlNotAvailable}.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     */
+    export class UrlNotAvailableError extends StatusResponseError {
+        constructor(
+            message = "Requested URL could not be reached by device",
+            code = GlobalStatus.Failure,
+            clusterCode = Status.UrlNotAvailable
+        ) {
+            super(message, code, clusterCode);
+        }
+    }
+
+    /**
+     * Thrown for cluster status code {@link Status.AuthFailed}.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     */
+    export class AuthFailedError extends StatusResponseError {
+        constructor(
+            message = "Requested URL returned 401 error code",
+            code = GlobalStatus.Failure,
+            clusterCode = Status.AuthFailed
+        ) {
+            super(message, code, clusterCode);
+        }
+    }
+
+    /**
+     * Thrown for cluster status code {@link Status.TextTrackNotAvailable}.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     */
+    export class TextTrackNotAvailableError extends StatusResponseError {
+        constructor(
+            message = "Requested Text Track (in PlaybackPreferences) not available",
+            code = GlobalStatus.Failure,
+            clusterCode = Status.TextTrackNotAvailable
+        ) {
+            super(message, code, clusterCode);
+        }
+    }
+
+    /**
+     * Thrown for cluster status code {@link Status.AudioTrackNotAvailable}.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     */
+    export class AudioTrackNotAvailableError extends StatusResponseError {
+        constructor(
+            message = "Requested Audio Track (in PlaybackPreferences) not available",
+            code = GlobalStatus.Failure,
+            clusterCode = Status.AudioTrackNotAvailable
+        ) {
+            super(message, code, clusterCode);
+        }
+    }
+
+    /**
+     * This command shall be generated in response to LaunchContent and LaunchURL commands.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3
+     */
+    export const TlvLauncherResponse = TlvObject({
+        /**
+         * This field shall indicate the status of the command which resulted in this response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.1
+         */
+        status: TlvField(0, TlvEnum<Status>()),
+
+        /**
+         * This field shall indicate Optional app-specific data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.2
+         */
+        data: TlvOptionalField(1, TlvString)
+    });
+
+    /**
+     * This object defines additional name=value pairs that can be used for identifying content.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5
+     */
     export const TlvAdditionalInfo = TlvObject({
         /**
          * This field shall indicate the name of external id, ex. "musicbrainz".
@@ -629,13 +1069,6 @@ export namespace ContentLauncher {
          */
         value: TlvField(1, TlvString.bound({ maxLength: 8192 }))
     });
-
-    /**
-     * This object defines additional name=value pairs that can be used for identifying content.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5
-     */
-    export interface AdditionalInfo extends TypeFromSchema<typeof TlvAdditionalInfo> {}
 
     /**
      * This object defines inputs to a search for content for display or playback.
@@ -668,13 +1101,6 @@ export namespace ContentLauncher {
     /**
      * This object defines inputs to a search for content for display or playback.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6
-     */
-    export interface ParameterStruct extends TypeFromSchema<typeof TlvParameterStruct> {}
-
-    /**
-     * This object defines inputs to a search for content for display or playback.
-     *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7
      */
     export const TlvContentSearch = TlvObject({
@@ -687,13 +1113,6 @@ export namespace ContentLauncher {
          */
         parameterList: TlvField(0, TlvArray(TlvParameterStruct))
     });
-
-    /**
-     * This object defines inputs to a search for content for display or playback.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7
-     */
-    export interface ContentSearch extends TypeFromSchema<typeof TlvContentSearch> {}
 
     /**
      * Input to the ContentLauncher launchContent command
@@ -751,13 +1170,6 @@ export namespace ContentLauncher {
          */
         useCurrentContext: TlvOptionalField(4, TlvBoolean)
     });
-
-    /**
-     * Input to the ContentLauncher launchContent command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
-     */
-    export interface LaunchContentRequest extends TypeFromSchema<typeof TlvLaunchContentRequest> {}
 
     /**
      * A ContentLauncherCluster supports these elements if it supports feature UrlPlayback.
@@ -943,8 +1355,20 @@ export namespace ContentLauncher {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x50a);
+    export const name = "ContentLauncher" as const;
+    export const revision = 2;
+    export const schema = ContentLauncherModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: ContentLauncher;
 }
 
 export type ContentLauncherCluster = ContentLauncher.Cluster;
 export const ContentLauncherCluster = ContentLauncher.Cluster;
 ClusterRegistry.register(ContentLauncher.Complete);
+ClusterNamespace.define(ContentLauncher);
+export interface ContentLauncher extends ClusterTyping { Attributes: ContentLauncher.Attributes & { Components: ContentLauncher.Attributes.Components }; Commands: ContentLauncher.Commands & { Components: ContentLauncher.Commands.Components }; Features: ContentLauncher.Features }

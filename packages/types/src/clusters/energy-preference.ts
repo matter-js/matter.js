@@ -12,12 +12,123 @@ import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvPercent, TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { EnergyPreference as EnergyPreferenceModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the EnergyPreference cluster.
+ */
 export namespace EnergyPreference {
+    /**
+     * Attributes that may appear in {@link EnergyPreference}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates a list of BalanceStructs, each representing a step along a linear scale of relative priorities. A
+         * Step field with a value of zero shall indicate that the device SHOULD entirely favor the priority specified
+         * by the first element in EnergyPriorities; whereas a Step field with a value of 100 shall indicate that the
+         * device SHOULD entirely favor the priority specified by the second element in EnergyPriorities. The midpoint
+         * value of 50 shall indicate an even split between the two priorities.
+         *
+         * This shall contain at least two BalanceStructs.
+         *
+         * Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct in the
+         * list.
+         *
+         * The first BalanceStruct shall have a Step value of zero, and the last BalanceStruct shall have a Step value
+         * of 100.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.1
+         */
+        energyBalances: Balance[];
+
+        /**
+         * Indicates the current preference of the user for balancing different priorities during device use. The value
+         * of this attribute is the index, 0-based, into the EnergyBalances attribute for the currently selected
+         * balance.
+         *
+         * If an attempt is made to set this attribute to an index outside the maximum index for EnergyBalances, a
+         * response with the status code CONSTRAINT_ERROR shall be returned.
+         *
+         * If the value of EnergyBalances changes after an update, the device shall migrate the value of the
+         * CurrentEnergyBalance attribute to the index which the manufacturer specifies most closely matches the
+         * previous value, while preserving extreme preferences as follows:
+         *
+         *   1. If the previous value of CurrentEnergyBalance was zero, indicating a total preference for the priority
+         *      specified by the first element in EnergyPriorities, the new value of CurrentEnergyBalance shall also be
+         *      zero.
+         *
+         *   2. If the previous value of CurrentEnergyBalance was the index of the last BalanceStruct in the previous
+         *      value of EnergyBalances, indicating a total preference for the priority specified by the last element in
+         *      EnergyPriorities, the new value of CurrentEnergyBalance shall be the index of the last element in the
+         *      updated value of EnergyBalances.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.2
+         */
+        currentEnergyBalance: number;
+
+        /**
+         * Indicates two extremes for interpreting the values in the EnergyBalances attribute. These two priorities
+         * shall be in opposition to each other; e.g. Comfort vs. Efficiency or Speed vs. WaterConsumption.
+         *
+         * If the value of EnergyPriorities changes after an update to represent a new balance between priorities, the
+         * value of the CurrentEnergyBalance attribute shall be set to its default.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.3
+         */
+        energyPriorities: EnergyPriority[];
+
+        /**
+         * Indicates a list of BalanceStructs, each representing a condition or set of conditions for the device to
+         * enter a low power mode.
+         *
+         * This shall contain at least two BalanceStructs.
+         *
+         * Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct in the
+         * list.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.4
+         */
+        lowPowerModeSensitivities: Balance[];
+
+        /**
+         * Indicates the current preference of the user for determining when the device should enter a low power mode.
+         * The value of this attribute is the index, 0-based, into the LowPowerModeSensitivities attribute for the
+         * currently selected preference.
+         *
+         * If an attempt is made to set this attribute to an index outside the maximum index for
+         * LowPowerModeSensitivities, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *
+         * If the value of LowPowerModeSensitivities changes after an update, the device shall migrate the value of the
+         * LowPowerModeSensitivity attribute to the index which the manufacturer specifies most closely matches the
+         * previous value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.5
+         */
+        currentLowPowerModeSensitivity: number;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            {
+                flags: { energyBalance: true },
+                mandatory: "energyBalances" | "currentEnergyBalance" | "energyPriorities"
+            },
+            {
+                flags: { lowPowerModeSensitivity: true },
+                mandatory: "lowPowerModeSensitivities" | "currentLowPowerModeSensitivity"
+            }
+        ];
+    }
+
+    export type Features = "EnergyBalance" | "LowPowerModeSensitivity";
+
     /**
      * These are optional features supported by EnergyPreferenceCluster.
      *
@@ -51,13 +162,13 @@ export namespace EnergyPreference {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2
      */
-    export const TlvBalance = TlvObject({
+    export interface Balance {
         /**
          * This field shall indicate the relative value of this step.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.1
          */
-        step: TlvField(0, TlvPercent),
+        step: number;
 
         /**
          * This field shall indicate an optional string explaining which actions a device might take at the given step
@@ -65,15 +176,8 @@ export namespace EnergyPreference {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.2
          */
-        label: TlvOptionalField(1, TlvString.bound({ maxLength: 64 }))
-    });
-
-    /**
-     * This represents a step along a scale of preferences.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2
-     */
-    export interface Balance extends TypeFromSchema<typeof TlvBalance> {}
+        label?: string;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.1
@@ -112,6 +216,28 @@ export namespace EnergyPreference {
          */
         WaterConsumption = 3
     }
+
+    /**
+     * This represents a step along a scale of preferences.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2
+     */
+    export const TlvBalance = TlvObject({
+        /**
+         * This field shall indicate the relative value of this step.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.1
+         */
+        step: TlvField(0, TlvPercent),
+
+        /**
+         * This field shall indicate an optional string explaining which actions a device might take at the given step
+         * value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.2
+         */
+        label: TlvOptionalField(1, TlvString.bound({ maxLength: 64 }))
+    });
 
     /**
      * A EnergyPreferenceCluster supports these elements if it supports feature EnergyBalance.
@@ -314,8 +440,18 @@ export namespace EnergyPreference {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x9b);
+    export const name = "EnergyPreference" as const;
+    export const revision = 1;
+    export const schema = EnergyPreferenceModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: EnergyPreference;
 }
 
 export type EnergyPreferenceCluster = EnergyPreference.Cluster;
 export const EnergyPreferenceCluster = EnergyPreference.Cluster;
 ClusterRegistry.register(EnergyPreference.Complete);
+ClusterNamespace.define(EnergyPreference);
+export interface EnergyPreference extends ClusterTyping { Attributes: EnergyPreference.Attributes & { Components: EnergyPreference.Attributes.Components }; Features: EnergyPreference.Features }

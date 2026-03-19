@@ -20,24 +20,1166 @@ import {
 } from "../cluster/Cluster.js";
 import { TlvEnum, TlvUInt32, TlvUInt16, TlvUInt8, TlvBitmap, TlvEpochS } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, DoorLock as DoorLockModel } from "@matter/model";
 import { Priority } from "../globals/Priority.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { BitFlag, BitField } from "../schema/BitmapSchema.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { TlvArray } from "../tlv/TlvArray.js";
-import { TlvFabricIndex } from "../datatype/FabricIndex.js";
+import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
 import { Status } from "../globals/Status.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { TlvNodeId } from "../datatype/NodeId.js";
+import { TlvNodeId, NodeId } from "../datatype/NodeId.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
+import { BitFlag, BitField } from "../schema/BitmapSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { ClusterType } from "../cluster/ClusterType.js";
-import { Identity } from "@matter/general";
+import { Identity, Bytes, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the DoorLock cluster.
+ */
 export namespace DoorLock {
+    /**
+     * Attributes that may appear in {@link DoorLock}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute may be NULL if the lock hardware does not currently know the status of the locking mechanism.
+         * For example, a lock may not know the LockState status after a power cycle until the first lock actuation is
+         * completed.
+         *
+         * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
+         * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
+         * not in a dead latched state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.1
+         */
+        lockState: LockState | null;
+
+        /**
+         * Indicates the type of door lock as defined in LockTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.2
+         */
+        lockType: LockType;
+
+        /**
+         * Indicates if the lock is currently able to (Enabled) or not able to (Disabled) process remote Lock, Unlock,
+         * or Unlock with Timeout commands.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.3
+         */
+        actuatorEnabled: boolean;
+
+        /**
+         * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.24
+         */
+        operatingMode: OperatingMode;
+
+        /**
+         * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by the
+         * lock.
+         *
+         * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
+         * indicate that the mode is not supported.
+         *
+         * Any bit that is not yet defined in OperatingModesBitmap shall be set to 1.
+         *
+         * The values considered valid to read or write in the OperatingMode attribute shall be the enum values from
+         * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in this
+         * attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this specification.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.25
+         */
+        supportedOperatingModes: OperatingModes;
+
+        /**
+         * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
+         * ISO-639-1.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.20
+         */
+        language: string;
+
+        /**
+         * Indicates the settings for the LED support, as defined by LEDSettingEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.21
+         */
+        ledSettings: LedSetting;
+
+        /**
+         * Indicates the number of seconds to wait after unlocking a lock before it automatically locks again.
+         * 0=disabled. If set, unlock operations from any source will be timed. For one time unlock with timeout use the
+         * specific command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.22
+         */
+        autoRelockTime: number;
+
+        /**
+         * Indicates the sound volume on a door lock as defined by SoundVolumeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.23
+         */
+        soundVolume: SoundVolume;
+
+        /**
+         * Indicates the default configurations as they are physically set on the device (example: hardware dip switch
+         * setting, etc…) and represents the default setting for some of the attributes within this cluster (for
+         * example: LED, Auto Lock, Sound Volume, and Operating Mode attributes).
+         *
+         * This is a read-only attribute and is intended to allow clients to determine what changes may need to be made
+         * without having to query all the included attributes. It may be beneficial for the clients to know what the
+         * device’s original settings were in the event that the device needs to be restored to factory default
+         * settings.
+         *
+         * If the Client device would like to query and modify the door lock server’s operating settings, it SHOULD send
+         * read and write attribute requests to the specific attributes.
+         *
+         * For example, the Sound Volume attribute default value is Silent Mode. However, it is possible that the
+         * current Sound Volume is High Volume. Therefore, if the client wants to query/modify the current Sound Volume
+         * setting on the server, the client SHOULD read/write to the Sound Volume attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.26
+         */
+        defaultConfigurationRegister: ConfigurationRegister;
+
+        /**
+         * This attribute shall enable/disable local programming on the door lock of certain features (see
+         * LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled on the
+         * door lock for all features. If it is set to FALSE then local programming is disabled on the door lock for
+         * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
+         * enabled by default.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.27
+         */
+        enableLocalProgramming: boolean;
+
+        /**
+         * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.28
+         */
+        enableOneTouchLocking: boolean;
+
+        /**
+         * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
+         * locked.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.29
+         */
+        enableInsideStatusLed: boolean;
+
+        /**
+         * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
+         * When the lock is in privacy mode it cannot be manipulated from the outside.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.30
+         */
+        enablePrivacyModeButton: boolean;
+
+        /**
+         * Indicates the local programming features that will be disabled when EnableLocalProgramming attribute is set
+         * to False. If a door lock doesn’t support disabling one aspect of local programming it shall return
+         * CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming attribute is set
+         * to True then all local programming features shall be enabled regardless of the bits set to 0 in this
+         * attribute.
+         *
+         * The features that can be disabled from local programming are defined in LocalProgrammingFeaturesBitmap.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.31
+         */
+        localProgrammingFeatures: LocalProgrammingFeatures;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9
+         * @deprecated
+         */
+        securityLevel: any;
+
+        /**
+         * Indicates the current door state as defined in DoorStateEnum.
+         *
+         * Null only if an internal error prevents the retrieval of the current door state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.4
+         */
+        doorState: DoorState | null;
+
+        /**
+         * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.5
+         */
+        doorOpenEvents: number;
+
+        /**
+         * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.6
+         */
+        doorClosedEvents: number;
+
+        /**
+         * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
+         * from closed to open.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.7
+         */
+        openPeriod: number;
+
+        /**
+         * Indicates the number of total users supported by the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.8
+         */
+        numberOfTotalUsersSupported: number;
+
+        /**
+         * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
+         * this device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.18
+         */
+        credentialRulesSupport: CredentialRules;
+
+        /**
+         * Indicates the number of credentials that could be assigned for each user.
+         *
+         * Depending on the value of NumberOfRFIDUsersSupported and NumberOfPINUsersSupported it may not be possible to
+         * assign that number of credentials for a user.
+         *
+         * For example, if the device supports only PIN and RFID credential types, NumberOfCredentialsSupportedPerUser
+         * is set to 10, NumberOfPINUsersSupported is set to 5 and NumberOfRFIDUsersSupported is set to 3, it will not
+         * be possible to actually assign 10 credentials for a user because maximum number of credentials in the
+         * database is 8.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.19
+         */
+        numberOfCredentialsSupportedPerUser: number;
+
+        /**
+         * Indicates the number of minutes a PIN, RFID, Fingerprint, or other credential associated with a user of type
+         * ExpiringUser shall remain valid after its first use before expiring. When the credential expires the
+         * UserStatus for the corresponding user record shall be set to OccupiedDisabled.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.36
+         */
+        expiringUserTimeout: number;
+
+        /**
+         * Indicates the number of PIN users supported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.9
+         */
+        numberOfPinUsersSupported: number;
+
+        /**
+         * Indicates the maximum length in bytes of a PIN Code on this device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.14
+         */
+        maxPinCodeLength: number;
+
+        /**
+         * Indicates the minimum length in bytes of a PIN Code on this device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.15
+         */
+        minPinCodeLength: number;
+
+        /**
+         * Indicates the number of RFID users supported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.10
+         */
+        numberOfRfidUsersSupported: number;
+
+        /**
+         * Indicates the maximum length in bytes of a RFID Code on this device. The value depends on the RFID code range
+         * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 20
+         * (equals 10 Byte ISO 14443A UID) is recommended.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.16
+         */
+        maxRfidCodeLength: number;
+
+        /**
+         * Indicates the minimum length in bytes of a RFID Code on this device. The value depends on the RFID code range
+         * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 8
+         * (equals 4 Byte ISO 14443A UID) is recommended.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.17
+         */
+        minRfidCodeLength: number;
+
+        /**
+         * Indicates the number of configurable week day schedule supported per user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.11
+         */
+        numberOfWeekDaySchedulesSupportedPerUser: number;
+
+        /**
+         * Indicates the number of configurable year day schedule supported per user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.12
+         */
+        numberOfYearDaySchedulesSupportedPerUser: number;
+
+        /**
+         * Indicates the number of holiday schedules supported for the entire door lock device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.13
+         */
+        numberOfHolidaySchedulesSupported: number;
+
+        /**
+         * Indicates the number of incorrect Pin codes or RFID presentment attempts a user is allowed to enter before
+         * the lock will enter a lockout state. The value of this attribute is compared to all failing forms of
+         * credential presentation, including Pin codes used in an Unlock Command when RequirePINforRemoteOperation is
+         * set to true. Valid range is 1-255 incorrect attempts. The lockout state will be for the duration of
+         * UserCodeTemporaryDisableTime. If the attribute accepts writes and an attempt to write the value 0 is made,
+         * the device shall respond with CONSTRAINT_ERROR.
+         *
+         * The lock may reset the counter used to track incorrect credential presentations as required by internal
+         * logic, environmental events, or other reasons. The lock shall reset the counter if a valid credential is
+         * presented.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.32
+         */
+        wrongCodeEntryLimit: number;
+
+        /**
+         * Indicates the number of seconds that the lock shuts down following wrong code entry. Valid range is 1-255
+         * seconds. Device can shut down to lock user out for specified amount of time. (Makes it difficult to try and
+         * guess a PIN for the device.) If the attribute accepts writes and an attempt to write the attribute to 0 is
+         * made, the device shall respond with CONSTRAINT_ERROR.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.33
+         */
+        userCodeTemporaryDisableTime: number;
+
+        /**
+         * Indicates the door locks ability to send PINs over the air. If the attribute is True it is ok for the door
+         * lock server to send PINs over the air. This attribute determines the behavior of the server’s TX operation.
+         * If it is false, then it is not ok for the device to send PIN in any messages over the air.
+         *
+         * The PIN field within any door lock cluster message shall keep the first octet unchanged and masks the actual
+         * code by replacing with 0xFF. For example (PIN "1234" ): If the attribute value is True, 0x04 0x31 0x32 0x33
+         * 0x34 shall be used in the PIN field in any door lock cluster message payload. If the attribute value is
+         * False, 0x04 0xFF 0xFF 0xFF 0xFF shall be used.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.34
+         */
+        sendPinOverTheAir: boolean;
+
+        /**
+         * Indicates if the door lock requires an optional PIN. If this attribute is set to True, the door lock server
+         * requires that an optional PINs be included in the payload of remote lock operation events like Lock, Unlock,
+         * Unlock with Timeout and Toggle in order to function.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.35
+         */
+        requirePinForRemoteOperation: boolean;
+
+        /**
+         * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if not
+         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         *
+         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
+         * Command”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.37
+         */
+        aliroReaderVerificationKey: Bytes | null;
+
+        /**
+         * Indicates the reader_group_identifier as defined in [Aliro].
+         *
+         * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42,
+         * “SetAliroReaderConfig Command”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.38
+         */
+        aliroReaderGroupIdentifier: Bytes | null;
+
+        /**
+         * Indicates the reader_group_sub_identifier as defined in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.39
+         */
+        aliroReaderGroupSubIdentifier: Bytes;
+
+        /**
+         * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.40
+         */
+        aliroExpeditedTransactionSupportedProtocolVersions: Bytes[];
+
+        /**
+         * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.44
+         */
+        numberOfAliroCredentialIssuerKeysSupported: number;
+
+        /**
+         * Indicates the maximum number of endpoint key credentials that can be stored on the lock. This limit applies
+         * to the sum of the number of AliroEvictableEndpointKey credentials and the number of
+         * AliroNonEvictableEndpointKey credentials.
+         *
+         * > [!NOTE]
+         *
+         * > The credential indices used for these two credential types are independent of each other, similar to all
+         *   other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add a
+         *   credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported and
+         *   also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials would
+         *   exist on the server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.45
+         */
+        numberOfAliroEndpointKeysSupported: number;
+
+        /**
+         * Indicates the Group Resolving Key as defined in [Aliro].
+         *
+         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
+         * Command”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.41
+         */
+        aliroGroupResolvingKey: Bytes | null;
+
+        /**
+         * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
+         * in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.42
+         */
+        aliroSupportedBleuwbProtocolVersions: Bytes[];
+
+        /**
+         * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.43
+         */
+        aliroBleAdvertisingVersion: number;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            {
+                flags: {},
+                mandatory: "lockState" | "lockType" | "actuatorEnabled" | "operatingMode" | "supportedOperatingModes",
+                optional: "language" | "ledSettings" | "autoRelockTime" | "soundVolume" | "defaultConfigurationRegister" | "enableLocalProgramming" | "enableOneTouchLocking" | "enableInsideStatusLed" | "enablePrivacyModeButton" | "localProgrammingFeatures" | "securityLevel"
+            },
+            {
+                flags: { doorPositionSensor: true },
+                mandatory: "doorState",
+                optional: "doorOpenEvents" | "doorClosedEvents" | "openPeriod"
+            },
+            {
+                flags: { user: true },
+                mandatory: "numberOfTotalUsersSupported" | "credentialRulesSupport" | "numberOfCredentialsSupportedPerUser",
+                optional: "expiringUserTimeout"
+            },
+            {
+                flags: { pinCredential: true },
+                mandatory: "numberOfPinUsersSupported" | "maxPinCodeLength" | "minPinCodeLength"
+            },
+            {
+                flags: { rfidCredential: true },
+                mandatory: "numberOfRfidUsersSupported" | "maxRfidCodeLength" | "minRfidCodeLength"
+            },
+            { flags: { weekDayAccessSchedules: true }, mandatory: "numberOfWeekDaySchedulesSupportedPerUser" },
+            { flags: { yearDayAccessSchedules: true }, mandatory: "numberOfYearDaySchedulesSupportedPerUser" },
+            { flags: { holidaySchedules: true }, mandatory: "numberOfHolidaySchedulesSupported" },
+            { flags: { pinCredential: true }, mandatory: "wrongCodeEntryLimit" | "userCodeTemporaryDisableTime" },
+            { flags: { rfidCredential: true }, mandatory: "wrongCodeEntryLimit" | "userCodeTemporaryDisableTime" },
+            { flags: { pinCredential: true, user: false }, optional: "sendPinOverTheAir" },
+            {
+                flags: { credentialOverTheAirAccess: true, pinCredential: true },
+                mandatory: "requirePinForRemoteOperation"
+            },
+            {
+                flags: { aliroProvisioning: true },
+                mandatory: "aliroReaderVerificationKey" | "aliroReaderGroupIdentifier" | "aliroReaderGroupSubIdentifier" | "aliroExpeditedTransactionSupportedProtocolVersions" | "numberOfAliroCredentialIssuerKeysSupported" | "numberOfAliroEndpointKeysSupported"
+            },
+            {
+                flags: { aliroBleuwb: true },
+                mandatory: "aliroGroupResolvingKey" | "aliroSupportedBleuwbProtocolVersions" | "aliroBleAdvertisingVersion"
+            }
+        ];
+    }
+
+    export interface Commands extends Commands.Base, Commands.User, Commands.WeekDayAccessSchedules, Commands.YearDayAccessSchedules, Commands.HolidaySchedules, Commands.PinCredentialNotUser, Commands.AliroProvisioning, Commands.PinCredentialAndRfidCredentialAndFingerCredentialsNotUser, Commands.RfidCredentialNotUser, Commands.Unbolting {}
+
+    export namespace Commands {
+        /**
+         * {@link DoorLock} always supports these commands.
+         */
+        export interface Base {
+            /**
+             * This command causes the lock device to lock the door. This command includes an optional code for the
+             * lock. The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation
+             * attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
+             */
+            lockDoor(request: LockDoorRequest): MaybePromise;
+
+            /**
+             * This command causes the lock device to unlock the door. This command includes an optional code for the
+             * lock. The door lock may require a code depending on the value of the RequirePINForRemoteOperation
+             * attribute.
+             *
+             * > [!NOTE]
+             *
+             * > If the attribute AutoRelockTime is supported the lock will transition to the locked state when the auto
+             *   relock time has expired.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2
+             */
+            unlockDoor(request: UnlockDoorRequest): MaybePromise;
+
+            /**
+             * This command causes the lock device to unlock the door with a timeout parameter. After the time in
+             * seconds specified in the timeout field, the lock device will relock itself automatically. This timeout
+             * parameter is only temporary for this message transition and overrides the default relock time as
+             * specified in the AutoRelockTime attribute. If the door lock device is not capable of or does not want to
+             * support temporary Relock Timeout, it SHOULD NOT support this optional command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3
+             */
+            unlockWithTimeout(request: UnlockWithTimeoutRequest): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "User".
+         */
+        export interface User {
+            /**
+             * Set user into the lock.
+             *
+             * Fields used for different use cases:
+             *
+             *   - OperationType shall be set to Add.
+             *
+             *   - UserIndex value shall be set to a user record with UserType set to Available.
+             *
+             *   - UserName may be null causing new user record to use empty string for UserName otherwise UserName
+             *     shall be set to the value provided in the new user record.
+             *
+             *   - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise
+             *     UserUniqueID shall be set to the value provided in the new user record.
+             *
+             *   - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise
+             *     UserStatus shall be set to the value provided in the new user record.
+             *
+             *   - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType
+             *     shall be set to the value provided in the new user record.
+             *
+             *   - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise
+             *     CredentialRule shall be set to the value provided in the new user record.
+             *
+             * CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing
+             * fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully creating a new user.
+             *
+             *   - OperationType shall be set to Modify.
+             *
+             *   - UserIndex value shall be set for a user record with UserType NOT set to Available.
+             *
+             *   - UserName shall be null if modifying a user record that was not created by the accessing fabric.
+             *
+             *   - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t
+             *     match the CreatorFabricIndex in the user record otherwise UserName shall be set to the value provided
+             *     in the user record.
+             *
+             *   - UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
+             *
+             *   - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t
+             *     match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to the value
+             *     provided in the user record.
+             *
+             *   - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be
+             *     set to the value provided in the user record.
+             *
+             *   - UserType may be null causing no change to UserType in user record otherwise UserType shall be set to
+             *     the value provided in the user record.
+             *
+             *   - CredentialRule may be null causing no change to CredentialRule in user record otherwise
+             *     CredentialRule shall be set to the value provided in the user record.
+             *
+             * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user
+             * record shall be set to the accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully modifying a user.
+             *
+             * Return status is a global status code or a cluster-specific status code from the Status Codes table and
+             * shall be one of the following values:
+             *
+             *   - SUCCESS, if setting User was successful.
+             *
+             *   - FAILURE, if some unexpected internal error occurred setting User.
+             *
+             *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+             *
+             *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is
+             *     Modify and UserIndex points to an available slot.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
+             */
+            setUser(request: SetUserRequest): MaybePromise;
+
+            /**
+             * Retrieve user.
+             *
+             * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.)
+             * as needed otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.33
+             */
+            getUser(request: GetUserRequest): MaybePromise<GetUserResponse>;
+
+            /**
+             * Clears a user or all Users.
+             *
+             * For each user to clear, all associated credentials (e.g. PIN, RFID, fingerprint, etc.) shall be cleared
+             * and the user entry values shall be reset to their default values (e.g. UserStatus shall be Available,
+             * UserType shall be UnrestrictedUser) and all associated schedules shall be cleared.
+             *
+             * A LockUserChange event with the provided UserIndex shall be generated after successfully clearing users.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35
+             */
+            clearUser(request: ClearUserRequest): MaybePromise;
+
+            /**
+             * Set a credential (e.g. PIN, RFID, Fingerprint, etc.) into the lock for a new user, existing user, or
+             * ProgrammingUser.
+             *
+             * Fields used for different use cases:
+             *
+             *   - OperationType shall be set to Add.
+             *
+             *   - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of
+             *     Available and associate its UserIndex with the CredentialIndex in CredentialStruct provided.
+             *
+             *   - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
+             *
+             *   - UserStatus may be null. If it is null, the new user record shall have UserStatus set to
+             *     OccupiedEnabled. Otherwise the new user record shall have UserStatus set to the provided value.
+             *
+             *   - UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
+             *     Otherwise the new user record shall have UserType set to the provided value.
+             *
+             *   - UserType shall NOT be set to ProgrammingUser for this use case.
+             *
+             * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the
+             * accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully creating a new credential and a new user.
+             * The UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The
+             * DataIndex of this LockUserChange event shall be the CredentialIndex that was used to create the
+             * credential.
+             *
+             *   - OperationType shall be set to Add.
+             *
+             *   - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in
+             *     CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the user record pointed to by UserIndex.
+             *
+             *   - CredentialIndex in CredentialStruct provided shall be for an available credential slot.
+             *
+             *   - UserStatus shall be null.
+             *
+             *   - UserType shall be null.
+             *
+             * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user record
+             * shall be set to the accessing fabric index.
+             *
+             * CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the accessing
+             * fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully adding a new credential.
+             *
+             *   - OperationType shall be set to Modify.
+             *
+             *   - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided
+             *     otherwise INVALID_COMMAND status response shall be returned.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the user record pointed to by UserIndex.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the credential record pointed to by the CredentialIndex field value of the Credential parameter.
+             *
+             *   - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
+             *
+             *   - UserStatus shall be null.
+             *
+             *   - UserType shall be null.
+             *
+             * CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in user
+             * and credential records shall be set to the accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully modifying a credential.
+             *
+             *   - OperationType shall be set to Modify.
+             *
+             *   - UserIndex shall be null.
+             *
+             *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex
+             *     in the credential record pointed to by the CredentialIndex field value of the Credential parameter.
+             *
+             *   - CredentialType in CredentialStruct shall be set to ProgrammingPIN.
+             *
+             *   - CredentialIndex in CredentialStruct shall be 0.
+             *
+             *   - UserStatus shall be null.
+             *
+             *   - UserType shall be set to ProgrammingUser.
+             *
+             * CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the
+             * credential record shall be set to the accessing fabric index.
+             *
+             * A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36
+             */
+            setCredential(request: SetCredentialRequest): MaybePromise<SetCredentialResponse>;
+
+            /**
+             * Retrieve the status of a particular credential (e.g. PIN, RFID, Fingerprint, etc.) by index.
+             *
+             * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.)
+             * as needed otherwise the GetCredentialStatusResponse command shall be sent implying a status of SUCCESS.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38
+             */
+            getCredentialStatus(request: GetCredentialStatusRequest): MaybePromise<GetCredentialStatusResponse>;
+
+            /**
+             * Clear one, one type, or all credentials except ProgrammingPIN credential.
+             *
+             * Fields used for different use cases:
+             *
+             *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
+             *
+             *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+             *
+             *   - CredentialIndex in Credential structure shall be set to the credential index to be cleared.
+             *
+             * A LockUserChange event shall be generated after successfully clearing a credential.
+             *
+             *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
+             *
+             *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+             *
+             *   - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that
+             *     type shall be cleared.
+             *
+             * A single LockUserChange event shall be generated after successfully clearing credentials. This event
+             * shall have DataIndex set to the CredentialIndex in the Credential structure.
+             *
+             *   - Credential field shall be null.
+             *
+             * The ProgrammingPIN credential shall NOT be cleared.
+             *
+             * For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall be
+             * generated. This event shall have DataIndex set to 0xFFFE.
+             *
+             * For each credential cleared whose user doesn’t have another valid credential, the corresponding user
+             * record shall be reset back to default values and its UserStatus value shall be set to Available and
+             * UserType value shall be set to UnrestrictedUser and all schedules shall be cleared. In this case a
+             * LockUserChange event shall be generated for the user being cleared.
+             *
+             * Return status shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40
+             */
+            clearCredential(request: ClearCredentialRequest): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "WeekDayAccessSchedules".
+         */
+        export interface WeekDayAccessSchedules {
+            /**
+             * Set a weekly repeating schedule for a specified user.
+             *
+             * The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Week Day schedule is
+             * set.
+             *
+             * Return status shall be one of the following values:
+             *
+             * One or more fields violates constraints or is invalid.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12
+             */
+            setWeekDaySchedule(request: SetWeekDayScheduleRequest): MaybePromise;
+
+            /**
+             * Retrieve the specific weekly schedule for the specific user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.13
+             */
+            getWeekDaySchedule(request: GetWeekDayScheduleRequest): MaybePromise<GetWeekDayScheduleResponse>;
+
+            /**
+             * Clear the specific weekly schedule or all weekly schedules for the specific user.
+             *
+             * Return status shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15
+             */
+            clearWeekDaySchedule(request: ClearWeekDayScheduleRequest): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "YearDayAccessSchedules".
+         */
+        export interface YearDayAccessSchedules {
+            /**
+             * Set a time-specific schedule ID for a specified user.
+             *
+             * The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Year Day schedule is
+             * set.
+             *
+             * Return status shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16
+             */
+            setYearDaySchedule(request: SetYearDayScheduleRequest): MaybePromise;
+
+            /**
+             * Retrieve the specific year day schedule for the specific schedule and user indexes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.17
+             */
+            getYearDaySchedule(request: GetYearDayScheduleRequest): MaybePromise<GetYearDayScheduleResponse>;
+
+            /**
+             * Clears the specific year day schedule or all year day schedules for the specific user.
+             *
+             * Return status shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19
+             */
+            clearYearDaySchedule(request: ClearYearDayScheduleRequest): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "HolidaySchedules".
+         */
+        export interface HolidaySchedules {
+            /**
+             * Set the holiday Schedule by specifying local start time and local end time with respect to any Lock
+             * Operating Mode.
+             *
+             * Return status shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20
+             */
+            setHolidaySchedule(request: SetHolidayScheduleRequest): MaybePromise;
+
+            /**
+             * Get the holiday schedule for the specified index.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.21
+             */
+            getHolidaySchedule(request: GetHolidayScheduleRequest): MaybePromise<GetHolidayScheduleResponse>;
+
+            /**
+             * Clears the holiday schedule or all holiday schedules.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23
+             */
+            clearHolidaySchedule(request: ClearHolidayScheduleRequest): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "PinCredentialNotUser".
+         */
+        export interface PinCredentialNotUser {
+            /**
+             * Set a PIN Code into the lock.
+             *
+             * Return status is a global status code or a cluster-specific status code from the Status Codes table and
+             * shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4
+             */
+            setPinCode(request: SetPinCodeRequest): MaybePromise;
+
+            /**
+             * Retrieve a PIN Code.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5
+             */
+            getPinCode(request: GetPinCodeRequest): MaybePromise<GetPinCodeResponse>;
+
+            /**
+             * Clear a PIN code or all PIN codes.
+             *
+             * For each PIN Code cleared whose user doesn’t have a RFID Code or other credential type, then
+             * corresponding user record’s UserStatus value shall be set to Available, and UserType value shall be set
+             * to UnrestrictedUser and all schedules shall be cleared.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7
+             */
+            clearPinCode(request: ClearPinCodeRequest): MaybePromise;
+
+            /**
+             * Clear out all PINs on the lock.
+             *
+             * > [!NOTE]
+             *
+             * > On the server, the clear all PIN codes command SHOULD have the same effect as the ClearPINCode command
+             *   with respect to the setting of user status, user type and schedules.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.8
+             */
+            clearAllPinCodes(): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "AliroProvisioning".
+         */
+        export interface AliroProvisioning {
+            /**
+             * This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42
+             */
+            setAliroReaderConfig(request: SetAliroReaderConfigRequest): MaybePromise;
+
+            /**
+             * This command allows clearing an existing Aliro Reader configuration for the lock.
+             *
+             * Administrators shall NOT clear an Aliro Reader configuration without explicit user permission.
+             *
+             * > [!NOTE]
+             *
+             * > Using this command will revoke the ability of all existing Aliro user devices that have the old
+             *   verification key to interact with the lock. This effect is not restricted to a single fabric or
+             *   otherwise scoped in any way.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.43
+             */
+            clearAliroReaderConfig(): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature
+         * "PinCredentialAndRfidCredentialAndFingerCredentialsNotUser".
+         */
+        export interface PinCredentialAndRfidCredentialAndFingerCredentialsNotUser {
+            /**
+             * Set the status of a user ID.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9
+             */
+            setUserStatus(request: SetUserStatusRequest): MaybePromise;
+
+            /**
+             * Get the status of a user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10
+             */
+            getUserStatus(request: GetUserStatusRequest): MaybePromise<GetUserStatusResponse>;
+
+            /**
+             * Set the user type for a specified user.
+             *
+             * For user type value please refer to User Type Value.
+             *
+             * Return status shall be one of the following values:
+             *
+             * One or more fields violates constraints or is invalid. Door lock is unable to switch from restricted to
+             * unrestricted user (e.g. need to clear schedules to switch).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24
+             */
+            setUserType(request: SetUserTypeRequest): MaybePromise;
+
+            /**
+             * Retrieve the user type for a specific user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.25
+             */
+            getUserType(request: GetUserTypeRequest): MaybePromise<GetUserTypeResponse>;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "RfidCredentialNotUser".
+         */
+        export interface RfidCredentialNotUser {
+            /**
+             * Set an ID for RFID access into the lock.
+             *
+             * Return status is a global status code or a cluster-specific status code from the Status Codes table and
+             * shall be one of the following values:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27
+             */
+            setRfidCode(request: SetRfidCodeRequest): MaybePromise;
+
+            /**
+             * Retrieve an RFID code.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28
+             */
+            getRfidCode(request: GetRfidCodeRequest): MaybePromise<GetRfidCodeResponse>;
+
+            /**
+             * Clear an RFID code or all RFID codes.
+             *
+             * For each RFID Code cleared whose user doesn’t have a PIN Code or other credential type, then the
+             * corresponding user record’s UserStatus value shall be set to Available, and UserType value shall be set
+             * to UnrestrictedUser and all schedules shall be cleared.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30
+             */
+            clearRfidCode(request: ClearRfidCodeRequest): MaybePromise;
+
+            /**
+             * Clear out all RFIDs on the lock. If you clear all RFID codes and this user didn’t have a PIN code, the
+             * user status has to be set to "0 Available", the user type has to be set to the default value, and all
+             * schedules which are supported have to be set to the default values.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.31
+             */
+            clearAllRfidCodes(): MaybePromise;
+        }
+
+        /**
+         * {@link DoorLock} supports these commands if it supports feature "Unbolting".
+         */
+        export interface Unbolting {
+            /**
+             * This command causes the lock device to unlock the door without pulling the latch. This command includes
+             * an optional code for the lock. The door lock may require a code depending on the value of the
+             * RequirePINForRemoteOperation attribute.
+             *
+             * > [!NOTE]
+             *
+             * > If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the
+             *   auto relock time has expired.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41
+             */
+            unboltDoor(request: UnboltDoorRequest): MaybePromise;
+        }
+
+        export type Components = [
+            { flags: {}, methods: Base },
+            { flags: { user: true }, methods: User },
+            { flags: { weekDayAccessSchedules: true }, methods: WeekDayAccessSchedules },
+            { flags: { yearDayAccessSchedules: true }, methods: YearDayAccessSchedules },
+            { flags: { holidaySchedules: true }, methods: HolidaySchedules },
+            { flags: { pinCredential: true, user: false }, methods: PinCredentialNotUser },
+            { flags: { aliroProvisioning: true }, methods: AliroProvisioning },
+            {
+                flags: { pinCredential: true, rfidCredential: true, fingerCredentials: true, user: false },
+                methods: PinCredentialAndRfidCredentialAndFingerCredentialsNotUser
+            },
+            { flags: { rfidCredential: true, user: false }, methods: RfidCredentialNotUser },
+            { flags: { unbolting: true }, methods: Unbolting }
+        ];
+    }
+
+    /**
+     * Events that may appear in {@link DoorLock}.
+     *
+     * Device support for events may be affected by a device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * The door lock server provides several alarms which can be sent when there is a critical state on the door
+         * lock. The alarms available for the door lock server are listed in AlarmCodeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1
+         */
+        doorLockAlarm: DoorLockAlarmEvent;
+
+        /**
+         * The door lock server sends out a LockOperation event when the event is triggered by the various lock
+         * operation sources.
+         *
+         *   - If the door lock server supports the Unbolt Door command, it shall generate a LockOperation event with
+         *     LockOperationType set to Unlock after an Unbolt Door command succeeds.
+         *
+         *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it shall
+         *     generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state is reached
+         *     and a LockOperation event with LockOperationType set to Unlock when the lock successfully completes the
+         *     unlock → hold latch → release latch and return to unlock state operation.
+         *
+         *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the door
+         *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
+         *     LockOperation event with LockOperationType set to Unlock.
+         *
+         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *       LockOperationError event with LockOperationType set to Unlock.
+         *
+         *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
+         *
+         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *
+         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3
+         */
+        lockOperation: LockOperationEvent;
+
+        /**
+         * The door lock server sends out a LockOperationError event when a lock operation fails for various reasons.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4
+         */
+        lockOperationError: LockOperationErrorEvent;
+
+        /**
+         * The door lock server sends out a DoorStateChange event when the door lock door state changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2
+         */
+        doorStateChange: DoorStateChangeEvent;
+
+        /**
+         * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change has
+         * occurred.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5
+         */
+        lockUserChange: LockUserChangeEvent;
+    }
+
+    export namespace Events {
+        export type Components = [
+            { flags: {}, mandatory: "doorLockAlarm" | "lockOperation" | "lockOperationError" },
+            { flags: { doorPositionSensor: true }, mandatory: "doorStateChange" },
+            { flags: { user: true }, mandatory: "lockUserChange" }
+        ];
+    }
+
+    export type Features = "PinCredential" | "RfidCredential" | "FingerCredentials" | "WeekDayAccessSchedules" | "DoorPositionSensor" | "FaceCredentials" | "CredentialOverTheAirAccess" | "User" | "YearDayAccessSchedules" | "HolidaySchedules" | "Unbolting" | "AliroProvisioning" | "AliroBleuwb";
+
     /**
      * These are optional features supported by DoorLockCluster.
      *
@@ -248,25 +1390,18 @@ export namespace DoorLock {
     }
 
     /**
-     * Body of the DoorLock doorStateChange event
+     * The door lock server sends out a DoorStateChange event when the door lock door state changes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2
      */
-    export const TlvDoorStateChangeEvent = TlvObject({
+    export interface DoorStateChangeEvent {
         /**
          * This field shall indicate the new door state for this door event.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2.1
          */
-        doorState: TlvField(0, TlvEnum<DoorState>())
-    });
-
-    /**
-     * Body of the DoorLock doorStateChange event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2
-     */
-    export interface DoorStateChangeEvent extends TypeFromSchema<typeof TlvDoorStateChangeEvent> {}
+        doorState: DoorState;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.2
@@ -287,6 +1422,23 @@ export namespace DoorLock {
          */
         tri: BitFlag(2)
     };
+
+    export interface CredentialRules {
+        /**
+         * Only one credential is required for lock operation
+         */
+        single?: boolean;
+
+        /**
+         * Any two credentials are required for lock operation
+         */
+        dual?: boolean;
+
+        /**
+         * Any three credentials are required for lock operation
+         */
+        tri?: boolean;
+    }
 
     /**
      * This enumeration shall indicate the data operation performed.
@@ -495,24 +1647,91 @@ export namespace DoorLock {
     }
 
     /**
-     * Input to the DoorLock setUser command
+     * Set user into the lock.
+     *
+     * Fields used for different use cases:
+     *
+     *   - OperationType shall be set to Add.
+     *
+     *   - UserIndex value shall be set to a user record with UserType set to Available.
+     *
+     *   - UserName may be null causing new user record to use empty string for UserName otherwise UserName shall be set
+     *     to the value provided in the new user record.
+     *
+     *   - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise UserUniqueID
+     *     shall be set to the value provided in the new user record.
+     *
+     *   - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise UserStatus
+     *     shall be set to the value provided in the new user record.
+     *
+     *   - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType shall be
+     *     set to the value provided in the new user record.
+     *
+     *   - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise CredentialRule
+     *     shall be set to the value provided in the new user record.
+     *
+     * CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing fabric index.
+     *
+     * A LockUserChange event shall be generated after successfully creating a new user.
+     *
+     *   - OperationType shall be set to Modify.
+     *
+     *   - UserIndex value shall be set for a user record with UserType NOT set to Available.
+     *
+     *   - UserName shall be null if modifying a user record that was not created by the accessing fabric.
+     *
+     *   - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t match the
+     *     CreatorFabricIndex in the user record otherwise UserName shall be set to the value provided in the user
+     *     record.
+     *
+     *   - UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
+     *
+     *   - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t match
+     *     the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to the value provided in the
+     *     user record.
+     *
+     *   - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be set to
+     *     the value provided in the user record.
+     *
+     *   - UserType may be null causing no change to UserType in user record otherwise UserType shall be set to the
+     *     value provided in the user record.
+     *
+     *   - CredentialRule may be null causing no change to CredentialRule in user record otherwise CredentialRule shall
+     *     be set to the value provided in the user record.
+     *
+     * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user record shall
+     * be set to the accessing fabric index.
+     *
+     * A LockUserChange event shall be generated after successfully modifying a user.
+     *
+     * Return status is a global status code or a cluster-specific status code from the Status Codes table and shall be
+     * one of the following values:
+     *
+     *   - SUCCESS, if setting User was successful.
+     *
+     *   - FAILURE, if some unexpected internal error occurred setting User.
+     *
+     *   - OCCUPIED, if OperationType is Add and UserIndex points to an occupied slot.
+     *
+     *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid or if OperationType is Modify and
+     *     UserIndex points to an available slot.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
      */
-    export const TlvSetUserRequest = TlvObject({
+    export interface SetUserRequest {
         /**
          * This field shall indicate the type of operation.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.1
          */
-        operationType: TlvField(0, TlvEnum<DataOperationType>()),
+        operationType: DataOperationType;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+        userIndex: number;
 
         /**
          * This field shall contain a string to use as a human readable identifier for the user.
@@ -528,7 +1747,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.3
          */
-        userName: TlvField(2, TlvNullable(TlvString.bound({ maxLength: 10 }))),
+        userName: string | null;
 
         /**
          * This field shall indicate the fabric assigned number to use for connecting this user to other users on other
@@ -546,7 +1765,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.4
          */
-        userUniqueId: TlvField(3, TlvNullable(TlvUInt32)),
+        userUniqueId: number | null;
 
         /**
          * This field shall indicate the UserStatus to assign to this user when created or modified.
@@ -563,7 +1782,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.5
          */
-        userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
+        userStatus: UserStatus | null;
 
         /**
          * This field shall indicate the UserType to assign to this user when created or modified.
@@ -580,7 +1799,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.6
          */
-        userType: TlvField(5, TlvNullable(TlvEnum<UserType>())),
+        userType: UserType | null;
 
         /**
          * This field shall indicate the CredentialRule to use for this user.
@@ -600,29 +1819,20 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.7
          */
-        credentialRule: TlvField(6, TlvNullable(TlvEnum<CredentialRule>()))
-    });
+        credentialRule: CredentialRule | null;
+    }
 
     /**
-     * Input to the DoorLock setUser command
+     * Retrieve user.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
-     */
-    export interface SetUserRequest extends TypeFromSchema<typeof TlvSetUserRequest> {}
-
-    /**
-     * Input to the DoorLock getUser command
+     * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as needed
+     * otherwise the GetUserResponse Command shall be sent implying a status of SUCCESS.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.33
      */
-    export const TlvGetUserRequest = TlvObject({ userIndex: TlvField(0, TlvUInt16.bound({ min: 1 })) });
-
-    /**
-     * Input to the DoorLock getUser command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.33
-     */
-    export interface GetUserRequest extends TypeFromSchema<typeof TlvGetUserRequest> {}
+    export interface GetUserRequest {
+        userIndex: number;
+    }
 
     /**
      * This enumeration shall indicate the credential type.
@@ -728,13 +1938,13 @@ export namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24
      */
-    export const TlvCredential = TlvObject({
+    export interface Credential {
         /**
          * This field shall indicate the credential field used to authorize the lock operation.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24.1
          */
-        credentialType: TlvField(0, TlvEnum<CredentialType>()),
+        credentialType: CredentialType;
 
         /**
          * This field shall indicate the index of the specific credential used to authorize the lock operation in the
@@ -743,16 +1953,8 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24.2
          */
-        credentialIndex: TlvField(1, TlvUInt16)
-    });
-
-    /**
-     * This struct shall indicate the credential types and their corresponding indices (if any) for the event or user
-     * record.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24
-     */
-    export interface Credential extends TypeFromSchema<typeof TlvCredential> {}
+        credentialIndex: number;
+    }
 
     /**
      * Returns the user for the specified UserIndex.
@@ -763,55 +1965,55 @@ export namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34
      */
-    export const TlvGetUserResponse = TlvObject({
+    export interface GetUserResponse {
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.1
          */
-        userIndex: TlvField(0, TlvUInt16.bound({ min: 1 })),
+        userIndex: number;
 
         /**
          * This field shall contain a string to use as a human readable identifier for the user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.2
          */
-        userName: TlvField(1, TlvNullable(TlvString.bound({ maxLength: 10 }))),
+        userName: string | null;
 
         /**
          * See UserUniqueID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.3
          */
-        userUniqueId: TlvField(2, TlvNullable(TlvUInt32)),
+        userUniqueId: number | null;
 
         /**
          * This field shall indicate the UserStatus assigned to the user when created or modified.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.4
          */
-        userStatus: TlvField(3, TlvNullable(TlvEnum<UserStatus>())),
+        userStatus: UserStatus | null;
 
         /**
          * This field shall indicate the UserType assigned to this user when created or modified.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.5
          */
-        userType: TlvField(4, TlvNullable(TlvEnum<UserType>())),
+        userType: UserType | null;
 
         /**
          * This field shall indicate the CredentialRule set for this user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.6
          */
-        credentialRule: TlvField(5, TlvNullable(TlvEnum<CredentialRule>())),
+        credentialRule: CredentialRule | null;
 
         /**
          * This field shall contain a list of credentials for this user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.7
          */
-        credentials: TlvField(6, TlvNullable(TlvArray(TlvCredential, { minLength: 0 }))),
+        credentials: Credential[] | null;
 
         /**
          * This field shall indicate the user’s creator fabric index. CreatorFabricIndex shall be null if UserStatus is
@@ -821,7 +2023,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.8
          */
-        creatorFabricIndex: TlvField(7, TlvNullable(TlvFabricIndex)),
+        creatorFabricIndex: FabricIndex | null;
 
         /**
          * This field shall indicate the user’s last modifier fabric index. LastModifiedFabricIndex shall be null if
@@ -831,7 +2033,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.9
          */
-        lastModifiedFabricIndex: TlvField(8, TlvNullable(TlvFabricIndex)),
+        lastModifiedFabricIndex: FabricIndex | null;
 
         /**
          * This field shall indicate the next occupied UserIndex in the database which is useful for quickly identifying
@@ -840,53 +2042,130 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.10
          */
-        nextUserIndex: TlvField(9, TlvNullable(TlvUInt16.bound({ min: 1 })))
-    });
+        nextUserIndex: number | null;
+    }
 
     /**
-     * Returns the user for the specified UserIndex.
+     * Clears a user or all Users.
      *
-     * If the requested UserIndex is valid and the UserStatus is Available for the requested UserIndex then UserName,
-     * UserUniqueID, UserStatus, UserType, CredentialRule, Credentials, CreatorFabricIndex, and LastModifiedFabricIndex
-     * shall all be null in the response.
+     * For each user to clear, all associated credentials (e.g. PIN, RFID, fingerprint, etc.) shall be cleared and the
+     * user entry values shall be reset to their default values (e.g. UserStatus shall be Available, UserType shall be
+     * UnrestrictedUser) and all associated schedules shall be cleared.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34
-     */
-    export interface GetUserResponse extends TypeFromSchema<typeof TlvGetUserResponse> {}
-
-    /**
-     * Input to the DoorLock clearUser command
+     * A LockUserChange event with the provided UserIndex shall be generated after successfully clearing users.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35
      */
-    export const TlvClearUserRequest = TlvObject({
+    export interface ClearUserRequest {
         /**
          * This field shall specify a valid User index or 0xFFFE to indicate all user slots shall be cleared.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35.1
          */
-        userIndex: TlvField(0, TlvUInt16)
-    });
+        userIndex: number;
+    }
 
     /**
-     * Input to the DoorLock clearUser command
+     * Set a credential (e.g. PIN, RFID, Fingerprint, etc.) into the lock for a new user, existing user, or
+     * ProgrammingUser.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35
-     */
-    export interface ClearUserRequest extends TypeFromSchema<typeof TlvClearUserRequest> {}
-
-    /**
-     * Input to the DoorLock setCredential command
+     * Fields used for different use cases:
+     *
+     *   - OperationType shall be set to Add.
+     *
+     *   - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of Available and
+     *     associate its UserIndex with the CredentialIndex in CredentialStruct provided.
+     *
+     *   - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
+     *
+     *   - UserStatus may be null. If it is null, the new user record shall have UserStatus set to OccupiedEnabled.
+     *     Otherwise the new user record shall have UserStatus set to the provided value.
+     *
+     *   - UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
+     *     Otherwise the new user record shall have UserType set to the provided value.
+     *
+     *   - UserType shall NOT be set to ProgrammingUser for this use case.
+     *
+     * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the accessing
+     * fabric index.
+     *
+     * A LockUserChange event shall be generated after successfully creating a new credential and a new user. The
+     * UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The DataIndex of
+     * this LockUserChange event shall be the CredentialIndex that was used to create the credential.
+     *
+     *   - OperationType shall be set to Add.
+     *
+     *   - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in CredentialStruct
+     *     provided otherwise INVALID_COMMAND status response shall be returned.
+     *
+     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
+     *     user record pointed to by UserIndex.
+     *
+     *   - CredentialIndex in CredentialStruct provided shall be for an available credential slot.
+     *
+     *   - UserStatus shall be null.
+     *
+     *   - UserType shall be null.
+     *
+     * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user record shall be
+     * set to the accessing fabric index.
+     *
+     * CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the accessing fabric
+     * index.
+     *
+     * A LockUserChange event shall be generated after successfully adding a new credential.
+     *
+     *   - OperationType shall be set to Modify.
+     *
+     *   - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided otherwise
+     *     INVALID_COMMAND status response shall be returned.
+     *
+     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
+     *     user record pointed to by UserIndex.
+     *
+     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
+     *     credential record pointed to by the CredentialIndex field value of the Credential parameter.
+     *
+     *   - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
+     *
+     *   - UserStatus shall be null.
+     *
+     *   - UserType shall be null.
+     *
+     * CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in user and
+     * credential records shall be set to the accessing fabric index.
+     *
+     * A LockUserChange event shall be generated after successfully modifying a credential.
+     *
+     *   - OperationType shall be set to Modify.
+     *
+     *   - UserIndex shall be null.
+     *
+     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
+     *     credential record pointed to by the CredentialIndex field value of the Credential parameter.
+     *
+     *   - CredentialType in CredentialStruct shall be set to ProgrammingPIN.
+     *
+     *   - CredentialIndex in CredentialStruct shall be 0.
+     *
+     *   - UserStatus shall be null.
+     *
+     *   - UserType shall be set to ProgrammingUser.
+     *
+     * CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the credential
+     * record shall be set to the accessing fabric index.
+     *
+     * A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36
      */
-    export const TlvSetCredentialRequest = TlvObject({
+    export interface SetCredentialRequest {
         /**
          * This field shall indicate the set credential operation type requested.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.1
          */
-        operationType: TlvField(0, TlvEnum<DataOperationType>()),
+        operationType: DataOperationType;
 
         /**
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
@@ -894,7 +2173,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.2
          */
-        credential: TlvField(1, TlvCredential),
+        credential: Credential;
 
         /**
          * This field shall indicate the credential data to set for the credential being added or modified. The length
@@ -903,7 +2182,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.3
          */
-        credentialData: TlvField(2, TlvByteString),
+        credentialData: Bytes;
 
         /**
          * This field shall indicate the user index to the user record that corresponds to the credential being added or
@@ -912,7 +2191,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.4
          */
-        userIndex: TlvField(3, TlvNullable(TlvUInt16.bound({ min: 1 }))),
+        userIndex: number | null;
 
         /**
          * This field shall indicate the user status to use in the new user record if a new user is being created. This
@@ -920,7 +2199,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.5
          */
-        userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
+        userStatus: UserStatus | null;
 
         /**
          * This field shall indicate the user type to use in the new user record if a new user is being created. This
@@ -928,22 +2207,15 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.6
          */
-        userType: TlvField(5, TlvNullable(TlvEnum<UserType>()))
-    });
-
-    /**
-     * Input to the DoorLock setCredential command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36
-     */
-    export interface SetCredentialRequest extends TypeFromSchema<typeof TlvSetCredentialRequest> {}
+        userType: UserType | null;
+    }
 
     /**
      * Returns the status for setting the specified credential.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37
      */
-    export const TlvSetCredentialResponse = TlvObject({
+    export interface SetCredentialResponse {
         /**
          * Status comes from the Status Codes table and shall be one of the following values:
          *
@@ -978,7 +2250,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.1
          */
-        status: TlvField(0, TlvEnum<Status>()),
+        status: Status;
 
         /**
          * This field shall indicate the user index that was created with the new credential. If the status being
@@ -989,7 +2261,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.2
          */
-        userIndex: TlvField(1, TlvNullable(TlvUInt16.bound({ min: 1 }))),
+        userIndex: number | null;
 
         /**
          * This field shall indicate the next available index in the database for the credential type set, which is
@@ -1000,51 +2272,40 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.3
          */
-        nextCredentialIndex: TlvOptionalField(2, TlvNullable(TlvUInt16))
-    });
+        nextCredentialIndex?: number | null;
+    }
 
     /**
-     * Returns the status for setting the specified credential.
+     * Retrieve the status of a particular credential (e.g. PIN, RFID, Fingerprint, etc.) by index.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37
-     */
-    export interface SetCredentialResponse extends TypeFromSchema<typeof TlvSetCredentialResponse> {}
-
-    /**
-     * Input to the DoorLock getCredentialStatus command
+     * An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, etc.) as needed
+     * otherwise the GetCredentialStatusResponse command shall be sent implying a status of SUCCESS.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38
      */
-    export const TlvGetCredentialStatusRequest = TlvObject({
+    export interface GetCredentialStatusRequest {
         /**
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
          * (if applicable or 0 if not) to retrieve the status for.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38.1
          */
-        credential: TlvField(0, TlvCredential)
-    });
-
-    /**
-     * Input to the DoorLock getCredentialStatus command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38
-     */
-    export interface GetCredentialStatusRequest extends TypeFromSchema<typeof TlvGetCredentialStatusRequest> {}
+        credential: Credential;
+    }
 
     /**
      * Returns the status for the specified credential.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39
      */
-    export const TlvGetCredentialStatusResponse = TlvObject({
+    export interface GetCredentialStatusResponse {
         /**
          * This field shall indicate if the requested credential type and index exists and is populated for the
          * requested user index.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.1
          */
-        credentialExists: TlvField(0, TlvBoolean),
+        credentialExists: boolean;
 
         /**
          * This field shall indicate the credential’s corresponding user index value if the credential exists. If
@@ -1053,7 +2314,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.2
          */
-        userIndex: TlvField(1, TlvNullable(TlvUInt16.bound({ min: 1 }))),
+        userIndex: number | null;
 
         /**
          * This field shall indicate the credential’s creator fabric index. CreatorFabricIndex shall be null if
@@ -1063,7 +2324,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.3
          */
-        creatorFabricIndex: TlvField(2, TlvNullable(TlvFabricIndex)),
+        creatorFabricIndex: FabricIndex | null;
 
         /**
          * This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall be null
@@ -1073,7 +2334,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.4
          */
-        lastModifiedFabricIndex: TlvField(3, TlvNullable(TlvFabricIndex)),
+        lastModifiedFabricIndex: FabricIndex | null;
 
         /**
          * This field shall indicate the next occupied index in the database for the credential type requested, which is
@@ -1084,7 +2345,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.5
          */
-        nextCredentialIndex: TlvOptionalField(4, TlvNullable(TlvUInt16)),
+        nextCredentialIndex?: number | null;
 
         /**
          * This field shall indicate the credential data for the requested user index.
@@ -1104,22 +2365,49 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.6
          */
-        credentialData: TlvOptionalField(5, TlvNullable(TlvByteString))
-    });
+        credentialData?: Bytes | null;
+    }
 
     /**
-     * Returns the status for the specified credential.
+     * Clear one, one type, or all credentials except ProgrammingPIN credential.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39
-     */
-    export interface GetCredentialStatusResponse extends TypeFromSchema<typeof TlvGetCredentialStatusResponse> {}
-
-    /**
-     * Input to the DoorLock clearCredential command
+     * Fields used for different use cases:
+     *
+     *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
+     *
+     *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+     *
+     *   - CredentialIndex in Credential structure shall be set to the credential index to be cleared.
+     *
+     * A LockUserChange event shall be generated after successfully clearing a credential.
+     *
+     *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
+     *
+     *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
+     *
+     *   - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that type shall
+     *     be cleared.
+     *
+     * A single LockUserChange event shall be generated after successfully clearing credentials. This event shall have
+     * DataIndex set to the CredentialIndex in the Credential structure.
+     *
+     *   - Credential field shall be null.
+     *
+     * The ProgrammingPIN credential shall NOT be cleared.
+     *
+     * For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall be generated.
+     * This event shall have DataIndex set to 0xFFFE.
+     *
+     * For each credential cleared whose user doesn’t have another valid credential, the corresponding user record shall
+     * be reset back to default values and its UserStatus value shall be set to Available and UserType value shall be
+     * set to UnrestrictedUser and all schedules shall be cleared. In this case a LockUserChange event shall be
+     * generated for the user being cleared.
+     *
+     * Return status shall be one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40
      */
-    export const TlvClearCredentialRequest = TlvObject({
+    export interface ClearCredentialRequest {
         /**
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
          * (0xFFFE for all credentials or 0 if not applicable) to clear. This shall be null if clearing all credential
@@ -1127,15 +2415,8 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40.1
          */
-        credential: TlvField(0, TlvNullable(TlvCredential))
-    });
-
-    /**
-     * Input to the DoorLock clearCredential command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40
-     */
-    export interface ClearCredentialRequest extends TypeFromSchema<typeof TlvClearCredentialRequest> {}
+        credential: Credential | null;
+    }
 
     /**
      * This enumeration shall indicate the data type that is being or has changed.
@@ -1278,31 +2559,32 @@ export namespace DoorLock {
     }
 
     /**
-     * Body of the DoorLock lockUserChange event
+     * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change has
+     * occurred.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5
      */
-    export const TlvLockUserChangeEvent = TlvObject({
+    export interface LockUserChangeEvent {
         /**
          * This field shall indicate the lock data type that was changed.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.1
          */
-        lockDataType: TlvField(0, TlvEnum<LockDataType>()),
+        lockDataType: LockDataType;
 
         /**
          * This field shall indicate the data operation performed on the lock data type changed.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.2
          */
-        dataOperationType: TlvField(1, TlvEnum<DataOperationType>()),
+        dataOperationType: DataOperationType;
 
         /**
          * This field shall indicate the source of the user data change.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.3
          */
-        operationSource: TlvField(2, TlvEnum<OperationSource>()),
+        operationSource: OperationSource;
 
         /**
          * This field shall indicate the lock UserIndex associated with the change (if any). This shall be null if there
@@ -1311,7 +2593,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.4
          */
-        userIndex: TlvField(3, TlvNullable(TlvUInt16)),
+        userIndex: number | null;
 
         /**
          * This field shall indicate the fabric index of the fabric that performed the change (if any). This shall be
@@ -1320,7 +2602,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.5
          */
-        fabricIndex: TlvField(4, TlvNullable(TlvFabricIndex)),
+        fabricIndex: FabricIndex | null;
 
         /**
          * This field shall indicate the Node ID that performed the change (if any). The Node ID of the node that
@@ -1329,7 +2611,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.6
          */
-        sourceNode: TlvField(5, TlvNullable(TlvNodeId)),
+        sourceNode: NodeId | null;
 
         /**
          * This field shall indicate the index of the specific item that was changed (e.g. schedule, PIN, RFID, etc.) in
@@ -1339,15 +2621,8 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.7
          */
-        dataIndex: TlvField(6, TlvNullable(TlvUInt16))
-    });
-
-    /**
-     * Body of the DoorLock lockUserChange event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5
-     */
-    export interface LockUserChangeEvent extends TypeFromSchema<typeof TlvLockUserChangeEvent> {}
+        dataIndex: number | null;
+    }
 
     /**
      * This bitmap shall indicate the days of the week the Week Day schedule applies for.
@@ -1391,46 +2666,89 @@ export namespace DoorLock {
         saturday: BitFlag(6)
     };
 
+    export interface DaysMask {
+        /**
+         * Schedule is applied on Sunday
+         */
+        sunday?: boolean;
+
+        /**
+         * Schedule is applied on Monday
+         */
+        monday?: boolean;
+
+        /**
+         * Schedule is applied on Tuesday
+         */
+        tuesday?: boolean;
+
+        /**
+         * Schedule is applied on Wednesday
+         */
+        wednesday?: boolean;
+
+        /**
+         * Schedule is applied on Thursday
+         */
+        thursday?: boolean;
+
+        /**
+         * Schedule is applied on Friday
+         */
+        friday?: boolean;
+
+        /**
+         * Schedule is applied on Saturday
+         */
+        saturday?: boolean;
+    }
+
     /**
-     * Input to the DoorLock setWeekDaySchedule command
+     * Set a weekly repeating schedule for a specified user.
+     *
+     * The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Week Day schedule is set.
+     *
+     * Return status shall be one of the following values:
+     *
+     * One or more fields violates constraints or is invalid.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12
      */
-    export const TlvSetWeekDayScheduleRequest = TlvObject({
+    export interface SetWeekDayScheduleRequest {
         /**
          * This field shall indicate the index of the Week Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.1
          */
-        weekDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        weekDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+        userIndex: number;
 
         /**
          * This field shall indicate which week days the schedule is active.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.3
          */
-        daysMask: TlvField(2, TlvBitmap(TlvUInt8, DaysMask)),
+        daysMask: DaysMask;
 
         /**
          * This field shall indicate the starting hour for the Week Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.4
          */
-        startHour: TlvField(3, TlvUInt8.bound({ max: 23 })),
+        startHour: number;
 
         /**
          * This field shall indicate the starting minute for the Week Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.5
          */
-        startMinute: TlvField(4, TlvUInt8.bound({ max: 59 })),
+        startMinute: number;
 
         /**
          * This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or greater
@@ -1438,7 +2756,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.6
          */
-        endHour: TlvField(5, TlvUInt8.bound({ max: 23 })),
+        endHour: number;
 
         /**
          * This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to StartHour then
@@ -1449,52 +2767,38 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.7
          */
-        endMinute: TlvField(6, TlvUInt8.bound({ max: 59 }))
-    });
+        endMinute: number;
+    }
 
     /**
-     * Input to the DoorLock setWeekDaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12
-     */
-    export interface SetWeekDayScheduleRequest extends TypeFromSchema<typeof TlvSetWeekDayScheduleRequest> {}
-
-    /**
-     * Input to the DoorLock getWeekDaySchedule command
+     * Retrieve the specific weekly schedule for the specific user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.13
      */
-    export const TlvGetWeekDayScheduleRequest = TlvObject({
-        weekDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
-    });
-
-    /**
-     * Input to the DoorLock getWeekDaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.13
-     */
-    export interface GetWeekDayScheduleRequest extends TypeFromSchema<typeof TlvGetWeekDayScheduleRequest> {}
+    export interface GetWeekDayScheduleRequest {
+        weekDayIndex: number;
+        userIndex: number;
+    }
 
     /**
      * Returns the weekly repeating schedule data for the specified schedule index.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14
      */
-    export const TlvGetWeekDayScheduleResponse = TlvObject({
+    export interface GetWeekDayScheduleResponse {
         /**
          * This field shall indicate the index of the Week Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.1
          */
-        weekDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        weekDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+        userIndex: number;
 
         /**
          * Status shall be one of the following values:
@@ -1512,23 +2816,23 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.3
          */
-        status: TlvField(2, TlvEnum<Status>()),
+        status: Status;
 
-        daysMask: TlvOptionalField(3, TlvBitmap(TlvUInt8, DaysMask)),
+        daysMask?: DaysMask;
 
         /**
          * This field shall indicate the starting hour for the Week Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.4
          */
-        startHour: TlvOptionalField(4, TlvUInt8.bound({ max: 23 })),
+        startHour?: number;
 
         /**
          * This field shall indicate the starting minute for the Week Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.5
          */
-        startMinute: TlvOptionalField(5, TlvUInt8.bound({ max: 59 })),
+        startMinute?: number;
 
         /**
          * This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or greater
@@ -1536,7 +2840,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.6
          */
-        endHour: TlvOptionalField(6, TlvUInt8.bound({ max: 23 })),
+        endHour?: number;
 
         /**
          * This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to StartHour then
@@ -1544,64 +2848,56 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.7
          */
-        endMinute: TlvOptionalField(7, TlvUInt8.bound({ max: 59 }))
-    });
+        endMinute?: number;
+    }
 
     /**
-     * Returns the weekly repeating schedule data for the specified schedule index.
+     * Clear the specific weekly schedule or all weekly schedules for the specific user.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14
-     */
-    export interface GetWeekDayScheduleResponse extends TypeFromSchema<typeof TlvGetWeekDayScheduleResponse> {}
-
-    /**
-     * Input to the DoorLock clearWeekDaySchedule command
+     * Return status shall be one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15
      */
-    export const TlvClearWeekDayScheduleRequest = TlvObject({
+    export interface ClearWeekDayScheduleRequest {
         /**
          * This field shall indicate the Week Day schedule index to clear or 0xFE to clear all Week Day schedules for
          * the specified user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15.1
          */
-        weekDayIndex: TlvField(0, TlvUInt8),
+        weekDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
-    });
+        userIndex: number;
+    }
 
     /**
-     * Input to the DoorLock clearWeekDaySchedule command
+     * Set a time-specific schedule ID for a specified user.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15
-     */
-    export interface ClearWeekDayScheduleRequest extends TypeFromSchema<typeof TlvClearWeekDayScheduleRequest> {}
-
-    /**
-     * Input to the DoorLock setYearDaySchedule command
+     * The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Year Day schedule is set.
+     *
+     * Return status shall be one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16
      */
-    export const TlvSetYearDayScheduleRequest = TlvObject({
+    export interface SetYearDayScheduleRequest {
         /**
          * This field shall indicate the index of the Year Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.1
          */
-        yearDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        yearDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+        userIndex: number;
 
         /**
          * This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with local
@@ -1609,7 +2905,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.3
          */
-        localStartTime: TlvField(2, TlvEpochS),
+        localStartTime: number;
 
         /**
          * This field shall indicate the ending time for the Year Day schedule in Epoch Time in Seconds with local time
@@ -1618,52 +2914,38 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.4
          */
-        localEndTime: TlvField(3, TlvEpochS)
-    });
+        localEndTime: number;
+    }
 
     /**
-     * Input to the DoorLock setYearDaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16
-     */
-    export interface SetYearDayScheduleRequest extends TypeFromSchema<typeof TlvSetYearDayScheduleRequest> {}
-
-    /**
-     * Input to the DoorLock getYearDaySchedule command
+     * Retrieve the specific year day schedule for the specific schedule and user indexes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.17
      */
-    export const TlvGetYearDayScheduleRequest = TlvObject({
-        yearDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
-    });
-
-    /**
-     * Input to the DoorLock getYearDaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.17
-     */
-    export interface GetYearDayScheduleRequest extends TypeFromSchema<typeof TlvGetYearDayScheduleRequest> {}
+    export interface GetYearDayScheduleRequest {
+        yearDayIndex: number;
+        userIndex: number;
+    }
 
     /**
      * Returns the year day schedule data for the specified schedule and user indexes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18
      */
-    export const TlvGetYearDayScheduleResponse = TlvObject({
+    export interface GetYearDayScheduleResponse {
         /**
          * This field shall indicate the index of the Year Day schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.1
          */
-        yearDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        yearDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+        userIndex: number;
 
         /**
          * Status shall be one of the following values:
@@ -1681,7 +2963,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.3
          */
-        status: TlvField(2, TlvEnum<Status>()),
+        status: Status;
 
         /**
          * This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with local
@@ -1690,7 +2972,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.4
          */
-        localStartTime: TlvOptionalField(3, TlvEpochS),
+        localStartTime?: number;
 
         /**
          * This field shall indicate the ending time for the Year Day schedule in Epoch Time in Seconds with local time
@@ -1700,44 +2982,32 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.5
          */
-        localEndTime: TlvOptionalField(4, TlvEpochS)
-    });
+        localEndTime?: number;
+    }
 
     /**
-     * Returns the year day schedule data for the specified schedule and user indexes.
+     * Clears the specific year day schedule or all year day schedules for the specific user.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18
-     */
-    export interface GetYearDayScheduleResponse extends TypeFromSchema<typeof TlvGetYearDayScheduleResponse> {}
-
-    /**
-     * Input to the DoorLock clearYearDaySchedule command
+     * Return status shall be one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19
      */
-    export const TlvClearYearDayScheduleRequest = TlvObject({
+    export interface ClearYearDayScheduleRequest {
         /**
          * This field shall indicate the Year Day schedule index to clear or 0xFE to clear all Year Day schedules for
          * the specified user.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19.1
          */
-        yearDayIndex: TlvField(0, TlvUInt8),
+        yearDayIndex: number;
 
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19.2
          */
-        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
-    });
-
-    /**
-     * Input to the DoorLock clearYearDaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19
-     */
-    export interface ClearYearDayScheduleRequest extends TypeFromSchema<typeof TlvClearYearDayScheduleRequest> {}
+        userIndex: number;
+    }
 
     /**
      * This enumeration shall indicate the lock operating mode.
@@ -1797,17 +3067,20 @@ export namespace DoorLock {
     }
 
     /**
-     * Input to the DoorLock setHolidaySchedule command
+     * Set the holiday Schedule by specifying local start time and local end time with respect to any Lock Operating
+     * Mode.
+     *
+     * Return status shall be one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20
      */
-    export const TlvSetHolidayScheduleRequest = TlvObject({
+    export interface SetHolidayScheduleRequest {
         /**
          * This field shall indicate the index of the Holiday schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.1
          */
-        holidayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        holidayIndex: number;
 
         /**
          * This field shall indicate the starting time for the Holiday Day schedule in Epoch Time in Seconds with local
@@ -1815,7 +3088,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.2
          */
-        localStartTime: TlvField(1, TlvEpochS),
+        localStartTime: number;
 
         /**
          * This field shall indicate the ending time for the Holiday Day schedule in Epoch Time in Seconds with local
@@ -1824,49 +3097,37 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.3
          */
-        localEndTime: TlvField(2, TlvEpochS),
+        localEndTime: number;
 
         /**
          * This field shall indicate the operating mode to use during this Holiday schedule start/end time.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.4
          */
-        operatingMode: TlvField(3, TlvEnum<OperatingMode>())
-    });
+        operatingMode: OperatingMode;
+    }
 
     /**
-     * Input to the DoorLock setHolidaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20
-     */
-    export interface SetHolidayScheduleRequest extends TypeFromSchema<typeof TlvSetHolidayScheduleRequest> {}
-
-    /**
-     * Input to the DoorLock getHolidaySchedule command
+     * Get the holiday schedule for the specified index.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.21
      */
-    export const TlvGetHolidayScheduleRequest = TlvObject({ holidayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })) });
-
-    /**
-     * Input to the DoorLock getHolidaySchedule command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.21
-     */
-    export interface GetHolidayScheduleRequest extends TypeFromSchema<typeof TlvGetHolidayScheduleRequest> {}
+    export interface GetHolidayScheduleRequest {
+        holidayIndex: number;
+    }
 
     /**
      * Returns the Holiday Schedule Entry for the specified Holiday ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22
      */
-    export const TlvGetHolidayScheduleResponse = TlvObject({
+    export interface GetHolidayScheduleResponse {
         /**
          * This field shall indicate the index of the Holiday schedule.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.1
          */
-        holidayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        holidayIndex: number;
 
         /**
          * Status shall be one of the following values:
@@ -1885,7 +3146,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.2
          */
-        status: TlvField(1, TlvEnum<Status>()),
+        status: Status;
 
         /**
          * This field shall indicate the starting time for the Holiday schedule in Epoch Time in Seconds with local time
@@ -1894,7 +3155,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.3
          */
-        localStartTime: TlvOptionalField(2, TlvNullable(TlvEpochS)),
+        localStartTime?: number | null;
 
         /**
          * This field shall indicate the ending time for the Holiday schedule in Epoch Time in Seconds with local time
@@ -1903,7 +3164,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.4
          */
-        localEndTime: TlvOptionalField(3, TlvNullable(TlvEpochS)),
+        localEndTime?: number | null;
 
         /**
          * This field shall indicate the operating mode to use during this Holiday schedule start/end time. This shall
@@ -1911,50 +3172,39 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.5
          */
-        operatingMode: TlvOptionalField(4, TlvNullable(TlvEnum<OperatingMode>()))
-    });
+        operatingMode?: OperatingMode | null;
+    }
 
     /**
-     * Returns the Holiday Schedule Entry for the specified Holiday ID.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22
-     */
-    export interface GetHolidayScheduleResponse extends TypeFromSchema<typeof TlvGetHolidayScheduleResponse> {}
-
-    /**
-     * Input to the DoorLock clearHolidaySchedule command
+     * Clears the holiday schedule or all holiday schedules.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23
      */
-    export const TlvClearHolidayScheduleRequest = TlvObject({
+    export interface ClearHolidayScheduleRequest {
         /**
          * This field shall indicate the Holiday schedule index to clear or 0xFE to clear all Holiday schedules.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23.1
          */
-        holidayIndex: TlvField(0, TlvUInt8)
-    });
+        holidayIndex: number;
+    }
 
     /**
-     * Input to the DoorLock clearHolidaySchedule command
+     * Set a PIN Code into the lock.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23
-     */
-    export interface ClearHolidayScheduleRequest extends TypeFromSchema<typeof TlvClearHolidayScheduleRequest> {}
-
-    /**
-     * Input to the DoorLock setPinCode command
+     * Return status is a global status code or a cluster-specific status code from the Status Codes table and shall be
+     * one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4
      */
-    export const TlvSetPinCodeRequest = TlvObject({
+    export interface SetPinCodeRequest {
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4.1
          */
-        userId: TlvField(0, TlvUInt16),
+        userId: number;
 
         /**
          * This field shall indicate the user status. Only the values 1 (Occupied/Enabled) and 3 (Occupied/Disabled) are
@@ -1962,40 +3212,26 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4.2
          */
-        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
+        userStatus: UserStatus | null;
 
-        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
-        pin: TlvField(3, TlvByteString)
-    });
-
-    /**
-     * Input to the DoorLock setPinCode command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4
-     */
-    export interface SetPinCodeRequest extends TypeFromSchema<typeof TlvSetPinCodeRequest> {}
+        userType: UserType | null;
+        pin: Bytes;
+    }
 
     /**
-     * Input to the DoorLock getPinCode command
+     * Retrieve a PIN Code.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5
      */
-    export const TlvGetPinCodeRequest = TlvObject({
+    export interface GetPinCodeRequest {
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5.1
          */
-        userId: TlvField(0, TlvUInt16)
-    });
-
-    /**
-     * Input to the DoorLock getPinCode command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5
-     */
-    export interface GetPinCodeRequest extends TypeFromSchema<typeof TlvGetPinCodeRequest> {}
+        userId: number;
+    }
 
     /**
      * Returns the PIN for the specified user ID.
@@ -2017,69 +3253,44 @@ export namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.6
      */
-    export const TlvGetPinCodeResponse = TlvObject({
-        userId: TlvField(0, TlvUInt16),
-        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
-        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
-        pinCode: TlvField(3, TlvNullable(TlvByteString))
-    });
+    export interface GetPinCodeResponse {
+        userId: number;
+        userStatus: UserStatus | null;
+        userType: UserType | null;
+        pinCode: Bytes | null;
+    }
 
     /**
-     * Returns the PIN for the specified user ID.
+     * Clear a PIN code or all PIN codes.
      *
-     * If the requested UserID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
-     * format:
-     *
-     * UserID = requested User ID
-     *
-     * UserStatus = 0 (Available)
-     *
-     * UserType = Null (Not supported)
-     *
-     * PINCode = 0 (zero length)
-     *
-     * If the requested UserID is invalid, send Default Response with an error status. The error status shall be equal
-     * to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
-     * equal to the max number of users supported.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.6
-     */
-    export interface GetPinCodeResponse extends TypeFromSchema<typeof TlvGetPinCodeResponse> {}
-
-    /**
-     * Input to the DoorLock clearPinCode command
+     * For each PIN Code cleared whose user doesn’t have a RFID Code or other credential type, then corresponding user
+     * record’s UserStatus value shall be set to Available, and UserType value shall be set to UnrestrictedUser and all
+     * schedules shall be cleared.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7
      */
-    export const TlvClearPinCodeRequest = TlvObject({
+    export interface ClearPinCodeRequest {
         /**
          * This field shall specify a valid PIN code slot index or 0xFFFE to indicate all PIN code slots shall be
          * cleared.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7.1
          */
-        pinSlotIndex: TlvField(0, TlvUInt16)
-    });
+        pinSlotIndex: number;
+    }
 
     /**
-     * Input to the DoorLock clearPinCode command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7
-     */
-    export interface ClearPinCodeRequest extends TypeFromSchema<typeof TlvClearPinCodeRequest> {}
-
-    /**
-     * Input to the DoorLock setAliroReaderConfig command
+     * This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42
      */
-    export const TlvSetAliroReaderConfigRequest = TlvObject({
+    export interface SetAliroReaderConfigRequest {
         /**
          * This field shall indicate the signing key component of the Reader’s key pair.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.1
          */
-        signingKey: TlvField(0, TlvByteString.bound({ length: 32 })),
+        signingKey: Bytes;
 
         /**
          * This field shall indicate the verification key component of the Reader’s key pair. This shall be an
@@ -2087,43 +3298,36 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.2
          */
-        verificationKey: TlvField(1, TlvByteString.bound({ length: 65 })),
+        verificationKey: Bytes;
 
         /**
          * This field shall indicate the reader group identifier for the lock.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.3
          */
-        groupIdentifier: TlvField(2, TlvByteString.bound({ length: 16 })),
+        groupIdentifier: Bytes;
 
         /**
          * This field shall indicate the group resolving key for the lock.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.4
          */
-        groupResolvingKey: TlvOptionalField(3, TlvByteString.bound({ length: 16 }))
-    });
+        groupResolvingKey?: Bytes;
+    }
 
     /**
-     * Input to the DoorLock setAliroReaderConfig command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42
-     */
-    export interface SetAliroReaderConfigRequest extends TypeFromSchema<typeof TlvSetAliroReaderConfigRequest> {}
-
-    /**
-     * Input to the DoorLock setUserStatus command
+     * Set the status of a user ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9
      */
-    export const TlvSetUserStatusRequest = TlvObject({
+    export interface SetUserStatusRequest {
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9.1
          */
-        userId: TlvField(0, TlvUInt16),
+        userId: number;
 
         /**
          * UserStatus value of Available is not allowed. In order to clear a user id, the ClearUser Command shall be
@@ -2131,107 +3335,81 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9.2
          */
-        userStatus: TlvField(1, TlvEnum<UserStatus>())
-    });
+        userStatus: UserStatus;
+    }
 
     /**
-     * Input to the DoorLock setUserStatus command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9
-     */
-    export interface SetUserStatusRequest extends TypeFromSchema<typeof TlvSetUserStatusRequest> {}
-
-    /**
-     * Input to the DoorLock getUserStatus command
+     * Get the status of a user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10
      */
-    export const TlvGetUserStatusRequest = TlvObject({
+    export interface GetUserStatusRequest {
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10.1
          */
-        userId: TlvField(0, TlvUInt16)
-    });
-
-    /**
-     * Input to the DoorLock getUserStatus command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10
-     */
-    export interface GetUserStatusRequest extends TypeFromSchema<typeof TlvGetUserStatusRequest> {}
+        userId: number;
+    }
 
     /**
      * Returns the user status for the specified user ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11
      */
-    export const TlvGetUserStatusResponse = TlvObject({
+    export interface GetUserStatusResponse {
         /**
          * This field shall indicate the user ID provided in the request.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11.1
          */
-        userId: TlvField(0, TlvUInt16),
+        userId: number;
 
         /**
          * This field shall indicate the current status of the requested user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11.2
          */
-        userStatus: TlvField(1, TlvEnum<UserStatus>())
-    });
+        userStatus: UserStatus;
+    }
 
     /**
-     * Returns the user status for the specified user ID.
+     * Set the user type for a specified user.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11
-     */
-    export interface GetUserStatusResponse extends TypeFromSchema<typeof TlvGetUserStatusResponse> {}
-
-    /**
-     * Input to the DoorLock setUserType command
+     * For user type value please refer to User Type Value.
+     *
+     * Return status shall be one of the following values:
+     *
+     * One or more fields violates constraints or is invalid. Door lock is unable to switch from restricted to
+     * unrestricted user (e.g. need to clear schedules to switch).
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24
      */
-    export const TlvSetUserTypeRequest = TlvObject({
+    export interface SetUserTypeRequest {
         /**
          * This field shall indicate the user ID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24.1
          */
-        userId: TlvField(0, TlvUInt16),
+        userId: number;
 
         /**
          * This field shall indicate the user type.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24.2
          */
-        userType: TlvField(1, TlvEnum<UserType>())
-    });
+        userType: UserType;
+    }
 
     /**
-     * Input to the DoorLock setUserType command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24
-     */
-    export interface SetUserTypeRequest extends TypeFromSchema<typeof TlvSetUserTypeRequest> {}
-
-    /**
-     * Input to the DoorLock getUserType command
+     * Retrieve the user type for a specific user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.25
      */
-    export const TlvGetUserTypeRequest = TlvObject({ userId: TlvField(0, TlvUInt16) });
-
-    /**
-     * Input to the DoorLock getUserType command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.25
-     */
-    export interface GetUserTypeRequest extends TypeFromSchema<typeof TlvGetUserTypeRequest> {}
+    export interface GetUserTypeRequest {
+        userId: number;
+    }
 
     /**
      * Returns the user type for the specified user ID. If the requested User ID is invalid, send Default Response with
@@ -2239,25 +3417,20 @@ export namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.26
      */
-    export const TlvGetUserTypeResponse = TlvObject({
-        userId: TlvField(0, TlvUInt16),
-        userType: TlvField(1, TlvEnum<UserType>())
-    });
+    export interface GetUserTypeResponse {
+        userId: number;
+        userType: UserType;
+    }
 
     /**
-     * Returns the user type for the specified user ID. If the requested User ID is invalid, send Default Response with
-     * an error status equal to FAILURE.
+     * Set an ID for RFID access into the lock.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.26
-     */
-    export interface GetUserTypeResponse extends TypeFromSchema<typeof TlvGetUserTypeResponse> {}
-
-    /**
-     * Input to the DoorLock setRfidCode command
+     * Return status is a global status code or a cluster-specific status code from the Status Codes table and shall be
+     * one of the following values:
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27
      */
-    export const TlvSetRfidCodeRequest = TlvObject({
+    export interface SetRfidCodeRequest {
         /**
          * This field shall indicate the user ID.
          *
@@ -2265,7 +3438,7 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.1
          */
-        userId: TlvField(0, TlvUInt16),
+        userId: number;
 
         /**
          * This field shall indicate what the status is for a specific user ID. The values are according to “Set PIN”
@@ -2275,31 +3448,24 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.2
          */
-        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
+        userStatus: UserStatus | null;
 
         /**
          * The values are the same as used for SetPINCode command.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.3
          */
-        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
+        userType: UserType | null;
 
-        rfidCode: TlvField(3, TlvByteString)
-    });
-
-    /**
-     * Input to the DoorLock setRfidCode command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27
-     */
-    export interface SetRfidCodeRequest extends TypeFromSchema<typeof TlvSetRfidCodeRequest> {}
+        rfidCode: Bytes;
+    }
 
     /**
-     * Input to the DoorLock getRfidCode command
+     * Retrieve an RFID code.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28
      */
-    export const TlvGetRfidCodeRequest = TlvObject({
+    export interface GetRfidCodeRequest {
         /**
          * This field shall indicate the user ID.
          *
@@ -2307,15 +3473,8 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28.1
          */
-        userId: TlvField(0, TlvUInt16)
-    });
-
-    /**
-     * Input to the DoorLock getRfidCode command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28
-     */
-    export interface GetRfidCodeRequest extends TypeFromSchema<typeof TlvGetRfidCodeRequest> {}
+        userId: number;
+    }
 
     /**
      * Returns the RFID code for the specified user ID.
@@ -2337,77 +3496,52 @@ export namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.29
      */
-    export const TlvGetRfidCodeResponse = TlvObject({
-        userId: TlvField(0, TlvUInt16),
-        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
-        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
-        rfidCode: TlvField(3, TlvNullable(TlvByteString))
-    });
+    export interface GetRfidCodeResponse {
+        userId: number;
+        userStatus: UserStatus | null;
+        userType: UserType | null;
+        rfidCode: Bytes | null;
+    }
 
     /**
-     * Returns the RFID code for the specified user ID.
+     * Clear an RFID code or all RFID codes.
      *
-     * If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
-     * format:
-     *
-     * User ID = requested User ID
-     *
-     * UserStatus = 0 (available)
-     *
-     * UserType = 0xFF (not supported)
-     *
-     * RFID Code = 0 (zero length)
-     *
-     * If requested User ID is invalid, send Default Response with an error status. The error status shall be equal to
-     * CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
-     * equal to the max number of users supported.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.29
-     */
-    export interface GetRfidCodeResponse extends TypeFromSchema<typeof TlvGetRfidCodeResponse> {}
-
-    /**
-     * Input to the DoorLock clearRfidCode command
+     * For each RFID Code cleared whose user doesn’t have a PIN Code or other credential type, then the corresponding
+     * user record’s UserStatus value shall be set to Available, and UserType value shall be set to UnrestrictedUser and
+     * all schedules shall be cleared.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30
      */
-    export const TlvClearRfidCodeRequest = TlvObject({
+    export interface ClearRfidCodeRequest {
         /**
          * This field shall indicate a valid RFID code slot index or 0xFFFE to indicate all RFID code slots shall be
          * cleared.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30.1
          */
-        rfidSlotIndex: TlvField(0, TlvUInt16)
-    });
+        rfidSlotIndex: number;
+    }
 
     /**
-     * Input to the DoorLock clearRfidCode command
+     * This command causes the lock device to unlock the door without pulling the latch. This command includes an
+     * optional code for the lock. The door lock may require a code depending on the value of the
+     * RequirePINForRemoteOperation attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30
-     */
-    export interface ClearRfidCodeRequest extends TypeFromSchema<typeof TlvClearRfidCodeRequest> {}
-
-    /**
-     * Input to the DoorLock unboltDoor command
+     * > [!NOTE]
+     *
+     * > If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the auto relock
+     *   time has expired.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41
      */
-    export const TlvUnboltDoorRequest = TlvObject({
+    export interface UnboltDoorRequest {
         /**
          * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41.1
          */
-        pinCode: TlvOptionalField(0, TlvByteString)
-    });
-
-    /**
-     * Input to the DoorLock unboltDoor command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41
-     */
-    export interface UnboltDoorRequest extends TypeFromSchema<typeof TlvUnboltDoorRequest> {}
+        pinCode?: Bytes;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.19
@@ -2589,6 +3723,38 @@ export namespace DoorLock {
         alwaysSet: BitField(5, 11)
     };
 
+    export interface OperatingModes {
+        /**
+         * Normal operation mode is NOT supported
+         */
+        normal?: boolean;
+
+        /**
+         * Vacation operation mode is NOT supported
+         */
+        vacation?: boolean;
+
+        /**
+         * Privacy operation mode is NOT supported
+         */
+        privacy?: boolean;
+
+        /**
+         * No remote lock and unlock operation mode is NOT supported
+         */
+        noRemoteLockUnlock?: boolean;
+
+        /**
+         * Passage operation mode is NOT supported
+         */
+        passage?: boolean;
+
+        /**
+         * This needs always be set because this bitmap is inverse.!
+         */
+        alwaysSet?: number;
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4
      */
@@ -2672,6 +3838,86 @@ export namespace DoorLock {
         ledSettings: BitFlag(7)
     };
 
+    export interface ConfigurationRegister {
+        /**
+         * The state of local programming functionality
+         *
+         * This bit shall indicate the state related to local programming:
+         *
+         *   - 0 = Local programming is disabled
+         *
+         *   - 1 = Local programming is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.1
+         */
+        localProgramming?: boolean;
+
+        /**
+         * The state of the keypad interface
+         *
+         * This bit shall indicate the state related to keypad interface:
+         *
+         *   - 0 = Keypad interface is disabled
+         *
+         *   - 1 = Keypad interface is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.2
+         */
+        keypadInterface?: boolean;
+
+        /**
+         * The state of the remote interface
+         *
+         * This bit shall indicate the state related to remote interface:
+         *
+         *   - 0 = Remote interface is disabled
+         *
+         *   - 1 = Remote interface is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.3
+         */
+        remoteInterface?: boolean;
+
+        /**
+         * Sound volume is set to Silent value
+         *
+         * This bit shall indicate the state related to sound volume:
+         *
+         *   - 0 = Sound volume value is 0 (Silent)
+         *
+         *   - 1 = Sound volume value is equal to something other than 0
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.4
+         */
+        soundVolume?: boolean;
+
+        /**
+         * Auto relock time it set to 0
+         *
+         * This bit shall indicate the state related to auto relock time:
+         *
+         *   - 0 = Auto relock time value is 0
+         *
+         *   - 1 = Auto relock time value is equal to something other than 0
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.5
+         */
+        autoRelockTime?: boolean;
+
+        /**
+         * LEDs is disabled
+         *
+         * This bit shall indicate the state related to LED settings:
+         *
+         *   - 0 = LED settings value is 0 (NoLEDSignal)
+         *
+         *   - 1 = LED settings value is equal to something other than 0
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.6
+         */
+        ledSettings?: boolean;
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5
      */
@@ -2729,12 +3975,67 @@ export namespace DoorLock {
         adjustSettings: BitFlag(3)
     };
 
+    export interface LocalProgrammingFeatures {
+        /**
+         * The state of the ability to add users, credentials or schedules on the device
+         *
+         * This bit shall indicate whether the door lock is able to add Users/Credentials/Schedules locally:
+         *
+         *   - 0 = This ability is disabled
+         *
+         *   - 1 = This ability is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.1
+         */
+        addUsersCredentialsSchedules?: boolean;
+
+        /**
+         * The state of the ability to modify users, credentials or schedules on the device
+         *
+         * This bit shall indicate whether the door lock is able to modify Users/Credentials/Schedules locally:
+         *
+         *   - 0 = This ability is disabled
+         *
+         *   - 1 = This ability is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.2
+         */
+        modifyUsersCredentialsSchedules?: boolean;
+
+        /**
+         * The state of the ability to clear users, credentials or schedules on the device
+         *
+         * This bit shall indicate whether the door lock is able to clear Users/Credentials/Schedules locally:
+         *
+         *   - 0 = This ability is disabled
+         *
+         *   - 1 = This ability is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.3
+         */
+        clearUsersCredentialsSchedules?: boolean;
+
+        /**
+         * The state of the ability to adjust settings on the device
+         *
+         * This bit shall indicate whether the door lock is able to adjust lock settings locally:
+         *
+         *   - 0 = This ability is disabled
+         *
+         *   - 1 = This ability is enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.4
+         */
+        adjustSettings?: boolean;
+    }
+
     /**
-     * Input to the DoorLock lockDoor command
+     * This command causes the lock device to lock the door. This command includes an optional code for the lock. The
+     * door lock may require a PIN depending on the value of the RequirePINForRemoteOperation attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
      */
-    export const TlvLockDoorRequest = TlvObject({
+    export interface LockDoorRequest {
         /**
          * If the RequirePINforRemoteOperation attribute is True then PINCode field shall be provided and the door lock
          * shall NOT grant access if it is not provided.
@@ -2748,65 +4049,54 @@ export namespace DoorLock {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1.1
          */
-        pinCode: TlvOptionalField(0, TlvByteString)
-    });
+        pinCode?: Bytes;
+    }
 
     /**
-     * Input to the DoorLock lockDoor command
+     * This command causes the lock device to unlock the door. This command includes an optional code for the lock. The
+     * door lock may require a code depending on the value of the RequirePINForRemoteOperation attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
-     */
-    export interface LockDoorRequest extends TypeFromSchema<typeof TlvLockDoorRequest> {}
-
-    /**
-     * Input to the DoorLock unlockDoor command
+     * > [!NOTE]
+     *
+     * > If the attribute AutoRelockTime is supported the lock will transition to the locked state when the auto relock
+     *   time has expired.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2
      */
-    export const TlvUnlockDoorRequest = TlvObject({
+    export interface UnlockDoorRequest {
         /**
          * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2.1
          */
-        pinCode: TlvOptionalField(0, TlvByteString)
-    });
+        pinCode?: Bytes;
+    }
 
     /**
-     * Input to the DoorLock unlockDoor command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2
-     */
-    export interface UnlockDoorRequest extends TypeFromSchema<typeof TlvUnlockDoorRequest> {}
-
-    /**
-     * Input to the DoorLock unlockWithTimeout command
+     * This command causes the lock device to unlock the door with a timeout parameter. After the time in seconds
+     * specified in the timeout field, the lock device will relock itself automatically. This timeout parameter is only
+     * temporary for this message transition and overrides the default relock time as specified in the AutoRelockTime
+     * attribute. If the door lock device is not capable of or does not want to support temporary Relock Timeout, it
+     * SHOULD NOT support this optional command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3
      */
-    export const TlvUnlockWithTimeoutRequest = TlvObject({
+    export interface UnlockWithTimeoutRequest {
         /**
          * This field shall indicate the timeout in seconds to wait before relocking the door lock. This value is
          * independent of the AutoRelockTime attribute value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3.1
          */
-        timeout: TlvField(0, TlvUInt16),
+        timeout: number;
 
         /**
          * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3.2
          */
-        pinCode: TlvOptionalField(1, TlvByteString)
-    });
-
-    /**
-     * Input to the DoorLock unlockWithTimeout command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3
-     */
-    export interface UnlockWithTimeoutRequest extends TypeFromSchema<typeof TlvUnlockWithTimeoutRequest> {}
+        pinCode?: Bytes;
+    }
 
     /**
      * This enumeration shall indicate the alarm type.
@@ -2856,25 +4146,19 @@ export namespace DoorLock {
     }
 
     /**
-     * Body of the DoorLock doorLockAlarm event
+     * The door lock server provides several alarms which can be sent when there is a critical state on the door lock.
+     * The alarms available for the door lock server are listed in AlarmCodeEnum.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1
      */
-    export const TlvDoorLockAlarmEvent = TlvObject({
+    export interface DoorLockAlarmEvent {
         /**
          * This field shall indicate the alarm code of the event that has happened.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1.1
          */
-        alarmCode: TlvField(0, TlvEnum<AlarmCode>())
-    });
-
-    /**
-     * Body of the DoorLock doorLockAlarm event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1
-     */
-    export interface DoorLockAlarmEvent extends TypeFromSchema<typeof TlvDoorLockAlarmEvent> {}
+        alarmCode: AlarmCode;
+    }
 
     /**
      * This enumeration shall indicate the type of Lock operation performed.
@@ -2907,6 +4191,1635 @@ export namespace DoorLock {
          */
         Unlatch = 4
     }
+
+    /**
+     * The door lock server sends out a LockOperation event when the event is triggered by the various lock operation
+     * sources.
+     *
+     *   - If the door lock server supports the Unbolt Door command, it shall generate a LockOperation event with
+     *     LockOperationType set to Unlock after an Unbolt Door command succeeds.
+     *
+     *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it shall
+     *     generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state is reached and
+     *     a LockOperation event with LockOperationType set to Unlock when the lock successfully completes the unlock →
+     *     hold latch → release latch and return to unlock state operation.
+     *
+     *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the door
+     *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
+     *     LockOperation event with LockOperationType set to Unlock.
+     *
+     *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+     *       LockOperationError event with LockOperationType set to Unlock.
+     *
+     *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
+     *
+     *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+     *
+     *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3
+     */
+    export interface LockOperationEvent {
+        /**
+         * This field shall indicate the type of the lock operation that was performed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.1
+         */
+        lockOperationType: LockOperationType;
+
+        /**
+         * This field shall indicate the source of the lock operation that was performed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.2
+         */
+        operationSource: OperationSource;
+
+        /**
+         * This field shall indicate the UserIndex who performed the lock operation. This shall be null if there is no
+         * user index that can be determined for the given operation source. This shall NOT be null if a user index can
+         * be determined. In particular, this shall NOT be null if the operation was associated with a valid credential.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.3
+         */
+        userIndex: number | null;
+
+        /**
+         * This field shall indicate the fabric index of the fabric that performed the lock operation. This shall be
+         * null if there is no fabric that can be determined for the given operation source. This shall NOT be null if
+         * the operation source is "Remote".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.4
+         */
+        fabricIndex: FabricIndex | null;
+
+        /**
+         * This field shall indicate the Node ID of the node that performed the lock operation. This shall be null if
+         * there is no Node associated with the given operation source. This shall NOT be null if the operation source
+         * is "Remote".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.5
+         */
+        sourceNode: NodeId | null;
+
+        /**
+         * This field shall indicate the list of credentials used in performing the lock operation. This shall be null
+         * if no credentials were involved.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.6
+         */
+        credentials?: Credential[] | null;
+    }
+
+    /**
+     * This enumeration shall indicate the error cause of the Lock/Unlock operation performed.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.14
+     */
+    export enum OperationError {
+        /**
+         * Lock/unlock error caused by unknown or unspecified source
+         */
+        Unspecified = 0,
+
+        /**
+         * Lock/unlock error caused by invalid PIN, RFID, fingerprint or other credential
+         */
+        InvalidCredential = 1,
+
+        /**
+         * Lock/unlock error caused by disabled USER or credential
+         */
+        DisabledUserDenied = 2,
+
+        /**
+         * Lock/unlock error caused by schedule restriction
+         */
+        Restricted = 3,
+
+        /**
+         * Lock/unlock error caused by insufficient battery power left to safely actuate the lock
+         */
+        InsufficientBattery = 4
+    }
+
+    /**
+     * The door lock server sends out a LockOperationError event when a lock operation fails for various reasons.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4
+     */
+    export interface LockOperationErrorEvent {
+        /**
+         * This field shall indicate the type of the lock operation that was performed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.1
+         */
+        lockOperationType: LockOperationType;
+
+        /**
+         * This field shall indicate the source of the lock operation that was performed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.2
+         */
+        operationSource: OperationSource;
+
+        /**
+         * This field shall indicate the lock operation error triggered when the operation was performed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.3
+         */
+        operationError: OperationError;
+
+        /**
+         * This field shall indicate the lock UserIndex who performed the lock operation. This shall be null if there is
+         * no user id that can be determined for the given operation source.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.4
+         */
+        userIndex: number | null;
+
+        /**
+         * This field shall indicate the fabric index of the fabric that performed the lock operation. This shall be
+         * null if there is no fabric that can be determined for the given operation source. This shall NOT be null if
+         * the operation source is "Remote".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.5
+         */
+        fabricIndex: FabricIndex | null;
+
+        /**
+         * This field shall indicate the Node ID of the node that performed the lock operation. This shall be null if
+         * there is no Node associated with the given operation source. This shall NOT be null if the operation source
+         * is "Remote".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.6
+         */
+        sourceNode: NodeId | null;
+
+        /**
+         * This field shall indicate the list of credentials used in performing the lock operation. This shall be null
+         * if no credentials were involved.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.7
+         */
+        credentials?: Credential[] | null;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.6
+     */
+    export const AlarmMask = {
+        /**
+         * Locking Mechanism Jammed
+         */
+        lockJammed: BitFlag(0),
+
+        /**
+         * Lock Reset to Factory Defaults
+         */
+        lockFactoryReset: BitFlag(1),
+
+        /**
+         * RF Module Power Cycled
+         */
+        lockRadioPowerCycled: BitFlag(3),
+
+        /**
+         * Tamper Alarm - wrong code entry limit
+         */
+        wrongCodeEntryLimit: BitFlag(4),
+
+        /**
+         * Tamper Alarm - front escutcheon removed from main
+         */
+        frontEscutcheonRemoved: BitFlag(5),
+
+        /**
+         * Forced Door Open under Door Locked Condition
+         */
+        doorForcedOpen: BitFlag(6)
+    };
+
+    export interface AlarmMask {
+        /**
+         * Locking Mechanism Jammed
+         */
+        lockJammed?: boolean;
+
+        /**
+         * Lock Reset to Factory Defaults
+         */
+        lockFactoryReset?: boolean;
+
+        /**
+         * RF Module Power Cycled
+         */
+        lockRadioPowerCycled?: boolean;
+
+        /**
+         * Tamper Alarm - wrong code entry limit
+         */
+        wrongCodeEntryLimit?: boolean;
+
+        /**
+         * Tamper Alarm - front escutcheon removed from main
+         */
+        frontEscutcheonRemoved?: boolean;
+
+        /**
+         * Forced Door Open under Door Locked Condition
+         */
+        doorForcedOpen?: boolean;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.23
+     */
+    export enum EventType {
+        /**
+         * Event type is operation
+         */
+        Operation = 0,
+
+        /**
+         * Event type is programming
+         */
+        Programming = 1,
+
+        /**
+         * Event type is alarm
+         */
+        Alarm = 2
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.7.1
+     */
+    export enum StatusCode {
+        /**
+         * Entry would cause a duplicate credential/ID.
+         */
+        Duplicate = 2,
+
+        /**
+         * Entry would replace an occupied slot.
+         */
+        Occupied = 3
+    }
+
+    /**
+     * Body of the DoorLock doorStateChange event
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2
+     */
+    export const TlvDoorStateChangeEvent = TlvObject({
+        /**
+         * This field shall indicate the new door state for this door event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2.1
+         */
+        doorState: TlvField(0, TlvEnum<DoorState>())
+    });
+
+    /**
+     * Input to the DoorLock setUser command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
+     */
+    export const TlvSetUserRequest = TlvObject({
+        /**
+         * This field shall indicate the type of operation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.1
+         */
+        operationType: TlvField(0, TlvEnum<DataOperationType>()),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+
+        /**
+         * This field shall contain a string to use as a human readable identifier for the user.
+         *
+         * If UserName is null then:
+         *
+         *   - If the OperationType is Add, the UserName in the resulting user record shall be set to an empty string.
+         *
+         *   - If the OperationType is Modify, the UserName in the user record shall NOT be changed from the current
+         *     value.
+         *
+         * If UserName is not null, the UserName in the user record shall be set to the provided value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.3
+         */
+        userName: TlvField(2, TlvNullable(TlvString.bound({ maxLength: 10 }))),
+
+        /**
+         * This field shall indicate the fabric assigned number to use for connecting this user to other users on other
+         * devices from the fabric’s perspective.
+         *
+         * If UserUniqueID is null then:
+         *
+         *   - If the OperationType is Add, the UserUniqueID in the resulting user record shall be set to default value
+         *     specified above.
+         *
+         *   - If the OperationType is Modify, the UserUniqueID in the user record shall NOT be changed from the current
+         *     value.
+         *
+         * If UserUniqueID is not null, the UserUniqueID in the user record shall be set to the provided value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.4
+         */
+        userUniqueId: TlvField(3, TlvNullable(TlvUInt32)),
+
+        /**
+         * This field shall indicate the UserStatus to assign to this user when created or modified.
+         *
+         * If UserStatus is null then:
+         *
+         *   - If the OperationType is Add, the UserStatus in the resulting user record shall be set to default value
+         *     specified above.
+         *
+         *   - If the OperationType is Modify, the UserStatus in the user record shall NOT be changed from the current
+         *     value.
+         *
+         * If UserStatus is not null, the UserStatus in the user record shall be set to the provided value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.5
+         */
+        userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
+
+        /**
+         * This field shall indicate the UserType to assign to this user when created or modified.
+         *
+         * If UserType is null then:
+         *
+         *   - If the OperationType is Add, the UserType in the resulting user record shall be set to default value
+         *     specified above.
+         *
+         *   - If the OperationType is Modify, the UserType in the user record shall NOT be changed from the current
+         *     value.
+         *
+         * If UserType is not null, the UserType in the user record shall be set to the provided value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.6
+         */
+        userType: TlvField(5, TlvNullable(TlvEnum<UserType>())),
+
+        /**
+         * This field shall indicate the CredentialRule to use for this user.
+         *
+         * The valid CredentialRule enumeration values depends on the bits in the CredentialRulesBitmap map. Each bit in
+         * the map identifies a valid CredentialRule that can be used.
+         *
+         * If CredentialRule is null then:
+         *
+         *   - If the OperationType is Add, the CredentialRule in the resulting user record shall be set to default
+         *     value specified above.
+         *
+         *   - If the OperationType is Modify, the CredentialRule in the user record shall NOT be changed from the
+         *     current value.
+         *
+         * If CredentialRule is not null, the CredentialRule in the user record shall be set to the provided value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.7
+         */
+        credentialRule: TlvField(6, TlvNullable(TlvEnum<CredentialRule>()))
+    });
+
+    /**
+     * Input to the DoorLock getUser command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.33
+     */
+    export const TlvGetUserRequest = TlvObject({ userIndex: TlvField(0, TlvUInt16.bound({ min: 1 })) });
+
+    /**
+     * This struct shall indicate the credential types and their corresponding indices (if any) for the event or user
+     * record.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24
+     */
+    export const TlvCredential = TlvObject({
+        /**
+         * This field shall indicate the credential field used to authorize the lock operation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24.1
+         */
+        credentialType: TlvField(0, TlvEnum<CredentialType>()),
+
+        /**
+         * This field shall indicate the index of the specific credential used to authorize the lock operation in the
+         * list of credentials identified by CredentialType (e.g. PIN, RFID, etc.). This field shall be set to 0 if
+         * CredentialType is ProgrammingPIN or does not correspond to a list that can be indexed into.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24.2
+         */
+        credentialIndex: TlvField(1, TlvUInt16)
+    });
+
+    /**
+     * Returns the user for the specified UserIndex.
+     *
+     * If the requested UserIndex is valid and the UserStatus is Available for the requested UserIndex then UserName,
+     * UserUniqueID, UserStatus, UserType, CredentialRule, Credentials, CreatorFabricIndex, and LastModifiedFabricIndex
+     * shall all be null in the response.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34
+     */
+    export const TlvGetUserResponse = TlvObject({
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.1
+         */
+        userIndex: TlvField(0, TlvUInt16.bound({ min: 1 })),
+
+        /**
+         * This field shall contain a string to use as a human readable identifier for the user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.2
+         */
+        userName: TlvField(1, TlvNullable(TlvString.bound({ maxLength: 10 }))),
+
+        /**
+         * See UserUniqueID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.3
+         */
+        userUniqueId: TlvField(2, TlvNullable(TlvUInt32)),
+
+        /**
+         * This field shall indicate the UserStatus assigned to the user when created or modified.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.4
+         */
+        userStatus: TlvField(3, TlvNullable(TlvEnum<UserStatus>())),
+
+        /**
+         * This field shall indicate the UserType assigned to this user when created or modified.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.5
+         */
+        userType: TlvField(4, TlvNullable(TlvEnum<UserType>())),
+
+        /**
+         * This field shall indicate the CredentialRule set for this user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.6
+         */
+        credentialRule: TlvField(5, TlvNullable(TlvEnum<CredentialRule>())),
+
+        /**
+         * This field shall contain a list of credentials for this user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.7
+         */
+        credentials: TlvField(6, TlvNullable(TlvArray(TlvCredential, { minLength: 0 }))),
+
+        /**
+         * This field shall indicate the user’s creator fabric index. CreatorFabricIndex shall be null if UserStatus is
+         * set to Available or when the creator fabric cannot be determined (for example, when user was created outside
+         * the Interaction Model) and shall NOT be null otherwise. This value shall be set to 0 if the original creator
+         * fabric was deleted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.8
+         */
+        creatorFabricIndex: TlvField(7, TlvNullable(TlvFabricIndex)),
+
+        /**
+         * This field shall indicate the user’s last modifier fabric index. LastModifiedFabricIndex shall be null if
+         * UserStatus is set to Available or when the modifier fabric cannot be determined (for example, when user was
+         * modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be set to 0 if the
+         * last modifier fabric was deleted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.9
+         */
+        lastModifiedFabricIndex: TlvField(8, TlvNullable(TlvFabricIndex)),
+
+        /**
+         * This field shall indicate the next occupied UserIndex in the database which is useful for quickly identifying
+         * occupied user slots in the database. This shall NOT be null if there is at least one occupied entry after the
+         * requested UserIndex in the User database and shall be null if there are no more occupied entries.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.10
+         */
+        nextUserIndex: TlvField(9, TlvNullable(TlvUInt16.bound({ min: 1 })))
+    });
+
+    /**
+     * Input to the DoorLock clearUser command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35
+     */
+    export const TlvClearUserRequest = TlvObject({
+        /**
+         * This field shall specify a valid User index or 0xFFFE to indicate all user slots shall be cleared.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35.1
+         */
+        userIndex: TlvField(0, TlvUInt16)
+    });
+
+    /**
+     * Input to the DoorLock setCredential command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36
+     */
+    export const TlvSetCredentialRequest = TlvObject({
+        /**
+         * This field shall indicate the set credential operation type requested.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.1
+         */
+        operationType: TlvField(0, TlvEnum<DataOperationType>()),
+
+        /**
+         * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
+         * (if applicable or 0 if not) to set.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.2
+         */
+        credential: TlvField(1, TlvCredential),
+
+        /**
+         * This field shall indicate the credential data to set for the credential being added or modified. The length
+         * of the credential data shall conform to the limits of the CredentialType specified in the Credential
+         * structure otherwise an INVALID_COMMAND status shall be returned in the SetCredentialResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.3
+         */
+        credentialData: TlvField(2, TlvByteString),
+
+        /**
+         * This field shall indicate the user index to the user record that corresponds to the credential being added or
+         * modified. This shall be null if OperationType is add and a new credential and user is being added at the same
+         * time.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.4
+         */
+        userIndex: TlvField(3, TlvNullable(TlvUInt16.bound({ min: 1 }))),
+
+        /**
+         * This field shall indicate the user status to use in the new user record if a new user is being created. This
+         * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.5
+         */
+        userStatus: TlvField(4, TlvNullable(TlvEnum<UserStatus>())),
+
+        /**
+         * This field shall indicate the user type to use in the new user record if a new user is being created. This
+         * shall be null if OperationType is Modify. This may be null when adding a new credential and user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.6
+         */
+        userType: TlvField(5, TlvNullable(TlvEnum<UserType>()))
+    });
+
+    /**
+     * Returns the status for setting the specified credential.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37
+     */
+    export const TlvSetCredentialResponse = TlvObject({
+        /**
+         * Status comes from the Status Codes table and shall be one of the following values:
+         *
+         *   - SUCCESS, if setting user credential was successful.
+         *
+         *   - FAILURE, if some unexpected internal error occurred setting user credential.
+         *
+         *   - OCCUPIED, if OperationType is Add and CredentialIndex in Credential structure points to an occupied slot.
+         *
+         *   - OCCUPIED, if OperationType is Modify and CredentialIndex in Credential structure does not match the
+         *     CredentialIndex that is already associated with the provided UserIndex.
+         *
+         *   - DUPLICATE, if CredentialData provided is a duplicate of another credential with the same CredentialType
+         *     (e.g. duplicate PIN code).
+         *
+         *   - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
+         *     constraints such as:
+         *
+         *     - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials
+         *       associated.
+         *
+         *     - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it
+         *       would cause the total number of credentials of those two types to exceed
+         *       NumberOfAliroEndpointKeysSupported.
+         *
+         *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid.
+         *
+         *   - INVALID_COMMAND, if the CredentialIndex in the Credential provided exceeds the number of credentials of
+         *     the provided CredentialType supported by the lock.
+         *
+         *   - INVALID_COMMAND, if OperationType is Modify and UserIndex points to an available slot.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.1
+         */
+        status: TlvField(0, TlvEnum<Status>()),
+
+        /**
+         * This field shall indicate the user index that was created with the new credential. If the status being
+         * returned is not success then this shall be null. This shall be null if OperationType was Modify; if the
+         * OperationType was Add and a new User was created this shall NOT be null and shall provide the UserIndex
+         * created. If the OperationType was Add and an existing User was associated with the new credential then this
+         * shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.2
+         */
+        userIndex: TlvField(1, TlvNullable(TlvUInt16.bound({ min: 1 }))),
+
+        /**
+         * This field shall indicate the next available index in the database for the credential type set, which is
+         * useful for quickly identifying available credential slots in the database. This shall NOT be null if there is
+         * at least one available entry after the requested credential index in the corresponding database and shall be
+         * null if there are no more available entries. The NextCredentialIndex reported shall NOT exceed the maximum
+         * number of credentials for a particular credential type.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.3
+         */
+        nextCredentialIndex: TlvOptionalField(2, TlvNullable(TlvUInt16))
+    });
+
+    /**
+     * Input to the DoorLock getCredentialStatus command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38
+     */
+    export const TlvGetCredentialStatusRequest = TlvObject({
+        /**
+         * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
+         * (if applicable or 0 if not) to retrieve the status for.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38.1
+         */
+        credential: TlvField(0, TlvCredential)
+    });
+
+    /**
+     * Returns the status for the specified credential.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39
+     */
+    export const TlvGetCredentialStatusResponse = TlvObject({
+        /**
+         * This field shall indicate if the requested credential type and index exists and is populated for the
+         * requested user index.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.1
+         */
+        credentialExists: TlvField(0, TlvBoolean),
+
+        /**
+         * This field shall indicate the credential’s corresponding user index value if the credential exists. If
+         * CredentialType requested was ProgrammingPIN then UserIndex shall be null; otherwise, UserIndex shall be null
+         * if CredentialExists is set to False and shall NOT be null if CredentialExists is set to True.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.2
+         */
+        userIndex: TlvField(1, TlvNullable(TlvUInt16.bound({ min: 1 }))),
+
+        /**
+         * This field shall indicate the credential’s creator fabric index. CreatorFabricIndex shall be null if
+         * CredentialExists is set to False or when the creator fabric cannot be determined (for example, when
+         * credential was created outside the Interaction Model) and shall NOT be null otherwise. This value shall be
+         * set to 0 if the original creator fabric was deleted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.3
+         */
+        creatorFabricIndex: TlvField(2, TlvNullable(TlvFabricIndex)),
+
+        /**
+         * This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall be null
+         * if CredentialExists is set to False or when the modifier fabric cannot be determined (for example, when
+         * credential was modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be
+         * set to 0 if the last modifier fabric was deleted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.4
+         */
+        lastModifiedFabricIndex: TlvField(3, TlvNullable(TlvFabricIndex)),
+
+        /**
+         * This field shall indicate the next occupied index in the database for the credential type requested, which is
+         * useful for quickly identifying occupied credential slots in the database. This shall NOT be null if there is
+         * at least one occupied entry after the requested credential index in the corresponding database and shall be
+         * null if there are no more occupied entries. The NextCredentialIndex reported shall NOT exceed the maximum
+         * number of credentials for a particular credential type.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.5
+         */
+        nextCredentialIndex: TlvOptionalField(4, TlvNullable(TlvUInt16)),
+
+        /**
+         * This field shall indicate the credential data for the requested user index.
+         *
+         * If the CredentialType in the GetCredentialStatus command was not AliroCredentialIssuerKey,
+         * AliroEvictableEndpointKey, or AliroNonEvictableEndpointKey, this field shall NOT be included.
+         *
+         * Otherwise, if CredentialExists is false this field shall be null.
+         *
+         * Otherwise, the value of this field shall be the value of the relevant credential, as a 65-byte uncompressed
+         * elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         *
+         * > [!NOTE]
+         *
+         * > Since the Aliro credentials are public keys, there is no security risk in allowing them to be read.
+         *   Possession of the credential octet string does not allow operating the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.6
+         */
+        credentialData: TlvOptionalField(5, TlvNullable(TlvByteString))
+    });
+
+    /**
+     * Input to the DoorLock clearCredential command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40
+     */
+    export const TlvClearCredentialRequest = TlvObject({
+        /**
+         * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
+         * (0xFFFE for all credentials or 0 if not applicable) to clear. This shall be null if clearing all credential
+         * types otherwise it shall NOT be null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40.1
+         */
+        credential: TlvField(0, TlvNullable(TlvCredential))
+    });
+
+    /**
+     * Body of the DoorLock lockUserChange event
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5
+     */
+    export const TlvLockUserChangeEvent = TlvObject({
+        /**
+         * This field shall indicate the lock data type that was changed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.1
+         */
+        lockDataType: TlvField(0, TlvEnum<LockDataType>()),
+
+        /**
+         * This field shall indicate the data operation performed on the lock data type changed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.2
+         */
+        dataOperationType: TlvField(1, TlvEnum<DataOperationType>()),
+
+        /**
+         * This field shall indicate the source of the user data change.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.3
+         */
+        operationSource: TlvField(2, TlvEnum<OperationSource>()),
+
+        /**
+         * This field shall indicate the lock UserIndex associated with the change (if any). This shall be null if there
+         * is no specific user associated with the data operation. This shall be 0xFFFE if all users are affected (e.g.
+         * Clear Users).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.4
+         */
+        userIndex: TlvField(3, TlvNullable(TlvUInt16)),
+
+        /**
+         * This field shall indicate the fabric index of the fabric that performed the change (if any). This shall be
+         * null if there is no fabric that can be determined to have caused the change. This shall NOT be null if the
+         * operation source is "Remote".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.5
+         */
+        fabricIndex: TlvField(4, TlvNullable(TlvFabricIndex)),
+
+        /**
+         * This field shall indicate the Node ID that performed the change (if any). The Node ID of the node that
+         * performed the change. This shall be null if there was no Node involved in the change. This shall NOT be null
+         * if the operation source is "Remote".
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.6
+         */
+        sourceNode: TlvField(5, TlvNullable(TlvNodeId)),
+
+        /**
+         * This field shall indicate the index of the specific item that was changed (e.g. schedule, PIN, RFID, etc.) in
+         * the list of items identified by LockDataType. This shall be null if the LockDataType does not correspond to a
+         * list that can be indexed into (e.g. ProgrammingUser). This shall be 0xFFFE if all indices are affected (e.g.
+         * ClearPINCode, ClearRFIDCode, ClearWeekDaySchedule, ClearYearDaySchedule, etc.).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.7
+         */
+        dataIndex: TlvField(6, TlvNullable(TlvUInt16))
+    });
+
+    /**
+     * Input to the DoorLock setWeekDaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12
+     */
+    export const TlvSetWeekDayScheduleRequest = TlvObject({
+        /**
+         * This field shall indicate the index of the Week Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.1
+         */
+        weekDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate which week days the schedule is active.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.3
+         */
+        daysMask: TlvField(2, TlvBitmap(TlvUInt8, DaysMask)),
+
+        /**
+         * This field shall indicate the starting hour for the Week Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.4
+         */
+        startHour: TlvField(3, TlvUInt8.bound({ max: 23 })),
+
+        /**
+         * This field shall indicate the starting minute for the Week Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.5
+         */
+        startMinute: TlvField(4, TlvUInt8.bound({ max: 59 })),
+
+        /**
+         * This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or greater
+         * than StartHour.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.6
+         */
+        endHour: TlvField(5, TlvUInt8.bound({ max: 23 })),
+
+        /**
+         * This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to StartHour then
+         * EndMinute shall be greater than StartMinute.
+         *
+         * If the EndHour is equal to 23 and the EndMinute is equal to 59 the Lock shall grant access to the user up
+         * until 23:59:59.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.7
+         */
+        endMinute: TlvField(6, TlvUInt8.bound({ max: 59 }))
+    });
+
+    /**
+     * Input to the DoorLock getWeekDaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.13
+     */
+    export const TlvGetWeekDayScheduleRequest = TlvObject({
+        weekDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
+    });
+
+    /**
+     * Returns the weekly repeating schedule data for the specified schedule index.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14
+     */
+    export const TlvGetWeekDayScheduleResponse = TlvObject({
+        /**
+         * This field shall indicate the index of the Week Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.1
+         */
+        weekDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+
+        /**
+         * Status shall be one of the following values:
+         *
+         *   - SUCCESS if both WeekDayIndex and UserIndex are valid and there is a corresponding schedule entry.
+         *
+         *   - INVALID_COMMAND if either WeekDayIndex and/or UserIndex values are not within valid range
+         *
+         *   - NOT_FOUND if no corresponding schedule entry found for WeekDayIndex.
+         *
+         *   - NOT_FOUND if no corresponding user entry found for UserIndex.
+         *
+         * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
+         * values, only the fields up to the status field shall be present.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.3
+         */
+        status: TlvField(2, TlvEnum<Status>()),
+
+        daysMask: TlvOptionalField(3, TlvBitmap(TlvUInt8, DaysMask)),
+
+        /**
+         * This field shall indicate the starting hour for the Week Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.4
+         */
+        startHour: TlvOptionalField(4, TlvUInt8.bound({ max: 23 })),
+
+        /**
+         * This field shall indicate the starting minute for the Week Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.5
+         */
+        startMinute: TlvOptionalField(5, TlvUInt8.bound({ max: 59 })),
+
+        /**
+         * This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or greater
+         * than StartHour.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.6
+         */
+        endHour: TlvOptionalField(6, TlvUInt8.bound({ max: 23 })),
+
+        /**
+         * This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to StartHour then
+         * EndMinute shall be greater than StartMinute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.7
+         */
+        endMinute: TlvOptionalField(7, TlvUInt8.bound({ max: 59 }))
+    });
+
+    /**
+     * Input to the DoorLock clearWeekDaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15
+     */
+    export const TlvClearWeekDayScheduleRequest = TlvObject({
+        /**
+         * This field shall indicate the Week Day schedule index to clear or 0xFE to clear all Week Day schedules for
+         * the specified user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15.1
+         */
+        weekDayIndex: TlvField(0, TlvUInt8),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
+    });
+
+    /**
+     * Input to the DoorLock setYearDaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16
+     */
+    export const TlvSetYearDayScheduleRequest = TlvObject({
+        /**
+         * This field shall indicate the index of the Year Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.1
+         */
+        yearDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with local
+         * time offset based on the local timezone and DST offset on the day represented by the value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.3
+         */
+        localStartTime: TlvField(2, TlvEpochS),
+
+        /**
+         * This field shall indicate the ending time for the Year Day schedule in Epoch Time in Seconds with local time
+         * offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime shall be
+         * greater than LocalStartTime.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.4
+         */
+        localEndTime: TlvField(3, TlvEpochS)
+    });
+
+    /**
+     * Input to the DoorLock getYearDaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.17
+     */
+    export const TlvGetYearDayScheduleRequest = TlvObject({
+        yearDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
+    });
+
+    /**
+     * Returns the year day schedule data for the specified schedule and user indexes.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18
+     */
+    export const TlvGetYearDayScheduleResponse = TlvObject({
+        /**
+         * This field shall indicate the index of the Year Day schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.1
+         */
+        yearDayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 })),
+
+        /**
+         * Status shall be one of the following values:
+         *
+         *   - SUCCESS if both YearDayIndex and UserIndex are valid and there is a corresponding schedule entry.
+         *
+         *   - INVALID_COMMAND if either YearDayIndex and/or UserIndex values are not within valid range
+         *
+         *   - NOT_FOUND if no corresponding schedule entry found for YearDayIndex.
+         *
+         *   - NOT_FOUND if no corresponding user entry found for UserIndex.
+         *
+         * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
+         * values, only the fields up to the status field shall be present.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.3
+         */
+        status: TlvField(2, TlvEnum<Status>()),
+
+        /**
+         * This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with local
+         * time offset based on the local timezone and DST offset on the day represented by the value. This shall be
+         * null if the schedule is not set for the YearDayIndex and UserIndex provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.4
+         */
+        localStartTime: TlvOptionalField(3, TlvEpochS),
+
+        /**
+         * This field shall indicate the ending time for the Year Day schedule in Epoch Time in Seconds with local time
+         * offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime shall be
+         * greater than LocalStartTime. This shall be null if the schedule is not set for the YearDayIndex and UserIndex
+         * provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.5
+         */
+        localEndTime: TlvOptionalField(4, TlvEpochS)
+    });
+
+    /**
+     * Input to the DoorLock clearYearDaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19
+     */
+    export const TlvClearYearDayScheduleRequest = TlvObject({
+        /**
+         * This field shall indicate the Year Day schedule index to clear or 0xFE to clear all Year Day schedules for
+         * the specified user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19.1
+         */
+        yearDayIndex: TlvField(0, TlvUInt8),
+
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19.2
+         */
+        userIndex: TlvField(1, TlvUInt16.bound({ min: 1 }))
+    });
+
+    /**
+     * Input to the DoorLock setHolidaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20
+     */
+    export const TlvSetHolidayScheduleRequest = TlvObject({
+        /**
+         * This field shall indicate the index of the Holiday schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.1
+         */
+        holidayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+
+        /**
+         * This field shall indicate the starting time for the Holiday Day schedule in Epoch Time in Seconds with local
+         * time offset based on the local timezone and DST offset on the day represented by the value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.2
+         */
+        localStartTime: TlvField(1, TlvEpochS),
+
+        /**
+         * This field shall indicate the ending time for the Holiday Day schedule in Epoch Time in Seconds with local
+         * time offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime
+         * shall be greater than LocalStartTime.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.3
+         */
+        localEndTime: TlvField(2, TlvEpochS),
+
+        /**
+         * This field shall indicate the operating mode to use during this Holiday schedule start/end time.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.4
+         */
+        operatingMode: TlvField(3, TlvEnum<OperatingMode>())
+    });
+
+    /**
+     * Input to the DoorLock getHolidaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.21
+     */
+    export const TlvGetHolidayScheduleRequest = TlvObject({ holidayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })) });
+
+    /**
+     * Returns the Holiday Schedule Entry for the specified Holiday ID.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22
+     */
+    export const TlvGetHolidayScheduleResponse = TlvObject({
+        /**
+         * This field shall indicate the index of the Holiday schedule.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.1
+         */
+        holidayIndex: TlvField(0, TlvUInt8.bound({ min: 1 })),
+
+        /**
+         * Status shall be one of the following values:
+         *
+         *   - FAILURE if the attribute NumberOfHolidaySchedulesSupported is zero.
+         *
+         *   - SUCCESS if the HolidayIndex is valid and there is a corresponding schedule entry.
+         *
+         *   - INVALID_COMMAND if the HolidayIndex is not within valid range
+         *
+         *   - NOT_FOUND if the HolidayIndex is within the valid range, however, there is not corresponding schedule
+         *     entry found.
+         *
+         * If this field is SUCCESS, the optional fields for this command shall be present. For other (error) status
+         * values, only the fields up to the status field shall be present.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.2
+         */
+        status: TlvField(1, TlvEnum<Status>()),
+
+        /**
+         * This field shall indicate the starting time for the Holiday schedule in Epoch Time in Seconds with local time
+         * offset based on the local timezone and DST offset on the day represented by the value. This shall be null if
+         * the schedule is not set for the HolidayIndex provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.3
+         */
+        localStartTime: TlvOptionalField(2, TlvNullable(TlvEpochS)),
+
+        /**
+         * This field shall indicate the ending time for the Holiday schedule in Epoch Time in Seconds with local time
+         * offset based on the local timezone and DST offset on the day represented by the value. LocalEndTime shall be
+         * greater than LocalStartTime. This shall be null if the schedule is not set for the HolidayIndex provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.4
+         */
+        localEndTime: TlvOptionalField(3, TlvNullable(TlvEpochS)),
+
+        /**
+         * This field shall indicate the operating mode to use during this Holiday schedule start/end time. This shall
+         * be null if the schedule is not set for the HolidayIndex provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.5
+         */
+        operatingMode: TlvOptionalField(4, TlvNullable(TlvEnum<OperatingMode>()))
+    });
+
+    /**
+     * Input to the DoorLock clearHolidaySchedule command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23
+     */
+    export const TlvClearHolidayScheduleRequest = TlvObject({
+        /**
+         * This field shall indicate the Holiday schedule index to clear or 0xFE to clear all Holiday schedules.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23.1
+         */
+        holidayIndex: TlvField(0, TlvUInt8)
+    });
+
+    /**
+     * Input to the DoorLock setPinCode command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4
+     */
+    export const TlvSetPinCodeRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
+         * NumberOfPINUsersSupported attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4.1
+         */
+        userId: TlvField(0, TlvUInt16),
+
+        /**
+         * This field shall indicate the user status. Only the values 1 (Occupied/Enabled) and 3 (Occupied/Disabled) are
+         * allowed for UserStatus.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4.2
+         */
+        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
+
+        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
+        pin: TlvField(3, TlvByteString)
+    });
+
+    /**
+     * Input to the DoorLock getPinCode command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5
+     */
+    export const TlvGetPinCodeRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
+         * NumberOfPINUsersSupported attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5.1
+         */
+        userId: TlvField(0, TlvUInt16)
+    });
+
+    /**
+     * Returns the PIN for the specified user ID.
+     *
+     * If the requested UserID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
+     * format:
+     *
+     * UserID = requested User ID
+     *
+     * UserStatus = 0 (Available)
+     *
+     * UserType = Null (Not supported)
+     *
+     * PINCode = 0 (zero length)
+     *
+     * If the requested UserID is invalid, send Default Response with an error status. The error status shall be equal
+     * to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
+     * equal to the max number of users supported.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.6
+     */
+    export const TlvGetPinCodeResponse = TlvObject({
+        userId: TlvField(0, TlvUInt16),
+        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
+        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
+        pinCode: TlvField(3, TlvNullable(TlvByteString))
+    });
+
+    /**
+     * Input to the DoorLock clearPinCode command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7
+     */
+    export const TlvClearPinCodeRequest = TlvObject({
+        /**
+         * This field shall specify a valid PIN code slot index or 0xFFFE to indicate all PIN code slots shall be
+         * cleared.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7.1
+         */
+        pinSlotIndex: TlvField(0, TlvUInt16)
+    });
+
+    /**
+     * Input to the DoorLock setAliroReaderConfig command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42
+     */
+    export const TlvSetAliroReaderConfigRequest = TlvObject({
+        /**
+         * This field shall indicate the signing key component of the Reader’s key pair.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.1
+         */
+        signingKey: TlvField(0, TlvByteString.bound({ length: 32 })),
+
+        /**
+         * This field shall indicate the verification key component of the Reader’s key pair. This shall be an
+         * uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.2
+         */
+        verificationKey: TlvField(1, TlvByteString.bound({ length: 65 })),
+
+        /**
+         * This field shall indicate the reader group identifier for the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.3
+         */
+        groupIdentifier: TlvField(2, TlvByteString.bound({ length: 16 })),
+
+        /**
+         * This field shall indicate the group resolving key for the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.4
+         */
+        groupResolvingKey: TlvOptionalField(3, TlvByteString.bound({ length: 16 }))
+    });
+
+    /**
+     * Input to the DoorLock setUserStatus command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9
+     */
+    export const TlvSetUserStatusRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
+         * NumberOfPINUsersSupported attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9.1
+         */
+        userId: TlvField(0, TlvUInt16),
+
+        /**
+         * UserStatus value of Available is not allowed. In order to clear a user id, the ClearUser Command shall be
+         * used. For user status value please refer to UserStatusEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9.2
+         */
+        userStatus: TlvField(1, TlvEnum<UserStatus>())
+    });
+
+    /**
+     * Input to the DoorLock getUserStatus command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10
+     */
+    export const TlvGetUserStatusRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
+         * NumberOfPINUsersSupported attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10.1
+         */
+        userId: TlvField(0, TlvUInt16)
+    });
+
+    /**
+     * Returns the user status for the specified user ID.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11
+     */
+    export const TlvGetUserStatusResponse = TlvObject({
+        /**
+         * This field shall indicate the user ID provided in the request.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11.1
+         */
+        userId: TlvField(0, TlvUInt16),
+
+        /**
+         * This field shall indicate the current status of the requested user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11.2
+         */
+        userStatus: TlvField(1, TlvEnum<UserStatus>())
+    });
+
+    /**
+     * Input to the DoorLock setUserType command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24
+     */
+    export const TlvSetUserTypeRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24.1
+         */
+        userId: TlvField(0, TlvUInt16),
+
+        /**
+         * This field shall indicate the user type.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24.2
+         */
+        userType: TlvField(1, TlvEnum<UserType>())
+    });
+
+    /**
+     * Input to the DoorLock getUserType command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.25
+     */
+    export const TlvGetUserTypeRequest = TlvObject({ userId: TlvField(0, TlvUInt16) });
+
+    /**
+     * Returns the user type for the specified user ID. If the requested User ID is invalid, send Default Response with
+     * an error status equal to FAILURE.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.26
+     */
+    export const TlvGetUserTypeResponse = TlvObject({
+        userId: TlvField(0, TlvUInt16),
+        userType: TlvField(1, TlvEnum<UserType>())
+    });
+
+    /**
+     * Input to the DoorLock setRfidCode command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27
+     */
+    export const TlvSetRfidCodeRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID.
+         *
+         * The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.1
+         */
+        userId: TlvField(0, TlvUInt16),
+
+        /**
+         * This field shall indicate what the status is for a specific user ID. The values are according to “Set PIN”
+         * while not all are supported.
+         *
+         * Only the values 1 (Occupied/Enabled) and 3 (Occupied/Disabled) are allowed for UserStatus.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.2
+         */
+        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
+
+        /**
+         * The values are the same as used for SetPINCode command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27.3
+         */
+        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
+
+        rfidCode: TlvField(3, TlvByteString)
+    });
+
+    /**
+     * Input to the DoorLock getRfidCode command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28
+     */
+    export const TlvGetRfidCodeRequest = TlvObject({
+        /**
+         * This field shall indicate the user ID.
+         *
+         * The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28.1
+         */
+        userId: TlvField(0, TlvUInt16)
+    });
+
+    /**
+     * Returns the RFID code for the specified user ID.
+     *
+     * If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the following
+     * format:
+     *
+     * User ID = requested User ID
+     *
+     * UserStatus = 0 (available)
+     *
+     * UserType = 0xFF (not supported)
+     *
+     * RFID Code = 0 (zero length)
+     *
+     * If requested User ID is invalid, send Default Response with an error status. The error status shall be equal to
+     * CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and NOT_FOUND if greater than or
+     * equal to the max number of users supported.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.29
+     */
+    export const TlvGetRfidCodeResponse = TlvObject({
+        userId: TlvField(0, TlvUInt16),
+        userStatus: TlvField(1, TlvNullable(TlvEnum<UserStatus>())),
+        userType: TlvField(2, TlvNullable(TlvEnum<UserType>())),
+        rfidCode: TlvField(3, TlvNullable(TlvByteString))
+    });
+
+    /**
+     * Input to the DoorLock clearRfidCode command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30
+     */
+    export const TlvClearRfidCodeRequest = TlvObject({
+        /**
+         * This field shall indicate a valid RFID code slot index or 0xFFFE to indicate all RFID code slots shall be
+         * cleared.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30.1
+         */
+        rfidSlotIndex: TlvField(0, TlvUInt16)
+    });
+
+    /**
+     * Input to the DoorLock unboltDoor command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41
+     */
+    export const TlvUnboltDoorRequest = TlvObject({
+        /**
+         * See Section 5.2.10.1.1, “PINCode Field”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41.1
+         */
+        pinCode: TlvOptionalField(0, TlvByteString)
+    });
+
+    /**
+     * Input to the DoorLock lockDoor command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
+     */
+    export const TlvLockDoorRequest = TlvObject({
+        /**
+         * If the RequirePINforRemoteOperation attribute is True then PINCode field shall be provided and the door lock
+         * shall NOT grant access if it is not provided.
+         *
+         * If the PINCode field is provided, the door lock shall verify PINCode before granting access regardless of the
+         * value of RequirePINForRemoteOperation attribute.
+         *
+         * When the PINCode field is provided an invalid PIN will count towards the WrongCodeEntryLimit and the
+         * UserCodeTemporaryDisableTime will be triggered if the WrongCodeEntryLimit is exceeded. The lock shall ignore
+         * any attempts to lock/unlock the door until the UserCodeTemporaryDisableTime expires.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1.1
+         */
+        pinCode: TlvOptionalField(0, TlvByteString)
+    });
+
+    /**
+     * Input to the DoorLock unlockDoor command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2
+     */
+    export const TlvUnlockDoorRequest = TlvObject({
+        /**
+         * See Section 5.2.10.1.1, “PINCode Field”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2.1
+         */
+        pinCode: TlvOptionalField(0, TlvByteString)
+    });
+
+    /**
+     * Input to the DoorLock unlockWithTimeout command
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3
+     */
+    export const TlvUnlockWithTimeoutRequest = TlvObject({
+        /**
+         * This field shall indicate the timeout in seconds to wait before relocking the door lock. This value is
+         * independent of the AutoRelockTime attribute value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3.1
+         */
+        timeout: TlvField(0, TlvUInt16),
+
+        /**
+         * See Section 5.2.10.1.1, “PINCode Field”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3.2
+         */
+        pinCode: TlvOptionalField(1, TlvByteString)
+    });
+
+    /**
+     * Body of the DoorLock doorLockAlarm event
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1
+     */
+    export const TlvDoorLockAlarmEvent = TlvObject({
+        /**
+         * This field shall indicate the alarm code of the event that has happened.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1.1
+         */
+        alarmCode: TlvField(0, TlvEnum<AlarmCode>())
+    });
 
     /**
      * Body of the DoorLock lockOperation event
@@ -2963,45 +5876,6 @@ export namespace DoorLock {
          */
         credentials: TlvOptionalField(5, TlvNullable(TlvArray(TlvCredential, { minLength: 1 })))
     });
-
-    /**
-     * Body of the DoorLock lockOperation event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3
-     */
-    export interface LockOperationEvent extends TypeFromSchema<typeof TlvLockOperationEvent> {}
-
-    /**
-     * This enumeration shall indicate the error cause of the Lock/Unlock operation performed.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.14
-     */
-    export enum OperationError {
-        /**
-         * Lock/unlock error caused by unknown or unspecified source
-         */
-        Unspecified = 0,
-
-        /**
-         * Lock/unlock error caused by invalid PIN, RFID, fingerprint or other credential
-         */
-        InvalidCredential = 1,
-
-        /**
-         * Lock/unlock error caused by disabled USER or credential
-         */
-        DisabledUserDenied = 2,
-
-        /**
-         * Lock/unlock error caused by schedule restriction
-         */
-        Restricted = 3,
-
-        /**
-         * Lock/unlock error caused by insufficient battery power left to safely actuate the lock
-         */
-        InsufficientBattery = 4
-    }
 
     /**
      * Body of the DoorLock lockOperationError event
@@ -3064,83 +5938,6 @@ export namespace DoorLock {
          */
         credentials: TlvOptionalField(6, TlvNullable(TlvArray(TlvCredential, { minLength: 1 })))
     });
-
-    /**
-     * Body of the DoorLock lockOperationError event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4
-     */
-    export interface LockOperationErrorEvent extends TypeFromSchema<typeof TlvLockOperationErrorEvent> {}
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.6
-     */
-    export const AlarmMask = {
-        /**
-         * Locking Mechanism Jammed
-         */
-        lockJammed: BitFlag(0),
-
-        /**
-         * Lock Reset to Factory Defaults
-         */
-        lockFactoryReset: BitFlag(1),
-
-        /**
-         * RF Module Power Cycled
-         */
-        lockRadioPowerCycled: BitFlag(3),
-
-        /**
-         * Tamper Alarm - wrong code entry limit
-         */
-        wrongCodeEntryLimit: BitFlag(4),
-
-        /**
-         * Tamper Alarm - front escutcheon removed from main
-         */
-        frontEscutcheonRemoved: BitFlag(5),
-
-        /**
-         * Forced Door Open under Door Locked Condition
-         */
-        doorForcedOpen: BitFlag(6)
-    };
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.23
-     */
-    export enum EventType {
-        /**
-         * Event type is operation
-         */
-        Operation = 0,
-
-        /**
-         * Event type is programming
-         */
-        Programming = 1,
-
-        /**
-         * Event type is alarm
-         */
-        Alarm = 2
-    }
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.2.7.1
-     */
-    export enum StatusCode {
-        /**
-         * Entry would cause a duplicate credential/ID.
-         */
-        Duplicate = 2,
-
-        /**
-         * Entry would replace an occupied slot.
-         */
-        Occupied = 3
-    }
 
     /**
      * Thrown for cluster status code {@link StatusCode.Duplicate}.
@@ -5039,8 +7836,22 @@ export namespace DoorLock {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x101);
+    export const name = "DoorLock" as const;
+    export const revision = 9;
+    export const schema = DoorLockModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
+    export declare const events: EventObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: DoorLock;
 }
 
 export type DoorLockCluster = DoorLock.Cluster;
 export const DoorLockCluster = DoorLock.Cluster;
 ClusterRegistry.register(DoorLock.Complete);
+ClusterNamespace.define(DoorLock);
+export interface DoorLock extends ClusterTyping { Attributes: DoorLock.Attributes & { Components: DoorLock.Attributes.Components }; Commands: DoorLock.Commands & { Components: DoorLock.Commands.Components }; Events: DoorLock.Events & { Components: DoorLock.Events.Components }; Features: DoorLock.Features }

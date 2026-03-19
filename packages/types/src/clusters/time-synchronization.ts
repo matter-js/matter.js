@@ -9,12 +9,11 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Attribute, Command, TlvNoResponse, Event, FixedAttribute, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
-import { TlvFabricIndex } from "../datatype/FabricIndex.js";
-import { TlvNodeId } from "../datatype/NodeId.js";
-import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
+import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
+import { TlvNodeId, NodeId } from "../datatype/NodeId.js";
+import { TlvEndpointNumber, EndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, TimeSynchronization as TimeSynchronizationModel } from "@matter/model";
 import { Priority } from "../globals/Priority.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvString } from "../tlv/TlvString.js";
@@ -24,10 +23,397 @@ import { TlvInt32, TlvEpochUs, TlvEnum, TlvUInt8 } from "../tlv/TlvNumber.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status } from "../globals/Status.js";
-import { Identity } from "@matter/general";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the TimeSynchronization cluster.
+ */
 export namespace TimeSynchronization {
+    /**
+     * Attributes that may appear in {@link TimeSynchronization}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
+         * epoch-us (Epoch Time in Microseconds).
+         *
+         * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
+         * when a SetUTCTime is received.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.1
+         */
+        utcTime: number | bigint | null;
+
+        /**
+         * Indicates granularity of the error that the node is willing to guarantee on the time synchronization. It is
+         * of type GranularityEnum.
+         *
+         * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity if
+         * UTCTime is non-null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.2
+         */
+        granularity: Granularity;
+
+        /**
+         * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether the
+         * source uses NTS or not and whether the source is internal or external to the Matter network. This attribute
+         * may be used by a client to determine its level of trust in the UTCTime. It is of type TimeSourceEnum.
+         *
+         * If a node is unsure if the selected NTP server is within the Matter network, it SHOULD select one of the
+         * NonMatter* values.
+         *
+         * This value shall be set to None if UTCTime is null and shall NOT be set to None if UTCTime is non-null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.3
+         */
+        timeSource: TimeSource;
+
+        /**
+         * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
+         * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an
+         * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
+         * been set.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.4
+         */
+        trustedTimeSource: TrustedTimeSource | null;
+
+        /**
+         * Indicates the default NTP server that this Node may use if other time sources are unavailable. This attribute
+         * is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the Commissioner during
+         * commissioning. If no default NTP server is available, the Commissioner may set this value to null. The
+         * default IANA assigned NTP port of 123 shall be used to access the NTP server.
+         *
+         * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
+         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
+         * NOT contain a port number.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.5
+         */
+        defaultNtp: string | null;
+
+        /**
+         * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may include
+         * domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.13
+         */
+        supportsDnsResolve: boolean;
+
+        /**
+         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
+         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
+         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
+         * “DSTOffset Attribute” for daylight savings time).
+         *
+         * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
+         * time.
+         *
+         * If a node supports a TimeZoneDatabase, and it has data for the given time zone Name and the given Offset
+         * matches, the node may update its own DSTOffset attribute to add new DST change times as required, based on
+         * the Name fields of the TimeZoneStruct. Administrators may add additional entries to the DSTOffset of other
+         * Nodes with the same time zone, if required.
+         *
+         * If a node does not support a TimeZoneDatabase, the Name field of the TimeZoneStruct is only applicable for
+         * client-side localization. In particular:
+         *
+         *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate the local
+         *     time.
+         *
+         *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate DST start
+         *     or end dates.
+         *
+         * When time passes, the node SHOULD remove any entries which are no longer active and change the ValidAt time
+         * for the currently used TimeZoneStruct list item to zero.
+         *
+         * This attribute shall have at least one entry. If the node does not have a default time zone and no time zone
+         * has been set, it may set this value to a list containing a single TimeZoneStruct with an offset of 0 (UTC)
+         * and a ValidAt time of 0.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.6
+         */
+        timeZone: TimeZone[];
+
+        /**
+         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
+         *
+         * List entries shall be sorted by ValidStarting time.
+         *
+         * A list entry shall NOT have a ValidStarting time that is smaller than the ValidUntil time of the previous
+         * entry. There shall be at most one list entry with a null ValidUntil time and, if such an entry is present, it
+         * shall appear last in the list.
+         *
+         * Over time, the node SHOULD remove any entries which are no longer active from the list.
+         *
+         * Over time, if the node supports a TimeZoneDatabase and it has information available for the given time zone
+         * name, it may update its own list to add additional entries.
+         *
+         * If a time zone does not use DST, this shall be indicated by a single entry with a 0 offset and a null
+         * ValidUntil field.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.7
+         */
+        dstOffset: DstOffset[];
+
+        /**
+         * Indicates the computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The value
+         * of LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from the
+         * TimeZone attribute (converted to microseconds), and the offset of the currently valid DSTOffsetStruct from
+         * the DSTOffset attribute (converted to microseconds), if such an entry exists.
+         *
+         * If the node has not achieved time synchronization, this shall be null. If the node has an empty DSTOffset,
+         * this shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.8
+         */
+        localTime: number | bigint | null;
+
+        /**
+         * Indicates whether the node has access to a time zone database. Nodes with a time zone database may update
+         * their own DSTOffset attribute to add new entries and may push DSTOffset updates to other Nodes in the same
+         * time zone as required.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.9
+         */
+        timeZoneDatabase: TimeZoneDatabase;
+
+        /**
+         * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the value
+         * of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time zone changes.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.11
+         */
+        timeZoneListMaxSize: number;
+
+        /**
+         * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.12
+         */
+        dstOffsetListMaxSize: number;
+
+        /**
+         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
+         *
+         * If the node is not currently running an NTP server, this value shall be False.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.10
+         */
+        ntpServerAvailable: boolean;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "utcTime" | "granularity", optional: "timeSource" },
+            { flags: { timeSyncClient: true }, mandatory: "trustedTimeSource" },
+            { flags: { ntpClient: true }, mandatory: "defaultNtp" | "supportsDnsResolve" },
+            {
+                flags: { timeZone: true },
+                mandatory: "timeZone" | "dstOffset" | "localTime" | "timeZoneDatabase" | "timeZoneListMaxSize" | "dstOffsetListMaxSize"
+            },
+            { flags: { ntpServer: true }, mandatory: "ntpServerAvailable" }
+        ];
+    }
+
+    export interface Commands extends Commands.Base, Commands.TimeSyncClient, Commands.NtpClient, Commands.TimeZoneComponent {}
+
+    export namespace Commands {
+        /**
+         * {@link TimeSynchronization} always supports these commands.
+         */
+        export interface Base {
+            /**
+             * This command is used to set the UTC time of the node.
+             *
+             * This command may be issued by Administrator to set the time. If the Commissioner does not have a valid
+             * time source, it may send a Granularity of NoTimeGranularity.
+             *
+             * Upon receipt of this command, the node may update its UTCTime attribute to match the time specified in
+             * the command, if the stated Granularity and TimeSource are acceptable. The node shall update its UTCTime
+             * attribute if its current Granularity is NoTimeGranularity.
+             *
+             * If the time is updated, the node shall also update its Granularity attribute based on the granularity
+             * specified in the command and the expected clock drift of the node. This SHOULD normally be one level
+             * lower than the stated command Granularity. It shall also update its TimeSource attribute to Admin. It
+             * shall also update its Last Known Good UTC Time as defined in Section 3.5.6.1, “Last Known Good UTC Time”.
+             *
+             * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If
+             * it opts to not update its time, it shall fail the command with a cluster specific Status Code of
+             * TimeNotAccepted.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
+             */
+            setUtcTime(request: SetUtcTimeRequest): MaybePromise;
+        }
+
+        /**
+         * {@link TimeSynchronization} supports these commands if it supports feature "TimeSyncClient".
+         */
+        export interface TimeSyncClient {
+            /**
+             * This command is used to set the TrustedTimeSource attribute.
+             *
+             * Upon receipt of this command:
+             *
+             *   - If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource
+             *     attribute to null and shall generate a MissingTrustedTimeSource event.
+             *
+             *   - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and
+             *     Endpoint fields matching those in the TrustedTimeSource field and has its FabricIndex field set to
+             *     the command’s accessing fabric index.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
+             */
+            setTrustedTimeSource(request: SetTrustedTimeSourceRequest): MaybePromise;
+        }
+
+        /**
+         * {@link TimeSynchronization} supports these commands if it supports feature "NtpClient".
+         */
+        export interface NtpClient {
+            /**
+             * This command is used to set the DefaultNTP attribute.
+             *
+             * If the DefaultNTP Address field does not conform to the requirements in the DefaultNTP attribute
+             * description, the command shall fail with a status code of INVALID_COMMAND. If the node does not support
+             * DNS resolution (as specified in SupportsDNSResolve) and the provided Address is a domain name, the
+             * command shall fail with a status code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP
+             * attribute to match the DefaultNTP provided in this command.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
+             */
+            setDefaultNtp(request: SetDefaultNtpRequest): MaybePromise;
+        }
+
+        /**
+         * {@link TimeSynchronization} supports these commands if it supports feature "TimeZone".
+         */
+        export interface TimeZoneComponent {
+            /**
+             * This command is used to set the time zone of the node.
+             *
+             * If the given list is larger than the TimeZoneListMaxSize, the node shall respond with RESOURCE_EXHAUSTED
+             * and the TimeZone attribute shall NOT be updated.
+             *
+             * If the given list does not conform to the list requirements in TimeZone attribute the node shall respond
+             * with a CONSTRAINT_ERROR and the TimeZone attribute shall NOT be updated.
+             *
+             * If there are no errors in the list, the TimeZone field shall be copied to the TimeZone attribute. A
+             * TimeZoneStatus event shall be generated with the new time zone information.
+             *
+             * If the node supports a time zone database and it has information available for the time zone that will be
+             * applied, it may set its DSTOffset attribute, otherwise the DSTOffset attribute shall be set to an empty
+             * list. A DSTTableEmpty event shall be generated if the DSTOffset attribute is empty. A DSTStatus event
+             * shall be generated if the node was previously applying a DST offset.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
+             */
+            setTimeZone(request: SetTimeZoneRequest): MaybePromise<SetTimeZoneResponse>;
+
+            /**
+             * This command is used to set the DST offsets for a node.
+             *
+             *   - If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with
+             *     RESOURCE_EXHAUSTED.
+             *
+             *   - Else if the list entries do not conform to the list requirements for DSTOffset attribute, the node
+             *     shall respond with CONSTRAINT_ERROR.
+             *
+             * If there are no errors in the list, the DSTOffset field shall be copied to the DSTOffset attribute.
+             *
+             * If the DSTOffset attribute change causes a corresponding change to the DST state, a DSTStatus event shall
+             * be generated. If the list is empty, the node shall generate a DSTTableEmpty event.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
+             */
+            setDstOffset(request: SetDstOffsetRequest): MaybePromise;
+        }
+
+        export type Components = [
+            { flags: {}, methods: Base },
+            { flags: { timeSyncClient: true }, methods: TimeSyncClient },
+            { flags: { ntpClient: true }, methods: NtpClient },
+            { flags: { timeZone: true }, methods: TimeZoneComponent }
+        ];
+    }
+
+    /**
+     * Events that may appear in {@link TimeSynchronization}.
+     *
+     * Device support for events may be affected by a device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated if the node has not generated a TimeFailure event in the last hour, and the
+         * node is unable to get a time from any source. This event SHOULD NOT be generated more often than once per
+         * hour.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.4
+         */
+        timeFailure: void;
+
+        /**
+         * This event shall be generated if the TrustedTimeSource is set to null upon fabric removal or by a
+         * SetTrustedTimeSource command.
+         *
+         * This event shall also be generated if the node has not generated a MissingTrustedTimeSource event in the last
+         * hour, and the node fails to update its time from the TrustedTimeSource because the TrustedTimeSource is null
+         * or the specified peer cannot be reached. MissingTrustedTimeSource events corresponding to a time update
+         * SHOULD NOT be generated more often than once per hour.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.5
+         */
+        missingTrustedTimeSource: void;
+
+        /**
+         * This event shall be generated when the node stops applying the current DSTOffset and there are no entries in
+         * the list with a larger ValidStarting time, indicating the need to possibly get new DST data. This event shall
+         * also be generated if the DSTOffset list is cleared either by a SetTimeZone command, or by a SetDSTOffset
+         * command with an empty list.
+         *
+         * The node shall generate this event if the node has not generated a DSTTableEmpty event in the last hour, and
+         * the DSTOffset list is empty when the node attempts to update its time. DSTTableEmpty events corresponding to
+         * a time update SHOULD NOT be generated more often than once per hour.
+         *
+         * There is no data for this event.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.1
+         */
+        dstTableEmpty: void;
+
+        /**
+         * This event shall be generated when the node starts or stops applying a DST offset.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
+         */
+        dstStatus: DstStatusEvent;
+
+        /**
+         * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for
+         * DST changes that are not accompanied by a time zone change.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
+         */
+        timeZoneStatus: TimeZoneStatusEvent;
+    }
+
+    export namespace Events {
+        export type Components = [
+            { flags: {}, mandatory: "timeFailure" },
+            { flags: { timeSyncClient: true }, mandatory: "missingTrustedTimeSource" },
+            { flags: { timeZone: true }, mandatory: "dstTableEmpty" | "dstStatus" | "timeZoneStatus" }
+        ];
+    }
+
+    export type Features = "TimeZone" | "NtpClient" | "NtpServer" | "TimeSyncClient";
+
     /**
      * These are optional features supported by TimeSynchronizationCluster.
      *
@@ -78,45 +464,40 @@ export namespace TimeSynchronization {
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.4
      */
-    export const TlvTrustedTimeSource = TlvObject({
+    export interface TrustedTimeSource {
         /**
          * The Fabric Index associated with the Fabric of the client which last set the value of the trusted time source
          * node.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.1
          */
-        fabricIndex: TlvField(0, TlvFabricIndex),
+        fabricIndex: FabricIndex;
 
         /**
          * Node ID of the trusted time source node on the Fabric associated with the entry.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.2
          */
-        nodeId: TlvField(1, TlvNodeId),
+        nodeId: NodeId;
 
         /**
          * Endpoint on the trusted time source node that contains the Time Synchronization cluster server.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.3
          */
-        endpoint: TlvField(2, TlvEndpointNumber)
-    });
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.4
-     */
-    export interface TrustedTimeSource extends TypeFromSchema<typeof TlvTrustedTimeSource> {}
+        endpoint: EndpointNumber;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.5
      */
-    export const TlvFabricScopedTrustedTimeSource = TlvObject({
+    export interface FabricScopedTrustedTimeSource {
         /**
          * Node ID of the trusted time source node on the Fabric of the issuer.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.1
          */
-        nodeId: TlvField(0, TlvNodeId),
+        nodeId: NodeId;
 
         /**
          * Endpoint on the trusted time source node that contains the Time Synchronization cluster server. This is
@@ -125,76 +506,72 @@ export namespace TimeSynchronization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.2
          */
-        endpoint: TlvField(1, TlvEndpointNumber)
-    });
+        endpoint: EndpointNumber;
+    }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.5
-     */
-    export interface FabricScopedTrustedTimeSource extends TypeFromSchema<typeof TlvFabricScopedTrustedTimeSource> {}
-
-    /**
-     * Input to the TimeSynchronization setTrustedTimeSource command
+     * This command is used to set the TrustedTimeSource attribute.
+     *
+     * Upon receipt of this command:
+     *
+     *   - If the TrustedTimeSource field in the command is null, the node shall set the TrustedTimeSource attribute to
+     *     null and shall generate a MissingTrustedTimeSource event.
+     *
+     *   - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and Endpoint
+     *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command’s
+     *     accessing fabric index.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
      */
-    export const TlvSetTrustedTimeSourceRequest = TlvObject({
+    export interface SetTrustedTimeSourceRequest {
         /**
          * This field contains the Node ID and endpoint of a trusted time source on the accessing fabric.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.2.1
          */
-        trustedTimeSource: TlvField(0, TlvNullable(TlvFabricScopedTrustedTimeSource)),
+        trustedTimeSource: FabricScopedTrustedTimeSource | null;
 
-        fabricIndex: TlvField(254, TlvFabricIndex)
-    });
+        fabricIndex: FabricIndex;
+    }
 
     /**
-     * Input to the TimeSynchronization setTrustedTimeSource command
+     * This command is used to set the DefaultNTP attribute.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
-     */
-    export interface SetTrustedTimeSourceRequest extends TypeFromSchema<typeof TlvSetTrustedTimeSourceRequest> {}
-
-    /**
-     * Input to the TimeSynchronization setDefaultNtp command
+     * If the DefaultNTP Address field does not conform to the requirements in the DefaultNTP attribute description, the
+     * command shall fail with a status code of INVALID_COMMAND. If the node does not support DNS resolution (as
+     * specified in SupportsDNSResolve) and the provided Address is a domain name, the command shall fail with a status
+     * code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP attribute to match the DefaultNTP provided
+     * in this command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
      */
-    export const TlvSetDefaultNtpRequest = TlvObject({
+    export interface SetDefaultNtpRequest {
         /**
          * This field contains the address of an NTP server than can be used as a fallback for time synchronization. The
          * format of this field shall follow the requirements in the DefaultNTP attribute description.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.6.1
          */
-        defaultNtp: TlvField(0, TlvNullable(TlvString.bound({ maxLength: 128 })))
-    });
-
-    /**
-     * Input to the TimeSynchronization setDefaultNtp command
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
-     */
-    export interface SetDefaultNtpRequest extends TypeFromSchema<typeof TlvSetDefaultNtpRequest> {}
+        defaultNtp: string | null;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.6
      */
-    export const TlvTimeZone = TlvObject({
+    export interface TimeZone {
         /**
          * The time zone offset from UTC in seconds.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.1
          */
-        offset: TlvField(0, TlvInt32.bound({ min: -43200, max: 50400 })),
+        offset: number;
 
         /**
          * The UTC time when the offset shall be applied.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.2
          */
-        validAt: TlvField(1, TlvEpochUs),
+        validAt: number | bigint;
 
         /**
          * The time zone name SHOULD provide a human-readable time zone name and it SHOULD use the country/city format
@@ -204,18 +581,13 @@ export namespace TimeSynchronization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.3
          */
-        name: TlvOptionalField(2, TlvString.bound({ minLength: 0, maxLength: 64 }))
-    });
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.6
-     */
-    export interface TimeZone extends TypeFromSchema<typeof TlvTimeZone> {}
+        name?: string;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.7
      */
-    export const TlvDstOffset = TlvObject({
+    export interface DstOffset {
         /**
          * The DST offset in seconds. Normally this is in the range of 0 to 3600 seconds (1 hour), but this field will
          * accept any values in the int32 range to accommodate potential future legislation that does not fit with these
@@ -223,14 +595,14 @@ export namespace TimeSynchronization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.1
          */
-        offset: TlvField(0, TlvInt32),
+        offset: number;
 
         /**
          * The UTC time when the offset shall be applied.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.2
          */
-        validStarting: TlvField(1, TlvEpochUs),
+        validStarting: number | bigint;
 
         /**
          * The UTC time when the offset shall stop being applied. Providing a null value here indicates a permanent DST
@@ -238,13 +610,8 @@ export namespace TimeSynchronization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.3
          */
-        validUntil: TlvField(2, TlvNullable(TlvEpochUs))
-    });
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.7
-     */
-    export interface DstOffset extends TypeFromSchema<typeof TlvDstOffset> {}
+        validUntil: number | bigint | null;
+    }
 
     /**
      * It indicates what the device knows about the contents of the IANA Time Zone Database. Partial support on a device
@@ -271,20 +638,27 @@ export namespace TimeSynchronization {
     }
 
     /**
-     * Input to the TimeSynchronization setTimeZone command
+     * This command is used to set the time zone of the node.
+     *
+     * If the given list is larger than the TimeZoneListMaxSize, the node shall respond with RESOURCE_EXHAUSTED and the
+     * TimeZone attribute shall NOT be updated.
+     *
+     * If the given list does not conform to the list requirements in TimeZone attribute the node shall respond with a
+     * CONSTRAINT_ERROR and the TimeZone attribute shall NOT be updated.
+     *
+     * If there are no errors in the list, the TimeZone field shall be copied to the TimeZone attribute. A
+     * TimeZoneStatus event shall be generated with the new time zone information.
+     *
+     * If the node supports a time zone database and it has information available for the time zone that will be
+     * applied, it may set its DSTOffset attribute, otherwise the DSTOffset attribute shall be set to an empty list. A
+     * DSTTableEmpty event shall be generated if the DSTOffset attribute is empty. A DSTStatus event shall be generated
+     * if the node was previously applying a DST offset.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
      */
-    export const TlvSetTimeZoneRequest = TlvObject({
-        timeZone: TlvField(0, TlvArray(TlvTimeZone, { minLength: 1, maxLength: 2 }))
-    });
-
-    /**
-     * Input to the TimeSynchronization setTimeZone command
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
-     */
-    export interface SetTimeZoneRequest extends TypeFromSchema<typeof TlvSetTimeZoneRequest> {}
+    export interface SetTimeZoneRequest {
+        timeZone: TimeZone[];
+    }
 
     /**
      * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
@@ -292,7 +666,7 @@ export namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.4
      */
-    export const TlvSetTimeZoneResponse = TlvObject({
+    export interface SetTimeZoneResponse {
         /**
          * If the node supports a time zone database with information for the time zone that will be applied, it may use
          * this information to set the DSTOffset attribute. If the node is setting its own DSTOffset attribute, the
@@ -300,65 +674,57 @@ export namespace TimeSynchronization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.4.1
          */
-        dstOffsetRequired: TlvField(0, TlvBoolean)
-    });
+        dstOffsetRequired: boolean;
+    }
 
     /**
-     * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
-     * to a SetTimeZone command.
+     * This command is used to set the DST offsets for a node.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.4
-     */
-    export interface SetTimeZoneResponse extends TypeFromSchema<typeof TlvSetTimeZoneResponse> {}
-
-    /**
-     * Input to the TimeSynchronization setDstOffset command
+     *   - If the length of DSTOffset is larger than DSTOffsetListMaxSize, the node shall respond with
+     *     RESOURCE_EXHAUSTED.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
-     */
-    export const TlvSetDstOffsetRequest = TlvObject({ dstOffset: TlvField(0, TlvArray(TlvDstOffset)) });
-
-    /**
-     * Input to the TimeSynchronization setDstOffset command
+     *   - Else if the list entries do not conform to the list requirements for DSTOffset attribute, the node shall
+     *     respond with CONSTRAINT_ERROR.
+     *
+     * If there are no errors in the list, the DSTOffset field shall be copied to the DSTOffset attribute.
+     *
+     * If the DSTOffset attribute change causes a corresponding change to the DST state, a DSTStatus event shall be
+     * generated. If the list is empty, the node shall generate a DSTTableEmpty event.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
      */
-    export interface SetDstOffsetRequest extends TypeFromSchema<typeof TlvSetDstOffsetRequest> {}
+    export interface SetDstOffsetRequest {
+        dstOffset: DstOffset[];
+    }
 
     /**
-     * Body of the TimeSynchronization dstStatus event
+     * This event shall be generated when the node starts or stops applying a DST offset.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
      */
-    export const TlvDstStatusEvent = TlvObject({
+    export interface DstStatusEvent {
         /**
          * Indicates whether the current DST offset is being applied (i.e, daylight savings time is applied, as opposed
          * to standard time).
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.10.2.1
          */
-        dstOffsetActive: TlvField(0, TlvBoolean)
-    });
+        dstOffsetActive: boolean;
+    }
 
     /**
-     * Body of the TimeSynchronization dstStatus event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
-     */
-    export interface DstStatusEvent extends TypeFromSchema<typeof TlvDstStatusEvent> {}
-
-    /**
-     * Body of the TimeSynchronization timeZoneStatus event
+     * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for DST
+     * changes that are not accompanied by a time zone change.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
      */
-    export const TlvTimeZoneStatusEvent = TlvObject({
+    export interface TimeZoneStatusEvent {
         /**
          * Current time zone offset from UTC in seconds.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.1
          */
-        offset: TlvField(0, TlvInt32.bound({ min: -43200, max: 50400 })),
+        offset: number;
 
         /**
          * Current time zone name. This name SHOULD use the country/city format specified by the IANA Time Zone
@@ -366,15 +732,8 @@ export namespace TimeSynchronization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.2
          */
-        name: TlvOptionalField(1, TlvString.bound({ minLength: 0, maxLength: 64 }))
-    });
-
-    /**
-     * Body of the TimeSynchronization timeZoneStatus event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
-     */
-    export interface TimeZoneStatusEvent extends TypeFromSchema<typeof TlvTimeZoneStatusEvent> {}
+        name?: string;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.1
@@ -504,6 +863,266 @@ export namespace TimeSynchronization {
     }
 
     /**
+     * This command is used to set the UTC time of the node.
+     *
+     * This command may be issued by Administrator to set the time. If the Commissioner does not have a valid time
+     * source, it may send a Granularity of NoTimeGranularity.
+     *
+     * Upon receipt of this command, the node may update its UTCTime attribute to match the time specified in the
+     * command, if the stated Granularity and TimeSource are acceptable. The node shall update its UTCTime attribute if
+     * its current Granularity is NoTimeGranularity.
+     *
+     * If the time is updated, the node shall also update its Granularity attribute based on the granularity specified
+     * in the command and the expected clock drift of the node. This SHOULD normally be one level lower than the stated
+     * command Granularity. It shall also update its TimeSource attribute to Admin. It shall also update its Last Known
+     * Good UTC Time as defined in Section 3.5.6.1, “Last Known Good UTC Time”.
+     *
+     * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If it opts
+     * to not update its time, it shall fail the command with a cluster specific Status Code of TimeNotAccepted.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
+     */
+    export interface SetUtcTimeRequest {
+        /**
+         * This field shall give the Client’s UTC Time.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.1
+         */
+        utcTime: number | bigint;
+
+        /**
+         * This field shall give the Client’s Granularity, as described in Granularity.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.2
+         */
+        granularity: Granularity;
+
+        /**
+         * This field shall give the Client’s TimeSource, as described in TimeSource.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.3
+         */
+        timeSource?: TimeSource;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.17.7.1
+     */
+    export enum StatusCode {
+        /**
+         * Node rejected the attempt to set the UTC time
+         */
+        TimeNotAccepted = 2
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.17.6.4
+     */
+    export const TlvTrustedTimeSource = TlvObject({
+        /**
+         * The Fabric Index associated with the Fabric of the client which last set the value of the trusted time source
+         * node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.1
+         */
+        fabricIndex: TlvField(0, TlvFabricIndex),
+
+        /**
+         * Node ID of the trusted time source node on the Fabric associated with the entry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.2
+         */
+        nodeId: TlvField(1, TlvNodeId),
+
+        /**
+         * Endpoint on the trusted time source node that contains the Time Synchronization cluster server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.3
+         */
+        endpoint: TlvField(2, TlvEndpointNumber)
+    });
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.17.6.5
+     */
+    export const TlvFabricScopedTrustedTimeSource = TlvObject({
+        /**
+         * Node ID of the trusted time source node on the Fabric of the issuer.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.1
+         */
+        nodeId: TlvField(0, TlvNodeId),
+
+        /**
+         * Endpoint on the trusted time source node that contains the Time Synchronization cluster server. This is
+         * provided to avoid having to do discovery of the location of that endpoint by walking over all endpoints and
+         * checking their Descriptor Cluster.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.2
+         */
+        endpoint: TlvField(1, TlvEndpointNumber)
+    });
+
+    /**
+     * Input to the TimeSynchronization setTrustedTimeSource command
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
+     */
+    export const TlvSetTrustedTimeSourceRequest = TlvObject({
+        /**
+         * This field contains the Node ID and endpoint of a trusted time source on the accessing fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.9.2.1
+         */
+        trustedTimeSource: TlvField(0, TlvNullable(TlvFabricScopedTrustedTimeSource)),
+
+        fabricIndex: TlvField(254, TlvFabricIndex)
+    });
+
+    /**
+     * Input to the TimeSynchronization setDefaultNtp command
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
+     */
+    export const TlvSetDefaultNtpRequest = TlvObject({
+        /**
+         * This field contains the address of an NTP server than can be used as a fallback for time synchronization. The
+         * format of this field shall follow the requirements in the DefaultNTP attribute description.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.9.6.1
+         */
+        defaultNtp: TlvField(0, TlvNullable(TlvString.bound({ maxLength: 128 })))
+    });
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.17.6.6
+     */
+    export const TlvTimeZone = TlvObject({
+        /**
+         * The time zone offset from UTC in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.1
+         */
+        offset: TlvField(0, TlvInt32.bound({ min: -43200, max: 50400 })),
+
+        /**
+         * The UTC time when the offset shall be applied.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.2
+         */
+        validAt: TlvField(1, TlvEpochUs),
+
+        /**
+         * The time zone name SHOULD provide a human-readable time zone name and it SHOULD use the country/city format
+         * specified by the IANA Time Zone Database. The Name field may be used for display. If the node supports a
+         * TimeZoneDatabase it may use the Name field to set its own DST offsets if it has database information for the
+         * supplied time zone Name and the given Offset matches.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.3
+         */
+        name: TlvOptionalField(2, TlvString.bound({ minLength: 0, maxLength: 64 }))
+    });
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.17.6.7
+     */
+    export const TlvDstOffset = TlvObject({
+        /**
+         * The DST offset in seconds. Normally this is in the range of 0 to 3600 seconds (1 hour), but this field will
+         * accept any values in the int32 range to accommodate potential future legislation that does not fit with these
+         * assumptions.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.1
+         */
+        offset: TlvField(0, TlvInt32),
+
+        /**
+         * The UTC time when the offset shall be applied.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.2
+         */
+        validStarting: TlvField(1, TlvEpochUs),
+
+        /**
+         * The UTC time when the offset shall stop being applied. Providing a null value here indicates a permanent DST
+         * change. If this value is non-null the value shall be larger than the ValidStarting time.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.3
+         */
+        validUntil: TlvField(2, TlvNullable(TlvEpochUs))
+    });
+
+    /**
+     * Input to the TimeSynchronization setTimeZone command
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
+     */
+    export const TlvSetTimeZoneRequest = TlvObject({
+        timeZone: TlvField(0, TlvArray(TlvTimeZone, { minLength: 1, maxLength: 2 }))
+    });
+
+    /**
+     * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
+     * to a SetTimeZone command.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.9.4
+     */
+    export const TlvSetTimeZoneResponse = TlvObject({
+        /**
+         * If the node supports a time zone database with information for the time zone that will be applied, it may use
+         * this information to set the DSTOffset attribute. If the node is setting its own DSTOffset attribute, the
+         * DSTOffsetRequired field shall be set to false, otherwise it shall be set to true.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.9.4.1
+         */
+        dstOffsetRequired: TlvField(0, TlvBoolean)
+    });
+
+    /**
+     * Input to the TimeSynchronization setDstOffset command
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
+     */
+    export const TlvSetDstOffsetRequest = TlvObject({ dstOffset: TlvField(0, TlvArray(TlvDstOffset)) });
+
+    /**
+     * Body of the TimeSynchronization dstStatus event
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
+     */
+    export const TlvDstStatusEvent = TlvObject({
+        /**
+         * Indicates whether the current DST offset is being applied (i.e, daylight savings time is applied, as opposed
+         * to standard time).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.2.1
+         */
+        dstOffsetActive: TlvField(0, TlvBoolean)
+    });
+
+    /**
+     * Body of the TimeSynchronization timeZoneStatus event
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
+     */
+    export const TlvTimeZoneStatusEvent = TlvObject({
+        /**
+         * Current time zone offset from UTC in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.1
+         */
+        offset: TlvField(0, TlvInt32.bound({ min: -43200, max: 50400 })),
+
+        /**
+         * Current time zone name. This name SHOULD use the country/city format specified by the IANA Time Zone
+         * Database.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.2
+         */
+        name: TlvOptionalField(1, TlvString.bound({ minLength: 0, maxLength: 64 }))
+    });
+
+    /**
      * Input to the TimeSynchronization setUtcTime command
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
@@ -530,23 +1149,6 @@ export namespace TimeSynchronization {
          */
         timeSource: TlvOptionalField(2, TlvEnum<TimeSource>())
     });
-
-    /**
-     * Input to the TimeSynchronization setUtcTime command
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
-     */
-    export interface SetUtcTimeRequest extends TypeFromSchema<typeof TlvSetUtcTimeRequest> {}
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.7.1
-     */
-    export enum StatusCode {
-        /**
-         * Node rejected the attempt to set the UTC time
-         */
-        TimeNotAccepted = 2
-    }
 
     /**
      * Thrown for cluster status code {@link StatusCode.TimeNotAccepted}.
@@ -1112,8 +1714,22 @@ export namespace TimeSynchronization {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x38);
+    export const name = "TimeSynchronization" as const;
+    export const revision = 2;
+    export const schema = TimeSynchronizationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
+    export declare const events: EventObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: TimeSynchronization;
 }
 
 export type TimeSynchronizationCluster = TimeSynchronization.Cluster;
 export const TimeSynchronizationCluster = TimeSynchronization.Cluster;
 ClusterRegistry.register(TimeSynchronization.Complete);
+ClusterNamespace.define(TimeSynchronization);
+export interface TimeSynchronization extends ClusterTyping { Attributes: TimeSynchronization.Attributes & { Components: TimeSynchronization.Attributes.Components }; Commands: TimeSynchronization.Commands & { Components: TimeSynchronization.Commands.Components }; Events: TimeSynchronization.Events & { Components: TimeSynchronization.Events.Components }; Features: TimeSynchronization.Features }

@@ -23,20 +23,115 @@ import {
 } from "../tlv/TlvNumber.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
-import { TlvGroupId } from "../datatype/GroupId.js";
+import { TlvGroupId, GroupId } from "../datatype/GroupId.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { TlvFabricIndex } from "../datatype/FabricIndex.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
+import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { TlvClusterId } from "../datatype/ClusterId.js";
-import { TlvAttributeId } from "../datatype/AttributeId.js";
+import { TlvClusterId, ClusterId } from "../datatype/ClusterId.js";
+import { TlvAttributeId, AttributeId } from "../datatype/AttributeId.js";
 import { Status } from "../globals/Status.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, ScenesManagement as ScenesManagementModel } from "@matter/model";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { Identity } from "@matter/general";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 
+/**
+ * Definitions for the ScenesManagement cluster.
+ */
 export namespace ScenesManagement {
+    /**
+     * Attributes that may appear in {@link ScenesManagement}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all fabrics;
+         * note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The minimum size of
+         * this table, (i.e., the minimum number of scenes to support across all fabrics per endpoint) shall be 16,
+         * unless a device type in which this cluster is used, defines a larger value in the device type definition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
+         */
+        sceneTableSize: number;
+
+        /**
+         * Indicates a list of fabric scoped information about scenes on this endpoint.
+         *
+         * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
+         */
+        fabricSceneInfo: SceneInfo[];
+    }
+
+    export namespace Attributes {
+        export type Components = [{ flags: {}, mandatory: "sceneTableSize" | "fabricSceneInfo" }];
+    }
+    export interface Commands extends Commands.Base {}
+
+    export namespace Commands {
+        /**
+         * {@link ScenesManagement} always supports these commands.
+         */
+        export interface Base {
+            /**
+             * It is not mandatory for an extension field set to be included in the command for every cluster on that
+             * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case
+             * of no extension field sets at all.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
+             */
+            addScene(request: AddSceneRequest): MaybePromise<AddSceneResponse>;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
+             */
+            viewScene(request: ViewSceneRequest): MaybePromise<ViewSceneResponse>;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
+             */
+            removeScene(request: RemoveSceneRequest): MaybePromise<RemoveSceneResponse>;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
+             */
+            removeAllScenes(request: RemoveAllScenesRequest): MaybePromise<RemoveAllScenesResponse>;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
+             */
+            storeScene(request: StoreSceneRequest): MaybePromise<StoreSceneResponse>;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
+             */
+            recallScene(request: RecallSceneRequest): MaybePromise;
+
+            /**
+             * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
+             * implements this cluster.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
+             */
+            getSceneMembership(request: GetSceneMembershipRequest): MaybePromise<GetSceneMembershipResponse>;
+
+            /**
+             * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
+             * group/scene identifier pair.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
+             */
+            copyScene(request: CopySceneRequest): MaybePromise<CopySceneResponse>;
+        }
+
+        export type Components = [{ flags: {}, methods: Base }];
+    }
+
+    export type Features = "SceneNames";
+
     /**
      * These are optional features supported by ScenesManagementCluster.
      *
@@ -51,6 +146,612 @@ export namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.4.1
          */
         SceneNames = "SceneNames"
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2
+     */
+    export interface SceneInfo {
+        /**
+         * This field shall indicate the number of scenes currently used in the server’s Scene Table on the endpoint
+         * where the Scenes Management cluster appears.
+         *
+         * This only includes the count for the associated fabric.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.1
+         */
+        sceneCount: number;
+
+        /**
+         * This field shall indicate the scene identifier of the scene last invoked on the associated fabric. If no
+         * scene has been invoked, the value of this field shall be 0xFF, the undefined scene identifier.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.2
+         */
+        currentScene: number;
+
+        /**
+         * This field shall indicate the group identifier of the scene last invoked on the associated fabric, or 0 if
+         * the scene last invoked is not associated with a group.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.3
+         */
+        currentGroup: GroupId;
+
+        /**
+         * This field shall indicate whether the state of the server corresponds to that associated with the
+         * CurrentScene and CurrentGroup fields of the SceneInfoStruct they belong to. TRUE indicates that these fields
+         * are valid, FALSE indicates that they are not valid.
+         *
+         * This field shall be set to False for all other fabrics when an attribute with the Scenes ("S") designation in
+         * the Quality column of another cluster present on the same endpoint is modified or when the current scene is
+         * modified by a fabric through the RecallScene or StoreScene commands, regardless of the fabric-scoped access
+         * quality of the command.
+         *
+         * In the event where the SceneValid field is set to False for a fabric, the CurrentScene and CurrentGroup
+         * fields shall be the last invoked scene and group for that fabric. In the event where no scene was previously
+         * invoked for that fabric, the CurrentScene and CurrentGroup fields shall be their default values.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.4
+         */
+        sceneValid: boolean;
+
+        /**
+         * This field shall indicate the remaining capacity of the Scene Table on this endpoint for the accessing
+         * fabric. Note that this value may change between reads, even if no entries are added or deleted on the
+         * accessing fabric, due to other clients associated with other fabrics adding or deleting entries that impact
+         * the resource usage on the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2.5
+         */
+        remainingCapacity: number;
+
+        fabricIndex: FabricIndex;
+    }
+
+    /**
+     * This data type indicates a combination of an identifier and the value of an attribute.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3
+     */
+    export interface AttributeValuePair {
+        /**
+         * This field shall be present for all instances in a given ExtensionFieldSetStruct.
+         *
+         * Which Value* field is used shall be determined based on the data type of the attribute indicated by
+         * AttributeID, as described in the Value* Fields subsection.
+         *
+         * The AttributeID field shall NOT refer to an attribute without the Scenes ("S") designation in the Quality
+         * column of the cluster specification.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3.1
+         */
+        attributeId: AttributeId;
+
+        valueUnsigned8?: number;
+        valueSigned8?: number;
+        valueUnsigned16?: number;
+        valueSigned16?: number;
+        valueUnsigned32?: number;
+        valueSigned32?: number;
+        valueUnsigned64?: number | bigint;
+        valueSigned64?: number | bigint;
+    }
+
+    /**
+     * This data type indicates for a given cluster a set of attributes and their values.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4
+     */
+    export interface ExtensionFieldSet {
+        /**
+         * This field shall indicate the cluster-id of the cluster whose attributes are in the AttributeValueList field.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4.1
+         */
+        clusterId: ClusterId;
+
+        /**
+         * This field shall indicate a set of attributes and their values which are stored as part of a scene.
+         *
+         * Attributes which do not have the Scenes ("S") designation in the Quality column of their cluster
+         * specification shall NOT be used in the AttributeValueList field.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4.2
+         */
+        attributeValueList: AttributeValuePair[];
+    }
+
+    /**
+     * It is not mandatory for an extension field set to be included in the command for every cluster on that endpoint
+     * that has a defined extension field set. Extension field sets may be omitted, including the case of no extension
+     * field sets at all.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
+     */
+    export interface AddSceneRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.1
+         */
+        groupId: GroupId;
+
+        /**
+         * This field shall indicate the scene identifier in the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.2
+         */
+        sceneId: number;
+
+        /**
+         * This field shall indicate the transition time of the scene, measured in milliseconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.3
+         */
+        transitionTime: number;
+
+        /**
+         * This field shall indicate the name of the scene.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.4
+         */
+        sceneName: string;
+
+        /**
+         * This field shall contains the list of extension fields.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.5
+         */
+        extensionFieldSetStructs: ExtensionFieldSet[];
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
+     */
+    export interface AddSceneResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for AddScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.1
+         */
+        status: Status;
+
+        /**
+         * The GroupID field shall be set to the corresponding field of the received AddScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.2
+         */
+        groupId: GroupId;
+
+        /**
+         * The SceneID field shall be set to the corresponding field of the received AddScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.3
+         */
+        sceneId: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
+     */
+    export interface ViewSceneRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4.1
+         */
+        groupId: GroupId;
+
+        /**
+         * This field shall indicate the scene identifier in the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4.2
+         */
+        sceneId: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
+     */
+    export interface ViewSceneResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for ViewScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.1
+         */
+        status: Status;
+
+        /**
+         * The GroupID field shall be set to the corresponding field of the received ViewScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.2
+         */
+        groupId: GroupId;
+
+        /**
+         * The SceneID field shall be set to the corresponding field of the received ViewScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.3
+         */
+        sceneId: number;
+
+        /**
+         * This field shall be set to the corresponding field in the Scene Table entry.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.4
+         */
+        transitionTime?: number;
+
+        /**
+         * This field shall be set to the corresponding field in the Scene Table entry.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.5
+         */
+        sceneName?: string;
+
+        /**
+         * This field shall be set to the corresponding field in the Scene Table entry.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.6
+         */
+        extensionFieldSetStructs?: ExtensionFieldSet[];
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
+     */
+    export interface RemoveSceneRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6.1
+         */
+        groupId: GroupId;
+
+        /**
+         * This field shall indicate the scene identifier in the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6.2
+         */
+        sceneId: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
+     */
+    export interface RemoveSceneResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for RemoveScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.1
+         */
+        status: Status;
+
+        /**
+         * The GroupID field shall be set to the corresponding field of the received RemoveScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.2
+         */
+        groupId: GroupId;
+
+        /**
+         * The SceneID field shall be set to the corresponding field of the received RemoveScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.3
+         */
+        sceneId: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
+     */
+    export interface RemoveAllScenesRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8.1
+         */
+        groupId: GroupId;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
+     */
+    export interface RemoveAllScenesResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for RemoveAllScenes command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9.1
+         */
+        status: Status;
+
+        /**
+         * The GroupID field shall be set to the corresponding field of the received RemoveAllScenes command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9.2
+         */
+        groupId: GroupId;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
+     */
+    export interface StoreSceneRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10.1
+         */
+        groupId: GroupId;
+
+        /**
+         * This field shall indicate the scene identifier in the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10.2
+         */
+        sceneId: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
+     */
+    export interface StoreSceneResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for StoreScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.1
+         */
+        status: Status;
+
+        /**
+         * The GroupID field shall be set to the corresponding field of the received StoreScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.2
+         */
+        groupId: GroupId;
+
+        /**
+         * The SceneID field shall be set to the corresponding field of the received StoreScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.3
+         */
+        sceneId: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
+     */
+    export interface RecallSceneRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.1
+         */
+        groupId: GroupId;
+
+        /**
+         * This field shall indicate the scene identifier in the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.2
+         */
+        sceneId: number;
+
+        /**
+         * This field shall indicate the transition time of the scene, measured in milliseconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.3
+         */
+        transitionTime?: number | null;
+    }
+
+    /**
+     * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
+     * implements this cluster.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
+     */
+    export interface GetSceneMembershipRequest {
+        /**
+         * This field shall indicate the group identifier in the Group Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13.1
+         */
+        groupId: GroupId;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
+     */
+    export interface GetSceneMembershipResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for GetSceneMembership command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.1
+         */
+        status: Status;
+
+        /**
+         * This field shall contain the remaining capacity of the Scene Table of the server (for all groups for the
+         * accessing fabric). The following values apply:
+         *
+         *   - 0 - No further scenes may be added.
+         *
+         *   - 0 < Capacity < 0xFE - Capacity holds the number of scenes that may be added.
+         *
+         *   - 0xFE - At least 1 further scene may be added (exact number is unknown).
+         *
+         *   - null - It is unknown if any further scenes may be added.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.2
+         */
+        capacity: number | null;
+
+        /**
+         * This field shall be set to the corresponding field of the received GetSceneMembership command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.3
+         */
+        groupId: GroupId;
+
+        /**
+         * If the status is not SUCCESS then this field shall be omitted, else this field shall contain the identifiers
+         * of all the scenes in the Scene Table with the corresponding Group ID.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.4
+         */
+        sceneList?: number[];
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.1
+     */
+    export const CopyMode = {
+        /**
+         * Copy all scenes in the scene table
+         */
+        copyAllScenes: BitFlag(0)
+    };
+
+    export interface CopyMode {
+        /**
+         * Copy all scenes in the scene table
+         */
+        copyAllScenes?: boolean;
+    }
+
+    /**
+     * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
+     * group/scene identifier pair.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
+     */
+    export interface CopySceneRequest {
+        /**
+         * This field shall contain the information of how the scene copy is to proceed.
+         *
+         * The CopyAllScenes bit of the Mode indicates whether all scenes are to be copied. If this value is set to 1,
+         * all scenes are to be copied and the SceneIdentifierFrom and SceneIdentifierTo fields shall be ignored.
+         * Otherwise this bit is set to 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.1
+         */
+        mode: CopyMode;
+
+        /**
+         * This field shall indicate the identifier of the group from which the scene is to be copied. Together with the
+         * SceneIdentifierFrom field, this field uniquely identifies the scene to copy from the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.2
+         */
+        groupIdentifierFrom: GroupId;
+
+        /**
+         * This field shall indicate the identifier of the scene from which the scene is to be copied. Together with the
+         * GroupIdentifierFrom field, this field uniquely identifies the scene to copy from the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.3
+         */
+        sceneIdentifierFrom: number;
+
+        /**
+         * This field shall indicate the identifier of the group to which the scene is to be copied. Together with the
+         * SceneIdentifierTo field, this field uniquely identifies the scene to copy to the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.4
+         */
+        groupIdentifierTo: GroupId;
+
+        /**
+         * This field shall indicate the identifier of the scene to which the scene is to be copied. Together with the
+         * GroupIdentifierTo field, this field uniquely identifies the scene to copy to the Scene Table.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.5
+         */
+        sceneIdentifierTo: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
+     */
+    export interface CopySceneResponse {
+        /**
+         * This field shall be set according to the Effect on Receipt section for the CopyScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.1
+         */
+        status: Status;
+
+        /**
+         * This field shall be set to the same values as in the corresponding fields of the received CopyScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.2
+         */
+        groupIdentifierFrom: GroupId;
+
+        /**
+         * This field shall be set to the same values as in the corresponding fields of the received CopyScene command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.3
+         */
+        sceneIdentifierFrom: number;
+    }
+
+    /**
+     * The Scene Table is used to store information for each scene capable of being invoked on the server. Each scene is
+     * defined for a particular group. The Scene Table is defined here as a conceptual illustration to assist in
+     * understanding the underlying data to be stored when scenes are defined. Though the Scene Table is defined here
+     * using the data model architecture rules and format, the design is not normative.
+     *
+     * The Scene table is logically a list of fabric-scoped structs. The logical fields of each Scene Table entry struct
+     * are illustrated below. An ExtensionFieldSetStruct may be present for each Scenes-supporting cluster implemented
+     * on the same endpoint.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5
+     */
+    export interface LogicalSceneTable {
+        /**
+         * This field is the group identifier for which this scene applies, or 0 if the scene is not associated with a
+         * group.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.1
+         */
+        sceneGroupId: GroupId;
+
+        /**
+         * This field is unique within this group, which is used to identify this scene.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.2
+         */
+        sceneId: number;
+
+        /**
+         * The field is the name of the scene.
+         *
+         * If scene names are not supported, any commands that write a scene name shall simply discard the name, and any
+         * command that returns a scene name shall return an empty string.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.3
+         */
+        sceneName?: string;
+
+        /**
+         * This field is the amount of time, in milliseconds, it will take for a cluster to change from its current
+         * state to the requested state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.4
+         */
+        sceneTransitionTime: number;
+
+        /**
+         * See the Scene Table Extensions subsections of individual clusters. A Scene Table Extension shall only use
+         * attributes with the Scene quality. Each ExtensionFieldSetStruct holds a set of values of these attributes for
+         * a cluster implemented on the same endpoint where the Scene ("S") designation appears in the quality column. A
+         * scene is the aggregate of all such fields across all clusters on the endpoint.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.5
+         */
+        extensionFields: ExtensionFieldSet[];
     }
 
     /**
@@ -115,11 +816,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2
-     */
-    export interface SceneInfo extends TypeFromSchema<typeof TlvSceneInfo> {}
-
-    /**
      * This data type indicates a combination of an identifier and the value of an attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3
@@ -149,13 +845,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * This data type indicates a combination of an identifier and the value of an attribute.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3
-     */
-    export interface AttributeValuePair extends TypeFromSchema<typeof TlvAttributeValuePair> {}
-
-    /**
      * This data type indicates for a given cluster a set of attributes and their values.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4
@@ -178,13 +867,6 @@ export namespace ScenesManagement {
          */
         attributeValueList: TlvField(1, TlvArray(TlvAttributeValuePair))
     });
-
-    /**
-     * This data type indicates for a given cluster a set of attributes and their values.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4
-     */
-    export interface ExtensionFieldSet extends TypeFromSchema<typeof TlvExtensionFieldSet> {}
 
     /**
      * Input to the ScenesManagement addScene command
@@ -229,13 +911,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * Input to the ScenesManagement addScene command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
-     */
-    export interface AddSceneRequest extends TypeFromSchema<typeof TlvAddSceneRequest> {}
-
-    /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
     export const TlvAddSceneResponse = TlvObject({
@@ -262,11 +937,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
-     */
-    export interface AddSceneResponse extends TypeFromSchema<typeof TlvAddSceneResponse> {}
-
-    /**
      * Input to the ScenesManagement viewScene command
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
@@ -286,13 +956,6 @@ export namespace ScenesManagement {
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 }))
     });
-
-    /**
-     * Input to the ScenesManagement viewScene command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
-     */
-    export interface ViewSceneRequest extends TypeFromSchema<typeof TlvViewSceneRequest> {}
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
@@ -342,11 +1005,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
-     */
-    export interface ViewSceneResponse extends TypeFromSchema<typeof TlvViewSceneResponse> {}
-
-    /**
      * Input to the ScenesManagement removeScene command
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
@@ -366,13 +1024,6 @@ export namespace ScenesManagement {
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 }))
     });
-
-    /**
-     * Input to the ScenesManagement removeScene command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
-     */
-    export interface RemoveSceneRequest extends TypeFromSchema<typeof TlvRemoveSceneRequest> {}
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
@@ -401,11 +1052,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
-     */
-    export interface RemoveSceneResponse extends TypeFromSchema<typeof TlvRemoveSceneResponse> {}
-
-    /**
      * Input to the ScenesManagement removeAllScenes command
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
@@ -418,13 +1064,6 @@ export namespace ScenesManagement {
          */
         groupId: TlvField(0, TlvGroupId)
     });
-
-    /**
-     * Input to the ScenesManagement removeAllScenes command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
-     */
-    export interface RemoveAllScenesRequest extends TypeFromSchema<typeof TlvRemoveAllScenesRequest> {}
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
@@ -446,11 +1085,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
-     */
-    export interface RemoveAllScenesResponse extends TypeFromSchema<typeof TlvRemoveAllScenesResponse> {}
-
-    /**
      * Input to the ScenesManagement storeScene command
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
@@ -470,13 +1104,6 @@ export namespace ScenesManagement {
          */
         sceneId: TlvField(1, TlvUInt8.bound({ max: 254 }))
     });
-
-    /**
-     * Input to the ScenesManagement storeScene command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
-     */
-    export interface StoreSceneRequest extends TypeFromSchema<typeof TlvStoreSceneRequest> {}
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
@@ -503,11 +1130,6 @@ export namespace ScenesManagement {
          */
         sceneId: TlvField(2, TlvUInt8.bound({ max: 254 }))
     });
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
-     */
-    export interface StoreSceneResponse extends TypeFromSchema<typeof TlvStoreSceneResponse> {}
 
     /**
      * Input to the ScenesManagement recallScene command
@@ -538,13 +1160,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * Input to the ScenesManagement recallScene command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
-     */
-    export interface RecallSceneRequest extends TypeFromSchema<typeof TlvRecallSceneRequest> {}
-
-    /**
      * Input to the ScenesManagement getSceneMembership command
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
@@ -557,13 +1172,6 @@ export namespace ScenesManagement {
          */
         groupId: TlvField(0, TlvGroupId)
     });
-
-    /**
-     * Input to the ScenesManagement getSceneMembership command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
-     */
-    export interface GetSceneMembershipRequest extends TypeFromSchema<typeof TlvGetSceneMembershipRequest> {}
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
@@ -607,21 +1215,6 @@ export namespace ScenesManagement {
          */
         sceneList: TlvOptionalField(3, TlvArray(TlvUInt8))
     });
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
-     */
-    export interface GetSceneMembershipResponse extends TypeFromSchema<typeof TlvGetSceneMembershipResponse> {}
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.1
-     */
-    export const CopyMode = {
-        /**
-         * Copy all scenes in the scene table
-         */
-        copyAllScenes: BitFlag(0)
-    };
 
     /**
      * Input to the ScenesManagement copyScene command
@@ -674,13 +1267,6 @@ export namespace ScenesManagement {
     });
 
     /**
-     * Input to the ScenesManagement copyScene command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
-     */
-    export interface CopySceneRequest extends TypeFromSchema<typeof TlvCopySceneRequest> {}
-
-    /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
     export const TlvCopySceneResponse = TlvObject({
@@ -705,11 +1291,6 @@ export namespace ScenesManagement {
          */
         sceneIdentifierFrom: TlvField(2, TlvUInt8.bound({ max: 254 }))
     });
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
-     */
-    export interface CopySceneResponse extends TypeFromSchema<typeof TlvCopySceneResponse> {}
 
     /**
      * The Scene Table is used to store information for each scene capable of being invoked on the server. Each scene is
@@ -767,20 +1348,6 @@ export namespace ScenesManagement {
          */
         extensionFields: TlvField(4, TlvArray(TlvExtensionFieldSet))
     });
-
-    /**
-     * The Scene Table is used to store information for each scene capable of being invoked on the server. Each scene is
-     * defined for a particular group. The Scene Table is defined here as a conceptual illustration to assist in
-     * understanding the underlying data to be stored when scenes are defined. Though the Scene Table is defined here
-     * using the data model architecture rules and format, the design is not normative.
-     *
-     * The Scene table is logically a list of fabric-scoped structs. The logical fields of each Scene Table entry struct
-     * are illustrated below. An ExtensionFieldSetStruct may be present for each Scenes-supporting cluster implemented
-     * on the same endpoint.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5
-     */
-    export interface LogicalSceneTable extends TypeFromSchema<typeof TlvLogicalSceneTable> {}
 
     /**
      * These elements and properties are present in all ScenesManagement clusters.
@@ -929,8 +1496,20 @@ export namespace ScenesManagement {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x62);
+    export const name = "ScenesManagement" as const;
+    export const revision = 1;
+    export const schema = ScenesManagementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: ScenesManagement;
 }
 
 export type ScenesManagementCluster = ScenesManagement.Cluster;
 export const ScenesManagementCluster = ScenesManagement.Cluster;
 ClusterRegistry.register(ScenesManagement.Complete);
+ClusterNamespace.define(ScenesManagement);
+export interface ScenesManagement extends ClusterTyping { Attributes: ScenesManagement.Attributes & { Components: ScenesManagement.Attributes.Components }; Commands: ScenesManagement.Commands & { Components: ScenesManagement.Commands.Components }; Features: ScenesManagement.Features }
