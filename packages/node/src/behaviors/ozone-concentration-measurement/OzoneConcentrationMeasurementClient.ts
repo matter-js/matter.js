@@ -10,7 +10,7 @@ import { OzoneConcentrationMeasurement } from "@matter/types/clusters/ozone-conc
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OzoneConcentrationMeasurementClientConstructor = ClientBehavior(OzoneConcentrationMeasurement.Complete);
+export const OzoneConcentrationMeasurementClientConstructor = ClientBehavior(OzoneConcentrationMeasurement);
 export interface OzoneConcentrationMeasurementClient extends InstanceType<typeof OzoneConcentrationMeasurementClientConstructor> {}
 export interface OzoneConcentrationMeasurementClientConstructor extends Identity<typeof OzoneConcentrationMeasurementClientConstructor> {}
 export const OzoneConcentrationMeasurementClient: OzoneConcentrationMeasurementClientConstructor = OzoneConcentrationMeasurementClientConstructor;

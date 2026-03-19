@@ -10,7 +10,7 @@ import { Groups } from "@matter/types/clusters/groups";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const GroupsClientConstructor = ClientBehavior(Groups.Complete);
+export const GroupsClientConstructor = ClientBehavior(Groups);
 export interface GroupsClient extends InstanceType<typeof GroupsClientConstructor> {}
 export interface GroupsClientConstructor extends Identity<typeof GroupsClientConstructor> {}
 export const GroupsClient: GroupsClientConstructor = GroupsClientConstructor;

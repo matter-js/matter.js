@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./AccessControlInterface.js";
 export * from "./AccessControlBehavior.js";
 export * from "./AccessControlServer.js";
 export * from "./AccessControlClient.js";

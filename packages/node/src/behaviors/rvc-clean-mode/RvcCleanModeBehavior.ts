@@ -8,15 +8,12 @@
 
 import { RvcCleanMode } from "@matter/types/clusters/rvc-clean-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { RvcCleanModeInterface } from "./RvcCleanModeInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * RvcCleanModeBehavior is the base class for objects that support interaction with {@link RvcCleanMode.Cluster}.
  */
-export const RvcCleanModeBehaviorConstructor = ClusterBehavior
-    .withInterface<RvcCleanModeInterface>()
-    .for(RvcCleanMode.Cluster);
+export const RvcCleanModeBehaviorConstructor = ClusterBehavior.for(RvcCleanMode);
 
 export interface RvcCleanModeBehaviorConstructor extends Identity<typeof RvcCleanModeBehaviorConstructor> {}
 export const RvcCleanModeBehavior: RvcCleanModeBehaviorConstructor = RvcCleanModeBehaviorConstructor;

@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "@matter/general";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { WindowCoveringBehavior } from "./WindowCoveringBehavior.js";
 
@@ -650,4 +650,4 @@ export namespace WindowCoveringBaseServer {
     };
 }
 
-export class WindowCoveringServer extends WindowCoveringBaseServer.for(ClusterType(WindowCovering.Base)) {}
+export class WindowCoveringServer extends WindowCoveringBaseServer.for(WindowCovering) {}

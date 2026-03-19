@@ -159,7 +159,7 @@ export class GeneralDiagnosticsServer extends Base {
                     command: {
                         commandPath: {
                             endpointId: this.endpoint.number,
-                            clusterId: GeneralDiagnostics.Complete.id,
+                            clusterId: GeneralDiagnostics.id,
                             commandId: CommandId(0x04), // Hardcode for now
                         },
                         commandRef: 0,

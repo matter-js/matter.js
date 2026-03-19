@@ -10,7 +10,7 @@ import { BooleanStateConfiguration } from "@matter/types/clusters/boolean-state-
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const BooleanStateConfigurationClientConstructor = ClientBehavior(BooleanStateConfiguration.Complete);
+export const BooleanStateConfigurationClientConstructor = ClientBehavior(BooleanStateConfiguration);
 export interface BooleanStateConfigurationClient extends InstanceType<typeof BooleanStateConfigurationClientConstructor> {}
 export interface BooleanStateConfigurationClientConstructor extends Identity<typeof BooleanStateConfigurationClientConstructor> {}
 export const BooleanStateConfigurationClient: BooleanStateConfigurationClientConstructor = BooleanStateConfigurationClientConstructor;

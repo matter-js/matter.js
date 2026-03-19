@@ -10,7 +10,7 @@ import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const GeneralDiagnosticsClientConstructor = ClientBehavior(GeneralDiagnostics.Complete);
+export const GeneralDiagnosticsClientConstructor = ClientBehavior(GeneralDiagnostics);
 export interface GeneralDiagnosticsClient extends InstanceType<typeof GeneralDiagnosticsClientConstructor> {}
 export interface GeneralDiagnosticsClientConstructor extends Identity<typeof GeneralDiagnosticsClientConstructor> {}
 export const GeneralDiagnosticsClient: GeneralDiagnosticsClientConstructor = GeneralDiagnosticsClientConstructor;

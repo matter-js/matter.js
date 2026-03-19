@@ -8,7 +8,6 @@
 
 import { FanControl } from "@matter/types/clusters/fan-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { FanControlInterface } from "./FanControlInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of FanControl.Cluster enabled. You can enable additional features using
  * FanControlBehavior.with.
  */
-export const FanControlBehaviorConstructor = ClusterBehavior
-    .withInterface<FanControlInterface>()
-    .for(FanControl.Cluster);
+export const FanControlBehaviorConstructor = ClusterBehavior.for(FanControl);
 
 export interface FanControlBehaviorConstructor extends Identity<typeof FanControlBehaviorConstructor> {}
 export const FanControlBehavior: FanControlBehaviorConstructor = FanControlBehaviorConstructor;
