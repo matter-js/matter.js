@@ -13,7 +13,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - Breaking: Matter 1.5 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
     - Some Namespaces were renamed and now have a "Common*" prefix
-    - Several previous "Zigbee only" features or attributes were removed because they were never allowed for Matter which removes attributes and commands 
+    - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
 
 - @matter/model
     - Enhancement: First Model preparations for Matter 1.5
