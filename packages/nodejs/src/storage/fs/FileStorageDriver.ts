@@ -77,6 +77,11 @@ export class FileStorageDriver extends FilesystemStorageDriver {
             if (StorageDriver.RESERVED_FILENAMES.has(file)) {
                 continue;
             }
+            if (file.endsWith(".tmp")) {
+                logger.info("Deleting orphaned temp file", file);
+                await rm(join(this.#path, file), { force: true });
+                continue;
+            }
             const parts = decodeURIComponent(file).split(".");
             this.#markValue(parts.slice(0, -1), parts[parts.length - 1]);
         }
@@ -152,6 +157,9 @@ export class FileStorageDriver extends FilesystemStorageDriver {
     buildStorageKey(contexts: string[], key: string) {
         if (!key.length) {
             throw new StorageError("Key must not be an empty string.");
+        }
+        if (key === "tmp") {
+            throw new StorageError(`Key "tmp" is reserved for atomic write operations.`);
         }
         const contextKey = this.getContextBaseKey(contexts);
         const rawName = `${contextKey}.${key}`;
