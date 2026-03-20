@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { TlvUInt64 } from "#tlv/TlvNumber.js";
+import { TlvWrapper } from "#tlv/TlvWrapper.js";
+import { hex } from "@matter/general";
 import { GroupId } from "./GroupId.js";
-import { NodeId, TlvNodeId } from "./NodeId.js";
+import { NodeId } from "./NodeId.js";
 
 /**
  * The meaning of a "Subject" is primarily that of describing the source for an action, using a given
@@ -19,5 +22,15 @@ export function SubjectId(v: bigint | number): SubjectId {
     return BigInt(v) as SubjectId;
 }
 
+export namespace SubjectId {
+    export function strOf(nodeId: SubjectId) {
+        return hex.fixed(nodeId, 16);
+    }
+}
+
 /** Tlv schema for a Subject Id */
-export const TlvSubjectId = TlvNodeId;
+export const TlvSubjectId = new TlvWrapper<SubjectId, number | bigint>(
+    TlvUInt64,
+    subjectId => subjectId,
+    value => SubjectId(BigInt(value)),
+);
