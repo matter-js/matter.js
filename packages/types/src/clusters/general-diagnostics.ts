@@ -397,6 +397,40 @@ export namespace GeneralDiagnostics {
         ConnectionFailed = 3
     }
 
+    export const TlvDeviceLoad = TlvObject({
+        /**
+         * This field shall indicate the number of currently-active Interaction Model subscriptions across all fabrics
+         * on the node.
+         */
+        currentSubscriptions: TlvField(0, TlvUInt16),
+
+        /**
+         * This field shall indicate the number of currently-active Interaction Model subscriptions for the accessing
+         * fabric only. If no accessing fabric is available, this field shall be set to zero.
+         */
+        currentSubscriptionsForFabric: TlvField(1, TlvUInt16),
+
+        /**
+         * This field shall indicate the total number of Interaction Model subscriptions successfully established across
+         * all fabrics on the node since start-up.
+         */
+        totalSubscriptionsEstablished: TlvField(2, TlvUInt32),
+
+        /**
+         * This field shall indicate the number of outgoing Interaction Model protocol messages sent since start-up,
+         * excluding any retries of such messages.
+         */
+        totalInteractionModelMessagesSent: TlvField(3, TlvUInt32),
+
+        /**
+         * This field shall indicate the number of incoming Interaction Model protocol messages received since start-up,
+         * excluding any retries of such messages.
+         */
+        totalInteractionModelMessagesReceived: TlvField(4, TlvUInt32)
+    });
+
+    export interface DeviceLoad extends TypeFromSchema<typeof TlvDeviceLoad> {}
+
     /**
      * Input to the GeneralDiagnostics testEventTrigger command
      *
@@ -644,7 +678,7 @@ export namespace GeneralDiagnostics {
     export const Base = MutableCluster.Component({
         id: 0x33,
         name: "GeneralDiagnostics",
-        revision: 2,
+        revision: 3,
 
         features: {
             /**
@@ -767,7 +801,12 @@ export namespace GeneralDiagnostics {
              *
              * @see {@link MatterSpecification.v142.Core} § 11.12.6.9
              */
-            testEventTriggersEnabled: Attribute(0x8, TlvBoolean)
+            testEventTriggersEnabled: Attribute(0x8, TlvBoolean),
+
+            /**
+             * This attribute shall indicate the status of various resources used.
+             */
+            deviceLoadStatus: OptionalAttribute(0xa, TlvDeviceLoad, { omitChanges: true })
         },
 
         commands: {

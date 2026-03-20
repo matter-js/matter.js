@@ -94,10 +94,14 @@ export class ServerGroupNetworking {
             return;
         }
         const address = fabric.groups.multicastAddressFor(groupId);
-        logger.debug(
-            `Adding membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
-        );
-        await this.#udpInterface.addMembership(address);
+        // Only join the multicast group if no other group in this fabric already uses the same address
+        // (multiple IanaAddr groups all share ff05::fa)
+        if (!Array.from(memberships.values()).includes(address)) {
+            logger.debug(
+                `Adding membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
+            );
+            await this.#udpInterface.addMembership(address);
+        }
         memberships.set(groupId, address);
         this.#activeGroupMemberships.set(fabricIndex, memberships);
     }
@@ -108,12 +112,17 @@ export class ServerGroupNetworking {
         if (memberships === undefined || memberships.size === 0) {
             return;
         }
-        const address = fabric.groups.multicastAddressFor(groupId);
-        logger.debug(
-            `Dropping membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
-        );
-        await this.#udpInterface.dropMembership(address);
+        // Use the stored address (safer than re-deriving, policy may have changed)
+        const address = memberships.get(groupId) ?? fabric.groups.multicastAddressFor(groupId);
         memberships.delete(groupId);
+        // Only leave the multicast group if no other group in this fabric still uses the same address
+        // (multiple IanaAddr groups all share ff05::fa)
+        if (!Array.from(memberships.values()).includes(address)) {
+            logger.debug(
+                `Dropping membership for group ${groupId} on fabric ${fabric.fabricId} (index ${fabricIndex}) with address ${address}`,
+            );
+            await this.#udpInterface.dropMembership(address);
+        }
         if (!memberships.size) {
             this.#activeGroupMemberships.delete(fabricIndex);
         }

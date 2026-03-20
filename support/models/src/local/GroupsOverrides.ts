@@ -12,6 +12,9 @@ LocalMatter.children.push({
     name: "Groups",
 
     children: [
+        // Bump to revision 5: group management commands are deprecated when Groupcast cluster is used
+        { tag: "attribute", id: 0xfffd, name: "ClusterRevision", default: 5 },
+
         // Enable group names by default.  Not mandated by the specification but a reasonable default
         {
             tag: "attribute",

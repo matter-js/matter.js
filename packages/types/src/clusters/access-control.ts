@@ -26,9 +26,9 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvUInt16, TlvEnum, TlvUInt32, TlvUInt64 } from "../tlv/TlvNumber.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvClusterId } from "../datatype/ClusterId.js";
-import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvSubjectId } from "../datatype/SubjectId.js";
 import { TlvDeviceTypeId } from "../datatype/DeviceTypeId.js";
+import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -121,7 +121,17 @@ export namespace AccessControl {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.4.2
          */
-        ManagedDevice = "ManagedDevice"
+        ManagedDevice = "ManagedDevice",
+
+        /**
+         * Auxiliary (AUX)
+         *
+         * This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate synthesized ACL
+         * entries. For example, when this feature is supported, the configuration of groups via the Groupcast cluster
+         * may lead, under some circumstances, to some access being granted automatically to some subjects by virtue of
+         * group membership.
+         */
+        Auxiliary = "Auxiliary"
     }
 
     /**
@@ -700,6 +710,18 @@ export namespace AccessControl {
      */
     export interface AccessControlTarget extends TypeFromSchema<typeof TlvAccessControlTarget> {}
 
+    export enum AccessControlAuxiliaryType {
+        /**
+         * This ACL entry exists because of some system reason and is likely non-revocable.
+         */
+        System = 0,
+
+        /**
+         * Synthesized via Groupcast Cluster administrator-configured group membership.
+         */
+        Groupcast = 1
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.6
      */
@@ -844,13 +866,33 @@ export namespace AccessControl {
          */
         targets: TlvField(4, TlvNullable(TlvArray(TlvAccessControlTarget))),
 
-        fabricIndex: TlvField(254, TlvFabricIndex)
+        fabricIndex: TlvField(254, TlvFabricIndex),
+        auxiliaryType: TlvOptionalField(5, TlvEnum<AccessControlAuxiliaryType>())
     });
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.6
      */
     export interface AccessControlEntry extends TypeFromSchema<typeof TlvAccessControlEntry> {}
+
+    /**
+     * Body of the AccessControl auxiliaryAccessUpdated event
+     */
+    export const TlvAuxiliaryAccessUpdatedEvent = TlvObject({
+        /**
+         * The AdminNodeID field SHALL contain the NodeID of the Administrator that caused the action which led to
+         * changes to the AuxiliaryACL. If no information is available, such as when a change is internally initiated,
+         * this field SHALL be null.
+         */
+        adminNodeId: TlvField(0, TlvNullable(TlvNodeId)),
+
+        fabricIndex: TlvField(254, TlvFabricIndex)
+    });
+
+    /**
+     * Body of the AccessControl auxiliaryAccessUpdated event
+     */
+    export interface AuxiliaryAccessUpdatedEvent extends TypeFromSchema<typeof TlvAuxiliaryAccessUpdatedEvent> {}
 
     /**
      * Body of the AccessControl accessControlEntryChanged event
@@ -1046,12 +1088,34 @@ export namespace AccessControl {
     });
 
     /**
+     * A AccessControlCluster supports these elements if it supports feature Auxiliary.
+     */
+    export const AuxiliaryComponent = MutableCluster.Component({
+        attributes: {
+            auxiliaryAcl: FabricScopedAttribute(
+                0x7,
+                TlvArray(TlvAccessControlEntry, { maxLength: 2000 }),
+                { default: [], readAcl: AccessLevel.Administer, writeAcl: AccessLevel.Administer }
+            )
+        },
+
+        events: {
+            auxiliaryAccessUpdated: Event(
+                0x3,
+                Priority.Info,
+                TlvAuxiliaryAccessUpdatedEvent,
+                { readAcl: AccessLevel.Administer }
+            )
+        }
+    });
+
+    /**
      * These elements and properties are present in all AccessControl clusters.
      */
     export const Base = MutableCluster.Component({
         id: 0x1f,
         name: "AccessControl",
-        revision: 2,
+        revision: 3,
 
         features: {
             /**
@@ -1133,7 +1197,15 @@ export namespace AccessControl {
              *
              * @see {@link MatterSpecification.v142.Core} § 9.10.4.2
              */
-            managedDevice: BitFlag(1)
+            managedDevice: BitFlag(1),
+
+            /**
+             * This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate synthesized
+             * ACL entries. For example, when this feature is supported, the configuration of groups via the Groupcast
+             * cluster may lead, under some circumstances, to some access being granted automatically to some subjects
+             * by virtue of group membership.
+             */
+            auxiliary: BitFlag(2)
         },
 
         attributes: {
@@ -1222,7 +1294,8 @@ export namespace AccessControl {
          */
         extensions: MutableCluster.Extensions(
             { flags: { extension: true }, component: ExtensionComponent },
-            { flags: { managedDevice: true }, component: ManagedDeviceComponent }
+            { flags: { managedDevice: true }, component: ManagedDeviceComponent },
+            { flags: { auxiliary: true }, component: AuxiliaryComponent }
         )
     });
 
@@ -1250,6 +1323,7 @@ export namespace AccessControl {
     export const Cluster: Cluster = ClusterInstance;
     const EXTS = { extension: true };
     const MNGD = { managedDevice: true };
+    const AUX = { auxiliary: true };
 
     /**
      * @see {@link Complete}
@@ -1267,7 +1341,11 @@ export namespace AccessControl {
                 ManagedDeviceComponent.attributes.commissioningArl,
                 { mandatoryIf: [MNGD] }
             ),
-            arl: MutableCluster.AsConditional(ManagedDeviceComponent.attributes.arl, { mandatoryIf: [MNGD] })
+            arl: MutableCluster.AsConditional(ManagedDeviceComponent.attributes.arl, { mandatoryIf: [MNGD] }),
+            auxiliaryAcl: MutableCluster.AsConditional(
+                AuxiliaryComponent.attributes.auxiliaryAcl,
+                { mandatoryIf: [AUX] }
+            )
         },
 
         commands: {
@@ -1286,6 +1364,10 @@ export namespace AccessControl {
             fabricRestrictionReviewUpdate: MutableCluster.AsConditional(
                 ManagedDeviceComponent.events.fabricRestrictionReviewUpdate,
                 { mandatoryIf: [MNGD] }
+            ),
+            auxiliaryAccessUpdated: MutableCluster.AsConditional(
+                AuxiliaryComponent.events.auxiliaryAccessUpdated,
+                { mandatoryIf: [AUX] }
             )
         }
     });
