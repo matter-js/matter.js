@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "@matter/general";
+import { camelize, ImplementationError } from "@matter/general";
 import { Model } from "../models/Model.js";
 
 /**
@@ -26,6 +26,27 @@ export interface ModelIndex<T extends Model = Model> extends ReadonlyArray<T> {
      * Name search uses canonical camel case.
      */
     for<M extends T>(key: number | string, type: Model.Type<M>): M | undefined;
+
+    /**
+     * Retrieve a model for the given ID or name, throwing if not found.
+     */
+    require(key: number | string): T;
+
+    /**
+     * Retrieve a model of the specific type for the given ID or name, throwing if not found.
+     */
+    require<M extends T>(key: number | string, type: Model.Type<M>): M;
+
+    /**
+     * Retrieve a model by key and create an operational extension of it.
+     *
+     * Shorthand for `index.require(key).extend(properties, ...children)`.
+     */
+    extend(
+        key: number | string,
+        properties?: Partial<Model.Definition<T>>,
+        ...children: Model.ChildDefinition<Model>[]
+    ): T;
 
     /**
      * Filter to a specific model subtype.
@@ -68,6 +89,25 @@ export class MutableModelIndex<T extends Model = Model> extends Array<T> impleme
         }
 
         return untyped;
+    }
+
+    require(key: number | string): T;
+    require<M extends T>(key: number | string, type: Model.Type<M>): M;
+
+    require(key: number | string, type?: Model.Type): Model {
+        const result = this.for(key, type as any);
+        if (result === undefined) {
+            throw new ImplementationError(`Required member "${key}" not found`);
+        }
+        return result;
+    }
+
+    extend(
+        key: number | string,
+        properties?: Partial<Model.Definition<T>>,
+        ...children: Model.ChildDefinition<Model>[]
+    ): T {
+        return this.require(key).extend(properties, ...children);
     }
 
     ofType<T extends Model.Type>(type: T): InstanceType<T>[] {

@@ -35,6 +35,8 @@ import { TlvCodec, TlvLength, TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.
 import { TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
 import { TlvWrapper } from "./TlvWrapper.js";
 
+const boundCache = new WeakMap<TlvNumericSchema<any>, Map<string, TlvNumericSchema<any>>>();
+
 /**
  * Schema to encode an unsigned integer in TLV.
  *
@@ -96,12 +98,22 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
 
     /** Restrict value range. */
     bound({ min, max }: NumericConstraints<T>): TlvNumericSchema<T> {
-        return new TlvNumericSchema(
-            this.type,
-            this.lengthProvider,
-            maxValue(min, this.min) as T,
-            minValue(max, this.max) as T,
-        );
+        const effectiveMin = maxValue(min, this.min) as T;
+        const effectiveMax = minValue(max, this.max) as T;
+        const key = `${effectiveMin}:${effectiveMax}`;
+
+        let inner = boundCache.get(this);
+        if (inner === undefined) {
+            inner = new Map();
+            boundCache.set(this, inner);
+        }
+
+        let result = inner.get(key) as TlvNumericSchema<T> | undefined;
+        if (result === undefined) {
+            result = new TlvNumericSchema(this.type, this.lengthProvider, effectiveMin, effectiveMax);
+            inner.set(key, result);
+        }
+        return result;
     }
 }
 
@@ -128,14 +140,29 @@ export class TlvNumberSchema extends TlvNumericSchema<number> {
     }
 
     override bound({ min, max }: NumericConstraints<number>): TlvNumericSchema<number> {
-        return new TlvNumberSchema(
-            this.type,
-            this.lengthProvider,
-            this.baseTypeMin,
-            this.baseTypeMax,
-            maxValue(min, this.min),
-            minValue(max, this.max),
-        );
+        const effectiveMin = maxValue(min, this.min);
+        const effectiveMax = minValue(max, this.max);
+        const key = `${effectiveMin}:${effectiveMax}`;
+
+        let inner = boundCache.get(this);
+        if (inner === undefined) {
+            inner = new Map();
+            boundCache.set(this, inner);
+        }
+
+        let result = inner.get(key) as TlvNumberSchema | undefined;
+        if (result === undefined) {
+            result = new TlvNumberSchema(
+                this.type,
+                this.lengthProvider,
+                this.baseTypeMin,
+                this.baseTypeMax,
+                effectiveMin,
+                effectiveMax,
+            );
+            inner.set(key, result);
+        }
+        return result;
     }
 
     override validate(value: number): void {
