@@ -45,8 +45,12 @@ export class CommandModel extends ValueModel<CommandElement> implements CommandE
         }
     }
 
-    get effectiveDirection() {
-        return this.direction ?? (this.base as CommandModel | undefined)?.direction;
+    get effectiveDirection(): CommandElement.Direction | undefined {
+        return this.direction ?? (this.base as CommandModel | undefined)?.effectiveDirection;
+    }
+
+    get effectiveResponse(): string | undefined {
+        return this.response ?? (this.base as CommandModel | undefined)?.effectiveResponse;
     }
 
     override get requiredFields() {

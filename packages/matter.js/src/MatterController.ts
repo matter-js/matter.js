@@ -92,7 +92,8 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { BasicInformation, GeneralCommissioning } from "@matter/types/clusters";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;

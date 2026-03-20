@@ -21,7 +21,8 @@ import {
     TypeFromPartialBitSchema,
     getClusterNameById,
 } from "@matter/types";
-import { BasicInformationCluster, BridgedDeviceBasicInformationCluster } from "@matter/types/clusters";
+import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
 import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 

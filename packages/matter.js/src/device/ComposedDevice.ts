@@ -5,7 +5,7 @@
  */
 import { ImplementationError } from "@matter/general";
 import { Endpoint as NodeEndpoint } from "@matter/node";
-import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters";
+import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
 import { Device } from "./Device.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
