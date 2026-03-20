@@ -60,7 +60,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { BasicInformation } from "@matter/types/clusters";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 

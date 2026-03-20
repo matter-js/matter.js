@@ -24,7 +24,7 @@ import {
     Seconds,
     Time,
 } from "@matter/general";
-import { AcceptedCommandList, AttributeList, ClusterRevision, FeatureMap } from "@matter/model";
+import { AcceptedCommandList, AggregatorDt, AttributeList, ClusterRevision, FeatureMap } from "@matter/model";
 import {
     Behavior,
     ChangeNotificationService,
@@ -65,7 +65,9 @@ import {
     StatusCode,
     StatusResponseError,
 } from "@matter/types";
-import { AdministratorCommissioning, BasicInformation, Descriptor } from "@matter/types/clusters";
+import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { Descriptor } from "@matter/types/clusters/descriptor";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { AttributeInitialValues, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
 import { CommissioningController } from "../CommissioningController.js";
@@ -73,12 +75,7 @@ import { Aggregator } from "./Aggregator.js";
 import { ComposedDevice } from "./ComposedDevice.js";
 import { PairedDevice, RootEndpoint } from "./Device.js";
 import { DeviceInformation, DeviceInformationData } from "./DeviceInformation.js";
-import {
-    DeviceTypeDefinition,
-    DeviceTypes,
-    getDeviceTypeDefinitionFromModelByCode,
-    UnknownDeviceType,
-} from "./DeviceTypes.js";
+import { DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode, UnknownDeviceType } from "./DeviceTypes.js";
 import { Endpoint } from "./Endpoint.js";
 import { asClusterClientInternal, isClusterClient } from "./TypeHelpers.js";
 
@@ -1224,7 +1221,7 @@ export class PairedNode {
                 }
             });
             return rootEndpoint;
-        } else if (deviceTypes.find(deviceType => deviceType.code === DeviceTypes.AGGREGATOR.code) !== undefined) {
+        } else if (deviceTypes.find(deviceType => deviceType.code === AggregatorDt.id) !== undefined) {
             // When AGGREGATOR is in the device type list, this is an aggregator
             const aggregator = new Aggregator(endpoint, [], { endpointId });
             aggregator.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
