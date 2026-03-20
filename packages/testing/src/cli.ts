@@ -9,7 +9,7 @@ import "./util/node-shims.js";
 
 import "./global-definitions.js";
 
-import { ansi, Graph, JsonNotFoundError, Package, Project, ProjectBuilder } from "@matter/tools";
+import { ansi, Graph, JsonNotFoundError, Package, Progress, Project, ProjectBuilder } from "@matter/tools";
 import { clear } from "node:console";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -73,6 +73,7 @@ export async function main(argv = process.argv) {
         .option("profile", { type: "boolean", describe: "Write profiling data to build/profiles (node only)" })
         .option("wtf", { type: "boolean", describe: "Enlist wtfnode to detect test leaks" })
         .option("trace-unhandled", { type: "boolean", describe: "Detail unhandled rejections with trace-unhandled" })
+        .option("machine", { type: "boolean", describe: "Tailor output for LLM ingestion" })
         .option("clear", { type: "boolean", describe: "Clear terminal before testing" })
         .option("repeat", { type: "number", describe: "Run tests multiple times (avoids VM warmup on reruns)" })
         .option("report", { type: "boolean", describe: "Display test summary after testing" })
@@ -197,7 +198,7 @@ export async function main(argv = process.argv) {
             thisTestTypes.delete(TestType.web);
         }
 
-        const progress = pkg.start("Testing");
+        const progress = args.machine ? new Progress() : pkg.start("Testing");
         const runner = new TestRunner(pkg, progress, args);
         let report: TestDescriptor | undefined;
 
@@ -213,7 +214,9 @@ export async function main(argv = process.argv) {
             await runner.runWeb(manual);
         }
 
-        progress.close();
+        if (!args.machine) {
+            progress.close();
+        }
 
         if (args.report && report) {
             printReport(report);
