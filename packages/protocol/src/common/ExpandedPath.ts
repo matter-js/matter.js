@@ -73,7 +73,7 @@ export function ExpandedPath({ path, matter, base, kind }: ExpandedPath.Definiti
             cluster = instance as ClusterModel;
         }
 
-        return camelize(instance.name);
+        return instance.propertyName;
     }
 }
 

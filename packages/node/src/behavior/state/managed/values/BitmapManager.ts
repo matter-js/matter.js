@@ -47,7 +47,7 @@ export function BitmapManager(owner: RootSupervisor, schema: Schema): ValueSuper
             // and model uses "code".  The model should probably be inverted but we just special case for now
             name = camelize((member as FieldModel).title ?? member.name);
         } else {
-            name = camelize(member.name);
+            name = member.propertyName;
         }
 
         const descriptor = configureProperty(name, maxBit, member);

@@ -7,16 +7,7 @@
 import { Events } from "#behavior/Events.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
-import {
-    BasicSet,
-    camelize,
-    deepCopy,
-    InternalError,
-    Logger,
-    MaybePromise,
-    ObserverGroup,
-    serialize,
-} from "@matter/general";
+import { BasicSet, deepCopy, InternalError, Logger, MaybePromise, ObserverGroup, serialize } from "@matter/general";
 import {
     AccessLevel,
     any,
@@ -863,7 +854,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         if (!type.schema.id) {
             return;
         }
-        const clusterName = camelize(type.schema.name);
+        const clusterName = type.schema.propertyName;
 
         const clusterId = ClusterId(type.schema.id);
         let sceneClusterDetails;
@@ -873,7 +864,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
             }
 
             const attributeId = AttributeId(attribute.id);
-            const attributeName = camelize(attribute.name);
+            const attributeName = attribute.propertyName;
 
             // Ignore attributes that are not present on the endpoint or do not have change events
             const event = (this.endpoint.events as Events.Generic<ClusterEvents.ChangedObservable<any>>)[clusterName]?.[

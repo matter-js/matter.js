@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { ClusterModel, DataModelPath, Metatype, UnsupportedCastError, ValueModel } from "@matter/model";
 import { SchemaImplementationError, Val } from "@matter/protocol";
@@ -48,7 +47,7 @@ export function ValueCaster(schema: Schema, owner: RootSupervisor): ValueSupervi
 function StructCaster(schema: ValueModel | ClusterModel, owner: RootSupervisor) {
     const memberConfigs = {} as Record<string, { name: string; cast: ValueSupervisor.Cast }>;
     for (const member of owner.membersOf(schema)) {
-        const config = { name: camelize(member.name), cast: owner.get(member).cast };
+        const config = { name: member.propertyName, cast: owner.get(member).cast };
 
         // Correct case has priority
         memberConfigs[config.name] = config;

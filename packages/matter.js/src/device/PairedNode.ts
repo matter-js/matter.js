@@ -678,7 +678,7 @@ export class PairedNode {
                         endpointId,
                         clusterId,
                         eventId,
-                        eventName: camelize(event.name),
+                        eventName: event.propertyName,
                     },
                     events: [{ eventNumber: number, epochTimestamp, priority, data: payload }],
                 };
