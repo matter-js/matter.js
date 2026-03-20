@@ -250,7 +250,7 @@ export function adaptReporter(
             });
 
             runner.on(RUNNER.EVENT_SUITE_BEGIN, suite => {
-                reporter.beginSuite(suite.titlePath(), this.translatedStats);
+                reporter.beginSuite(suite.titlePath(), this.translatedStats, suite.file);
             });
 
             runner.on(RUNNER.EVENT_TEST_BEGIN, test => {
@@ -261,16 +261,13 @@ export function adaptReporter(
                 reporter.beginTest(test.title, this.translatedStats);
             });
 
-            if (updateStats) {
-                runner.on(RUNNER.EVENT_TEST_PASS, test => {
-                    if (!test.descriptor) {
-                        return;
-                    }
-
+            runner.on(RUNNER.EVENT_TEST_PASS, test => {
+                if (updateStats && test.descriptor) {
                     test.descriptor.durationMs = test.duration;
                     test.descriptor.passed = true;
-                });
-            }
+                }
+                reporter.passTest(test.title);
+            });
 
             runner.on(RUNNER.EVENT_TEST_FAIL, (test, error) => {
                 let diagnostics: undefined | string;
@@ -282,7 +279,11 @@ export function adaptReporter(
                     test.descriptor.passed = false;
                 }
                 const logs = (test as any).logs as string[];
-                reporter.failTest(test.title, FailureDetail(error, undefined, logs, undefined, diagnostics));
+                reporter.failTest(
+                    test.title,
+                    FailureDetail(error, undefined, logs, undefined, diagnostics),
+                    test.descriptor,
+                );
                 wtf.dump();
             });
 
