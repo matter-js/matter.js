@@ -8,7 +8,6 @@
 
 import { WiFiNetworkDiagnostics } from "@matter/types/clusters/wi-fi-network-diagnostics";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { WiFiNetworkDiagnosticsInterface } from "./WiFiNetworkDiagnosticsInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of WiFiNetworkDiagnostics.Cluster enabled. You can enable additional
  * features using WiFiNetworkDiagnosticsBehavior.with.
  */
-export const WiFiNetworkDiagnosticsBehaviorConstructor = ClusterBehavior
-    .withInterface<WiFiNetworkDiagnosticsInterface>()
-    .for(WiFiNetworkDiagnostics.Cluster);
+export const WiFiNetworkDiagnosticsBehaviorConstructor = ClusterBehavior.for(WiFiNetworkDiagnostics);
 
 export interface WiFiNetworkDiagnosticsBehaviorConstructor extends Identity<typeof WiFiNetworkDiagnosticsBehaviorConstructor> {}
 export const WiFiNetworkDiagnosticsBehavior: WiFiNetworkDiagnosticsBehaviorConstructor = WiFiNetworkDiagnosticsBehaviorConstructor;

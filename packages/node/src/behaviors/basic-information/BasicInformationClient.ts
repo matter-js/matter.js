@@ -10,7 +10,7 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const BasicInformationClientConstructor = ClientBehavior(BasicInformation.Complete);
+export const BasicInformationClientConstructor = ClientBehavior(BasicInformation);
 export interface BasicInformationClient extends InstanceType<typeof BasicInformationClientConstructor> {}
 export interface BasicInformationClientConstructor extends Identity<typeof BasicInformationClientConstructor> {}
 export const BasicInformationClient: BasicInformationClientConstructor = BasicInformationClientConstructor;

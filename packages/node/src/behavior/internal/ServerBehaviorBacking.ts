@@ -12,9 +12,9 @@ import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Agent } from "#endpoint/index.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "@matter/general";
-import { ClusterModel, FeatureSet, FieldValue, Schema } from "@matter/model";
+import { ClusterModel, CommandModel, FeatureSet, FieldValue, Schema } from "@matter/model";
 import { Val } from "@matter/protocol";
-import { ClusterType, CommandId, TlvNoResponse } from "@matter/types";
+import { AttributeId, CommandId } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { Datasource } from "../state/managed/Datasource.js";
 import { BehaviorBacking } from "./BehaviorBacking.js";
@@ -81,7 +81,7 @@ export class ServerBehaviorBacking extends BehaviorBacking {
         }
 
         for (const member of this.type.supervisor.membersOf(schema)) {
-            const name = camelize(member.name);
+            const name = member.propertyName;
             if (state[name] === undefined) {
                 const referenced = FieldValue.referenced(member.default);
                 if (referenced) {
@@ -101,29 +101,50 @@ export class ServerBehaviorBacking extends BehaviorBacking {
 
         const globals = behavior.state as GlobalAttributeState;
 
-        // Update attribute list
-        const attributeDefs = behavior.cluster.attributes as ClusterType.ElementSet<ClusterType.Attribute>;
-        globals.attributeList = [...validation.attributes].map(name => attributeDefs[name].id).sort((a, b) => a - b);
+        // Update attribute list from validated elements (includes global attributes via scope)
+        globals.attributeList = ([...validation.attributeIds.values()] as AttributeId[]).sort((a, b) => a - b);
 
-        // Update accepted & generated command lists.  Filter commands with CommandId.NONE (-1) as these are
-        // non-Matter methods not visible to the protocol layer
-        const commandDefs = behavior.cluster.commands as ClusterType.ElementSet<ClusterType.Command>;
-        const commands = [...validation.commands]
-            .map(name => commandDefs[name])
-            .filter(command => command.requestId !== CommandId.NONE);
-        globals.acceptedCommandList = commands.map(command => command.requestId).sort((a, b) => a - b);
-        globals.generatedCommandList = [
-            ...new Set(
-                commands
-                    .filter(
-                        command => command.responseSchema !== TlvNoResponse && command.responseId !== CommandId.NONE,
-                    )
-                    .map(command => command.responseId),
-            ),
-        ].sort((a, b) => a - b);
+        // Update accepted & generated command lists from the schema (ClusterModel)
+        const schema = Schema(behavior.type) as ClusterModel;
+        const commandModels = new Map<string, CommandModel>();
+        for (const cmd of schema.commands) {
+            if (cmd.isRequest) {
+                commandModels.set(camelize(cmd.name), cmd);
+            }
+        }
+
+        // Build response model index for responseId/responseSchema lookup
+        const responseModels = new Map<string, CommandModel>();
+        for (const cmd of schema.commands) {
+            if (!cmd.isRequest) {
+                responseModels.set(cmd.name, cmd);
+            }
+        }
+
+        const acceptedIds = [] as CommandId[];
+        const generatedIds = new Set<CommandId>();
+
+        for (const name of validation.commands) {
+            const model = commandModels.get(name);
+            if (!model || model.id === (CommandId.NONE as number)) {
+                continue;
+            }
+            acceptedIds.push(model.id as CommandId);
+
+            // Find the response command if any
+            const responseName = model.effectiveResponse;
+            if (responseName && responseName !== "status") {
+                const responseModel = responseModels.get(responseName);
+                if (responseModel && responseModel.id !== (CommandId.NONE as number)) {
+                    generatedIds.add(responseModel.id as CommandId);
+                }
+            }
+        }
+
+        globals.acceptedCommandList = acceptedIds.sort((a, b) => a - b);
+        globals.generatedCommandList = [...generatedIds].sort((a, b) => a - b);
 
         // Validate the feature map
-        const schema = Schema(behavior.type) as ClusterModel;
         if (schema.tag === "cluster") {
             const { supportedFeatures, featureMap } = Schema(behavior.type) as ClusterModel;
             const { featuresSupported, featuresAvailable } = FeatureSet.normalize(
@@ -184,7 +205,7 @@ export class ServerBehaviorBacking extends BehaviorBacking {
                 continue;
             }
 
-            const name = camelize(property.name);
+            const name = property.propertyName;
 
             if (!this.#suppressedChanges) {
                 this.#suppressedChanges = new Set();

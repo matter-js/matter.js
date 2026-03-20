@@ -24,7 +24,14 @@ import {
     Observable,
     Transaction,
 } from "@matter/general";
-import { AcceptedCommandList, AttributeList, ElementTag, GeneratedCommandList, Matter } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    CommandModel,
+    ElementTag,
+    GeneratedCommandList,
+    Matter,
+} from "@matter/model";
 import type {
     AttributeTypeProtocol,
     ClusterProtocol,
@@ -49,7 +56,6 @@ import {
     AttributeId,
     AttributePath,
     ClusterId,
-    ClusterType,
     CommandId,
     CommandPath,
     DeviceTypeId,
@@ -57,6 +63,8 @@ import {
     EventId,
     EventPath,
     FabricIndex,
+    TlvOfModel,
+    TlvVoid,
     WildcardPathFlags as WildcardPathFlagsType,
 } from "@matter/types";
 
@@ -357,11 +365,6 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
     const nonMandatorySupportedEvents = new Set<EventId>();
     const nonMandatorySupportedCommands = new Set<CommandId>();
 
-    // Collect Attribute Metadata
-    const attrDef = {} as Record<number, ClusterType.Attribute>;
-    for (const attr of Object.values(cluster.attributes)) {
-        attrDef[attr.id] = attr;
-    }
     let wildcardPathFlags = schema.effectiveQuality.diagnostics ? WildcardPathFlags.skipDiagnosticsClusters : 0;
     if (schema.id & 0xffff0000) {
         wildcardPathFlags |= WildcardPathFlags.skipCustomElements;
@@ -371,21 +374,11 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
         [Symbol.iterator]: attrList[Symbol.iterator].bind(attrList),
     };
 
-    // Collect Event Metadata
-    const eventDef = {} as Record<number, ClusterType.Event>;
-    for (const ev of Object.values(cluster.events)) {
-        eventDef[ev.id] = ev;
-    }
     const eventList = Array<EventTypeProtocol>();
     const events: CollectionProtocol<EventTypeProtocol> = {
         [Symbol.iterator]: eventList[Symbol.iterator].bind(eventList),
     };
 
-    // Collect Command Metadata
-    const cmdDef = {} as Record<number, ClusterType.Command>;
-    for (const cmd of Object.values(cluster.commands)) {
-        cmdDef[cmd.requestId] = cmd;
-    }
     const commandList = Array<CommandTypeProtocol>();
     const commands: CollectionProtocol<CommandTypeProtocol> = {
         [Symbol.iterator]: commandList[Symbol.iterator].bind(commandList),
@@ -402,17 +395,14 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
-        const name = camelize(member.name);
+        const name = member.propertyName;
         switch (tag) {
             case "attribute": {
                 if (!member.effectiveConformance.isMandatory && !supportedElements.attributes.has(name)) {
                     continue;
                 }
 
-                const tlv = attrDef[id]?.schema;
-                if (tlv === undefined) {
-                    continue;
-                }
+                const tlv = TlvOfModel(member);
 
                 let wildcardPathFlags;
                 switch (id) {
@@ -474,10 +464,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                     continue;
                 }
 
-                const tlv = eventDef[id]?.schema;
-                if (tlv === undefined) {
-                    continue;
-                }
+                const tlv = TlvOfModel(member);
 
                 const {
                     access: { limits },
@@ -500,11 +487,10 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                     continue;
                 }
 
-                const def = cmdDef[id];
-                if (def === undefined) {
-                    continue;
-                }
-                const { requestSchema: requestTlv, responseSchema: responseTlv, responseId } = def;
+                const requestTlv = TlvOfModel(member);
+                const responseModel = (member as CommandModel).responseModel;
+                const responseTlv = responseModel ? TlvOfModel(responseModel) : TlvVoid;
+                const responseId = (responseModel?.id ?? id) as CommandId;
 
                 const {
                     access: { limits },

@@ -8,15 +8,12 @@
 
 import { TargetNavigator } from "@matter/types/clusters/target-navigator";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { TargetNavigatorInterface } from "./TargetNavigatorInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * TargetNavigatorBehavior is the base class for objects that support interaction with {@link TargetNavigator.Cluster}.
  */
-export const TargetNavigatorBehaviorConstructor = ClusterBehavior
-    .withInterface<TargetNavigatorInterface>()
-    .for(TargetNavigator.Cluster);
+export const TargetNavigatorBehaviorConstructor = ClusterBehavior.for(TargetNavigator);
 
 export interface TargetNavigatorBehaviorConstructor extends Identity<typeof TargetNavigatorBehaviorConstructor> {}
 export const TargetNavigatorBehavior: TargetNavigatorBehaviorConstructor = TargetNavigatorBehaviorConstructor;

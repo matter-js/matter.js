@@ -249,7 +249,7 @@ function generateStruct(model: ClusterModel | ValueModel) {
     for (const p of model.conformant.properties) {
         const schema = TlvOfModel(p);
         const id = p.id ?? 0;
-        fields[camelize(p.name)] = p.mandatory ? TlvField(id, schema) : TlvOptionalField(id, schema);
+        fields[p.propertyName] = p.mandatory ? TlvField(id, schema) : TlvOptionalField(id, schema);
     }
     return TlvObject(fields);
 }
@@ -284,7 +284,7 @@ function generateBitmap(model: ValueModel) {
 }
 
 function generateList(model: ValueModel) {
-    const entry = model.conformant.fields.for("entry");
+    const entry = model.conformant.fields("entry");
 
     const bounds = ModelBounds.createLengthBounds(model);
 

@@ -10,7 +10,7 @@ import { AdministratorCommissioning } from "@matter/types/clusters/administrator
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const AdministratorCommissioningClientConstructor = ClientBehavior(AdministratorCommissioning.Complete);
+export const AdministratorCommissioningClientConstructor = ClientBehavior(AdministratorCommissioning);
 export interface AdministratorCommissioningClient extends InstanceType<typeof AdministratorCommissioningClientConstructor> {}
 export interface AdministratorCommissioningClientConstructor extends Identity<typeof AdministratorCommissioningClientConstructor> {}
 export const AdministratorCommissioningClient: AdministratorCommissioningClientConstructor = AdministratorCommissioningClientConstructor;

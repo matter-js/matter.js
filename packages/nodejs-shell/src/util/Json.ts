@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, camelize } from "@matter/general";
+import { Bytes } from "@matter/general";
 import { ValueModel } from "@matter/model";
 import { ValidationDatatypeMismatchError } from "@matter/types";
 
@@ -21,7 +21,7 @@ export function convertJsonDataWithModel(model: ValueModel, data: any): any {
                 throw new ValidationDatatypeMismatchError(`Expected object, got ${typeof data}`);
             }
             for (const child of definingModel.children) {
-                const childKeyName = camelize(child.name);
+                const childKeyName = child.propertyName;
                 data[childKeyName] = convertJsonDataWithModel(child, data[childKeyName]);
             }
             return data;

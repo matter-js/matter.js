@@ -4,8 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable } from "@matter/general";
-import { ClusterType } from "@matter/types";
+import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable, camelize } from "@matter/general";
+import { ClusterModel, Conformance, Schema } from "@matter/model";
+import type { ClusterNamespace } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { ClusterBehavior } from "./ClusterBehavior.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
@@ -56,6 +57,11 @@ export class ValidatedElements {
     attributes = new Set<string>();
 
     /**
+     * Attribute name → ID mapping for all supported attributes (including globals).
+     */
+    attributeIds = new Map<string, number>();
+
+    /**
      * Supported commands.
      */
     commands = new Set<string>();
@@ -73,7 +79,8 @@ export class ValidatedElements {
     #name: string;
     #type: Behavior.Type;
     #instance?: Behavior;
-    #cluster: ClusterType;
+    #cluster: ClusterNamespace;
+    #schema: ClusterModel;
 
     /**
      * Obtain validation information.
@@ -89,6 +96,7 @@ export class ValidatedElements {
         this.#instance = instance;
         this.#name = type.name;
         this.#cluster = type.cluster;
+        this.#schema = Schema(type) as ClusterModel;
 
         if (typeof type !== "function") {
             this.error(undefined, "Is not a class", true);
@@ -139,12 +147,6 @@ export class ValidatedElements {
     }
 
     #validateAttributes() {
-        const attributes = this.#cluster.attributes;
-        if (!attributes) {
-            this.error("cluster.attributes", "Property missing", true);
-            return;
-        }
-
         let state;
 
         if (this.#instance) {
@@ -164,35 +166,27 @@ export class ValidatedElements {
             }
         }
 
-        for (const name in attributes) {
-            const attr = attributes[name];
-            if (!attr) {
-                this.error(`cluster.attributes.${name}`, "Undefined element in cluster definition", true);
+        for (const member of this.#schema.conformant.attributes) {
+            if (member.id === undefined) {
                 continue;
             }
+            const name = camelize(member.name);
 
             if ((state as Record<string, unknown>)[name] === undefined) {
-                if (!attr.optional) {
+                if (
+                    member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory
+                ) {
                     this.error(`State.${name}`, "Mandatory element unsupported", false);
                 }
                 continue;
             }
 
             this.attributes.add(name);
-
-            // TODO - should we enforce presence of events.<attr>$Changed?
-
-            // TODO - validate "optional but not nullable" if attributes get proper metadata (or go to model for this)
+            this.attributeIds.set(name, member.id);
         }
     }
 
     #validateCommands() {
-        const commands = this.#cluster.commands;
-        if (!commands) {
-            this.error("cluster.commands", "Property missing", true);
-            return;
-        }
-
         let implementations;
 
         if (this.#instance) {
@@ -206,17 +200,18 @@ export class ValidatedElements {
             }
         }
 
-        for (const name in commands) {
-            const command = commands[name];
-            if (!command) {
-                this.error(`cluster.commands.${name}`, "Undefined element in cluster definition", true);
+        for (const member of this.#schema.conformant.commands) {
+            if (member.isResponse) {
                 continue;
             }
 
+            const name = camelize(member.name);
+            const isMandatory =
+                member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory;
             const implementation = (implementations as Record<string, unknown>)[name];
 
             if (!(name in implementations) || implementation === undefined) {
-                if (!command.optional) {
+                if (isMandatory) {
                     this.error(name, `Implementation missing`, true);
                 }
                 continue;
@@ -228,7 +223,7 @@ export class ValidatedElements {
             }
 
             if (implementation === Behavior.unimplemented) {
-                if (!command.optional) {
+                if (isMandatory) {
                     // TODO - do not pollute the logs with these as Matter spec is in flux (should this include groups
                     //  or just scenes?)
                     if (this.#name.match(/^(?:Groups|Scenes|GroupKeyManagement)(?:Server|Behavior)/)) {
@@ -246,15 +241,17 @@ export class ValidatedElements {
     }
 
     #validateEvents() {
-        const expected = this.#cluster.events;
-        if (typeof expected !== "object" || expected === null) {
-            this.error("cluster.events", "Invalid definition", true);
-            return;
-        }
-
         const constructor = this.#type.Events;
         if (!constructor) {
-            this.error("Events", "Implementation missing", true);
+            // No Events class — only an error if there are mandatory conformant events
+            for (const member of this.#schema.conformant.events) {
+                if (
+                    member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory
+                ) {
+                    this.error("Events", "Implementation missing", true);
+                    return;
+                }
+            }
             return;
         }
 
@@ -271,15 +268,13 @@ export class ValidatedElements {
             }
         }
 
-        for (const name in expected) {
-            const event = expected[name];
-            if (!event) {
-                this.error(`cluster.events.${name}`, "Undefined element in cluster definition", true);
-                continue;
-            }
+        for (const member of this.#schema.conformant.events) {
+            const name = camelize(member.name);
 
             if (!(name in emitters)) {
-                if (!event.optional) {
+                if (
+                    member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory
+                ) {
                     this.error(`cluster.events.${name}`, "Implementation missing", true);
                 }
                 continue;

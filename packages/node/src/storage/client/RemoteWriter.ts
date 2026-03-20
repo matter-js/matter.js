@@ -8,7 +8,7 @@ import { ClientStructure } from "#node/client/ClientStructure.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { InternalError } from "@matter/general";
 import { Write, WriteResult, type Val } from "@matter/protocol";
-import type { ClusterId, ClusterType, EndpointNumber } from "@matter/types";
+import type { ClusterId, ClusterNamespace, EndpointNumber } from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 
 /**
@@ -21,7 +21,7 @@ export interface RemoteWriter {
     (request: RemoteWriter.Request): Promise<void>;
 }
 
-const attrCache = new WeakMap<ClusterType, Record<string, ClusterType.Attribute>>();
+const attrCache = new WeakMap<object, Record<string, ClusterNamespace.Attribute>>();
 
 export function RemoteWriter(node: ClientNode, structure: ClientStructure): RemoteWriter {
     return async function writeRemote(request: RemoteWriter.Request) {
@@ -46,8 +46,8 @@ export function RemoteWriter(node: ClientNode, structure: ClientStructure): Remo
                 attrWrites.push(
                     Write.Attribute({
                         endpoint: number,
-                        cluster,
-                        attributes: [attrs[id]],
+                        cluster: cluster as any,
+                        attributes: [attrs[id] as any],
                         value: values[id],
                     }),
                 );
@@ -69,12 +69,18 @@ export namespace RemoteWriter {
     export interface Request extends Array<EndpointUpdateRequest> {}
 }
 
-function attrsFor(cluster: ClusterType) {
+function attrsFor(cluster: ClusterNamespace) {
     let attrs = attrCache.get(cluster);
     if (attrs) {
         return attrs;
     }
-    attrs = Object.fromEntries(Object.values(cluster.attributes).map(attr => [attr.id, attr]));
+    const nsAttrs = cluster.attributes as Record<string, ClusterNamespace.Attribute> | undefined;
+    attrs = {};
+    if (nsAttrs) {
+        for (const attr of Object.values(nsAttrs)) {
+            attrs[attr.id] = attr;
+        }
+    }
     attrCache.set(cluster, attrs);
     return attrs;
 }

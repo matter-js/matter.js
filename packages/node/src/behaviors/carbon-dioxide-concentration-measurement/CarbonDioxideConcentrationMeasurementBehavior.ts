@@ -8,7 +8,6 @@
 
 import { CarbonDioxideConcentrationMeasurement } from "@matter/types/clusters/carbon-dioxide-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -19,7 +18,7 @@ import { Identity } from "@matter/general";
  * using {@link CarbonDioxideConcentrationMeasurementBehavior.with}.
  */
 export const CarbonDioxideConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(CarbonDioxideConcentrationMeasurement.Base));
+    .for(CarbonDioxideConcentrationMeasurement);
 
 export interface CarbonDioxideConcentrationMeasurementBehaviorConstructor extends Identity<typeof CarbonDioxideConcentrationMeasurementBehaviorConstructor> {}
 export const CarbonDioxideConcentrationMeasurementBehavior: CarbonDioxideConcentrationMeasurementBehaviorConstructor = CarbonDioxideConcentrationMeasurementBehaviorConstructor;

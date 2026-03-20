@@ -10,7 +10,7 @@ import { ActivatedCarbonFilterMonitoring } from "@matter/types/clusters/activate
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ActivatedCarbonFilterMonitoringClientConstructor = ClientBehavior(ActivatedCarbonFilterMonitoring.Complete);
+export const ActivatedCarbonFilterMonitoringClientConstructor = ClientBehavior(ActivatedCarbonFilterMonitoring);
 export interface ActivatedCarbonFilterMonitoringClient extends InstanceType<typeof ActivatedCarbonFilterMonitoringClientConstructor> {}
 export interface ActivatedCarbonFilterMonitoringClientConstructor extends Identity<typeof ActivatedCarbonFilterMonitoringClientConstructor> {}
 export const ActivatedCarbonFilterMonitoringClient: ActivatedCarbonFilterMonitoringClientConstructor = ActivatedCarbonFilterMonitoringClientConstructor;

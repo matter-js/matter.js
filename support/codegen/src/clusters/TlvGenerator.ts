@@ -33,6 +33,18 @@ export class TlvGenerator {
     #definitions: Block;
     #definedDatatypes = new Set<Model>();
 
+    /**
+     * When true, enum definitions, struct interfaces, and bitmap consts are not generated — they are handled by
+     * ComponentGenerator.generateTypes() instead.  TLV schemas (TlvObject) are still generated.
+     */
+    skipTypeDefinitions = false;
+
+    /**
+     * When {@link skipTypeDefinitions} is true, models whose definitions were skipped are collected here so
+     * ComponentGenerator can generate them.
+     */
+    skippedTypes = new Map<string, ValueModel>();
+
     constructor(file: ScopeFile, definitions?: Block) {
         this.#scope = file.scope;
         this.#file = file;
@@ -354,11 +366,14 @@ export class TlvGenerator {
         }
 
         this.importTlv("tlv", "TlvObject");
-        this.file.addImport("!types/tlv/TlvSchema.js", "TypeFromSchema");
-        const intf = this.definitions.atom(
-            `export interface ${name.slice(3)} extends TypeFromSchema<typeof ${name}> {}`,
-        );
-        this.#documentType(model, intf);
+
+        if (!this.skipTypeDefinitions) {
+            this.file.addImport("!types/tlv/TlvSchema.js", "TypeFromSchema");
+            const intf = this.definitions.atom(
+                `export interface ${name.slice(3)} extends TypeFromSchema<typeof ${name}> {}`,
+            );
+            this.#documentType(model, intf);
+        }
 
         return struct;
     }
@@ -458,14 +473,31 @@ export class TlvGenerator {
         let definition: Entry | undefined;
         switch (model.effectiveMetatype) {
             case Metatype.enum:
+                if (this.skipTypeDefinitions) {
+                    // Enum type definition is handled by ComponentGenerator.generateTypes().
+                    this.skippedTypes.set(name, model);
+                    // Still generate error classes for status code enums.
+                    if (model.name === "StatusEnum" || model.name === "StatusCodeEnum") {
+                        this.defineErrors(name, model, this.#definitions);
+                    }
+                    return name;
+                }
                 definition = this.#defineEnum(name, model);
                 break;
 
             case Metatype.object:
                 definition = this.#defineStruct(name, model);
+                if (this.skipTypeDefinitions) {
+                    this.skippedTypes.set(name.slice(3), model);
+                }
                 break;
 
             case Metatype.bitmap:
+                if (this.skipTypeDefinitions) {
+                    // Bitmap definition is handled by ComponentGenerator.generateTypes()
+                    this.skippedTypes.set(name, model);
+                    return name;
+                }
                 definition = this.#defineBitmap(name, model);
                 break;
 

@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * PowerSourceConfigurationBehavior is the base class for objects that support interaction with
  * {@link PowerSourceConfiguration.Cluster}.
  */
-export const PowerSourceConfigurationBehaviorConstructor = ClusterBehavior.for(PowerSourceConfiguration.Cluster);
+export const PowerSourceConfigurationBehaviorConstructor = ClusterBehavior.for(PowerSourceConfiguration);
 
 export interface PowerSourceConfigurationBehaviorConstructor extends Identity<typeof PowerSourceConfigurationBehaviorConstructor> {}
 export const PowerSourceConfigurationBehavior: PowerSourceConfigurationBehaviorConstructor = PowerSourceConfigurationBehaviorConstructor;

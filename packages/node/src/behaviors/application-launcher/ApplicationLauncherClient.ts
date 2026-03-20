@@ -10,7 +10,7 @@ import { ApplicationLauncher } from "@matter/types/clusters/application-launcher
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ApplicationLauncherClientConstructor = ClientBehavior(ApplicationLauncher.Complete);
+export const ApplicationLauncherClientConstructor = ClientBehavior(ApplicationLauncher);
 export interface ApplicationLauncherClient extends InstanceType<typeof ApplicationLauncherClientConstructor> {}
 export interface ApplicationLauncherClientConstructor extends Identity<typeof ApplicationLauncherClientConstructor> {}
 export const ApplicationLauncherClient: ApplicationLauncherClientConstructor = ApplicationLauncherClientConstructor;

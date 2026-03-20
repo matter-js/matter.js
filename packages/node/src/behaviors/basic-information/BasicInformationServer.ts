@@ -70,7 +70,7 @@ export class BasicInformationServer extends Base {
         if (this.state.reachable !== undefined && this.events.reachable$Changed !== undefined) {
             const reachableChangedSchema = BasicInformationBehavior.schema.get(
                 EventModel,
-                BasicInformation.Cluster.events.reachableChanged.id,
+                BasicInformation.events.reachableChanged.id,
             );
             if (reachableChangedSchema === undefined) {
                 throw new ImplementationError("Reachable Changed event schema is missing");

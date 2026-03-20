@@ -24,7 +24,7 @@ import {
 } from "@matter/general";
 import { FieldElement } from "@matter/model";
 import { hasLocalActor, Val } from "@matter/protocol";
-import { ClusterType, StatusResponse, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusResponse, TypeFromPartialBitSchema } from "@matter/types";
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
@@ -1453,7 +1453,7 @@ export namespace ThermostatBaseServer {
                                 session,
                                 endpoint,
                                 ThermostatBaseServer,
-                                Thermostat.Complete.attributes.presets.id,
+                                Thermostat.attributes.presets.id,
                             );
                         if (pendingValue !== undefined) {
                             return pendingValue as Thermostat.Preset[];
@@ -1483,7 +1483,7 @@ export namespace ThermostatBaseServer {
                                     session,
                                     endpoint,
                                     ThermostatBaseServer,
-                                    Thermostat.Complete.attributes.presets.id,
+                                    Thermostat.attributes.presets.id,
                                     value,
                                 );
                         }
@@ -1557,4 +1557,4 @@ export namespace ThermostatBaseServer {
 
 // We had turned on some more features to provide a default implementation, but export the cluster with default
 // Features again.
-export class ThermostatServer extends ThermostatBaseServer.for(ClusterType(Thermostat.Base)) {}
+export class ThermostatServer extends ThermostatBaseServer.for(Thermostat) {}

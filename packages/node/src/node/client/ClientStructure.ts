@@ -27,10 +27,8 @@ import {
 import {
     AcceptedCommandList,
     AttributeList,
-    ClusterModel,
     ClusterRevision,
     DeviceClassification,
-    DeviceTypeModel,
     FeatureMap,
     GeneratedCommandList,
     Matter,
@@ -46,10 +44,10 @@ import { PeerBehavior } from "./PeerBehavior.js";
 
 const logger = Logger.get("ClientStructure");
 
-const DESCRIPTOR_ID = Descriptor.Cluster.id;
-const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.Cluster.attributes.deviceTypeList.id;
-const SERVER_LIST_ATTR_ID = Descriptor.Cluster.attributes.serverList.id;
-const PARTS_LIST_ATTR_ID = Descriptor.Cluster.attributes.partsList.id;
+const DESCRIPTOR_ID = Descriptor.id;
+const DEVICE_TYPE_LIST_ATTR_ID = Descriptor.attributes.deviceTypeList.id;
+const SERVER_LIST_ATTR_ID = Descriptor.attributes.serverList.id;
+const PARTS_LIST_ATTR_ID = Descriptor.attributes.partsList.id;
 
 const DEVICE_TYPE_LIST_ATTR_NAME = "deviceTypeList";
 const SERVER_LIST_ATTR_NAME = "serverList";
@@ -576,7 +574,7 @@ export class ClientStructure {
         }
 
         // Special handling for descriptor cluster
-        if (cluster.id === Descriptor.Cluster.id) {
+        if (cluster.id === Descriptor.id) {
             let attrs;
             if (cluster.behavior && endpoint.behaviors.isActive(cluster.behavior.id)) {
                 attrs = endpoint.stateOf(cluster.behavior);
@@ -601,7 +599,7 @@ export class ClientStructure {
                 }
 
                 let isApp = false;
-                const model = Matter.get(DeviceTypeModel, dt.deviceType);
+                const model = Matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
                 }
@@ -784,7 +782,7 @@ export class ClientStructure {
         }
 
         // Try to resolve by looking up the cluster model by capitalized behavior name (e.g. "onOff" → "OnOff")
-        const clusterModel = Matter.get(ClusterModel, capitalize(behaviorId));
+        const clusterModel = Matter.clusters(capitalize(behaviorId));
         if (clusterModel) {
             return this.#clusterFor(endpoint, clusterModel.id as ClusterId);
         }

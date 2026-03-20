@@ -10,7 +10,7 @@ import { WiFiNetworkDiagnostics } from "@matter/types/clusters/wi-fi-network-dia
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const WiFiNetworkDiagnosticsClientConstructor = ClientBehavior(WiFiNetworkDiagnostics.Complete);
+export const WiFiNetworkDiagnosticsClientConstructor = ClientBehavior(WiFiNetworkDiagnostics);
 export interface WiFiNetworkDiagnosticsClient extends InstanceType<typeof WiFiNetworkDiagnosticsClientConstructor> {}
 export interface WiFiNetworkDiagnosticsClientConstructor extends Identity<typeof WiFiNetworkDiagnosticsClientConstructor> {}
 export const WiFiNetworkDiagnosticsClient: WiFiNetworkDiagnosticsClientConstructor = WiFiNetworkDiagnosticsClientConstructor;

@@ -9,12 +9,48 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvString } from "../tlv/TlvString.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, LocalizationConfiguration as LocalizationConfigurationModel } from "@matter/model";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the LocalizationConfiguration cluster.
+ */
 export namespace LocalizationConfiguration {
+    /**
+     * Attributes that may appear in {@link LocalizationConfiguration}.
+     */
+    export interface Attributes {
+        /**
+         * The ActiveLocale attribute shall represent the locale that the Node is currently configured to use when
+         * conveying information. The ActiveLocale attribute shall be a Language Tag as defined by BCP47. The
+         * ActiveLocale attribute shall have a default value assigned by the Vendor and shall be a value contained
+         * within the SupportedLocales attribute.
+         *
+         * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
+         * CONSTRAINT_ERROR error.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.3.4.1
+         */
+        activeLocale: string;
+
+        /**
+         * The SupportedLocales attribute shall represent a list of locale strings that are valid values for the
+         * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within the
+         * list SHOULD NOT express any meaning.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.3.4.2
+         */
+        supportedLocales: string[];
+    }
+
+    export namespace Attributes {
+        export type Components = [{ flags: {}, mandatory: "activeLocale" | "supportedLocales" }];
+    }
+
     /**
      * @see {@link Cluster}
      */
@@ -67,8 +103,17 @@ export namespace LocalizationConfiguration {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x2b);
+    export const name = "LocalizationConfiguration" as const;
+    export const revision = 1;
+    export const schema = LocalizationConfigurationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const Typing: LocalizationConfiguration;
 }
 
 export type LocalizationConfigurationCluster = LocalizationConfiguration.Cluster;
 export const LocalizationConfigurationCluster = LocalizationConfiguration.Cluster;
 ClusterRegistry.register(LocalizationConfiguration.Complete);
+ClusterNamespace.define(LocalizationConfiguration);
+export interface LocalizationConfiguration extends ClusterTyping { Attributes: LocalizationConfiguration.Attributes & { Components: LocalizationConfiguration.Attributes.Components } }

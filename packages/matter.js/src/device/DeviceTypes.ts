@@ -5,7 +5,7 @@
  */
 
 import { capitalize } from "@matter/general";
-import { MatterModel } from "@matter/model";
+import { Matter } from "@matter/model";
 import { ClusterId, DeviceTypeId } from "@matter/types";
 
 /**
@@ -142,7 +142,7 @@ export function getDeviceTypeDefinitionFromModelByCode(code: number): DeviceType
         return DynamicDeviceType[code];
     }
 
-    const device = MatterModel.standard.deviceTypes.find(d => d.id === code);
+    const device = Matter.deviceTypes(code);
     if (device === undefined) {
         return undefined;
     }

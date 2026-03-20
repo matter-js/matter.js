@@ -11,7 +11,6 @@ import {
     asError,
     AsyncObservable,
     BasicObservable,
-    camelize,
     EventEmitter,
     ImplementationError,
     InternalError,
@@ -277,7 +276,7 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
     }
 
     override toString() {
-        const base = `${this.owner.toString()}.${camelize(this.schema.name)}`;
+        const base = `${this.owner.toString()}.${this.schema.propertyName}`;
         if (this.schema.tag === ElementTag.Attribute || this.schema.tag === ElementTag.Field) {
             return `${base}$Changed`;
         }

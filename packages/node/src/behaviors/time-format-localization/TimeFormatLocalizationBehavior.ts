@@ -17,7 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of TimeFormatLocalization.Cluster enabled. You can enable additional
  * features using TimeFormatLocalizationBehavior.with.
  */
-export const TimeFormatLocalizationBehaviorConstructor = ClusterBehavior.for(TimeFormatLocalization.Cluster);
+export const TimeFormatLocalizationBehaviorConstructor = ClusterBehavior.for(TimeFormatLocalization);
 
 export interface TimeFormatLocalizationBehaviorConstructor extends Identity<typeof TimeFormatLocalizationBehaviorConstructor> {}
 export const TimeFormatLocalizationBehavior: TimeFormatLocalizationBehaviorConstructor = TimeFormatLocalizationBehaviorConstructor;

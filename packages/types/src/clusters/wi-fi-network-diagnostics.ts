@@ -15,11 +15,206 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvByteString } from "../tlv/TlvString.js";
 import { Priority } from "../globals/Priority.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { Identity } from "@matter/general";
+import { Identity, Bytes, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { WiFiNetworkDiagnostics as WiFiNetworkDiagnosticsModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the WiFiNetworkDiagnostics cluster.
+ */
 export namespace WiFiNetworkDiagnostics {
+    /**
+     * Attributes that may appear in {@link WiFiNetworkDiagnostics}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.1
+         */
+        bssid: Bytes | null;
+
+        /**
+         * Indicates the current type of Wi-Fi security used.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.2
+         */
+        securityType: SecurityType | null;
+
+        /**
+         * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.3
+         */
+        wiFiVersion: WiFiVersion | null;
+
+        /**
+         * Indicates the channel that Wi-Fi communication is currently operating on.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.4
+         */
+        channelNumber: number | null;
+
+        /**
+         * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.5
+         */
+        rssi: number | null;
+
+        /**
+         * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.12
+         */
+        currentMaxRate: number | bigint | null;
+
+        /**
+         * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
+         * ability to count beacons expected and not received, this value may remain set to zero.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.6
+         */
+        beaconLostCount: number | null;
+
+        /**
+         * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
+         * all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.13
+         */
+        overrunCount: number | bigint | null;
+
+        /**
+         * Indicates the count of the number of received beacons. The total number of expected beacons that could have
+         * been received during the interval since association SHOULD match the sum of BeaconRxCount and
+         * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
+         * remain set to zero.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.7
+         */
+        beaconRxCount: number | null;
+
+        /**
+         * Indicates the number of multicast packets received by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.8
+         */
+        packetMulticastRxCount: number | null;
+
+        /**
+         * Indicates the number of multicast packets transmitted by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.9
+         */
+        packetMulticastTxCount: number | null;
+
+        /**
+         * Indicates the number of unicast packets received by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.10
+         */
+        packetUnicastRxCount: number | null;
+
+        /**
+         * Indicates the number of unicast packets transmitted by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.11
+         */
+        packetUnicastTxCount: number | null;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            {
+                flags: {},
+                mandatory: "bssid" | "securityType" | "wiFiVersion" | "channelNumber" | "rssi",
+                optional: "currentMaxRate"
+            },
+            { flags: { errorCounts: true }, mandatory: "beaconLostCount" | "overrunCount" },
+            {
+                flags: { packetCounts: true },
+                mandatory: "beaconRxCount" | "packetMulticastRxCount" | "packetMulticastTxCount" | "packetUnicastRxCount" | "packetUnicastTxCount"
+            }
+        ];
+    }
+
+    export interface Commands extends Commands.ErrorCounts {}
+
+    export namespace Commands {
+        /**
+         * {@link WiFiNetworkDiagnostics} supports these commands if it supports feature "ErrorCounts".
+         */
+        export interface ErrorCounts {
+            /**
+             * This command is used to reset the count attributes.
+             *
+             * Reception of this command shall reset the following attributes to 0:
+             *
+             *   - BeaconLostCount
+             *
+             *   - BeaconRxCount
+             *
+             *   - PacketMulticastRxCount
+             *
+             *   - PacketMulticastTxCount
+             *
+             *   - PacketUnicastRxCount
+             *
+             *   - PacketUnicastTxCount
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
+             */
+            resetCounts(): MaybePromise;
+        }
+
+        export type Components = [{ flags: { errorCounts: true }, methods: ErrorCounts }];
+    }
+
+    /**
+     * Events that may appear in {@link WiFiNetworkDiagnostics}.
+     *
+     * Devices may not support all of these events. Device support for events may also be affected by a device's
+     * supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+         * de-authenticated or dis-association and indicates the reason.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+         */
+        disconnection: DisconnectionEvent;
+
+        /**
+         * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a Wi-Fi
+         * access point, but is unable to successfully associate or authenticate, after exhausting all internal retries
+         * of its supplicant.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+         */
+        associationFailure: AssociationFailureEvent;
+
+        /**
+         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+         * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
+         * Wi-Fi Access Point.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+         */
+        connectionStatus: ConnectionStatusEvent;
+    }
+
+    export namespace Events {
+        export type Components = [{ flags: {}, optional: "disconnection" | "associationFailure" | "connectionStatus" }];
+    }
+    export type Features = "PacketCounts" | "ErrorCounts";
+
     /**
      * These are optional features supported by WiFiNetworkDiagnosticsCluster.
      *
@@ -103,26 +298,20 @@ export namespace WiFiNetworkDiagnostics {
     }
 
     /**
-     * Body of the WiFiNetworkDiagnostics disconnection event
+     * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+     * de-authenticated or dis-association and indicates the reason.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
      */
-    export const TlvDisconnectionEvent = TlvObject({
+    export interface DisconnectionEvent {
         /**
          * This field shall contain the Reason Code field value for the Disassociation or Deauthentication event that
          * caused the disconnection and the value shall align with Table 9-49 "Reason codes" of IEEE 802.11-2020.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.15.8.1.1
          */
-        reasonCode: TlvField(0, TlvUInt16)
-    });
-
-    /**
-     * Body of the WiFiNetworkDiagnostics disconnection event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
-     */
-    export interface DisconnectionEvent extends TypeFromSchema<typeof TlvDisconnectionEvent> {}
+        reasonCode: number;
+    }
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.15.5.3
@@ -148,6 +337,80 @@ export namespace WiFiNetworkDiagnostics {
          */
         SsidNotFound = 3
     }
+
+    /**
+     * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a Wi-Fi access
+     * point, but is unable to successfully associate or authenticate, after exhausting all internal retries of its
+     * supplicant.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+     */
+    export interface AssociationFailureEvent {
+        /**
+         * The Status field shall be set to a value from the AssociationFailureCauseEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2.1
+         */
+        associationFailureCause: AssociationFailureCause;
+
+        /**
+         * The Status field shall be set to the Status Code value that was present in the last frame related to
+         * association where Status Code was not equal to zero and which caused the failure of a last trial attempt, if
+         * this last failure was due to one of the following Management frames:
+         *
+         *   - Association Response (Type 0, Subtype 1)
+         *
+         *   - Reassociation Response (Type 0, Subtype 3)
+         *
+         *   - Authentication (Type 0, Subtype 11)
+         *
+         * Table 9-50 "Status codes" of IEEE 802.11-2020 contains a description of all values possible.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2.2
+         */
+        status: number;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.15.5.4
+     */
+    export enum ConnectionStatus {
+        /**
+         * Indicate the node is connected
+         */
+        Connected = 0,
+
+        /**
+         * Indicate the node is not connected
+         */
+        NotConnected = 1
+    }
+
+    /**
+     * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+     * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
+     * Wi-Fi Access Point.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+     */
+    export interface ConnectionStatusEvent {
+        connectionStatus: ConnectionStatus;
+    }
+
+    /**
+     * Body of the WiFiNetworkDiagnostics disconnection event
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+     */
+    export const TlvDisconnectionEvent = TlvObject({
+        /**
+         * This field shall contain the Reason Code field value for the Disassociation or Deauthentication event that
+         * caused the disconnection and the value shall align with Table 9-49 "Reason codes" of IEEE 802.11-2020.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1.1
+         */
+        reasonCode: TlvField(0, TlvUInt16)
+    });
 
     /**
      * Body of the WiFiNetworkDiagnostics associationFailure event
@@ -181,40 +444,11 @@ export namespace WiFiNetworkDiagnostics {
     });
 
     /**
-     * Body of the WiFiNetworkDiagnostics associationFailure event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
-     */
-    export interface AssociationFailureEvent extends TypeFromSchema<typeof TlvAssociationFailureEvent> {}
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.15.5.4
-     */
-    export enum ConnectionStatus {
-        /**
-         * Indicate the node is connected
-         */
-        Connected = 0,
-
-        /**
-         * Indicate the node is not connected
-         */
-        NotConnected = 1
-    }
-
-    /**
      * Body of the WiFiNetworkDiagnostics connectionStatus event
      *
      * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
      */
     export const TlvConnectionStatusEvent = TlvObject({ connectionStatus: TlvField(0, TlvEnum<ConnectionStatus>()) });
-
-    /**
-     * Body of the WiFiNetworkDiagnostics connectionStatus event
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
-     */
-    export interface ConnectionStatusEvent extends TypeFromSchema<typeof TlvConnectionStatusEvent> {}
 
     /**
      * A WiFiNetworkDiagnosticsCluster supports these elements if it supports feature ErrorCounts.
@@ -496,8 +730,22 @@ export namespace WiFiNetworkDiagnostics {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x36);
+    export const name = "WiFiNetworkDiagnostics" as const;
+    export const revision = 1;
+    export const schema = WiFiNetworkDiagnosticsModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
+    export declare const events: EventObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: WiFiNetworkDiagnostics;
 }
 
 export type WiFiNetworkDiagnosticsCluster = WiFiNetworkDiagnostics.Cluster;
 export const WiFiNetworkDiagnosticsCluster = WiFiNetworkDiagnostics.Cluster;
 ClusterRegistry.register(WiFiNetworkDiagnostics.Complete);
+ClusterNamespace.define(WiFiNetworkDiagnostics);
+export interface WiFiNetworkDiagnostics extends ClusterTyping { Attributes: WiFiNetworkDiagnostics.Attributes & { Components: WiFiNetworkDiagnostics.Attributes.Components }; Commands: WiFiNetworkDiagnostics.Commands & { Components: WiFiNetworkDiagnostics.Commands.Components }; Events: WiFiNetworkDiagnostics.Events & { Components: WiFiNetworkDiagnostics.Events.Components }; Features: WiFiNetworkDiagnostics.Features }

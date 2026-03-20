@@ -162,20 +162,23 @@ export type MyFancyCommandRequest = TypeFromSchema<typeof MyFancyOwnFunctionalit
 export type MyFancyCommandResponse = TypeFromSchema<typeof MyFancyOwnFunctionality.TlvMyFancyCommandResponse>;
 export type MyFancyEvent = TypeFromSchema<typeof MyFancyOwnFunctionality.TlvMyFancyEvent>;
 
-export namespace MyFancyOwnFunctionalityInterface {
+export interface MyFancyOwnFunctionalityNamespace {
+    Commands: {
+        Base: MyFancyOwnFunctionalityNamespace.Base;
+        Components: [{ flags: {}; methods: MyFancyOwnFunctionalityNamespace.Base }];
+    };
+}
+
+export namespace MyFancyOwnFunctionalityNamespace {
     export interface Base {
         myFancyCommand(request: MyFancyCommandRequest): MaybePromise<MyFancyCommandResponse>;
     }
 }
 
-export type MyFancyOwnFunctionalityInterface = {
-    components: [{ flags: {}; methods: MyFancyOwnFunctionalityInterface.Base }];
-};
-
 /**
  * Behavior definition for the cluster command handler implementation
  */
-export const MyFancyOwnFunctionalityBehavior = ClusterBehavior.withInterface<MyFancyOwnFunctionalityInterface>().for(
+export const MyFancyOwnFunctionalityBehavior = ClusterBehavior.withInterface<MyFancyOwnFunctionalityNamespace>().for(
     MyFancyOwnFunctionality.Cluster,
     new ClusterModel(MyFancySchema),
 );

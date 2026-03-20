@@ -46,11 +46,11 @@ describe("MergedModels", () => {
             spec: Fixtures.BasicInformation.spec,
             chip: new ClusterModel(Fixtures.BasicInformation.chip),
         };
-        variants.chip.datatypes[0].name = "CapabilityMaximaStruct";
-        variants.chip.attributes[0].type = "CapabilityMaximaStruct";
+        variants.chip.datatypes.at(0)!.name = "CapabilityMaximaStruct";
+        variants.chip.attributes.at(0)!.type = "CapabilityMaximaStruct";
         const merged = merge(variants) as ClusterModel;
         expect(merged.children.length).equal(2);
-        expect(merged.datatypes[0].name).equal("CapabilityMinimaStruct");
+        expect(merged.datatypes.at(0)?.name).equal("CapabilityMinimaStruct");
     });
 
     it("merges referenced bitmap into direct bitmap", () => {

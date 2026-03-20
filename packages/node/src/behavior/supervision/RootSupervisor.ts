@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, InternalError } from "@matter/general";
+import { InternalError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
@@ -145,7 +145,7 @@ export class RootSupervisor implements ValueSupervisor {
         if (!names) {
             names = new Set();
             for (const member of this.#members) {
-                names.add(camelize(member.name));
+                names.add(member.propertyName);
             }
             this.#memberNames = names;
         }
@@ -173,7 +173,7 @@ export class RootSupervisor implements ValueSupervisor {
                         continue;
                     }
                 }
-                persistent.add(camelize(member.name));
+                persistent.add(member.propertyName);
             }
         }
         return persistent;
@@ -184,7 +184,7 @@ export class RootSupervisor implements ValueSupervisor {
         if (!names) {
             names = new Map();
             for (const member of this.#members) {
-                names.set(camelize(member.name), member.id as AttributeId | undefined);
+                names.set(member.propertyName, member.id as AttributeId | undefined);
             }
             this.#propertyNamesAndIds = names;
         }
@@ -201,7 +201,7 @@ export class RootSupervisor implements ValueSupervisor {
             for (const member of this.#members) {
                 const id = member.id;
                 if (id !== undefined) {
-                    ids.set(id.toString(), camelize(member.name));
+                    ids.set(id.toString(), member.propertyName);
                 }
             }
             this.#propertyIdsAndNames = ids;

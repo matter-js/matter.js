@@ -9,12 +9,50 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { FixedAttribute, Attribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
-import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
+import { TlvEndpointNumber, EndpointNumber } from "../datatype/EndpointNumber.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { PowerTopology as PowerTopologyModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the PowerTopology cluster.
+ */
 export namespace PowerTopology {
+    /**
+     * Attributes that may appear in {@link PowerTopology}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
+         * hosting this server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+         */
+        availableEndpoints: EndpointNumber[];
+
+        /**
+         * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
+         * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+         */
+        activeEndpoints: EndpointNumber[];
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: { setTopology: true }, mandatory: "availableEndpoints" },
+            { flags: { dynamicPowerFlow: true }, mandatory: "activeEndpoints" }
+        ];
+    }
+
+    export type Features = "NodeTopology" | "TreeTopology" | "SetTopology" | "DynamicPowerFlow";
+
     /**
      * These are optional features supported by PowerTopologyCluster.
      *
@@ -178,8 +216,18 @@ export namespace PowerTopology {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x9c);
+    export const name = "PowerTopology" as const;
+    export const revision = 1;
+    export const schema = PowerTopologyModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: PowerTopology;
 }
 
 export type PowerTopologyCluster = PowerTopology.Cluster;
 export const PowerTopologyCluster = PowerTopology.Cluster;
 ClusterRegistry.register(PowerTopology.Complete);
+ClusterNamespace.define(PowerTopology);
+export interface PowerTopology extends ClusterTyping { Attributes: PowerTopology.Attributes & { Components: PowerTopology.Attributes.Components }; Features: PowerTopology.Features }
