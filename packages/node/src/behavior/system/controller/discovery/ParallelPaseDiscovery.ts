@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, MatterAggregateError } from "@matter/general";
+import { CanceledError, causedBy, Logger, MatterAggregateError } from "@matter/general";
+import { CommissioningError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryError } from "./DiscoveryError.js";
 
@@ -77,12 +78,10 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                     // Winner's error is meaningful — must propagate to onComplete
                     throw error;
                 }
-                // Loser: resolve to prevent unhandled rejection.  If the abort has already
-                // fired, this is an expected cancellation.  Otherwise the attempt failed
-                // before anyone won (e.g. wrong passcode, network error) — log it so it
-                // isn't silently lost.
-                if (!this.#abort.signal.aborted) {
-                    logger.info("Parallel attempt failed:", error);
+                // Loser: resolve to prevent unhandled rejection.  Only known race-related
+                // errors are silenced; anything unexpected is logged so it isn't buried.
+                if (!causedBy(error, CanceledError, CommissioningError, PeerCommunicationError)) {
+                    logger.error("Unexpected error from parallel commissioning attempt:", error);
                 }
                 return undefined;
             })
