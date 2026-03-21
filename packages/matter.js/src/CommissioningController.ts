@@ -404,7 +404,7 @@ export class CommissioningController {
                 continue;
             }
             const networkState = peer.stateOf(NetworkClient);
-            const desiredDisabled = !!this.#options.autoConnect;
+            const desiredDisabled = this.#options.autoConnect === false;
             if (desiredDisabled !== networkState.isDisabled) {
                 await peer.set({ network: { isDisabled: desiredDisabled } });
             }
