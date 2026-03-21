@@ -599,22 +599,14 @@ function invokeCommand(
     //     });
     // }
 
-    // Validate command response through conformance pipeline, including cross-command field references.
-    // Currently non-fatal (warns only) as existing implementations may not fully comply yet.
+    // Validate command response through conformance pipeline, including cross-command field references
     const validateResponse = (response: unknown) => {
         if (command.responseModel && isObject(response) && session.transaction) {
-            try {
-                supervisor.get(command.responseModel).validate?.(response, session as ValueSupervisor.Session, {
-                    path: path.at(command.name),
-                    siblings: response as Val.Struct,
-                    requestData: request,
-                });
-            } catch (e) {
-                logger.warn(
-                    `Response conformance warning for ${path.toString()}.${command.name}:`,
-                    (e as Error).message,
-                );
-            }
+            supervisor.get(command.responseModel).validate?.(response, session as ValueSupervisor.Session, {
+                path: path.at(command.name),
+                siblings: response as Val.Struct,
+                requestData: request,
+            });
         }
     };
 
