@@ -71,11 +71,26 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     // Name resolution scope may change as we visit the AST; the base version creates a name reference if the the name
     // is visible in scope.  Other nodes may temporarily override this though
     let createNameReference = (name: string): DynamicNode => {
-        // Cross-command field references (e.g. "SolicitOffer.VideoStreamID") cannot be resolved from
-        // sibling data — they require the request payload as context.  Treat as optional until runtime
-        // request context support is implemented (see plans/cross-command-conformance.md).
+        // Cross-command field references (e.g. "SolicitOffer.VideoStreamID") resolve from the
+        // request payload passed via ValidationLocation.requestData
         if (name.includes(".")) {
-            return { code: Code.Optional };
+            const [, fieldName] = name.split(".", 2);
+            const key = camelize(fieldName);
+            return {
+                code: Code.Evaluate,
+
+                evaluate: (_value, options) => {
+                    // If requestData is available, resolve the field from it
+                    if (options?.requestData !== undefined) {
+                        return {
+                            code: Code.Value,
+                            value: (options.requestData as Val.Struct)[key],
+                        };
+                    }
+                    // Without request context, treat as optional (safe default)
+                    return { code: Code.Optional };
+                },
+            };
         }
 
         const resolver = NameResolver(supervisor, schema.parent, camelize(name));

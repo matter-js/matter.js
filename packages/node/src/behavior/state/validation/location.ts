@@ -32,6 +32,12 @@ export interface ValidationLocation {
      * Path used to create fully-qualified name for diagnostic messages.
      */
     location?: string[];
+
+    /**
+     * When validating a command response, the decoded request payload is provided here so that
+     * cross-command conformance references (e.g. "SolicitOffer.VideoStreamID") can be resolved.
+     */
+    requestData?: Val.Struct;
 }
 
 export namespace ValidationLocation {

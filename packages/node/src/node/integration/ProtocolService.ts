@@ -510,7 +510,18 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                     access: { limits },
                 } = behavior.supervisor.get(member);
 
-                const command = { id: id as CommandId, responseId, requestTlv, responseTlv, limits, name };
+                const requestModel = member;
+                const responseModel = member.responseModel;
+                const command = {
+                    id: id as CommandId,
+                    responseId,
+                    requestTlv,
+                    responseTlv,
+                    limits,
+                    name,
+                    requestModel,
+                    responseModel,
+                };
 
                 commandList.push(command);
                 commands[id] = command;
@@ -579,6 +590,34 @@ function invokeCommand(
     const agent = endpoint.agentFor(context);
     const behavior = agent.get(backing.type);
 
+    const supervisor = backing.type.supervisor;
+
+    // TODO: Validate request through conformance pipeline (currently only TLV-validated in CommandInvokeResponse)
+    // if (command.requestModel && request !== undefined) {
+    //     supervisor.get(command.requestModel).validate?.(request, session, {
+    //         path: path.at(command.name), siblings: request,
+    //     });
+    // }
+
+    // Validate command response through conformance pipeline, including cross-command field references.
+    // Currently non-fatal (warns only) as existing implementations may not fully comply yet.
+    const validateResponse = (response: unknown) => {
+        if (command.responseModel && isObject(response) && session.transaction) {
+            try {
+                supervisor.get(command.responseModel).validate?.(response, session as ValueSupervisor.Session, {
+                    path: path.at(command.name),
+                    siblings: response as Val.Struct,
+                    requestData: request,
+                });
+            } catch (e) {
+                logger.warn(
+                    `Response conformance warning for ${path.toString()}.${command.name}:`,
+                    (e as Error).message,
+                );
+            }
+        }
+    };
+
     let isAsync = false;
     let activity: undefined | Disposable;
     let result: unknown;
@@ -615,6 +654,7 @@ function invokeCommand(
             isAsync = true;
             result = Promise.resolve(result)
                 .then(result => {
+                    validateResponse(result);
                     if (isObject(result)) {
                         logger.info(
                             "Invoke",
@@ -628,6 +668,7 @@ function invokeCommand(
                 })
                 .finally(() => activity?.[Symbol.dispose]());
         } else {
+            validateResponse(result);
             if (isObject(result)) {
                 logger.info(
                     "Invoke",
