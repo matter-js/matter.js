@@ -8,7 +8,7 @@ import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
-import { ClusterModel, Globals, ValueModel } from "../../models/index.js";
+import { ClusterModel, CommandModel, Globals, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -27,6 +27,17 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         this.#validateAspect("conformance");
         this.model.conformance.validateReferences(this, name => {
+            // Cross-command field reference (e.g. "SolicitOffer.VideoStreamID")
+            if (name.includes(".")) {
+                const [commandName, fieldName] = name.split(".", 2);
+                const cluster = this.model.owner(ClusterModel);
+                if (cluster) {
+                    const command = cluster.get(CommandModel, camelize(commandName, true));
+                    return command?.member(camelize(fieldName, true));
+                }
+                return;
+            }
+
             // Features are all caps, other names are field references
             if (name.match(/^[A-Z0-9_$]+$/)) {
                 // Feature lookup
