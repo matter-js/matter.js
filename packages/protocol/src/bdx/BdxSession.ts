@@ -139,7 +139,7 @@ export class BdxSession {
             transferError = error;
             if (BdxError.is(error)) {
                 await this.#messenger.sendError(error.code).catch(sendError => {
-                    logger.warn(`Failed to send BDX error status to peer:`, sendError);
+                    logger.info(`Failed to send BDX error status to peer:`, Diagnostic.errorMessage(sendError));
                 });
 
                 logger.warn(`BDX session failed with error:`, error);
