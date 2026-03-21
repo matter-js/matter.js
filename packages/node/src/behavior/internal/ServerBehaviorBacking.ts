@@ -81,7 +81,7 @@ export class ServerBehaviorBacking extends BehaviorBacking {
         }
 
         for (const member of this.type.supervisor.membersOf(schema)) {
-            const name = camelize(member.name);
+            const name = member.propertyName;
             if (state[name] === undefined) {
                 const referenced = FieldValue.referenced(member.default);
                 if (referenced) {
@@ -184,7 +184,7 @@ export class ServerBehaviorBacking extends BehaviorBacking {
                 continue;
             }
 
-            const name = camelize(property.name);
+            const name = property.propertyName;
 
             if (!this.#suppressedChanges) {
                 this.#suppressedChanges = new Set();

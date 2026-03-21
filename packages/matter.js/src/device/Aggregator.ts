@@ -4,13 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { ImplementationError } from "@matter/general";
+import { AggregatorDt, BridgedNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
-import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters";
+import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
 import { AttributeInitialValues } from "../cluster/server/ClusterServerTypes.js";
 import { ComposedDevice } from "./ComposedDevice.js";
 import { Device } from "./Device.js";
-import { DeviceTypes } from "./DeviceTypes.js";
+import { getDeviceTypeDefinitionFromModelByCode } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
 
 /**
@@ -30,8 +31,8 @@ export class Aggregator extends Endpoint {
      * @param options Optional Endpoint options
      */
     constructor(endpoint: NodeEndpoint, devices: Device[] = [], options: EndpointOptions = {}) {
-        // Aggregator is a Composed device with an DeviceTypes.AGGREGATOR device type
-        super(endpoint, [DeviceTypes.AGGREGATOR], options);
+        // Aggregator is a Composed device with an Aggregator device type
+        super(endpoint, [getDeviceTypeDefinitionFromModelByCode(AggregatorDt.id)!], options);
         devices.forEach(device => this.addBridgedDevice(device));
     }
 
@@ -48,10 +49,10 @@ export class Aggregator extends Endpoint {
         device: Device | ComposedDevice,
         bridgedBasicInformation?: AttributeInitialValues<typeof BridgedDeviceBasicInformationCluster.attributes>,
     ): void {
-        // Add DeviceTypes.BRIDGED_DEVICE device type to the device exposed via Aggregator
+        // Add Bridged Node device type to the device exposed via Aggregator
         const deviceTypes = device.getDeviceTypes();
-        if (!deviceTypes.includes(DeviceTypes.BRIDGED_NODE)) {
-            deviceTypes.push(DeviceTypes.BRIDGED_NODE);
+        if (!deviceTypes.some(dt => dt.code === BridgedNodeDt.id)) {
+            deviceTypes.push(getDeviceTypeDefinitionFromModelByCode(BridgedNodeDt.id)!);
             device.setDeviceTypes(deviceTypes);
         }
         if (bridgedBasicInformation !== undefined) {
@@ -91,10 +92,10 @@ export class Aggregator extends Endpoint {
         device: Device | ComposedDevice,
         bridgedBasicInformation?: AttributeInitialValues<typeof BridgedDeviceBasicInformationCluster.attributes>,
     ): void {
-        // Add DeviceTypes.BRIDGED_DEVICE_WITH_POWERSOURCE_INFO device type to the device exposed via Aggregator
+        // Add Bridged Node device type to the device exposed via Aggregator
         const deviceTypes = device.getDeviceTypes();
-        if (!deviceTypes.includes(DeviceTypes.BRIDGED_DEVICE_WITH_POWERSOURCE_INFO)) {
-            deviceTypes.push(DeviceTypes.BRIDGED_DEVICE_WITH_POWERSOURCE_INFO);
+        if (!deviceTypes.some(dt => dt.code === BridgedNodeDt.id)) {
+            deviceTypes.push(getDeviceTypeDefinitionFromModelByCode(BridgedNodeDt.id)!);
             device.setDeviceTypes(deviceTypes);
         }
         if (bridgedBasicInformation !== undefined) {

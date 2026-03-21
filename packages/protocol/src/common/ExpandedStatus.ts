@@ -40,7 +40,7 @@ export class ExpandedStatus {
         let clusterStr;
         if (typeof cluster === "number") {
             matter ??= Matter;
-            const model = matter.get(ClusterModel, cluster);
+            const model = matter.clusters(cluster);
             if (model === undefined) {
                 clusterStr = `cluster-${cluster}`;
             } else {

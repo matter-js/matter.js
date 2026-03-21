@@ -5,16 +5,8 @@
  */
 
 import { Endpoint } from "#device/Endpoint.js";
-import {
-    ImplementationError,
-    InternalError,
-    Logger,
-    MatterError,
-    camelize,
-    isDeepEqual,
-    serialize,
-} from "@matter/general";
-import { AccessLevel, AttributeModel, ClusterModel, DatatypeModel, FabricIndex, MatterModel } from "@matter/model";
+import { ImplementationError, InternalError, Logger, MatterError, isDeepEqual, serialize } from "@matter/general";
+import { AccessLevel, FabricIndex, Matter } from "@matter/model";
 import { Fabric, Message, NoAssociatedFabricError, SecureSession, Session } from "@matter/protocol";
 import {
     Attribute,
@@ -34,7 +26,7 @@ import { ClusterDatasource } from "./ClusterDatasource.js";
 
 const logger = Logger.get("AttributeServer");
 
-const FabricIndexName = camelize(FabricIndex.name);
+const FabricIndexName = FabricIndex.propertyName;
 
 /**
  * Thrown when an operation cannot complete because fabric information is
@@ -718,12 +710,12 @@ export class FabricScopedAttributeServer<T> extends AttributeServer<T> {
     }
 
     #determineSensitiveFieldsToRemove() {
-        const clusterFromModel = MatterModel.standard.get(ClusterModel, this.cluster.id);
+        const clusterFromModel = Matter.clusters(this.cluster.id);
         if (clusterFromModel === undefined) {
             logger.debug(`${this.cluster.name}: Cluster for Fabric scoped element not found in Model, ignore`);
             return;
         }
-        const attributeFromModel = clusterFromModel.get(AttributeModel, this.id);
+        const attributeFromModel = clusterFromModel.attributes(this.id);
         if (attributeFromModel === undefined) {
             logger.debug(
                 `${this.cluster.name}.${this.id}: Attribute for Fabric scoped element not found in Model, ignore`,
@@ -743,14 +735,14 @@ export class FabricScopedAttributeServer<T> extends AttributeServer<T> {
             logger.debug(`${this.cluster.name}.${this.id}: Attribute field has no type, ignore`);
             return;
         }
-        const dataType = clusterFromModel.get(DatatypeModel, type);
+        const dataType = clusterFromModel.datatypes(type);
         if (dataType === undefined) {
             logger.debug(`${this.cluster.name}.${this.id}: DataType ${type} not found in model, ignore`);
             return;
         }
         dataType.children
             .filter(field => field.fabricSensitive)
-            .forEach(field => this.fabricSensitiveElementsToRemove.push(camelize(field.name)));
+            .forEach(field => this.fabricSensitiveElementsToRemove.push(field.propertyName));
     }
 
     override get hasFabricSensitiveData() {

@@ -164,7 +164,7 @@ function createBitmapValidator(schema: ValueModel, supervisor: RootSupervisor): 
         if (field?.parent?.id === FeatureMap.id) {
             name = camelize(field.title ?? field.name);
         } else {
-            name = camelize(field.name);
+            name = field.propertyName;
         }
         fields[name] = {
             schema: field,
@@ -257,7 +257,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
         }
         const validate = supervisor.get(field).validate;
         if (validate) {
-            validators[camelize(field.name)] = validate;
+            validators[field.propertyName] = validate;
         }
     }
 

@@ -174,7 +174,7 @@ export class AtomicWriteHandler {
         let commandStatusCode = Status.Success;
         const attributeStatus = request.attributeRequests.map(attr => {
             let statusCode = Status.Success;
-            const attributeModel = cluster.schema.conformant.attributes.for(attr);
+            const attributeModel = cluster.schema.conformant.attributes(attr);
             if (!attributeModel?.quality.atomic) {
                 statusCode = Status.InvalidAction;
             } else if (this.#pendingWriteStateForAttribute(endpoint, cluster, attr) !== undefined) {

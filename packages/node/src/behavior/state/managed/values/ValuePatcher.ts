@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, ImplementationError, isObject } from "@matter/general";
+import { ImplementationError, isObject } from "@matter/general";
 import type { Schema } from "@matter/model";
 import { DataModelPath, Metatype, ValueModel } from "@matter/model";
 import { SchemaImplementationError, Val, WriteError } from "@matter/protocol";
@@ -43,12 +43,12 @@ function getDefaults(supervisor: RootSupervisor, schema: Schema): Val.Struct {
     const defaults = {} as Val.Struct;
     for (const member of supervisor.membersOf(schema)) {
         if (member.default !== undefined) {
-            defaults[camelize(member.name)] = member.default;
+            defaults[member.propertyName] = member.default;
             continue;
         }
 
         if (member.mandatory && member.nullable) {
-            defaults[camelize(member.name)] = null;
+            defaults[member.propertyName] = null;
             continue;
         }
 
@@ -84,7 +84,7 @@ function StructPatcher(schema: ValueModel, supervisor: RootSupervisor): ValueSup
             handler = supervisor.get(member).patch;
         }
 
-        const key = camelize(member.name);
+        const key = member.propertyName;
         if (member.id !== undefined) {
             memberAltKeys[member.id.toString()] = key;
         }

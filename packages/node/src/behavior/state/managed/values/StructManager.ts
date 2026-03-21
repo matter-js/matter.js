@@ -79,7 +79,7 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
 
     // Scan the schema and configure each member (field or attribute) as a property
     for (const member of owner.membersOf(schema)) {
-        const name = camelize(member.name);
+        const name = member.propertyName;
 
         const { access, descriptor } = configureProperty(owner, member);
 
@@ -168,7 +168,7 @@ export namespace StructManager {
 }
 
 function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
-    const name = camelize(schema.name);
+    const name = schema.propertyName;
     const id = schema.id;
 
     const { access, manage, validate } = supervisor.get(schema);
