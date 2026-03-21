@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError } from "@matter/general";
+import { Logger, MatterAggregateError } from "@matter/general";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryError } from "./DiscoveryError.js";
+
+const logger = Logger.get("ParallelPaseDiscovery");
 
 /**
  * Base class for discovery flows that run parallel PASE establishments with a first-to-win race gate.
@@ -75,9 +77,13 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                     // Winner's error is meaningful — must propagate to onComplete
                     throw error;
                 }
-                // Loser: error is an expected side effect of the parallel race (cancellation,
-                // timeout, abort).  Resolve to prevent an unhandled rejection — the race
-                // semantics mean only the winner's result matters.
+                // Loser: resolve to prevent unhandled rejection.  If the abort has already
+                // fired, this is an expected cancellation.  Otherwise the attempt failed
+                // before anyone won (e.g. wrong passcode, network error) — log it so it
+                // isn't silently lost.
+                if (!this.#abort.signal.aborted) {
+                    logger.info("Parallel attempt failed:", error);
+                }
                 return undefined;
             })
             .finally(() => {
