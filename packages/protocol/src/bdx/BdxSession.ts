@@ -123,6 +123,7 @@ export class BdxSession {
         );
 
         this.#started = true;
+        let transferError: unknown;
         try {
             this.#transferFlow = this.#initializeFlow(await bdxSessionInitiator(this.#messenger, this.#config));
             this.#transferFlow.progressInfo.on((bytesTransferred, totalBytesLength) =>
@@ -134,22 +135,19 @@ export class BdxSession {
             this.#transferFlow.progressCancelled.on(() => this.#progressCancelled.emit());
 
             await this.#transferFlow.processTransfer();
-
-            await this.close();
         } catch (error) {
+            transferError = error;
             if (BdxError.is(error)) {
-                await this.#messenger.sendError(error.code);
+                await this.#messenger.sendError(error.code).catch(() => {});
 
                 logger.warn(`BDX session failed with error:`, error);
 
-                await this.close(error);
-
                 error.bytesTransferred = this.#transferFlow?.transferredBytes ?? 0;
                 error.totalBytesLength = this.#transferFlow?.dataLength;
-            } else {
-                await this.close(error);
             }
             throw error;
+        } finally {
+            await this.close(transferError);
         }
     }
 
