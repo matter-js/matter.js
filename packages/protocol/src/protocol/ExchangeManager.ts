@@ -199,12 +199,19 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                 // Initiating requests include their sourceNodeId but no destNodeId
                 const initiatorNodeId =
                     packet.header.destNodeId ?? packet.header.sourceNodeId ?? NodeId.UNSPECIFIED_NODE_ID;
-                session =
-                    this.#sessions.getUnsecuredSession(initiatorNodeId) ??
-                    this.#sessions.createUnsecuredSession({
+                session = this.#sessions.getUnsecuredSession(initiatorNodeId);
+                if (session === undefined) {
+                    if (packet.header.destNodeId !== undefined) {
+                        // This is a response to a session that no longer exists (e.g. a late retransmission
+                        // after PASE completed).  Drop it rather than creating an orphan session.
+                        logger.debug(`Ignoring unsecured response for unknown session ${initiatorNodeId.toString(16)}`);
+                        return;
+                    }
+                    session = this.#sessions.createUnsecuredSession({
                         channel,
                         initiatorNodeId,
                     });
+                }
             } else {
                 session = this.#sessions.getSession(packet.header.sessionId);
             }

@@ -14,7 +14,7 @@ import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import { camelize, ImplementationError, MaybePromise, ObserverGroup } from "@matter/general";
 import { ClusterModel, FeatureSet, FieldValue, Schema } from "@matter/model";
 import { Val } from "@matter/protocol";
-import { ClusterType, TlvNoResponse } from "@matter/types";
+import { ClusterType, CommandId, TlvNoResponse } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { Datasource } from "../state/managed/Datasource.js";
 import { BehaviorBacking } from "./BehaviorBacking.js";
@@ -81,7 +81,7 @@ export class ServerBehaviorBacking extends BehaviorBacking {
         }
 
         for (const member of this.type.supervisor.membersOf(schema)) {
-            const name = camelize(member.name);
+            const name = member.propertyName;
             if (state[name] === undefined) {
                 const referenced = FieldValue.referenced(member.default);
                 if (referenced) {
@@ -105,13 +105,20 @@ export class ServerBehaviorBacking extends BehaviorBacking {
         const attributeDefs = behavior.cluster.attributes as ClusterType.ElementSet<ClusterType.Attribute>;
         globals.attributeList = [...validation.attributes].map(name => attributeDefs[name].id).sort((a, b) => a - b);
 
-        // Update accepted & generated command lists
+        // Update accepted & generated command lists.  Filter commands with CommandId.NONE (-1) as these are
+        // non-Matter methods not visible to the protocol layer
         const commandDefs = behavior.cluster.commands as ClusterType.ElementSet<ClusterType.Command>;
-        const commands = [...validation.commands].map(name => commandDefs[name]);
+        const commands = [...validation.commands]
+            .map(name => commandDefs[name])
+            .filter(command => command.requestId !== CommandId.NONE);
         globals.acceptedCommandList = commands.map(command => command.requestId).sort((a, b) => a - b);
         globals.generatedCommandList = [
             ...new Set(
-                commands.filter(command => command.responseSchema !== TlvNoResponse).map(command => command.responseId),
+                commands
+                    .filter(
+                        command => command.responseSchema !== TlvNoResponse && command.responseId !== CommandId.NONE,
+                    )
+                    .map(command => command.responseId),
             ),
         ].sort((a, b) => a - b);
 
@@ -177,7 +184,7 @@ export class ServerBehaviorBacking extends BehaviorBacking {
                 continue;
             }
 
-            const name = camelize(property.name);
+            const name = property.propertyName;
 
             if (!this.#suppressedChanges) {
                 this.#suppressedChanges = new Set();

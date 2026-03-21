@@ -162,7 +162,7 @@ function convertMatterToWebSocketTagBased(value: unknown, model: ValueModel, clu
         return null;
     }
     if (Array.isArray(value) && model.type === "list") {
-        return value.map(v => convertMatterToWebSocketTagBased(v, model.members[0], clusterModel));
+        return value.map(v => convertMatterToWebSocketTagBased(v, model.members.at(0)!, clusterModel));
     }
     if (isObject(value) && model.metabase?.name === "struct") {
         const valueKeys = Object.keys(value);
@@ -249,7 +249,7 @@ function convertWebsocketDataToMatter(value: any, model: ValueModel): any {
             value = parseChipJSON(value);
         }
         if (Array.isArray(value)) {
-            return value.map(v => convertWebsocketDataToMatter(v, model.members[0]));
+            return value.map(v => convertWebsocketDataToMatter(v, model.members.at(0)!));
         }
     }
 

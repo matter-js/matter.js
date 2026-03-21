@@ -54,7 +54,7 @@ function createDatasource<const T extends StateType = typeof MyState>(
         entropy: MockCrypto(),
         location: {
             endpoint: EndpointNumber(1),
-            path: DataModelPath("TestDatasource"),
+            path: new DataModelPath("TestDatasource"),
         },
         type: (options.type ?? MyState) as T,
         supervisor,

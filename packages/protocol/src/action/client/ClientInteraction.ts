@@ -714,7 +714,7 @@ export class ClientInteraction<
      * Subscribe to attribute values and events.
      */
     async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
-        let interactionSession: InteractionSession | undefined = session;
+        let interactionSession = session;
 
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (subscriptionPathsCount === 0) {
@@ -814,18 +814,22 @@ export class ClientInteraction<
         };
 
         const read = (request: Read, extraAbort?: AbortSignal, logContext?: ExchangeLogContext) => {
-            let readSession = session;
+            let readSession = interactionSession;
             if (logContext !== undefined) {
                 readSession = {
-                    ...session,
-                    logContext: session?.logContext ? { ...session.logContext, ...logContext } : logContext,
-                } as unknown as SessionT;
+                    ...readSession,
+                    logContext: readSession?.logContext ? { ...readSession.logContext, ...logContext } : logContext,
+                } as SessionT;
             }
             return this.read(request, readSession, extraAbort);
         };
 
         let subscription: ClientSubscription;
         if (request.sustain) {
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort.
+            // Update interactionSession BEFORE constructing SustainedSubscription so closures see the correct value
+            interactionSession = { ...interactionSession, connectionTimeout: Forever } as SessionT;
+
             subscription = new SustainedSubscription({
                 lifetime: this.subscriptions,
                 subscribe,
@@ -836,13 +840,6 @@ export class ClientInteraction<
                 retries: this.#sustainRetries,
                 read,
             });
-
-            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
-            if (interactionSession === undefined) {
-                interactionSession = { connectionTimeout: Forever };
-            } else {
-                interactionSession = { ...interactionSession, connectionTimeout: Forever };
-            }
         } else {
             subscription = await subscribe(request);
         }
@@ -911,11 +908,17 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
-        const messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-            network: request.network ?? this.#network,
-            abort: session?.abort,
-            connectionTimeout: session?.connectionTimeout,
-        });
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: request.network ?? this.#network,
+                abort,
+                connectionTimeout: session?.connectionTimeout,
+            });
+        } catch (e) {
+            abort[Symbol.dispose]();
+            throw e;
+        }
 
         this.#interactions.add(request);
 

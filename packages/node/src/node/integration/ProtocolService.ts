@@ -402,7 +402,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
-        const name = camelize(member.name);
+        const name = member.propertyName;
         switch (tag) {
             case "attribute": {
                 if (!member.effectiveConformance.isMandatory && !supportedElements.attributes.has(name)) {
@@ -493,6 +493,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             }
             case "command": {
                 if (
+                    id === CommandId.NONE ||
                     (!member.effectiveConformance.isMandatory && !supportedElements.commands.has(name)) ||
                     !member.isRequest
                 ) {

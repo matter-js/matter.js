@@ -151,12 +151,12 @@ describe("Model", () => {
 
     describe("get", () => {
         it("finds by ID", () => {
-            expect(Fixtures.matter.get(ClusterModel, 1)).equal(Fixtures.cluster1);
-            expect(Fixtures.matter.get(AttributeModel, 1)).equal(Fixtures.globalAttr);
+            expect(Fixtures.matter.clusters(1)).equal(Fixtures.cluster1);
+            expect(Fixtures.matter.attributes(1)).equal(Fixtures.globalAttr);
         });
 
         it("finds by name", () => {
-            expect(Fixtures.matter.get(ClusterModel, "Cluster1")).equal(Fixtures.cluster1);
+            expect(Fixtures.matter.clusters("Cluster1")).equal(Fixtures.cluster1);
         });
     });
 
@@ -200,7 +200,7 @@ describe("Model", () => {
         it("resolves types from standard scope", () => {
             const detached = new DatatypeModel({ name: "Foo", type: "uint8" });
             expect(detached.parent === undefined);
-            expect(detached.base).equals(Matter.get(DatatypeModel, "uint8"));
+            expect(detached.base).equals(Matter.datatypes("uint8"));
             expect(detached.effectiveMetatype).equals("integer");
         });
 
@@ -227,27 +227,25 @@ describe("Model", () => {
         });
 
         it("resolves absolute reference to datatype in another cluster", () => {
-            expect(Fixtures.cluster2Attr4.base).equals(Fixtures.cluster1.get(DatatypeModel, "ClusterDatatype"));
+            expect(Fixtures.cluster2Attr4.base).equals(Fixtures.cluster1.datatypes("ClusterDatatype"));
         });
 
         it("resolves reference to field of global struct", () => {
-            expect(Fixtures.cluster2Attr5.base).equals(
-                Fixtures.matter.get(DatatypeModel, "Tod")?.get(FieldModel, "hour"),
-            );
+            expect(Fixtures.cluster2Attr5.base).equals(Fixtures.matter.datatypes("Tod")?.fields("hour"));
         });
     });
 
     describe("metabase", () => {
         it("is discovered via direct inheritance", () => {
-            const map32 = Fixtures.matter.get(DatatypeModel, "map32");
+            const map32 = Fixtures.matter.datatypes("map32");
             expect(map32).not.undefined;
-            const featureMap = Fixtures.matter.get(AttributeModel, "FeatureMap");
+            const featureMap = Fixtures.matter.attributes("FeatureMap");
             expect(featureMap).not.undefined;
             expect(featureMap?.metabase).equals(map32);
         });
 
         it("is discovered via parent inheritance", () => {
-            const map32 = Fixtures.matter.get(DatatypeModel, "map32");
+            const map32 = Fixtures.matter.datatypes("map32");
             expect(map32).not.undefined;
             expect(Fixtures.cluster1.featureMap.metabase).equals(map32);
         });

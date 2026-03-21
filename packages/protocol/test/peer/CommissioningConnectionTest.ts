@@ -7,7 +7,14 @@
 import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
-import { Millis, NoResponseTimeoutError, Seconds, ServerAddressUdp, UnexpectedDataError } from "@matter/general";
+import {
+    AbortedError,
+    Millis,
+    NoResponseTimeoutError,
+    Seconds,
+    ServerAddressUdp,
+    UnexpectedDataError,
+} from "@matter/general";
 
 function udp(ip: string, port = 5540): ServerAddressUdp {
     return { type: "udp", ip, port };
@@ -130,6 +137,60 @@ describe("CommissioningConnection", () => {
             }),
         ).rejectedWith(PairRetransmissionLimitReachedError);
         expect(sessionClosed).equals(true);
+    });
+
+    it("propagates external abort reason instead of masking as timeout", async () => {
+        const ac = new AbortController();
+
+        // Start a connection that will be cancelled externally before it can establish PASE.
+        const p = CommissioningConnection({
+            devices: [device("a", [udp("fd00::1")])],
+            timeout: Millis(500),
+            externalAbort: ac.signal,
+            establishSession: async (_address, _discoveryData, signal) => {
+                // Wait for the abort signal — reject with the signal's reason so we can verify
+                // CommissioningConnection propagates the caller's reason, not a generic timeout.
+                await new Promise<void>((_resolve, reject) => {
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                });
+                return {} as any;
+            },
+        });
+
+        // establishSession registers the abort listener before its first await, so a yield is enough.
+        await MockTime.yield();
+        ac.abort(new AbortedError("caller cancelled"));
+
+        // Should throw the external abort reason, NOT PairRetransmissionLimitReachedError.
+        await expect(p).rejectedWith(AbortedError, "caller cancelled");
+    });
+
+    it("external abort cancels in-flight connection and rejects with abort reason", async () => {
+        // Simulates the parallel commissioning scenario: two independent CommissioningConnection
+        // calls share an external AbortController. When one device wins PASE, the abort fires and
+        // the other call must reject cleanly (not as an unhandled rejection that crashes the process).
+        const ac = new AbortController();
+
+        // The "loser" connection is externally aborted while its PASE attempt is in-flight.
+        const loserPromise = CommissioningConnection({
+            devices: [device("loser", [udp("fd00::1")])],
+            timeout: Millis(500),
+            externalAbort: ac.signal,
+            establishSession: async (_address, _discoveryData, signal) => {
+                await new Promise<void>((_resolve, reject) => {
+                    signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                });
+                return {} as any;
+            },
+        });
+
+        // establishSession registers the abort listener synchronously; yield to let it settle.
+        await MockTime.yield();
+        ac.abort(new AbortedError("another device won PASE"));
+
+        // The loser must reject with the abort reason, not PairRetransmissionLimitReachedError.
+        // Critically, this must not become an unhandled rejection (which would crash the process).
+        await expect(loserPromise).rejectedWith(AbortedError, "another device won PASE");
     });
 
     it("passes abort signal to establishSession and aborts early when timeout fires", async () => {

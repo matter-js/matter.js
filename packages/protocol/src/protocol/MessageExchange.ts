@@ -864,8 +864,8 @@ export class MessageExchange {
             } catch (error) {
                 logger.error(this.via, `Unhandled error closing exchange`, error);
             }
-            if (cause) {
-                // We have sent the Ack, so close here, no retries needed
+            if (cause || this.#sentMessageToAck === undefined) {
+                // We have sent the Ack and there's nothing left waiting for a peer ack, close directly
                 await this.#close(cause);
                 return;
             }

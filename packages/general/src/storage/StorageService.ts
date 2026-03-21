@@ -13,12 +13,12 @@ import { Logger } from "../log/Logger.js";
 import { DataNamespace } from "./DataNamespace.js";
 import { DatafileRoot } from "./DatafileRoot.js";
 import { StorageDriver } from "./StorageDriver.js";
+import { StorageDriverHandle } from "./StorageDriverHandle.js";
 import { StorageManager } from "./StorageManager.js";
 import { StorageMigration } from "./StorageMigration.js";
 
 const logger = Logger.get("StorageService");
 
-const DRIVER_JSON = "driver.json";
 /**
  * Service adapter for the Matter.js storage API.
  */
@@ -27,6 +27,7 @@ export class StorageService {
     #defaultDriver = "wal";
     #configuredDriver?: string;
     #environment: Environment;
+    #openDrivers = new Map<string, { driver: StorageDriver; refs: number }>();
 
     constructor(environment: Environment) {
         environment.set(StorageService, this);
@@ -106,16 +107,23 @@ export class StorageService {
             dataNs = namespace;
         }
 
+        const cacheKey = dataNs.namespace;
+        const cached = this.#openDrivers.get(cacheKey);
+        if (cached) {
+            cached.refs++;
+            return new StorageManager(new StorageDriverHandle(cached.driver, () => this.#release(cacheKey)));
+        }
+
         // Filesystem path — full detection, migration, driver.json
         if (dataNs instanceof DatafileRoot) {
-            return this.#openFilesystem(dataNs);
+            return this.#openFilesystem(cacheKey, dataNs);
         }
 
         // Non-filesystem path — simple create, no detection/migration
-        return this.#openSimple(dataNs);
+        return this.#openSimple(cacheKey, dataNs);
     }
 
-    async #openFilesystem(root: DatafileRoot) {
+    async #openFilesystem(cacheKey: string, root: DatafileRoot) {
         const fs = this.#environment.get(Filesystem);
         const dir = root.directory;
         const namespace = root.namespace;
@@ -163,17 +171,28 @@ export class StorageService {
         // Create the driver — pass root so it can acquire a ref-counted lock
         const storage = await impl.create(root, descriptor);
 
-        // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
-        if (await dir.exists()) {
-            await this.#writeDescriptor(dir, descriptor);
-        }
+        try {
+            // Write driver.json if the directory exists after creation (before initialize, so we persist intent)
+            if (await dir.exists()) {
+                await this.#writeDescriptor(dir, descriptor);
+            }
 
-        const manager = new StorageManager(storage);
-        await manager.initialize();
-        return manager;
+            this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
+
+            const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
+            await manager.initialize();
+            return manager;
+        } catch (e) {
+            try {
+                await storage.close();
+            } catch (closeError) {
+                logger.warn("Error closing storage after failed initialization:", closeError);
+            }
+            throw e;
+        }
     }
 
-    async #openSimple(dataNs: DataNamespace) {
+    async #openSimple(cacheKey: string, dataNs: DataNamespace) {
         const targetKind = this.#configuredDriver ?? this.#defaultDriver;
         const descriptor: StorageDriver.Descriptor = { kind: targetKind };
 
@@ -184,9 +203,32 @@ export class StorageService {
 
         const storage = await impl.create(dataNs, descriptor);
 
-        const manager = new StorageManager(storage);
-        await manager.initialize();
-        return manager;
+        try {
+            this.#openDrivers.set(cacheKey, { driver: storage, refs: 1 });
+
+            const manager = new StorageManager(new StorageDriverHandle(storage, () => this.#release(cacheKey)));
+            await manager.initialize();
+            return manager;
+        } catch (e) {
+            try {
+                await storage.close();
+            } catch (closeError) {
+                logger.warn("Error closing storage after failed initialization:", closeError);
+            }
+            throw e;
+        }
+    }
+
+    async #release(cacheKey: string) {
+        const cached = this.#openDrivers.get(cacheKey);
+        if (!cached) {
+            return;
+        }
+        cached.refs--;
+        if (cached.refs <= 0) {
+            this.#openDrivers.delete(cacheKey);
+            await cached.driver.close();
+        }
     }
 
     /**
@@ -223,7 +265,7 @@ export class StorageService {
         if (!(await dir.exists())) {
             return false;
         }
-        const ignoredFiles = new Set(["matter.lock", "matter.pid", DRIVER_JSON]);
+        const ignoredFiles = StorageDriver.RESERVED_FILENAMES;
         for await (const entry of dir.entries()) {
             if (entry.kind === "file" && !ignoredFiles.has(entry.name)) {
                 return true;
@@ -233,7 +275,7 @@ export class StorageService {
     }
 
     async #readDescriptor(dir: Directory): Promise<StorageDriver.Descriptor | undefined> {
-        const file = dir.file(DRIVER_JSON);
+        const file = dir.file("driver.json");
         try {
             if (!(await file.exists())) {
                 return undefined;
@@ -246,7 +288,7 @@ export class StorageService {
     }
 
     async #writeDescriptor(dir: Directory, descriptor: StorageDriver.Descriptor) {
-        const file = dir.file(DRIVER_JSON);
+        const file = dir.file("driver.json");
         await file.write(JSON.stringify(descriptor, undefined, 2));
     }
 

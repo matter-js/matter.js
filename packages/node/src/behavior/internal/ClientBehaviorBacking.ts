@@ -7,7 +7,7 @@
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { DatasourceCache } from "#endpoint/index.js";
 import { SupportedElements } from "#endpoint/properties/Behaviors.js";
-import { camelize, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { AttributeId, CommandId } from "@matter/types";
 import { BehaviorBacking } from "./BehaviorBacking.js";
@@ -30,7 +30,7 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         const attributeIds = new Set(attributeList);
         for (const attr of schema.attributes) {
             if (attributeIds.has(attr.id as AttributeId)) {
-                attributes.add(camelize(attr.name));
+                attributes.add(attr.propertyName);
             }
         }
 
@@ -38,7 +38,7 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         const commandIds = new Set(acceptedCommandList);
         for (const cmd of schema.commands) {
             if (cmd.isRequest && commandIds.has(cmd.id as CommandId)) {
-                commands.add(camelize(cmd.name));
+                commands.add(cmd.propertyName);
             }
         }
 
@@ -54,6 +54,18 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         const options = super.datasourceOptions;
         options.primaryKey = "id";
         return options;
+    }
+
+    /**
+     * Map attribute ID keys back to property names before broadcasting.
+     *
+     * The Datasource reports changed keys using the backing's primaryKey format.  Since this backing uses
+     * `primaryKey: "id"`, props are attribute ID strings (e.g. "0" for onOff).  Downstream consumers
+     * ({@link ChangeNotificationService}, {@link ProtocolService}) expect property names.
+     */
+    protected override broadcastChanges(props: string[]) {
+        const idToName = this.type.supervisor.propertyIdsAndNames;
+        super.broadcastChanges(props.map(id => idToName.get(id) ?? id));
     }
 
     override close(): MaybePromise {
