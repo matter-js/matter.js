@@ -74,7 +74,7 @@ export const BatteryStorageDt = DeviceType(
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
             Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
-        ),in fac
+        ),
 
         Requirement(
             { name: "PowerSource", id: 0x2f, element: "serverCluster" },
