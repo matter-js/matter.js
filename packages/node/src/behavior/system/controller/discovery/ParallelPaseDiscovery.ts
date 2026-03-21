@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CanceledError, causedBy, Logger, MatterAggregateError } from "@matter/general";
+import { CanceledError, causedBy, Diagnostic, Logger, MatterAggregateError } from "@matter/general";
 import { CommissioningError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryError } from "./DiscoveryError.js";
@@ -78,10 +78,11 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                     // Winner's error is meaningful — must propagate to onComplete
                     throw error;
                 }
-                // Loser: resolve to prevent unhandled rejection.  Only known race-related
-                // errors are silenced; anything unexpected is logged so it isn't buried.
-                if (!causedBy(error, CanceledError, CommissioningError, PeerCommunicationError)) {
-                    logger.error("Unexpected error from parallel commissioning attempt:", error);
+                // Loser: resolve to prevent unhandled rejection
+                if (causedBy(error, CanceledError, CommissioningError, PeerCommunicationError)) {
+                    logger.debug("Canceled parallel commissioning attempt:", Diagnostic.errorMessage(error));
+                } else {
+                    logger.info("Unexpected error from parallel commissioning attempt:", error);
                 }
                 return undefined;
             })
