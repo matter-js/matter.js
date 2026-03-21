@@ -22,39 +22,49 @@ describe("ParallelPaseDiscovery race pattern", () => {
         let paseWon = false;
         const pending = new Set<Promise<unknown>>();
         let winner: W | undefined;
-        let winnerPromise: Promise<unknown> | undefined;
+        let winnerAttempt: Promise<unknown> | undefined;
+        let winnerExtractor: ((result: unknown) => W | undefined) | undefined;
         let stopped = false;
 
         function registerAttempt<R>(
             factory: (winOnPase: () => boolean) => R | PromiseLike<R>,
             extractWinner: (result: R) => W | undefined,
         ): void {
-            let attempt!: Promise<R>;
+            let attempt!: Promise<R | undefined>;
+            let isWinner = false;
 
             const winOnPase = () => {
                 if (paseWon) return false;
                 paseWon = true;
+                isWinner = true;
                 stopped = true;
                 pending.delete(attempt);
-                winnerPromise = attempt.then(result => {
-                    winner = extractWinner(result);
-                });
-                void winnerPromise.catch(() => {});
+                winnerAttempt = attempt;
+                winnerExtractor = extractWinner as (result: unknown) => W | undefined;
                 return true;
             };
 
-            attempt = Promise.resolve(factory(winOnPase)).finally(() => {
-                pending.delete(attempt);
-            });
-
-            void attempt.catch(() => {});
+            attempt = Promise.resolve(factory(winOnPase))
+                .catch(error => {
+                    if (isWinner) {
+                        // Winner's error must propagate
+                        throw error;
+                    }
+                    // Loser: expected race side effect — resolve to prevent unhandled rejection
+                    return undefined;
+                })
+                .finally(() => {
+                    pending.delete(attempt);
+                });
 
             pending.add(attempt);
         }
 
         async function onComplete(): Promise<W> {
             try {
-                await winnerPromise;
+                if (winnerAttempt !== undefined) {
+                    winner = winnerExtractor!(await winnerAttempt);
+                }
             } finally {
                 await MatterAggregateError.allSettled([...pending], "cleanup").catch(() => {});
             }
