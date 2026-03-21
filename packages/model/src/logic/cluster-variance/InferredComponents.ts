@@ -153,8 +153,7 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
-    // [FOO<& BAR>*].[a-z][0-9-]*[+-]? (optional when features enabled; choice conformance suffix per spec
-    // section 7.3.14: C.an[+|-] where 'a' is the choice set letter, n is optional count, +/- optional range)
+    // [FOO<& BAR>*].a+ (e.g. [LF & PA_LF].a+)
     {
         pattern: pattern("[", CONJUNCT_FEATURES, "]", "\\.[a-z][0-9-]*[+\\-]?"),
         processor(add, match) {
@@ -162,7 +161,7 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
-    // [FOO & !BAR]Why we ned b*
+    // [FOO & !BAR]
     {
         pattern: pattern("[", FEATURE, AND, NOT, FEATURE, "]"),
         processor(add, match) {

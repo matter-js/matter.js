@@ -18,11 +18,11 @@ import {
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
 import {
+    CompactStr,
     ConformanceCode,
     Identifier,
     Integer,
     LowerIdentifier,
-    NoSpace,
     Str,
     StrWithSuperscripts,
     UpperIdentifier,
@@ -45,17 +45,8 @@ export function* translateCluster(definition: ClusterReference) {
 
     const metadata = translateMetadata(definition, children);
     if (!metadata) {
-        // No cluster IDs but may have shared datatypes (e.g. WebRTC Transport common section).
-        // Emit datatypes as standalone globals
-        if (definition.datatypes?.length) {
-            logger.info(`emitting ${definition.datatypes.length} datatypes from ${definition.name} as globals`);
-            translateDatatypes(definition, children);
-            for (const child of children) {
-                if (child.tag === DatatypeElement.Tag) {
-                    yield child as DatatypeElement;
-                }
-            }
-        }
+        // Sections without cluster IDs (e.g. introductory/common sections) are skipped — any shared
+        // datatypes they define will be inherited by derived clusters or declared per-cluster via overrides
         return;
     }
 
@@ -254,7 +245,7 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
             name: Alias(UpperIdentifier, "code"),
 
             // We let Model handle translation to the proper type
-            default: Optional(Alias(NoSpace, "def", "fallback")),
+            default: Optional(Alias(CompactStr, "def", "fallback")),
         });
 
         for (const record of records) {

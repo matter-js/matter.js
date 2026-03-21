@@ -14,9 +14,7 @@ import { TlvUInt16, TlvEnum } from "../tlv/TlvNumber.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { AccessLevel } from "@matter/model";
 import { TlvString } from "../tlv/TlvString.js";
-import { TlvIceServer as TlvIceServerStruct } from "../globals/IceServer.js";
-import { TlvIceCandidate } from "../globals/IceCandidate.js";
-import { WebRtcEndReason } from "../globals/WebRtcEndReason.js";
+import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -26,6 +24,8 @@ export namespace WebRtcTransportRequestor {
         audioStreamId: TlvOptionalField(5, TlvUInt16)
     });
     export interface WebRtcSession extends TypeFromSchema<typeof TlvWebRtcSession> {}
+    export const TlvIceServer = TlvObject({ caid: TlvOptionalField(3, TlvUInt16) });
+    export interface IceServer extends TypeFromSchema<typeof TlvIceServer> {}
 
     /**
      * Input to the WebRtcTransportRequestor offer command
@@ -54,7 +54,7 @@ export namespace WebRtcTransportRequestor {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.3
          */
-        iceServers: TlvOptionalField(2, TlvArray(TlvIceServerStruct, { maxLength: 10 })),
+        iceServers: TlvOptionalField(2, TlvArray(TlvIceServer, { maxLength: 10 })),
 
         /**
          * This field controls the gathering and usage of ICE candidates and shall have one of the values found in
@@ -101,6 +101,13 @@ export namespace WebRtcTransportRequestor {
      */
     export interface AnswerRequest extends TypeFromSchema<typeof TlvAnswerRequest> {}
 
+    export const TlvIceCandidate = TlvObject({
+        candidate: TlvOptionalField(0, TlvString),
+        sdpMid: TlvOptionalField(1, TlvNullable(TlvString)),
+        sdpMLineIndex: TlvOptionalField(2, TlvNullable(TlvUInt16))
+    });
+    export interface IceCandidate extends TypeFromSchema<typeof TlvIceCandidate> {}
+
     /**
      * Input to the WebRtcTransportRequestor iceCandidates command
      *
@@ -129,6 +136,16 @@ export namespace WebRtcTransportRequestor {
      */
     export interface IceCandidatesRequest extends TypeFromSchema<typeof TlvIceCandidatesRequest> {}
 
+    export enum WebRtcEndReason {
+        IceFailed = 0,
+        IceTimeout = 1,
+        UserHangup = 2,
+        PeerHangup = 3,
+        Busy = 4,
+        TimedOut = 5,
+        InternalError = 6
+    }
+
     /**
      * Input to the WebRtcTransportRequestor end command
      *
@@ -156,9 +173,6 @@ export namespace WebRtcTransportRequestor {
      * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4
      */
     export interface EndRequest extends TypeFromSchema<typeof TlvEndRequest> {}
-
-    export const TlvIceServer = TlvObject({ caid: TlvOptionalField(3, TlvUInt16) });
-    export interface IceServer extends TypeFromSchema<typeof TlvIceServer> {}
 
     /**
      * @see {@link Cluster}

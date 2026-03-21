@@ -77,7 +77,7 @@ export function repairConformanceRule(conformance?: string) {
     // Null is specified with inconsistent case ("MfgCode != NULL" in cluster 1.4.2, lowercase elsewhere)
     conformance = conformance.replace(/= null/gi, "= null");
 
-    // Spec prefixes command name with cluster abbreviation in conformance references (e.g. "WebRTCProvideOffer"
+    // 1.5: Spec prefixes command name with cluster abbreviation in conformance references (e.g. "WebRTCProvideOffer"
     // instead of "ProvideOffer")
     conformance = conformance.replace(/WebRTCProvideOffer\b/g, "ProvideOffer");
 

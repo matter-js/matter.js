@@ -141,6 +141,26 @@ export const WebRtcTransportProvider = Cluster(
         Field({ name: "Kid", id: 0x2, type: "octstr", conformance: "M", constraint: "2 to 8" })
     ),
 
+    Datatype({ name: "WebRTCSessionID", type: "uint16" }),
+
+    Datatype(
+        { name: "WebRTCEndReasonEnum", type: "enum8" },
+        Field({ name: "IceFailed", id: 0x0 }),
+        Field({ name: "IceTimeout", id: 0x1 }),
+        Field({ name: "UserHangup", id: 0x2 }),
+        Field({ name: "PeerHangup", id: 0x3 }),
+        Field({ name: "Busy", id: 0x4 }),
+        Field({ name: "TimedOut", id: 0x5 }),
+        Field({ name: "InternalError", id: 0x6 })
+    ),
+
+    Datatype(
+        { name: "ICECandidateStruct", type: "struct" },
+        Field({ name: "Candidate", id: 0x0, type: "string" }),
+        Field({ name: "SdpMid", id: 0x1, type: "string", quality: "X" }),
+        Field({ name: "SdpMLineIndex", id: 0x2, type: "uint16", quality: "X" })
+    ),
+
     Datatype(
         { name: "WebRTCSessionStruct", type: "struct" },
         Field({ name: "VideoStreamId", id: 0x4, type: "CameraAvStreamManagement.VideoStreamID" }),

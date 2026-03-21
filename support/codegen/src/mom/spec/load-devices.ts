@@ -55,7 +55,7 @@ function augmentDevice(device: DeviceReference, content: HtmlReference) {
             break;
 
         case "cluster requirements on component device types":
-        case "cluster requirements on composing device types": // older spec terminology
+        case "cluster requirements on composing device types": // pre-1.5 spec terminology
             what = "composingClusters";
             device.composingClusters = content;
             break;

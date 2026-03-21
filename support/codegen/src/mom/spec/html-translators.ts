@@ -130,8 +130,8 @@ export const ConstraintStr = (el: HTMLElement) => {
     return parts.join(" ");
 };
 
-/** String with no space at all.  Cleans up verbose Asciidoctor cross-reference link text */
-export const NoSpace = (el: HTMLElement) => {
+/** Compact identifier: strip Asciidoctor cross-reference prefixes and collapse to no whitespace */
+export const CompactStr = (el: HTMLElement) => {
     // Asciidoctor sometimes renders type references as verbose links like
     // <a href="#ref_CurrencyStruct">Section 7.19.2.51, "CurrencyStruct"</a>
     // Strip the "Section X.Y.Z, " prefix and curly quotes to extract just the type name
@@ -149,7 +149,7 @@ export const Integer = (el: HTMLElement) => {
         return NaN;
     }
 
-    return Number.parseInt(NoSpace(el));
+    return Number.parseInt(CompactStr(el));
 };
 
 /** Size in bytes */

@@ -17,11 +17,8 @@ import { AccessLevel } from "@matter/model";
 import { StreamUsage } from "../globals/StreamUsage.js";
 import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
-import { TlvIceServer as TlvIceServerStruct } from "../globals/IceServer.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
-import { TlvIceCandidate } from "../globals/IceCandidate.js";
-import { WebRtcEndReason } from "../globals/WebRtcEndReason.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 
@@ -55,6 +52,8 @@ export namespace WebRtcTransportProvider {
         audioStreamId: TlvOptionalField(5, TlvUInt16)
     });
     export interface WebRtcSession extends TypeFromSchema<typeof TlvWebRtcSession> {}
+    export const TlvIceServer = TlvObject({ caid: TlvOptionalField(3, TlvUInt16) });
+    export interface IceServer extends TypeFromSchema<typeof TlvIceServer> {}
 
     /**
      * This type shall specify the RFC 9605 data needed to use SFrames as an end-to-end encryption mechanism with
@@ -150,7 +149,7 @@ export namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.5
          */
-        iceServers: TlvOptionalField(4, TlvArray(TlvIceServerStruct, { maxLength: 10 })),
+        iceServers: TlvOptionalField(4, TlvArray(TlvIceServer, { maxLength: 10 })),
 
         /**
          * This field shall contain a string which dictates the gathering and usage of ICE candidates. Specifically
@@ -331,7 +330,7 @@ export namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.7
          */
-        iceServers: TlvOptionalField(6, TlvArray(TlvIceServerStruct, { maxLength: 10 })),
+        iceServers: TlvOptionalField(6, TlvArray(TlvIceServer, { maxLength: 10 })),
 
         /**
          * This field controls the gathering and usage of ICE candidates and shall have one of the values found in
@@ -440,6 +439,13 @@ export namespace WebRtcTransportProvider {
      */
     export interface ProvideAnswerRequest extends TypeFromSchema<typeof TlvProvideAnswerRequest> {}
 
+    export const TlvIceCandidate = TlvObject({
+        candidate: TlvOptionalField(0, TlvString),
+        sdpMid: TlvOptionalField(1, TlvNullable(TlvString)),
+        sdpMLineIndex: TlvOptionalField(2, TlvNullable(TlvUInt16))
+    });
+    export interface IceCandidate extends TypeFromSchema<typeof TlvIceCandidate> {}
+
     /**
      * Input to the WebRtcTransportProvider provideIceCandidates command
      *
@@ -468,6 +474,16 @@ export namespace WebRtcTransportProvider {
      */
     export interface ProvideIceCandidatesRequest extends TypeFromSchema<typeof TlvProvideIceCandidatesRequest> {}
 
+    export enum WebRtcEndReason {
+        IceFailed = 0,
+        IceTimeout = 1,
+        UserHangup = 2,
+        PeerHangup = 3,
+        Busy = 4,
+        TimedOut = 5,
+        InternalError = 6
+    }
+
     /**
      * Input to the WebRtcTransportProvider endSession command
      *
@@ -495,9 +511,6 @@ export namespace WebRtcTransportProvider {
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7
      */
     export interface EndSessionRequest extends TypeFromSchema<typeof TlvEndSessionRequest> {}
-
-    export const TlvIceServer = TlvObject({ caid: TlvOptionalField(3, TlvUInt16) });
-    export interface IceServer extends TypeFromSchema<typeof TlvIceServer> {}
 
     /**
      * These elements and properties are present in all WebRtcTransportProvider clusters.

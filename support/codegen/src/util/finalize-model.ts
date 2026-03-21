@@ -38,8 +38,6 @@ export function finalizeModel(matter: MatterModel) {
             patchClusterTypes(child);
             patchOptionsTypes(child);
             patchStatusTypes(child);
-        } else if (child instanceof DatatypeModel) {
-            patchIllegalCrossClusterReferences(child, scopedDatatypes);
         } else if (child instanceof SemanticNamespaceModel) {
             semanticNamespaces.push(child);
         }
@@ -118,7 +116,7 @@ function childrenIdentity(model: ValueModel) {
  * exactly one other cluster.  When detected, replace the datatype name with a qualified name referencing the other
  * cluster.
  */
-function patchIllegalCrossClusterReferences(cluster: Model, scopedDatatypes: ScopedDatatypes) {
+function patchIllegalCrossClusterReferences(cluster: ClusterModel, scopedDatatypes: ScopedDatatypes) {
     cluster.visit(model => {
         // Only applies to models with a defined type
         if (model.type === undefined) {

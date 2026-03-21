@@ -191,7 +191,8 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
         return;
     }
 
-    // Build a lookup from condition name to detail section for documentation extraction
+    // Custom detail mapping because condition detail sections are titled "FooCondition Condition" while
+    // the table's key field is "condition" not "name", so translateTable's built-in detail matching won't work
     const detailLookup = new Map<string, HtmlReference>();
     if (deviceRef.conditionRequirements.details) {
         for (const detail of deviceRef.conditionRequirements.details) {
