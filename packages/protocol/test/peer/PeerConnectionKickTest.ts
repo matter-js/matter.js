@@ -25,21 +25,23 @@ describe("PeerConnection kick redesign", () => {
     afterEach(() => MockTime.disable());
 
     describe("PeerTimingParameters", () => {
-        it("has correct default for mrpKickRestartIntervalDiscover", () => {
-            expect(PeerTimingParameters.defaults.mrpKickRestartIntervalDiscover).equals(Minutes(30));
+        it("has correct default for kickRestartCooldown.addressChange", () => {
+            expect(PeerTimingParameters.defaults.kickRestartCooldown.addressChange).equals(Minutes(30));
         });
 
-        it("has correct default for mrpKickRestartIntervalConnect", () => {
-            expect(PeerTimingParameters.defaults.mrpKickRestartIntervalConnect).equals(Minutes(10));
+        it("has correct default for kickRestartCooldown.connect", () => {
+            expect(PeerTimingParameters.defaults.kickRestartCooldown.connect).equals(Minutes(10));
         });
 
-        it("allows overriding kick restart intervals", () => {
+        it("allows overriding kick restart cooldowns", () => {
             const custom = PeerTimingParameters({
-                mrpKickRestartIntervalDiscover: Minutes(5),
-                mrpKickRestartIntervalConnect: Seconds(30),
+                kickRestartCooldown: {
+                    addressChange: Minutes(5),
+                    connect: Seconds(30),
+                },
             });
-            expect(custom.mrpKickRestartIntervalDiscover).equals(Minutes(5));
-            expect(custom.mrpKickRestartIntervalConnect).equals(Seconds(30));
+            expect(custom.kickRestartCooldown.addressChange).equals(Minutes(5));
+            expect(custom.kickRestartCooldown.connect).equals(Seconds(30));
         });
     });
 
@@ -125,8 +127,8 @@ describe("PeerConnection kick redesign", () => {
             function handleKick(origin: KickOrigin): boolean {
                 const threshold =
                     origin === "discover"
-                        ? timing.mrpKickRestartIntervalDiscover
-                        : timing.mrpKickRestartIntervalConnect;
+                        ? timing.kickRestartCooldown.addressChange
+                        : timing.kickRestartCooldown.connect;
 
                 if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
                     lastRestartAt = Time.nowMs;
@@ -233,8 +235,10 @@ describe("PeerConnection kick redesign", () => {
             MockTime.reset();
             const { handleKick, restarts } = createKickHandler(
                 PeerTimingParameters({
-                    mrpKickRestartIntervalDiscover: Seconds(60),
-                    mrpKickRestartIntervalConnect: Seconds(10),
+                    kickRestartCooldown: {
+                        addressChange: Seconds(60),
+                        connect: Seconds(10),
+                    },
                 }),
             );
 

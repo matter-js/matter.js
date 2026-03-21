@@ -435,8 +435,8 @@ export async function PeerConnection(
             kick = kicker?.use((origin: KickOrigin) => {
                 const threshold =
                     origin === "discover"
-                        ? context.timing.mrpKickRestartIntervalDiscover
-                        : context.timing.mrpKickRestartIntervalConnect;
+                        ? context.timing.kickRestartCooldown.addressChange
+                        : context.timing.kickRestartCooldown.connect;
 
                 if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
                     info(via, address, `Restarting exchange on "${origin}" kick`);

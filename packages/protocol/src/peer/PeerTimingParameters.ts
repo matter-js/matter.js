@@ -57,26 +57,26 @@ export interface PeerTimingParameters {
     delayAfterUnhandledError: Duration;
 
     /**
-     * Minimum delay between MRP loop "kicks".
+     * Minimum interval between kick signals reaching the connection handler.
+     *
+     * Rapid-fire kicks (e.g. from mDNS bursts) are throttled at the observable level so only one
+     * signal per interval is delivered.
      */
-    minimumTimeBetweenMrpKicks: Duration;
+    kickThrottleInterval: Duration;
 
     /**
-     * Minimum time between kick-triggered exchange restarts initiated by DNS-SD address discovery.
+     * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
      *
-     * A "discover" kick restarts the CASE handshake exchange from scratch with a fresh MRP backoff,
-     * allowing the new address to be used immediately. This threshold prevents mDNS churn from
-     * restarting the handshake too frequently.
+     * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
+     * These cooldowns prevent restarts from happening too frequently.
      */
-    mrpKickRestartIntervalDiscover: Duration;
+    kickRestartCooldown: {
+        /** Cooldown after a restart triggered by DNS-SD address change. */
+        addressChange: Duration;
 
-    /**
-     * Minimum time between kick-triggered exchange restarts initiated by a user/connect call.
-     *
-     * Same mechanic as {@link mrpKickRestartIntervalDiscover} but for explicit `peer.kick()` calls.
-     * Shorter threshold because user intent is stronger than passive discovery.
-     */
-    mrpKickRestartIntervalConnect: Duration;
+        /** Cooldown after a restart triggered by an explicit {@link Peer.kick} call. */
+        connect: Duration;
+    };
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -128,8 +128,10 @@ export namespace PeerTimingParameters {
         delayAfterNetworkError: Seconds(15),
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
-        minimumTimeBetweenMrpKicks: Seconds(3),
-        mrpKickRestartIntervalDiscover: Minutes(30),
-        mrpKickRestartIntervalConnect: Minutes(10),
+        kickThrottleInterval: Seconds(3),
+        kickRestartCooldown: {
+            addressChange: Minutes(30),
+            connect: Minutes(10),
+        },
     };
 }

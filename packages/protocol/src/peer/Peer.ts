@@ -292,7 +292,7 @@ export class Peer {
      * Kick the connection process.
      *
      * Aborts the current CASE handshake exchange and restarts it from scratch with a fresh MRP
-     * backoff. Rate-limited; repeated calls within {@link PeerTimingParameters.mrpKickRestartIntervalConnect}
+     * backoff. Rate-limited; repeated calls within {@link PeerTimingParameters.kickRestartCooldown}
      * are suppressed.
      */
     kick() {
@@ -397,7 +397,7 @@ export class Peer {
             : this.#context.timing;
 
         const kicker = new QuietObservable<[KickOrigin]>({
-            minimumEmitInterval: timing.minimumTimeBetweenMrpKicks,
+            minimumEmitInterval: timing.kickThrottleInterval,
             skipSuppressedEmits: true,
         });
 
