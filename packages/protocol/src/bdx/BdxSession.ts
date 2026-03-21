@@ -137,15 +137,18 @@ export class BdxSession {
 
             await this.close();
         } catch (error) {
-            BdxError.accept(error);
-            await this.#messenger.sendError(error.code);
+            if (BdxError.is(error)) {
+                await this.#messenger.sendError(error.code);
 
-            logger.warn(`BDX session failed with error:`, error);
+                logger.warn(`BDX session failed with error:`, error);
 
-            await this.close(error);
+                await this.close(error);
 
-            error.bytesTransferred = this.#transferFlow?.transferredBytes ?? 0;
-            error.totalBytesLength = this.#transferFlow?.dataLength;
+                error.bytesTransferred = this.#transferFlow?.transferredBytes ?? 0;
+                error.totalBytesLength = this.#transferFlow?.dataLength;
+            } else {
+                await this.close(error);
+            }
             throw error;
         }
     }
