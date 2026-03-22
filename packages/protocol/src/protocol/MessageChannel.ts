@@ -80,7 +80,15 @@ export class MessageChannel implements Channel<Message> {
         return this.#channel.maxPayloadSize;
     }
 
-    async send(message: Message, exchange?: MessageExchange, logContext?: ExchangeLogContext) {
+    async send(message: Message, options?: MessageChannelSendOptions) {
+        const { exchange, addressOverride } = options ?? {};
+        let { logContext } = options ?? {};
+        if (addressOverride && this.#isIpNetworkChannel) {
+            logContext = {
+                ...logContext,
+                address: ServerAddress.urlFor(addressOverride),
+            };
+        }
         logger.debug("Message", Mark.OUTBOUND, Message.diagnosticsOf(exchange ?? this.session, message, logContext));
         const packet = this.session.encode(message);
         const bytes = MessageCodec.encodePacket(packet);
@@ -90,6 +98,9 @@ export class MessageChannel implements Channel<Message> {
             );
         }
 
+        if (addressOverride && this.#isIpNetworkChannel) {
+            return await (this.#channel as IpNetworkChannel<Bytes>).send(bytes, addressOverride);
+        }
         return await this.#channel.send(bytes);
     }
 
@@ -189,4 +200,15 @@ export class MessageChannel implements Channel<Message> {
             calculateMaximum,
         );
     }
+}
+
+export interface MessageChannelSendOptions {
+    /** The exchange initiating the send, used for diagnostics. */
+    exchange?: MessageExchange;
+
+    /** Additional context for logging. */
+    logContext?: ExchangeLogContext;
+
+    /** Override the destination address for this send without changing the channel's default address. */
+    addressOverride?: ServerAddressUdp;
 }

@@ -38,6 +38,7 @@ import {
 import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
+import { PeerAddressMonitor } from "./PeerAddressMonitor.js";
 import { PeerUnreachableError } from "./PeerCommunicationError.js";
 import { type KickOrigin, PeerConnection } from "./PeerConnection.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
@@ -66,6 +67,7 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
+    #addressMonitor?: PeerAddressMonitor;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#lifetime = context.join(descriptor.address.toString());
@@ -104,6 +106,9 @@ export class Peer {
                 ...this.#descriptor.discoveryData,
                 ...DiscoveryData(this.#service.parameters),
             };
+
+            // Schedule address validity check if we have an active session
+            this.#addressCheck.schedule();
         });
 
         this.#observers.on(this.#sessions.added, session => {
@@ -335,6 +340,9 @@ export class Peer {
 
         this.#observers.close();
 
+        // Cancel pending address check
+        this.#addressMonitor?.stop();
+
         this.#abort(new ClosedError("Peer closed"));
 
         for (const session of this.#context.sessions.sessionsFor(this.address)) {
@@ -377,6 +385,18 @@ export class Peer {
         }
 
         return found;
+    }
+
+    get #addressCheck() {
+        if (this.#addressMonitor === undefined) {
+            this.#addressMonitor = new PeerAddressMonitor(
+                this,
+                this.#context.timing.addressChangeStabilizationDelay,
+                this.#abort,
+                work => this.#workers.add(work),
+            );
+        }
+        return this.#addressMonitor;
     }
 
     #initiateConnection(options?: Peer.ConnectOptions) {

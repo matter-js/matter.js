@@ -34,6 +34,7 @@ import {
     MatterFlowError,
     Millis,
     NetworkError,
+    ServerAddressUdp,
     Time,
     TimeoutError,
     Timer,
@@ -183,6 +184,7 @@ export class MessageExchange {
     readonly #lifetime: Lifetime;
     readonly #onSend?: MessageExchange.SendNotifier;
     readonly #onReceive?: MessageExchange.ReceiveNotifier;
+    readonly #addressOverride?: ServerAddressUdp;
     #receivedMessageToAck: Message | undefined;
     #receivedMessageAckTimer = Time.getTimer("ack receipt timeout", MRP.STANDALONE_ACK_TIMEOUT, () => {
         if (this.#receivedMessageToAck !== undefined) {
@@ -233,6 +235,7 @@ export class MessageExchange {
             onSend,
             onReceive,
             network,
+            addressOverride,
         } = config;
 
         this.#context = context;
@@ -244,6 +247,7 @@ export class MessageExchange {
         this.#protocolId = protocolId;
         this.#onSend = onSend;
         this.#onReceive = onReceive;
+        this.#addressOverride = addressOverride;
 
         const { activeThreshold, activeInterval, idleInterval } = this.session.parameters;
 
@@ -370,7 +374,7 @@ export class MessageExchange {
             // Resending the previous reply message which contains the ack
             using _acking = this.join("resending ack");
             this.#messageSendCounter++;
-            await this.channel.send(this.#sentMessageToAck, this);
+            await this.channel.send(this.#sentMessageToAck, { exchange: this, addressOverride: this.#addressOverride });
             return;
         }
         const sentMessageIdToAck = this.#sentMessageToAck?.packetHeader.messageId;
@@ -575,9 +579,11 @@ export class MessageExchange {
         this.#onSend?.(message, 0);
         using sending = this.join("sending", Diagnostic.strong(Message.via(this, message)));
         if (isStandaloneAck) {
-            await this.channel.send(message, this);
+            await this.channel.send(message, { exchange: this, addressOverride: this.#addressOverride });
         } else {
-            await abort.attempt(this.channel.send(message, this, logContext));
+            await abort.attempt(
+                this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }),
+            );
         }
         if (abort.aborted) {
             return;
@@ -724,9 +730,13 @@ export class MessageExchange {
 
         // TODO await
         this.channel
-            .send(message, this, {
-                "retrans#": this.#retransmissionCounter,
-                backoff: Duration.format(resubmissionBackoffTime),
+            .send(message, {
+                exchange: this,
+                logContext: {
+                    "retrans#": this.#retransmissionCounter,
+                    backoff: Duration.format(resubmissionBackoffTime),
+                },
+                addressOverride: this.#addressOverride,
             })
             .then(() => this.#initializeResubmission(message, resubmissionBackoffTime, expectedProcessingTime))
             .catch(error => {
@@ -958,6 +968,12 @@ export namespace MessageExchange {
          * Network Profile used
          */
         network?: NetworkProfile;
+
+        /**
+         * Optional address override for this exchange.  When set, messages are sent to this address
+         * instead of the session's default peer address.
+         */
+        addressOverride?: ServerAddressUdp;
     }
 
     export interface Config extends Options {
