@@ -19,16 +19,14 @@ import {
 import {
     Ble,
     ClientSubscriptions,
+    CommissionableMdnsScanner,
     Fabric,
     FabricAuthority,
     FabricAuthorityConfiguration,
     FabricManager,
-    MdnsClient,
-    MdnsScannerTargetCriteria,
     MdnsService,
     PeerAddress,
     PeerSet,
-    Scanner,
     ScannerSet,
     getFabricQname,
 } from "@matter/protocol";
@@ -67,7 +65,9 @@ export class ControllerBehavior extends Behavior {
         }
         if (this.state.ip !== false) {
             this.internal.services = this.env.asDependent();
-            this.env.get(ScannerSet).add((await this.internal.services.load(MdnsService)).client);
+            const mdns = await this.internal.services.load(MdnsService);
+            this.internal.scanner = new CommissionableMdnsScanner(mdns.names);
+            this.env.get(ScannerSet).add(this.internal.scanner);
         }
 
         if (this.state.ble === undefined) {
@@ -163,6 +163,7 @@ export class ControllerBehavior extends Behavior {
 
     override async [Symbol.asyncDispose]() {
         await this.env.close(ActiveDiscoveries);
+        await this.internal.scanner?.close();
         this.env.delete(FabricAuthority);
         this.env.delete(ScannerSet);
         await this.internal.services?.close();
@@ -193,25 +194,10 @@ export class ControllerBehavior extends Behavior {
             this.#enableScanningForFabric(fabric);
         }
         this.reactTo(authority.fabricAdded, this.#enableScanningForFabric);
-
-        // Configure each MDNS scanner with criteria
-        const scanners = this.env.get(ScannerSet);
-        for (const scanner of scanners) {
-            this.#enableScanningForScanner(scanner);
-        }
-        this.reactTo(scanners.added, this.#enableScanningForScanner);
     }
 
     async #nodeGoingOffline() {
         await this.env.close(ClientSubscriptions);
-
-        // Configure each MDNS scanner with criteria
-        const scanners = this.env.get(ScannerSet);
-        for (const scanner of scanners) {
-            if (scanner instanceof MdnsClient) {
-                scanner.targetCriteriaProviders.delete(this.internal.mdnsTargetCriteria);
-            }
-        }
 
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {
@@ -230,25 +216,12 @@ export class ControllerBehavior extends Behavior {
             });
         }
     }
-
-    #enableScanningForScanner(scanner: Scanner) {
-        if (!(scanner instanceof MdnsClient)) {
-            return;
-        }
-        scanner.targetCriteriaProviders.add(this.internal.mdnsTargetCriteria);
-    }
 }
 
 export namespace ControllerBehavior {
     export class Internal {
-        /**
-         * MDNS scanner criteria for each controlled fabric (keyed by operational ID).
-         */
-        mdnsTargetCriteria: MdnsScannerTargetCriteria = {
-            commissionable: true,
-        };
-
         services?: SharedEnvironmentServices;
+        scanner?: CommissionableMdnsScanner;
     }
 
     export class State {

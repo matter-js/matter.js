@@ -90,6 +90,10 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                 this.#pending.delete(attempt);
             });
 
+        // Suppress unhandled-rejection for losing candidates; actual errors are consumed
+        // in onComplete() via allSettled().
+        attempt.catch(() => {});
+
         this.#pending.add(attempt);
     }
 

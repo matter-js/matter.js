@@ -26,7 +26,7 @@ export class DnssdNames {
     readonly #socket: MdnsSocket;
     readonly #lifetime: Lifetime;
     readonly #entropy: Entropy;
-    readonly #filter?: (record: DnsRecord) => boolean;
+    readonly #filters = new Set<(record: DnsRecord) => boolean>();
     readonly #solicitor: QueryMulticaster;
     readonly #observers = new ObserverGroup();
     readonly #names = new Map<string, DnssdName>();
@@ -46,7 +46,9 @@ export class DnssdNames {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns names");
         this.#entropy = entropy;
-        this.#filter = filter;
+        if (filter) {
+            this.#filters.add(filter);
+        }
         this.#solicitor = new QueryMulticaster(this);
         this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
@@ -72,6 +74,10 @@ export class DnssdNames {
         const filtered = new Set(records);
         let goodbyesBefore: undefined | Timestamp;
 
+        // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
+        // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
+        const newlyDiscovered: DnssdName[] = [];
+
         /**
          * Handles a record we've decided we're interested in.
          */
@@ -85,7 +91,7 @@ export class DnssdNames {
                 const wasDiscovered = name.isDiscovered;
                 name.installRecord(record);
                 if (!wasDiscovered && name.isDiscovered) {
-                    this.#discovered.emit(name);
+                    newlyDiscovered.push(name);
                 }
             } else {
                 if (goodbyesBefore === undefined) {
@@ -97,8 +103,17 @@ export class DnssdNames {
 
         // Process all records explicitly accepted by the filter
         for (const record of records) {
-            if (this.#filter && !this.#filter(record)) {
-                continue;
+            if (this.#filters.size > 0) {
+                let accepted = false;
+                for (const f of this.#filters) {
+                    if (f(record)) {
+                        accepted = true;
+                        break;
+                    }
+                }
+                if (!accepted) {
+                    continue;
+                }
             }
 
             handleRecord(record);
@@ -115,6 +130,14 @@ export class DnssdNames {
                 }
 
                 handleRecord(record);
+            }
+        }
+
+        // Emit discovered events after all records are installed so observers see complete state.
+        // Re-check isDiscovered in case a goodbye in the same message reverted the state.
+        for (const name of newlyDiscovered) {
+            if (name.isDiscovered) {
+                this.#discovered.emit(name);
             }
         }
     }
@@ -148,6 +171,17 @@ export class DnssdNames {
         return this.#names.get(name.toLowerCase());
     }
 
+    /**
+     * Iterate all currently discovered {@link DnssdName}s.
+     */
+    *discoveredNames() {
+        for (const name of this.#names.values()) {
+            if (name.isDiscovered) {
+                yield name;
+            }
+        }
+    }
+
     #delete(name: DnssdName) {
         this.#names.delete(name.qname.toLowerCase());
     }
@@ -164,6 +198,21 @@ export class DnssdNames {
             this.#delete(name);
         }
         await this.#solicitor.close();
+    }
+
+    /**
+     * Register an additional ingress filter. Records accepted by ANY registered filter are processed.
+     * If no filters are registered, all records are accepted.
+     */
+    addFilter(filter: (record: DnsRecord) => boolean) {
+        this.#filters.add(filter);
+    }
+
+    /**
+     * Unregister a previously added filter.
+     */
+    removeFilter(filter: (record: DnsRecord) => boolean) {
+        this.#filters.delete(filter);
     }
 
     get socket() {
@@ -219,7 +268,7 @@ export namespace DnssdNames {
         entropy: Entropy;
 
         /**
-         * Identify relevant records coming in on the wire for inclusion in the name set.
+         * Initial ingress filter. Additional filters may be added via {@link DnssdNames.addFilter}.
          *
          * Observed names are considered relevant even if filtered here.
          */
