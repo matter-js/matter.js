@@ -9,9 +9,7 @@ import { StorageError } from "#storage/StorageDriver.js";
 import { Bytes } from "#util/Bytes.js";
 
 function createMemoryStorage() {
-    const storage = new MemoryStorageDriver();
-    storage.initialize();
-    return storage;
+    return MemoryStorageDriver.create();
 }
 
 const CONTEXTx1 = ["context"];

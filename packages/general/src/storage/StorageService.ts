@@ -111,7 +111,9 @@ export class StorageService {
         const cached = this.#openDrivers.get(cacheKey);
         if (cached) {
             cached.refs++;
-            return new StorageManager(new StorageDriverHandle(cached.driver, () => this.#release(cacheKey)));
+            const manager = new StorageManager(new StorageDriverHandle(cached.driver, () => this.#release(cacheKey)));
+            await manager.initialize();
+            return manager;
         }
 
         // Filesystem path — full detection, migration, driver.json
@@ -326,14 +328,12 @@ export class StorageService {
                 }
 
                 sourceStorage = await fromImpl.create(new DatafileRoot(sourceDir), fromDescriptor);
-                await sourceStorage.initialize();
 
                 if (toImpl.preinitialize) {
                     await toImpl.preinitialize(fs, toDescriptor);
                 }
 
                 targetStorage = await toImpl.create(new DatafileRoot(tempDir), toDescriptor);
-                await targetStorage.initialize();
 
                 const result = await StorageMigration.migrate(sourceStorage, targetStorage);
 
