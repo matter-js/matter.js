@@ -67,7 +67,7 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
-    #addressMonitor: PeerAddressMonitor;
+    #addressMonitor?: PeerAddressMonitor;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#lifetime = context.join(descriptor.address.toString());
@@ -100,13 +100,6 @@ export class Peer {
 
         this.#context = context;
 
-        this.#addressMonitor = new PeerAddressMonitor(
-            this,
-            context.timing.addressChangeStabilizationDelay,
-            this.#abort,
-            work => this.#workers.add(work),
-        );
-
         this.#observers.on(this.#service.changed, () => {
             // Update persisted discovery data
             this.#descriptor.discoveryData = {
@@ -115,7 +108,7 @@ export class Peer {
             };
 
             // Schedule address validity check if we have an active session
-            this.#addressMonitor.schedule();
+            this.#addressCheck.schedule();
         });
 
         this.#observers.on(this.#sessions.added, session => {
@@ -348,7 +341,7 @@ export class Peer {
         this.#observers.close();
 
         // Cancel pending address check
-        this.#addressMonitor.stop();
+        this.#addressMonitor?.stop();
 
         this.#abort(new ClosedError("Peer closed"));
 
@@ -392,6 +385,18 @@ export class Peer {
         }
 
         return found;
+    }
+
+    get #addressCheck() {
+        if (this.#addressMonitor === undefined) {
+            this.#addressMonitor = new PeerAddressMonitor(
+                this,
+                this.#context.timing.addressChangeStabilizationDelay,
+                this.#abort,
+                work => this.#workers.add(work),
+            );
+        }
+        return this.#addressMonitor;
     }
 
     #initiateConnection(options?: Peer.ConnectOptions) {
