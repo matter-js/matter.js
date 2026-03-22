@@ -45,7 +45,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Several enhancements around OTA updates and transfers, also when nodes restart in the middle of the process
     - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
-    - Adjustment: Respond with a Busy message to PASE connection tries when another establishment try is already in progress
+    - Adjustment: Respond with a Busy message to PASE connection attempts when another establishment attempt is already in progress
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
     - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)
