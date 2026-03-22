@@ -109,6 +109,9 @@ export class Peer {
                 if (!this.#probing) {
                     this.#probing = this.#checkSessionAddress().finally(() => {
                         this.#probing = undefined;
+
+                        // If address changes arrived during the probe, re-check
+                        this.#scheduleAddressCheck();
                     });
                     this.#workers.add(this.#probing);
                 }

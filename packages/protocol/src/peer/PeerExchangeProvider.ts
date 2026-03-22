@@ -8,7 +8,7 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
-import { ChannelType, Duration, ImplementationError } from "@matter/general";
+import { ChannelType, Duration, InternalError } from "@matter/general";
 import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
@@ -68,7 +68,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                 if (session === undefined) {
                     if (options?.requireExistingSession) {
                         // Slot will be closed when error is caught
-                        throw new ImplementationError("No existing session available for probe");
+                        throw new InternalError("No existing session available for probe");
                     }
                     // We had a session before getting the slot, but it was closed. Restart
                     slot.close();
