@@ -43,6 +43,7 @@ import {
     Mutex,
     RetrySchedule,
     Seconds,
+    ServerAddressUdp,
     Time,
     Timer,
 } from "@matter/general";
@@ -221,6 +222,46 @@ export class ClientInteraction<
                     : Diagnostic.dict({ attributes: attributeReportCount, events: eventReportCount }),
             ),
         );
+    }
+
+    /**
+     * Probe the peer with an empty read to verify session liveness.
+     *
+     * Optionally sends to a different address than the session's current one via {@link addressOverride},
+     * without affecting other exchanges on the session.
+     *
+     * @returns true if the probe succeeded, false otherwise
+     */
+    async probe(options?: ClientProbeOptions): Promise<boolean> {
+        if (this.#abort.aborted) {
+            return false;
+        }
+
+        const abort = new Abort({ abort: [options?.abort, this.#abort] });
+
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: options?.network ?? this.#network,
+                abort,
+                addressOverride: options?.addressOverride,
+                requireExistingSession: true,
+            });
+        } catch {
+            abort[Symbol.dispose]();
+            return false;
+        }
+
+        try {
+            await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
+            for await (const _report of messenger.readDataReports({ abort }));
+            return true;
+        } catch {
+            return false;
+        } finally {
+            await messenger.close();
+            abort[Symbol.dispose]();
+        }
     }
 
     /**
@@ -839,6 +880,7 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
                 read,
+                probe: abort => this.probe({ abort }),
             });
         } else {
             subscription = await subscribe(request);
@@ -914,6 +956,7 @@ export class ClientInteraction<
                 network: request.network ?? this.#network,
                 abort,
                 connectionTimeout: session?.connectionTimeout,
+                addressOverride: request.addressOverride,
             });
         } catch (e) {
             abort[Symbol.dispose]();
@@ -972,6 +1015,20 @@ export interface RequestContext<M extends InteractionClientMessenger | BdxMessen
     messenger: M;
 
     [Symbol.asyncDispose](): Promise<void>;
+}
+
+/**
+ * Options for {@link ClientInteraction.probe}.
+ */
+export interface ClientProbeOptions {
+    /** Network profile to use for the probe exchange. */
+    network?: string;
+
+    /** Override the destination address for the probe without changing the session's channel. */
+    addressOverride?: ServerAddressUdp;
+
+    /** Abort signal for the probe. */
+    abort?: AbortSignal;
 }
 
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {

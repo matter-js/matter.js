@@ -31,8 +31,10 @@ import {
     Millis,
     ObserverGroup,
     QuietObservable,
+    ServerAddress,
     ServerAddressUdp,
     Time,
+    Timer,
     Timestamp,
 } from "@matter/general";
 import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
@@ -66,6 +68,8 @@ export class Peer {
     #observers = new ObserverGroup();
     #exchangeProvider?: ExchangeProvider;
     #updated = AsyncObservable<[peer: Peer]>();
+    #addressCheckTimer: Timer;
+    #probing?: Promise<void>;
 
     constructor(descriptor: PeerDescriptor, context: Peer.Context) {
         this.#lifetime = context.join(descriptor.address.toString());
@@ -98,12 +102,28 @@ export class Peer {
 
         this.#context = context;
 
+        this.#addressCheckTimer = Time.getTimer(
+            "address check stabilization",
+            context.timing.addressChangeStabilizationDelay,
+            () => {
+                if (!this.#probing) {
+                    this.#probing = this.#checkSessionAddress().finally(() => {
+                        this.#probing = undefined;
+                    });
+                    this.#workers.add(this.#probing);
+                }
+            },
+        );
+
         this.#observers.on(this.#service.changed, () => {
             // Update persisted discovery data
             this.#descriptor.discoveryData = {
                 ...this.#descriptor.discoveryData,
                 ...DiscoveryData(this.#service.parameters),
             };
+
+            // Schedule address validity check if we have an active session
+            this.#scheduleAddressCheck();
         });
 
         this.#observers.on(this.#sessions.added, session => {
@@ -335,6 +355,9 @@ export class Peer {
 
         this.#observers.close();
 
+        // Cancel pending address check
+        this.#addressCheckTimer.stop();
+
         this.#abort(new ClosedError("Peer closed"));
 
         for (const session of this.#context.sessions.sessionsFor(this.address)) {
@@ -377,6 +400,75 @@ export class Peer {
         }
 
         return found;
+    }
+
+    /**
+     * Schedule a debounced check of whether the active session's IP is still in mDNS-discovered addresses.
+     *
+     * Restarts the timer on each call so rapid changes coalesce into a single check.
+     */
+    #scheduleAddressCheck() {
+        if (!this.hasSession) {
+            return;
+        }
+
+        this.#addressCheckTimer.stop();
+        this.#addressCheckTimer.start();
+    }
+
+    /**
+     * Check whether the active session's IP is still in discovered addresses.  If not, probe the current
+     * address with an empty read.  If the probe fails, normal reconnection will pick up the new addresses.
+     */
+    async #checkSessionAddress() {
+        const session = this.newestSession;
+        if (!session || !this.#interaction) {
+            return;
+        }
+
+        const { channel } = session.channel;
+        if (!isIpNetworkChannel(channel)) {
+            return;
+        }
+
+        const currentAddress = channel.networkAddress;
+        const discoveredAddresses = this.#service.addresses;
+
+        // If there are no discovered addresses at all, nothing to compare against
+        if (!discoveredAddresses.size) {
+            return;
+        }
+
+        // If the current address is still in the discovered set, all good
+        if (discoveredAddresses.has(currentAddress)) {
+            return;
+        }
+
+        logger.info(
+            Diagnostic.via(this.address.toString()),
+            "Session address",
+            Diagnostic.strong(ServerAddress.urlFor(currentAddress)),
+            "no longer in MDNS results, probing",
+        );
+
+        // Get probe network profile
+        const network = this.#context.networks.forPeer(this);
+        const probeNetwork = network.probeAddress ?? network;
+
+        // Probe the current address — maybe mDNS is just stale and the address still works
+        if (await this.#interaction.probe({ network: probeNetwork.id, abort: this.#abort })) {
+            logger.debug(
+                Diagnostic.via(this.address.toString()),
+                "Probe succeeded at current address, keeping session",
+            );
+            return;
+        }
+
+        // Probe failed — session is dead.  Normal reconnection will use the new discovered addresses.
+        logger.info(
+            Diagnostic.via(this.address.toString()),
+            "Probe failed, reconnection will use discovered addresses",
+        );
     }
 
     #initiateConnection(options?: Peer.ConnectOptions) {

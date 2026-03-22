@@ -23,6 +23,7 @@ import {
     OperationalAddressChangedError,
     PeerSet,
     PhysicalDeviceProperties,
+    ClientProbeOptions,
     ReadResult,
     ShutdownError,
     Val,
@@ -156,6 +157,10 @@ export class ClientNodeInteraction implements Interactable<ActionContext> {
      */
     async initBdx(request: ClientBdxRequest = {}, context?: ActionContext): Promise<ClientBdxResponse> {
         return this.#interaction.initBdx(request, context);
+    }
+
+    async probe(options?: ClientProbeOptions): Promise<boolean> {
+        return this.#interaction.probe(options);
     }
 
     get #interaction() {
