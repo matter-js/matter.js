@@ -41,6 +41,11 @@ const TEST_DEFINITIONS = [
     // Dot-field references (qualified field references)
     "SolicitOffer.VideoStreamID",
 
+    // Revision conformance (spec 1.5.1+)
+    "Rev >= 3",
+    "[Rev >= 2]",
+    "Rev >= 4, [Rev >= 2]",
+
     // Enum value comparisons
     "ContainerType == CMAF",
     "TriggerType == Motion",
@@ -336,6 +341,61 @@ describe("Conformance", () => {
                     e.source?.includes("TimeSyncCond"),
             );
             expect(condErrors).deep.equal([]);
+        });
+    });
+
+    describe("revision conformance (spec 1.5.1+)", () => {
+        // Cluster revision 5 — elements with "Rev >= 3" should be mandatory,
+        // "Rev >= 7" should be disallowed, "[Rev >= 4]" should be optional
+        const revCluster = ClusterElement({
+            name: "RevTestCluster",
+            id: 0xfffa,
+            children: [
+                { tag: "attribute", id: 0xfffd, name: "ClusterRevision", type: "ClusterRevision", default: 5 },
+                FieldElement({ name: "AlwaysPresent", id: 0, type: "uint8", conformance: "Rev >= 3" }),
+                FieldElement({ name: "NotYetPresent", id: 1, type: "uint8", conformance: "Rev >= 7" }),
+                FieldElement({ name: "OptionalSinceV2", id: 2, type: "uint8", conformance: "[Rev >= 2]" }),
+                FieldElement({
+                    name: "OptionalThenMandatory",
+                    id: 3,
+                    type: "uint8",
+                    conformance: "Rev >= 4, [Rev >= 2]",
+                }),
+            ],
+        });
+
+        const revMatter = new MatterModel({ name: "RevTestMatter", children: [revCluster] });
+
+        let revResult: ValidateModel.Result | undefined;
+
+        function validateRev() {
+            if (!revResult) {
+                revResult = ValidateModel(revMatter);
+            }
+            return revResult;
+        }
+
+        it("resolves Rev references without errors", () => {
+            const unresolved = validateRev().errors.filter(e => e.code?.includes("UNRESOLVED"));
+            expect(unresolved).deep.equal([]);
+        });
+
+        it("parses Rev >= N as comparison", () => {
+            const conformance = new Conformance("Rev >= 3");
+            expect(conformance.ast.type).equal(">=");
+            const param = (conformance.ast as { param: { lhs: Conformance.Ast; rhs: Conformance.Ast } }).param;
+            expect(param.lhs).deep.equal({ type: "name", param: "Rev" });
+            expect(param.rhs).deep.equal({ type: "value", param: 3 });
+        });
+
+        it("parses [Rev >= N] as optional-if", () => {
+            const conformance = new Conformance("[Rev >= 2]");
+            expect(conformance.ast.type).equal("optionalIf");
+        });
+
+        it("parses Rev >= N, [Rev >= M] as otherwise", () => {
+            const conformance = new Conformance("Rev >= 4, [Rev >= 2]");
+            expect(conformance.ast.type).equal("otherwise");
         });
     });
 });
