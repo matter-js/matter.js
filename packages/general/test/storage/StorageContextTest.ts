@@ -28,8 +28,7 @@ const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
 async function create(contexts = CONTEXTx1) {
-    const storage = new MemoryStorageDriver();
-    storage.initialize();
+    const storage = MemoryStorageDriver.create();
     const storageContext = new StorageContext(storage, contexts);
     return { storage, storageContext };
 }
@@ -263,8 +262,7 @@ describe("StorageContext", () => {
         const KEY = "blobkey";
 
         beforeEach(async () => {
-            storage = new MemoryStorageDriver();
-            storage.initialize();
+            storage = MemoryStorageDriver.create();
             blobContext = new StorageContext(storage, CONTEXT);
         });
 

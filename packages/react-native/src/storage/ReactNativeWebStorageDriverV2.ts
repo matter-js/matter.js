@@ -17,7 +17,9 @@ export class ReactNativeWebStorageDriverV2 extends WebStorageDriver {
     static readonly id = "react-native-web-v2";
 
     static create(namespace: DataNamespace) {
-        return new ReactNativeWebStorageDriverV2(namespace.namespace);
+        const storage = new ReactNativeWebStorageDriverV2(namespace.namespace);
+        storage.initialize();
+        return storage;
     }
 
     /**
