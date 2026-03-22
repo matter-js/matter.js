@@ -213,12 +213,12 @@ export class PaseServer implements ProtocolHandler {
 
     /** Send a Busy status response on the given exchange with the remaining pairing timeout. */
     private async sendBusy(exchange: MessageExchange) {
-        const messenger = new PaseServerMessenger(exchange);
         const elapsed = this.#pairingTimer?.elapsed?.time ?? 0;
         const busyTime = Millis(PASE_PAIRING_TIMEOUT - elapsed);
         if (busyTime <= 0) {
             return;
         }
+        const messenger = new PaseServerMessenger(exchange);
         try {
             await messenger.sendBusy(busyTime);
         } finally {
