@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterModel, CommandModel, Matter, ValidateModel } from "#index.js";
+import { ClusterModel, CommandModel, FieldModel, Matter, ValidateModel } from "#index.js";
 
 let validationResult: ValidateModel.Result | undefined;
 
@@ -22,7 +22,7 @@ describe("MatterDefinition", () => {
 
     it("has not increased in errors", () => {
         validate().report();
-        expect(validationResult?.errors.length).most(11);
+        expect(validationResult?.errors.length).most(7);
     });
 
     it("has not decreased in scope", () => {
@@ -43,5 +43,25 @@ describe("MatterDefinition", () => {
         const toggle = onOff!.get(CommandModel, "Toggle");
         expect(toggle).not.undefined;
         expect(toggle!.quality.largeMessage).equal(undefined);
+    });
+
+    it("resolves cross-command conformance references", () => {
+        const provider = Matter.get(ClusterModel, "WebRtcTransportProvider");
+        expect(provider).not.undefined;
+
+        // SolicitOfferResponse.videoStreamId has conformance "SolicitOffer.VideoStreamID"
+        const response = provider!.get(CommandModel, "SolicitOfferResponse");
+        expect(response).not.undefined;
+        const videoStreamId = response!.get(FieldModel, "VideoStreamId");
+        expect(videoStreamId).not.undefined;
+
+        // The conformance should reference SolicitOffer.VideoStreamID — verify it parsed and
+        // doesn't produce UNRESOLVED_CONFORMANCE_NAME (the validator ran without errors for this field)
+        expect(videoStreamId!.conformance.toString()).equal("SolicitOffer.VideoStreamID");
+
+        // Verify the referenced command and field actually exist
+        const solicitOffer = provider!.get(CommandModel, "SolicitOffer");
+        expect(solicitOffer).not.undefined;
+        expect(solicitOffer!.get(FieldModel, "VideoStreamId")).not.undefined;
     });
 });

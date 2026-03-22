@@ -85,8 +85,19 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             };
         }
 
-        // Unresolved names are always undefined
-        return { code: Code.Value, value: undefined };
+        // Name not found through normal resolution — defer to optional fallback resolver at runtime
+        return {
+            code: Code.Evaluate,
+
+            evaluate: (_value, options) => {
+                const value = options?.resolveAdditional?.(name);
+                if (value !== undefined) {
+                    return { code: Code.Value, value };
+                }
+                // Unresolved names are undefined
+                return { code: Code.Value, value: undefined };
+            },
+        };
     };
 
     // Compile the AST

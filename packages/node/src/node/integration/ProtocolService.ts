@@ -24,7 +24,14 @@ import {
     Observable,
     Transaction,
 } from "@matter/general";
-import { AcceptedCommandList, AttributeList, ElementTag, GeneratedCommandList, Matter } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    CommandModel,
+    ElementTag,
+    GeneratedCommandList,
+    Matter,
+} from "@matter/model";
 import type {
     AttributeTypeProtocol,
     ClusterProtocol,
@@ -579,6 +586,44 @@ function invokeCommand(
     const agent = endpoint.agentFor(context);
     const behavior = agent.get(backing.type);
 
+    const supervisor = backing.type.supervisor;
+
+    // TODO: Validate request through conformance pipeline (currently only TLV-validated in CommandInvokeResponse)
+    // if (requestCommandModel) {
+    //     supervisor.get(requestCommandModel).validate?.(request, session, {
+    //         path: path.at(command.name), siblings: request,
+    //     });
+    // }
+
+    // Resolve the response command model for conformance validation
+    const requestCommandModel = supervisor.schema.member(command.name, [ElementTag.Command]);
+    const responseCommandModel = (requestCommandModel as CommandModel | undefined)?.responseModel;
+
+    // Validate command response conformance.  Cross-command field references (e.g.
+    // "SolicitOffer.VideoStreamID") are resolved via the fallback resolver which provides access
+    // to the request payload fields using qualified name resolution.
+    const validateResponse = (response: unknown) => {
+        if (responseCommandModel && isObject(response) && session.transaction) {
+            supervisor.get(responseCommandModel).validate?.(response, session as ValueSupervisor.Session, {
+                path: path.at(command.name),
+                siblings: response as Val.Struct,
+                resolveAdditional: name => {
+                    if (!name.includes(".") || !request) {
+                        return undefined;
+                    }
+                    // Qualified name: walk the path segments starting from the request
+                    const segments = name.split(".");
+                    let value: Val = request;
+                    // Skip the first segment (the command name) — we already know it's our request
+                    for (let i = 1; i < segments.length && value != null; i++) {
+                        value = (value as Val.Struct)[camelize(segments[i])];
+                    }
+                    return value;
+                },
+            });
+        }
+    };
+
     let isAsync = false;
     let activity: undefined | Disposable;
     let result: unknown;
@@ -615,6 +660,7 @@ function invokeCommand(
             isAsync = true;
             result = Promise.resolve(result)
                 .then(result => {
+                    validateResponse(result);
                     if (isObject(result)) {
                         logger.info(
                             "Invoke",
@@ -628,6 +674,7 @@ function invokeCommand(
                 })
                 .finally(() => activity?.[Symbol.dispose]());
         } else {
+            validateResponse(result);
             if (isObject(result)) {
                 logger.info(
                     "Invoke",

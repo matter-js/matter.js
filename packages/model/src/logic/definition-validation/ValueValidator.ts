@@ -8,7 +8,7 @@ import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
-import { ClusterModel, Globals, ValueModel } from "../../models/index.js";
+import { ClusterModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -27,6 +27,22 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         this.#validateAspect("conformance");
         this.model.conformance.validateReferences(this, name => {
+            // Qualified name resolution (e.g. "SolicitOffer.VideoStreamID") — walk the path through
+            // the model hierarchy using the same traversal as type resolution
+            if (name.includes(".")) {
+                const path = name.split(".");
+                let resolved: Model | undefined;
+                for (let scope = this.model.parent; scope && !resolved; scope = scope.parent) {
+                    resolved = scope.children.select(camelize(path[0], true));
+                    if (resolved) {
+                        for (let i = 1; i < path.length && resolved; i++) {
+                            resolved = resolved.member(camelize(path[i], true));
+                        }
+                    }
+                }
+                return resolved;
+            }
+
             // Features are all caps, other names are field references
             if (name.match(/^[A-Z0-9_$]+$/)) {
                 // Feature lookup

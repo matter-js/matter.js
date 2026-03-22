@@ -32,6 +32,12 @@ export interface ValidationLocation {
      * Path used to create fully-qualified name for diagnostic messages.
      */
     location?: string[];
+
+    /**
+     * Optional fallback name resolver for names not found through normal sibling/parent resolution.
+     * Used e.g. to resolve cross-command field references during response validation.
+     */
+    resolveAdditional?: (name: string) => Val | undefined;
 }
 
 export namespace ValidationLocation {
