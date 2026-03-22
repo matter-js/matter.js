@@ -40,7 +40,7 @@ export class StorageBackendAsyncJsonFile extends Storage {
             console.log("StorageBackendSyncJsonFile: File does not exist yet, initializing with empty store.");
         }
         this.store = new MemoryStorageDriver(data);
-        this.store.initialize();
+        this.store.initialize(); // Internal usage — creates from pre-loaded data
         this.lastStoredTime = Time.nowMs;
     }
 

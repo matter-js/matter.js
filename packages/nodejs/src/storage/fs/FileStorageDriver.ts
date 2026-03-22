@@ -38,8 +38,10 @@ interface ContextIndex {
 export class FileStorageDriver extends FilesystemStorageDriver {
     static readonly id = "file";
 
-    static create(namespace: DataNamespace, _descriptor: StorageDriver.Descriptor) {
-        return new FileStorageDriver(namespace);
+    static async create(namespace: DataNamespace, _descriptor: StorageDriver.Descriptor) {
+        const storage = new FileStorageDriver(namespace);
+        await storage.initialize();
+        return storage;
     }
 
     readonly #path: string;
@@ -64,6 +66,9 @@ export class FileStorageDriver extends FilesystemStorageDriver {
     }
 
     override async initialize() {
+        if (this.isInitialized) {
+            throw new StorageError("Storage already initialized!");
+        }
         await super.initialize();
 
         if (this.#clear) {

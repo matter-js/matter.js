@@ -42,14 +42,16 @@ type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
 export class WalStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
     static readonly id = "wal";
 
-    static create(namespace: DataNamespace, descriptor: WalStorageDriver.Descriptor) {
-        return new WalStorageDriver(namespace, {
+    static async create(namespace: DataNamespace, descriptor: WalStorageDriver.Descriptor) {
+        const storage = new WalStorageDriver(namespace, {
             maxSegmentSize: descriptor.maxSegmentSize,
             fsync: descriptor.fsync,
             compressSnapshot: descriptor.compressSnapshot,
             compressLog: descriptor.compressLog,
             headSnapshot: descriptor.headSnapshot,
         });
+        await storage.initialize();
+        return storage;
     }
 
     readonly #storageDir: Directory;

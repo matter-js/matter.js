@@ -45,8 +45,10 @@ export class JsonFileStorageDriver extends FilesystemStorageDriver {
         this.#store = new MemoryStorageDriver();
     }
 
-    static create(namespace: DataNamespace, _descriptor?: StorageDriver.Descriptor) {
-        return new JsonFileStorageDriver(namespace);
+    static async create(namespace: DataNamespace, _descriptor?: StorageDriver.Descriptor) {
+        const storage = new JsonFileStorageDriver(namespace);
+        await storage.initialize();
+        return storage;
     }
 
     override get initialized() {
