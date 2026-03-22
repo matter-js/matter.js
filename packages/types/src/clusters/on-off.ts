@@ -333,11 +333,15 @@ export namespace OnOff {
     export const NotOffOnlyComponent = MutableCluster.Component({
         commands: {
             /**
+             * This command allows devices to be turned on.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.2
              */
             on: Command(0x1, TlvNoArguments, 0x1, TlvNoResponse),
 
             /**
+             * This command allows devices to be toggled.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.3
              */
             toggle: Command(0x2, TlvNoArguments, 0x2, TlvNoResponse)
@@ -427,6 +431,8 @@ export namespace OnOff {
 
         commands: {
             /**
+             * This command allows devices to be turned off.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.1
              */
             off: Command(0x0, TlvNoArguments, 0x0, TlvNoResponse)

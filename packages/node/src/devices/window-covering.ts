@@ -9,6 +9,10 @@
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { WindowCoveringServer as BaseWindowCoveringServer } from "../behaviors/window-covering/WindowCoveringServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { ClosureControlServer as BaseClosureControlServer } from "../behaviors/closure-control/ClosureControlServer.js";
+import {
+    ClosureDimensionServer as BaseClosureDimensionServer
+} from "../behaviors/closure-dimension/ClosureDimensionServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -46,18 +50,36 @@ export namespace WindowCoveringRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
+     * The ClosureControl cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ClosureControlServer} for convenience.
+     */
+    export const ClosureControlServer = BaseClosureControlServer;
+
+    /**
+     * The ClosureDimension cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ClosureDimensionServer} for convenience.
+     */
+    export const ClosureDimensionServer = BaseClosureDimensionServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: { Identify: IdentifyServer, WindowCovering: WindowCoveringServer },
-        optional: { Groups: GroupsServer }
+        optional: {
+            Groups: GroupsServer,
+            ClosureControl: ClosureControlServer,
+            ClosureDimension: ClosureDimensionServer
+        }
     };
 }
 
 export const WindowCoveringDeviceDefinition = MutableEndpoint({
     name: "WindowCovering",
     deviceType: 0x202,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: WindowCoveringRequirements,
     behaviors: SupportedBehaviors(WindowCoveringRequirements.server.mandatory.Identify)
 });

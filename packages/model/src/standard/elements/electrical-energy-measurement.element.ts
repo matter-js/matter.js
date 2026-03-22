@@ -17,14 +17,16 @@ import {
 
 export const ElectricalEnergyMeasurement = Cluster(
     { name: "ElectricalEnergyMeasurement", id: 0x91, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "IMPE", conformance: "O.a+", constraint: "0", title: "ImportedEnergy" }),
         Field({ name: "EXPE", conformance: "O.a+", constraint: "1", title: "ExportedEnergy" }),
         Field({ name: "CUME", conformance: "O.b+", constraint: "2", title: "CumulativeEnergy" }),
-        Field({ name: "PERE", conformance: "O.b+", constraint: "3", title: "PeriodicEnergy" })
+        Field({ name: "PERE", conformance: "O.b+", constraint: "3", title: "PeriodicEnergy" }),
+        Field({ name: "APPE", conformance: "P, O", constraint: "4", title: "ApparentEnergy" }),
+        Field({ name: "REAE", conformance: "P, O", constraint: "5", title: "ReactiveEnergy" })
     ),
 
     Attribute(
@@ -88,7 +90,9 @@ export const ElectricalEnergyMeasurement = Cluster(
         Field({ name: "StartTimestamp", id: 0x1, type: "epoch-s", conformance: "desc" }),
         Field({ name: "EndTimestamp", id: 0x2, type: "epoch-s", conformance: "desc", constraint: "min startTimestamp + 1" }),
         Field({ name: "StartSystime", id: 0x3, type: "systime-ms", conformance: "desc" }),
-        Field({ name: "EndSystime", id: 0x4, type: "systime-ms", conformance: "desc", constraint: "min startSystime + 1" })
+        Field({ name: "EndSystime", id: 0x4, type: "systime-ms", conformance: "desc", constraint: "min startSystime + 1" }),
+        Field({ name: "ApparentEnergy", id: 0x5, type: "energy-mVAh", conformance: "P, APPE", constraint: "0 to 2^62" }),
+        Field({ name: "ReactiveEnergy", id: 0x6, type: "energy-mVARh", conformance: "P, REAE", constraint: "0 to 2^62" })
     ),
 
     Datatype(

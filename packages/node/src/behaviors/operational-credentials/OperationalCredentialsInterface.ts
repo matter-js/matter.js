@@ -51,8 +51,8 @@ export namespace OperationalCredentialsInterface {
          * as being for a subsequent AddNOC. See Section 11.18.6.8, “AddNOC Command” and Section 11.18.6.9, “UpdateNOC
          * Command” for details about the processing.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * If a prior UpdateNOC or AddNOC command was successfully executed within the fail-safe timer period, then this
          * command shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
@@ -96,8 +96,8 @@ export namespace OperationalCredentialsInterface {
          *
          * ### Effect on Receipt
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * If a prior UpdateNOC or AddNOC command was successfully executed within the fail-safe timer period, then this
          * command shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
@@ -183,6 +183,13 @@ export namespace OperationalCredentialsInterface {
          *   Otherwise, users may only observe the removal of a Fabric association as persistently failing attempts to
          *   reach a Node operationally.
          *
+         * > [!NOTE]
+         *
+         * > If the Administrator intends to remove a fabric over a CASE session, the RevokeCommissioning command of the
+         *   AdministratorCommissioning Cluster SHOULD be invoked before removal of the fabric and, if the removal is
+         *   successful, also after the removal of the fabric. This serves as a security measure to prevent a malicious
+         *   fabric administrator from re-adding themselves through an open commissioning window after being removed.
+         *
          * @see {@link MatterSpecification.v142.Core} § 11.18.6.12
          */
         removeFabric(request: OperationalCredentials.RemoveFabricRequest): MaybePromise<OperationalCredentials.NocResponse>;
@@ -197,8 +204,8 @@ export namespace OperationalCredentialsInterface {
          * If the certificate from the RootCACertificate field is already installed, based on exact byte-for-byte
          * equality, then this command shall succeed with no change to the list.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * If a prior AddTrustedRootCertificate command was successfully invoked within the fail-safe timer period,
          * which would cause the new invocation to add a second root certificate within a given fail-safe timer period,

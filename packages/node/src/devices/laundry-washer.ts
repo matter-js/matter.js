@@ -10,10 +10,10 @@ import {
     OperationalStateServer as BaseOperationalStateServer
 } from "../behaviors/operational-state/OperationalStateServer.js";
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     LaundryWasherModeServer as BaseLaundryWasherModeServer
 } from "../behaviors/laundry-washer-mode/LaundryWasherModeServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     LaundryWasherControlsServer as BaseLaundryWasherControlsServer
 } from "../behaviors/laundry-washer-controls/LaundryWasherControlsServer.js";
@@ -51,18 +51,18 @@ export namespace LaundryWasherRequirements {
     export const IdentifyServer = BaseIdentifyServer;
 
     /**
-     * The LaundryWasherMode cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link LaundryWasherModeServer} for convenience.
-     */
-    export const LaundryWasherModeServer = BaseLaundryWasherModeServer;
-
-    /**
      * The OnOff cluster is optional per the Matter specification.
      *
      * This version of {@link OnOffServer} is specialized per the specification.
      */
     export const OnOffServer = BaseOnOffServer.with("DeadFrontBehavior");
+
+    /**
+     * The LaundryWasherMode cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link LaundryWasherModeServer} for convenience.
+     */
+    export const LaundryWasherModeServer = BaseLaundryWasherModeServer;
 
     /**
      * The LaundryWasherControls cluster is optional per the Matter specification.
@@ -86,8 +86,8 @@ export namespace LaundryWasherRequirements {
 
         optional: {
             Identify: IdentifyServer,
-            LaundryWasherMode: LaundryWasherModeServer,
             OnOff: OnOffServer,
+            LaundryWasherMode: LaundryWasherModeServer,
             LaundryWasherControls: LaundryWasherControlsServer,
             TemperatureControl: TemperatureControlServer
         }

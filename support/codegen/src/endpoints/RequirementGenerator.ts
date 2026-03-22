@@ -175,3 +175,58 @@ export class RequirementGenerator {
         target.builder(`${detail.definition.name}: ${name}`);
     }
 }
+
+/**
+ * Generates the `deviceTypes` section of the Requirements namespace for component device type requirements.
+ */
+export class DeviceTypeRequirementGenerator {
+    #mandatoryBlock?: Block;
+    #optionalBlock?: Block;
+    #requirementsBlock?: Block;
+
+    constructor(private file: EndpointFile) {}
+
+    generate() {
+        const deviceTypeReqs = this.file.model.requirements.filter(r => r.element === "deviceType");
+        if (!deviceTypeReqs.length) {
+            return undefined;
+        }
+
+        // Deduplicate multi-instance device type requirements (see TODO in EndpointType.ts)
+        const seen = new Set<string>();
+        for (const req of deviceTypeReqs) {
+            if (req.id === undefined || seen.has(req.name)) {
+                continue;
+            }
+            seen.add(req.name);
+            const block = req.isMandatory ? this.mandatoryBlock : this.optionalBlock;
+            const entry = block.expressions(`${req.name}: {`, "}");
+            entry.atom("deviceType", `0x${req.id.toString(16)}`);
+            const requiredOrOptional = req.isMandatory ? "required" : "optional";
+            entry.document(`The ${req.name} device type is ${requiredOrOptional} per the Matter specification.`);
+        }
+
+        return this.#requirementsBlock;
+    }
+
+    private get mandatoryBlock() {
+        if (this.#mandatoryBlock === undefined) {
+            this.#mandatoryBlock = this.#requirements.expressions("mandatory: {", "}");
+        }
+        return this.#mandatoryBlock;
+    }
+
+    private get optionalBlock() {
+        if (this.#optionalBlock === undefined) {
+            this.#optionalBlock = this.#requirements.expressions("optional: {", "}");
+        }
+        return this.#optionalBlock;
+    }
+
+    get #requirements() {
+        if (!this.#requirementsBlock) {
+            this.#requirementsBlock = this.file.requirements.expressions("export const deviceTypes = {", "}");
+        }
+        return this.#requirementsBlock;
+    }
+}

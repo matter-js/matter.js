@@ -17,22 +17,23 @@ Resource.add({
         "connection using phase cutting." +
         "\n" +
         "This device type is intended for any wall-mounted or hardwired dimmer-capable load controller, while " +
-        "Dimmable Plug-In Unit is intended only for dimmer-capable smart plugs that are not permanently " +
-        "connected, and which can be unplugged from their power source." +
+        "Section 5.2, “Dimmable Plug-In Unit” is intended only for dimmer-capable smart plugs that are not " +
+        "permanently connected, and which can be unplugged from their power source." +
         "\n" +
         "> [!NOTE]" +
         "\n" +
         "> Since this device type was added in Matter 1.4, for endpoints using this device type it is " +
-        "recommended to add the subset device type Dimmable Plug-In Unit to the DeviceTypeList of the " +
-        "Descriptor cluster on the same endpoint for backward compatibility with existing clients. See " +
-        "[ref_MountedDimmablePlugInUnitClientGuidance] for client guidance with these two device types.",
+        "recommended to add the subset device type Section 5.2, “Dimmable Plug-In Unit” to the " +
+        "DeviceTypeList of the Descriptor cluster on the same endpoint for backward compatibility with " +
+        "existing clients. See [ref_MountedDimmablePlugInUnitClientGuidance] for client guidance with these " +
+        "two device types.",
 
     children: [
         { tag: "requirement", name: "Identify", xref: "device§5.4.4" },
         { tag: "requirement", name: "Groups", xref: "device§5.4.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§5.4.4" },
         { tag: "requirement", name: "OnOff", xref: "device§5.4.4" },
         { tag: "requirement", name: "LevelControl", xref: "device§5.4.4" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§5.4.4" },
         { tag: "requirement", name: "OccupancySensing", xref: "device§5.4.4" }
     ]
 });

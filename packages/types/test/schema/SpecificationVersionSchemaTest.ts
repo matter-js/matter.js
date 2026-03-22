@@ -22,8 +22,8 @@ describe("SpecificationVersionSchema", () => {
     it("decode our encoded version", () => {
         expect(SpecificationVersion.decode(Specification.SPECIFICATION_VERSION)).to.deep.equal({
             major: 1,
-            minor: 4,
-            patch: 2,
+            minor: 5,
+            patch: 0,
             reserved: 0,
         });
     });

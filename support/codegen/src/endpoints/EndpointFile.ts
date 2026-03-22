@@ -9,7 +9,7 @@ import { DeviceClassification, DeviceTypeModel } from "#model";
 import { Block, TsFile } from "../util/TsFile.js";
 import { clean } from "../util/file.js";
 import { describeList, serialize } from "../util/string.js";
-import { RequirementGenerator } from "./RequirementGenerator.js";
+import { DeviceTypeRequirementGenerator, RequirementGenerator } from "./RequirementGenerator.js";
 
 const logger = Logger.get("EndpointFile");
 
@@ -91,6 +91,14 @@ export class EndpointFile extends TsFile {
             );
         }
 
+        const deviceTypeGen = new DeviceTypeRequirementGenerator(this);
+        const deviceTypes = deviceTypeGen.generate();
+        if (deviceTypes !== undefined) {
+            deviceTypes.document(
+                "A definition for each device type required as a component endpoint per the Matter specification.",
+            );
+        }
+
         if (this.model.id === undefined) {
             // For base endpoints (of which I believe there is only one, called
             // "base endpoint") only generate the requirements, no actual
@@ -113,7 +121,15 @@ export class EndpointFile extends TsFile {
         this.atom(`Object.freeze(${this.definitionName}Definition)`);
 
         this.addImport("!node/endpoint/properties/SupportedBehaviors.js", "SupportedBehaviors");
-        definition.atom(`requirements: ${this.requirementsName}`);
+        // definitions.length > 0 means cluster export consts were added; requirements.length > 1 means
+        // server/client blocks were added directly. Both indicate non-composite (has its own clusters).
+        if (this.definitions.length === 0 && this.requirements.length <= 1) {
+            // Composite device types only reference child device types, not clusters directly
+            this.requirements.remove();
+            definition.atom("requirements: {}");
+        } else {
+            definition.atom(`requirements: ${this.requirementsName}`);
+        }
         const behaviors = definition.expressions("behaviors: SupportedBehaviors(", ")");
 
         if (requirements.default.length) {

@@ -12,6 +12,9 @@ import {
 import {
     DeviceEnergyManagementModeServer as BaseDeviceEnergyManagementModeServer
 } from "../behaviors/device-energy-management-mode/DeviceEnergyManagementModeServer.js";
+import {
+    ElectricalGridConditionsBehavior as BaseElectricalGridConditionsBehavior
+} from "../behaviors/electrical-grid-conditions/ElectricalGridConditionsBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { DeviceClassification } from "@matter/model";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
@@ -45,18 +48,30 @@ export namespace DeviceEnergyManagementRequirements {
     export const DeviceEnergyManagementModeServer = BaseDeviceEnergyManagementModeServer;
 
     /**
+     * The ElectricalGridConditions cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ElectricalGridConditionsBehavior} for convenience.
+     */
+    export const ElectricalGridConditionsBehavior = BaseElectricalGridConditionsBehavior;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: { DeviceEnergyManagement: DeviceEnergyManagementServer },
         optional: { DeviceEnergyManagementMode: DeviceEnergyManagementModeServer }
     };
+
+    /**
+     * A definition for each client cluster supported by the endpoint per the Matter specification.
+     */
+    export const client = { optional: { ElectricalGridConditions: ElectricalGridConditionsBehavior }, mandatory: {} };
 }
 
 export const DeviceEnergyManagementEndpointDefinition = MutableEndpoint({
     name: "DeviceEnergyManagement",
     deviceType: 0x50d,
-    deviceRevision: 2,
+    deviceRevision: 3,
     deviceClass: DeviceClassification.Utility,
     requirements: DeviceEnergyManagementRequirements,
     behaviors: SupportedBehaviors()

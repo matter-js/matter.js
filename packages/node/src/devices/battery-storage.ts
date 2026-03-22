@@ -34,12 +34,46 @@ export namespace BatteryStorageRequirements {
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { optional: { Identify: IdentifyServer }, mandatory: {} };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        mandatory: {
+            /**
+             * The ElectricalSensor device type is required per the Matter specification.
+             */
+            ElectricalSensor: { deviceType: 0x510 },
+
+            /**
+             * The PowerSource device type is required per the Matter specification.
+             */
+            PowerSource: { deviceType: 0x11 },
+
+            /**
+             * The DeviceEnergyManagement device type is required per the Matter specification.
+             */
+            DeviceEnergyManagement: { deviceType: 0x50d }
+        },
+
+        optional: {
+            /**
+             * The SolarPower device type is optional per the Matter specification.
+             */
+            SolarPower: { deviceType: 0x17 },
+
+            /**
+             * The TemperatureSensor device type is optional per the Matter specification.
+             */
+            TemperatureSensor: { deviceType: 0x302 }
+        }
+    };
 }
 
 export const BatteryStorageDeviceDefinition = MutableEndpoint({
     name: "BatteryStorage",
     deviceType: 0x18,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: BatteryStorageRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -57,12 +57,24 @@ export namespace FanRequirements {
         mandatory: { Identify: IdentifyServer, Groups: GroupsServer, FanControl: FanControlServer },
         optional: { OnOff: OnOffServer }
     };
+
+    /**
+     * A definition for each device type required as a component endpoint per the Matter specification.
+     */
+    export const deviceTypes = {
+        optional: {
+            /**
+             * The Thermostat device type is optional per the Matter specification.
+             */
+            Thermostat: { deviceType: 0x301 }
+        }
+    };
 }
 
 export const FanDeviceDefinition = MutableEndpoint({
     name: "Fan",
     deviceType: 0x2b,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: FanRequirements,
     behaviors: SupportedBehaviors(
         FanRequirements.server.mandatory.Identify,

@@ -64,7 +64,21 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.4
          */
-        PeriodicEnergy = "PeriodicEnergy"
+        PeriodicEnergy = "PeriodicEnergy",
+
+        /**
+         * ApparentEnergy (APPE)
+         *
+         * Measurements report apparent energy
+         */
+        ApparentEnergy = "ApparentEnergy",
+
+        /**
+         * ReactiveEnergy (REAE)
+         *
+         * Measurements report reactive energy
+         */
+        ReactiveEnergy = "ReactiveEnergy"
     }
 
     /**
@@ -157,7 +171,37 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.5
          */
-        endSystime: TlvOptionalField(4, TlvSysTimeMS)
+        endSystime: TlvOptionalField(4, TlvSysTimeMS),
+
+        /**
+         * This field shall indicate the reported apparent energy.
+         *
+         * If the EnergyMeasurementStruct represents cumulative energy, then this shall represent the cumulative
+         * apparent energy recorded at either the value of the EndTimestamp field or the value of the EndSystime field,
+         * or both.
+         *
+         * If the EnergyMeasurementStruct represents periodic energy, then this shall represent the apparent energy
+         * recorded during the period specified by either the StartTimestamp and EndTimestamp fields, the period
+         * specified by the StartSystime and EndSystime fields, or both.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.6
+         */
+        apparentEnergy: TlvOptionalField(5, TlvInt64.bound({ min: 0 })),
+
+        /**
+         * This field shall be the reported reactive energy.
+         *
+         * If the EnergyMeasurementStruct represents cumulative energy, then this shall represent the cumulative
+         * reactive energy recorded at either the value of the EndTimestamp field or the value of the EndSystime field,
+         * or both.
+         *
+         * If the EnergyMeasurementStruct represents periodic energy, then this shall represent the reactive energy
+         * recorded during the period specified by either the StartTimestamp and EndTimestamp fields, the period
+         * specified by the StartSystime and EndSystime fields, or both.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.7
+         */
+        reactiveEnergy: TlvOptionalField(6, TlvInt64.bound({ min: 0 }))
     });
 
     /**
@@ -562,7 +606,7 @@ export namespace ElectricalEnergyMeasurement {
     export const Base = MutableCluster.Component({
         id: 0x91,
         name: "ElectricalEnergyMeasurement",
-        revision: 1,
+        revision: 2,
 
         features: {
             /**
@@ -596,7 +640,17 @@ export namespace ElectricalEnergyMeasurement {
              *
              * @see {@link MatterSpecification.v142.Cluster} § 2.12.4.4
              */
-            periodicEnergy: BitFlag(3)
+            periodicEnergy: BitFlag(3),
+
+            /**
+             * Measurements report apparent energy
+             */
+            apparentEnergy: BitFlag(4),
+
+            /**
+             * Measurements report reactive energy
+             */
+            reactiveEnergy: BitFlag(5)
         },
 
         attributes: {

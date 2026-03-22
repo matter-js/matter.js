@@ -573,6 +573,8 @@ export namespace OtaSoftwareUpdateRequestor {
     });
 
     /**
+     * This cluster implements the Requestor role in the OTA process.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.7
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}

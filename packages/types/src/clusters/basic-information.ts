@@ -133,7 +133,7 @@ export namespace BasicInformation {
         Teal = 3,
 
         /**
-         * Approximately RGB #800080.
+         * Approximately RGB #800000.
          */
         Maroon = 4,
 

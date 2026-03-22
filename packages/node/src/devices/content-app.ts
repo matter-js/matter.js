@@ -13,7 +13,6 @@ import {
 import {
     ApplicationBasicServer as BaseApplicationBasicServer
 } from "../behaviors/application-basic/ApplicationBasicServer.js";
-import { BindingServer as BaseBindingServer } from "../behaviors/binding/BindingServer.js";
 import { ChannelServer as BaseChannelServer } from "../behaviors/channel/ChannelServer.js";
 import { TargetNavigatorServer as BaseTargetNavigatorServer } from "../behaviors/target-navigator/TargetNavigatorServer.js";
 import { MediaPlaybackServer as BaseMediaPlaybackServer } from "../behaviors/media-playback/MediaPlaybackServer.js";
@@ -57,13 +56,6 @@ export namespace ContentAppRequirements {
      * We provide this alias to the default implementation {@link ApplicationBasicServer} for convenience.
      */
     export const ApplicationBasicServer = BaseApplicationBasicServer;
-
-    /**
-     * The Binding cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link BindingServer} for convenience.
-     */
-    export const BindingServer = BaseBindingServer;
 
     /**
      * The Channel cluster is optional per the Matter specification.
@@ -118,7 +110,6 @@ export namespace ContentAppRequirements {
         },
 
         optional: {
-            Binding: BindingServer,
             Channel: ChannelServer,
             TargetNavigator: TargetNavigatorServer,
             MediaPlayback: MediaPlaybackServer,

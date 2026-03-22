@@ -10,7 +10,8 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import {
     ClusterElement as Cluster,
     AttributeElement as Attribute,
-    FieldElement as Field
+    FieldElement as Field,
+    DatatypeElement as Datatype
 } from "../../elements/index.js";
 
 export const PowerTopology = Cluster(
@@ -39,6 +40,14 @@ export const PowerTopology = Cluster(
             constraint: "max 20", quality: "N"
         },
         Field({ name: "entry", type: "endpoint-no" })
+    ),
+
+    Datatype(
+        { name: "CircuitNodeStruct", type: "struct" },
+        Field({ name: "Node", id: 0x1, type: "node-id", access: "F", conformance: "M" }),
+        Field({ name: "Endpoint", id: 0x2, type: "endpoint-no", access: "F", conformance: "O" }),
+        Field({ name: "Label", id: 0x3, type: "string", access: "F", conformance: "O", constraint: "max 128" }),
+        Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     )
 );
 

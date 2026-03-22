@@ -12,6 +12,8 @@ import { BooleanStateConfiguration } from "@matter/types/clusters/boolean-state-
 export namespace BooleanStateConfigurationInterface {
     export interface VisualOrAudible {
         /**
+         * This command allows setting the enable or disable value for the specified alarm modes.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
          */
         enableDisableAlarm(request: BooleanStateConfiguration.EnableDisableAlarmRequest): MaybePromise;
@@ -19,6 +21,8 @@ export namespace BooleanStateConfigurationInterface {
 
     export interface AlarmSuppress {
         /**
+         * This command will suppress the alarm modes specified.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
          */
         suppressAlarm(request: BooleanStateConfiguration.SuppressAlarmRequest): MaybePromise;

@@ -24,7 +24,7 @@ export const Thermostat = Cluster(
         Field({ name: "HEAT", conformance: "AUTO, O.a+", constraint: "0", title: "Heating" }),
         Field({ name: "COOL", conformance: "AUTO, O.a+", constraint: "1", title: "Cooling" }),
         Field({ name: "OCC", conformance: "O", constraint: "2", title: "Occupancy" }),
-        Field({ name: "SCH", conformance: "O", constraint: "3", title: "ScheduleConfiguration" }),
+        Field({ name: "SCH", conformance: "D", constraint: "3", title: "ScheduleConfiguration" }),
         Field({ name: "SB", conformance: "O", constraint: "4", title: "Setback" }),
         Field({ name: "AUTO", conformance: "O", constraint: "5", title: "AutoMode" }),
         Field({ name: "LTNE", conformance: "O", constraint: "6", title: "LocalTemperatureNotExposed" }),
@@ -37,7 +37,7 @@ export const Thermostat = Cluster(
         name: "OutdoorTemperature", id: 0x1, type: "temperature", access: "R V", conformance: "O",
         default: null, quality: "X"
     }),
-    Attribute({ name: "Occupancy", id: 0x2, type: "OccupancyBitmap", access: "R V", conformance: "OCC", default: 1 }),
+    Attribute({ name: "Occupancy", id: 0x2, type: "OccupancyBitmap", access: "R V", conformance: "OCC" }),
     Attribute({
         name: "AbsMinHeatSetpointLimit", id: 0x3, type: "temperature", access: "R V", conformance: "[HEAT]",
         constraint: "desc", default: { type: "celsius", value: 7 }, quality: "F"
@@ -129,14 +129,12 @@ export const Thermostat = Cluster(
         name: "StartOfWeek", id: 0x20, type: "StartOfWeekEnum", access: "R V", conformance: "SCH",
         constraint: "desc", quality: "F"
     }),
-    Attribute({
-        name: "NumberOfWeeklyTransitions", id: 0x21, type: "uint8", access: "R V", conformance: "SCH",
-        default: 0, quality: "F"
-    }),
-    Attribute({
-        name: "NumberOfDailyTransitions", id: 0x22, type: "uint8", access: "R V", conformance: "SCH",
-        default: 0, quality: "F"
-    }),
+    Attribute(
+        { name: "NumberOfWeeklyTransitions", id: 0x21, type: "uint8", access: "R V", conformance: "SCH", quality: "F" }
+    ),
+    Attribute(
+        { name: "NumberOfDailyTransitions", id: 0x22, type: "uint8", access: "R V", conformance: "SCH", quality: "F" }
+    ),
     Attribute({
         name: "TemperatureSetpointHold", id: 0x23, type: "TemperatureSetpointHoldEnum", access: "RW VM",
         conformance: "O", constraint: "desc", default: 0, quality: "N"
@@ -161,32 +159,30 @@ export const Thermostat = Cluster(
         name: "SetpointChangeAmount", id: 0x31, type: "TemperatureDifference", access: "R V",
         conformance: "O", default: null, quality: "X"
     }),
-    Attribute({ name: "SetpointChangeSourceTimestamp", id: 0x32, type: "epoch-s", access: "R V", conformance: "O", default: 0 }),
+    Attribute({ name: "SetpointChangeSourceTimestamp", id: 0x32, type: "epoch-s", access: "R V", conformance: "O" }),
     Attribute({
         name: "OccupiedSetback", id: 0x34, type: "UnsignedTemperature", access: "RW VM", conformance: "SB",
-        constraint: "occupiedSetbackMin to occupiedSetbackMax", default: null, quality: "X N"
+        constraint: "occupiedSetbackMin to occupiedSetbackMax", quality: "X N"
     }),
     Attribute({
         name: "OccupiedSetbackMin", id: 0x35, type: "UnsignedTemperature", access: "R V", conformance: "SB",
-        constraint: "max occupiedSetbackMax", default: null, quality: "X F"
+        constraint: "max occupiedSetbackMax", quality: "X F"
     }),
     Attribute({
         name: "OccupiedSetbackMax", id: 0x36, type: "UnsignedTemperature", access: "R V", conformance: "SB",
-        constraint: "occupiedSetbackMin to 25.4°C", default: null, quality: "X F"
+        constraint: "occupiedSetbackMin to 25.4°C", quality: "X F"
     }),
     Attribute({
         name: "UnoccupiedSetback", id: 0x37, type: "UnsignedTemperature", access: "RW VM",
-        conformance: "SB & OCC", constraint: "unoccupiedSetbackMin to unoccupiedSetbackMax", default: null,
-        quality: "X N"
+        conformance: "SB & OCC", constraint: "unoccupiedSetbackMin to unoccupiedSetbackMax", quality: "X N"
     }),
     Attribute({
         name: "UnoccupiedSetbackMin", id: 0x38, type: "UnsignedTemperature", access: "R V",
-        conformance: "SB & OCC", constraint: "max unoccupiedSetbackMax", default: null, quality: "X F"
+        conformance: "SB & OCC", constraint: "max unoccupiedSetbackMax", quality: "X F"
     }),
     Attribute({
         name: "UnoccupiedSetbackMax", id: 0x39, type: "UnsignedTemperature", access: "R V",
-        conformance: "SB & OCC", constraint: "unoccupiedSetbackMin to 25.4°C", default: null,
-        quality: "X F"
+        conformance: "SB & OCC", constraint: "unoccupiedSetbackMin to 25.4°C", quality: "X F"
     }),
     Attribute({
         name: "EmergencyHeatDelta", id: 0x3a, type: "UnsignedTemperature", access: "RW VM",
@@ -223,8 +219,8 @@ export const Thermostat = Cluster(
 
     Attribute(
         {
-            name: "PresetTypes", id: 0x48, type: "list", access: "R V", conformance: "PRES", constraint: "desc",
-            quality: "F"
+            name: "PresetTypes", id: 0x48, type: "list", access: "R V", conformance: "PRES",
+            constraint: "1 to 7", quality: "F"
         },
         Field({ name: "entry", type: "PresetTypeStruct" })
     ),
@@ -232,45 +228,48 @@ export const Thermostat = Cluster(
     Attribute(
         {
             name: "ScheduleTypes", id: 0x49, type: "list", access: "R V", conformance: "MSCH",
-            constraint: "desc", quality: "F"
+            constraint: "1 to 3", quality: "F"
         },
         Field({ name: "entry", type: "ScheduleTypeStruct" })
     ),
 
-    Attribute({ name: "NumberOfPresets", id: 0x4a, type: "uint8", access: "R V", conformance: "PRES", default: 0, quality: "F" }),
     Attribute({
-        name: "NumberOfSchedules", id: 0x4b, type: "uint8", access: "R V", conformance: "MSCH", default: 0,
-        quality: "F"
+        name: "NumberOfPresets", id: 0x4a, type: "uint8", access: "R V", conformance: "PRES",
+        constraint: "min 1", quality: "F"
+    }),
+    Attribute({
+        name: "NumberOfSchedules", id: 0x4b, type: "uint8", access: "R V", conformance: "MSCH",
+        constraint: "min 1", quality: "F"
     }),
     Attribute({
         name: "NumberOfScheduleTransitions", id: 0x4c, type: "uint8", access: "R V", conformance: "MSCH",
-        default: 0, quality: "F"
+        constraint: "min 1", quality: "F"
     }),
     Attribute({
         name: "NumberOfScheduleTransitionPerDay", id: 0x4d, type: "uint8", access: "R V",
-        conformance: "MSCH", default: null, quality: "X F"
+        conformance: "MSCH", constraint: "min 1", quality: "X F"
     }),
     Attribute({
         name: "ActivePresetHandle", id: 0x4e, type: "octstr", access: "R V", conformance: "PRES",
-        constraint: "max 16", default: null, quality: "X N"
+        constraint: "max 16", quality: "X N"
     }),
     Attribute({
         name: "ActiveScheduleHandle", id: 0x4f, type: "octstr", access: "R V", conformance: "MSCH",
-        constraint: "max 16", default: null, quality: "X N"
+        constraint: "max 16", quality: "X N"
     }),
 
     Attribute(
         {
             name: "Presets", id: 0x50, type: "list", access: "RW VM", conformance: "PRES",
-            constraint: "max numberOfPresets", default: [], quality: "N T"
+            constraint: "max numberOfPresets", quality: "N T"
         },
         Field({ name: "entry", type: "PresetStruct" })
     ),
 
     Attribute(
         {
-            name: "Schedules", id: 0x51, type: "list", access: "RW VM", conformance: "MSCH", constraint: "desc",
-            default: [], quality: "N T"
+            name: "Schedules", id: 0x51, type: "list", access: "RW VM", conformance: "MSCH",
+            constraint: "max numberOfSchedules", quality: "N T"
         },
         Field({ name: "entry", type: "ScheduleStruct" })
     ),
@@ -332,19 +331,6 @@ export const Thermostat = Cluster(
     Command({ name: "ClearWeeklySchedule", id: 0x3, access: "M", conformance: "SCH", direction: "request", response: "status" }),
 
     Command(
-        { name: "GetRelayStatusLogResponse", id: 0x1, conformance: "GetRelayStatusLog", direction: "response" },
-        Field({ name: "TimeOfDay", id: 0x0, type: "uint16", conformance: "M", constraint: "max 1439" }),
-        Field({ name: "RelayStatus", id: 0x1, type: "RelayStateBitmap", conformance: "M", constraint: "desc" }),
-        Field({ name: "LocalTemperature", id: 0x2, type: "temperature", conformance: "M", quality: "X" }),
-        Field({
-            name: "HumidityInPercentage", id: 0x3, type: "uint8", conformance: "M", constraint: "0% to 100%",
-            quality: "X"
-        }),
-        Field({ name: "Setpoint", id: 0x4, type: "temperature", conformance: "M" }),
-        Field({ name: "UnreadEntries", id: 0x5, type: "uint16", conformance: "M" })
-    ),
-
-    Command(
         {
             name: "SetActiveScheduleRequest", id: 0x5, access: "O", conformance: "MSCH", direction: "request",
             response: "status"
@@ -395,10 +381,6 @@ export const Thermostat = Cluster(
 
         Field({ name: "Timeout", id: 0x2, type: "uint16", conformance: "O" })
     ),
-
-    Datatype({ name: "TemperatureDifference", type: "int16" }),
-    Datatype({ name: "SignedTemperature", type: "int8" }),
-    Datatype({ name: "UnsignedTemperature", type: "uint8" }),
 
     Datatype(
         { name: "ACErrorCodeBitmap", type: "map32" },
@@ -651,7 +633,11 @@ export const Thermostat = Cluster(
             name: "ScheduleTypeFeatures", id: 0x2, type: "ScheduleTypeFeaturesBitmap", conformance: "M",
             constraint: "desc", default: 0
         })
-    )
+    ),
+
+    Datatype({ name: "TemperatureDifference", type: "int16" }),
+    Datatype({ name: "SignedTemperature", type: "int8" }),
+    Datatype({ name: "UnsignedTemperature", type: "uint8" })
 );
 
 MatterDefinition.children.push(Thermostat);

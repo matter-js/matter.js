@@ -28,12 +28,10 @@ Resource.add({
             details: "This attribute, if present, shall specify the Connectivity Standards Alliance assigned Vendor ID for " +
                 "the Content App."
         },
-
         {
             tag: "attribute", name: "ApplicationName", xref: "cluster§6.3.5.3",
             details: "This attribute shall specify a human readable (displayable) name of the Content App assigned by the " +
-                "vendor. For example, \"NPR On Demand\". The maximum length of the ApplicationName attribute is 256 " +
-                "bytes of UTF-8 characters."
+                "vendor. For example, \"NPR On Demand\"."
         },
 
         {
@@ -55,7 +53,7 @@ Resource.add({
         {
             tag: "attribute", name: "ApplicationVersion", xref: "cluster§6.3.5.7",
             details: "This attribute shall specify a human readable (displayable) version of the Content App assigned by " +
-                "the vendor. The maximum length of the ApplicationVersion attribute is 32 bytes of UTF-8 characters."
+                "the vendor."
         },
         {
             tag: "attribute", name: "AllowedVendorList", xref: "cluster§6.3.5.8",

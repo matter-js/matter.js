@@ -20,13 +20,13 @@ Resource.add({
         "requirements, but that cannot be used for space heating.",
 
     children: [
-        { tag: "requirement", name: "Identify", xref: "device§14.5.7" },
-        { tag: "requirement", name: "Thermostat", discriminator: "O:clientCluster", xref: "device§14.5.7" },
-        { tag: "requirement", name: "PowerSource", xref: "device§14.5.5" },
-        { tag: "requirement", name: "ElectricalSensor", xref: "device§14.5.5" },
-        { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.5.5" },
-        { tag: "requirement", name: "Thermostat", discriminator: "O:deviceType", xref: "device§14.5.5" },
-        { tag: "requirement", name: "WaterHeater", xref: "device§14.5.5" },
-        { tag: "requirement", name: "TemperatureSensor", xref: "device§14.5.5" }
+        { tag: "requirement", name: "Identify", xref: "device§14.5.5" },
+        { tag: "requirement", name: "Thermostat", discriminator: "O:clientCluster", xref: "device§14.5.5" },
+        { tag: "requirement", name: "PowerSource", xref: "device§14.5.6" },
+        { tag: "requirement", name: "Thermostat", discriminator: "O:deviceType", xref: "device§14.5.6" },
+        { tag: "requirement", name: "TemperatureSensor", xref: "device§14.5.6" },
+        { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§14.5.6" },
+        { tag: "requirement", name: "WaterHeater", xref: "device§14.5.6" },
+        { tag: "requirement", name: "ElectricalSensor", xref: "device§14.5.6" }
     ]
 });

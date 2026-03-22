@@ -50,7 +50,9 @@ Resource.add({
 
         {
             tag: "command", name: "AddScene", xref: "cluster§1.4.9.2",
-            details: "It is not mandatory for an extension field set to be included in the command for every cluster on " +
+            details: "This command is used to add a new scene." +
+                "\n" +
+                "It is not mandatory for an extension field set to be included in the command for every cluster on " +
                 "that endpoint that has a defined extension field set. Extension field sets may be omitted, including " +
                 "the case of no extension field sets at all.",
 
@@ -80,6 +82,7 @@ Resource.add({
 
         {
             tag: "command", name: "AddSceneResponse", xref: "cluster§1.4.9.3",
+            details: "This command is sent in response to the AddScene command.",
 
             children: [
                 {
@@ -99,6 +102,7 @@ Resource.add({
 
         {
             tag: "command", name: "ViewScene", xref: "cluster§1.4.9.4",
+            details: "This command returns the details for the requested scene.",
 
             children: [
                 {
@@ -114,6 +118,7 @@ Resource.add({
 
         {
             tag: "command", name: "ViewSceneResponse", xref: "cluster§1.4.9.5",
+            details: "This command is sent in response to the ViewScene command.",
 
             children: [
                 {
@@ -145,6 +150,7 @@ Resource.add({
 
         {
             tag: "command", name: "RemoveScene", xref: "cluster§1.4.9.6",
+            details: "This command removes the specified scene.",
 
             children: [
                 {
@@ -160,6 +166,7 @@ Resource.add({
 
         {
             tag: "command", name: "RemoveSceneResponse", xref: "cluster§1.4.9.7",
+            details: "This command is sent in response to the RemoveScene command.",
 
             children: [
                 {
@@ -179,6 +186,7 @@ Resource.add({
 
         {
             tag: "command", name: "RemoveAllScenes", xref: "cluster§1.4.9.8",
+            details: "This command removes all scenes for the specified GroupID.",
             children: [{
                 tag: "field", name: "GroupId", xref: "cluster§1.4.9.8.1",
                 details: "This field shall indicate the group identifier in the Group Table."
@@ -187,6 +195,7 @@ Resource.add({
 
         {
             tag: "command", name: "RemoveAllScenesResponse", xref: "cluster§1.4.9.9",
+            details: "This command is sent in response to the RemoveAllScenes command.",
 
             children: [
                 {
@@ -202,6 +211,7 @@ Resource.add({
 
         {
             tag: "command", name: "StoreScene", xref: "cluster§1.4.9.10",
+            details: "This command will create a new entry for the requested scene.",
 
             children: [
                 {
@@ -217,6 +227,7 @@ Resource.add({
 
         {
             tag: "command", name: "StoreSceneResponse", xref: "cluster§1.4.9.11",
+            details: "This command is sent in response to the StoreScene command.",
 
             children: [
                 {
@@ -236,6 +247,7 @@ Resource.add({
 
         {
             tag: "command", name: "RecallScene", xref: "cluster§1.4.9.12",
+            details: "This command will cause the specified scene to be recalled.",
 
             children: [
                 {
@@ -265,6 +277,7 @@ Resource.add({
 
         {
             tag: "command", name: "GetSceneMembershipResponse", xref: "cluster§1.4.9.14",
+            details: "This command is sent in response to the GetSceneMembership command.",
 
             children: [
                 {
@@ -346,6 +359,7 @@ Resource.add({
 
         {
             tag: "command", name: "CopySceneResponse", xref: "cluster§1.4.9.16",
+            details: "This command is sent in response to the CopyScene command.",
 
             children: [
                 {

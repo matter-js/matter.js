@@ -115,7 +115,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
          */
         goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): MaybePromise;
     }
@@ -141,7 +141,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
          */
         goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): MaybePromise;
     }
@@ -167,7 +167,7 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
          */
         goToLiftPercentage(request: WindowCovering.GoToLiftPercentageRequest): MaybePromise;
     }
@@ -193,29 +193,9 @@ export namespace WindowCoveringInterface {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
          */
         goToTiltPercentage(request: WindowCovering.GoToTiltPercentageRequest): MaybePromise;
-    }
-
-    export interface LiftAndAbsolutePosition {
-        /**
-         * This command is used to set the target lift position of the window covering to the value specified in the
-         * command.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
-         */
-        goToLiftValue(request: WindowCovering.GoToLiftValueRequest): MaybePromise;
-    }
-
-    export interface TiltAndAbsolutePosition {
-        /**
-         * This command is used to set the target tilt position of the window covering to the value specified in the
-         * command.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6
-         */
-        goToTiltValue(request: WindowCovering.GoToTiltValueRequest): MaybePromise;
     }
 }
 
@@ -225,8 +205,6 @@ export type WindowCoveringInterface = {
         { flags: { lift: true }, methods: WindowCoveringInterface.Lift },
         { flags: { tilt: true }, methods: WindowCoveringInterface.Tilt },
         { flags: { lift: true, positionAwareLift: true }, methods: WindowCoveringInterface.LiftAndPositionAwareLift },
-        { flags: { tilt: true, positionAwareTilt: true }, methods: WindowCoveringInterface.TiltAndPositionAwareTilt },
-        { flags: { lift: true, absolutePosition: true }, methods: WindowCoveringInterface.LiftAndAbsolutePosition },
-        { flags: { tilt: true, absolutePosition: true }, methods: WindowCoveringInterface.TiltAndAbsolutePosition }
+        { flags: { tilt: true, positionAwareTilt: true }, methods: WindowCoveringInterface.TiltAndPositionAwareTilt }
     ]
 };

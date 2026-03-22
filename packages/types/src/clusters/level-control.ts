@@ -352,6 +352,8 @@ export namespace LevelControl {
 
         commands: {
             /**
+             * This command will cause the device to change the current frequency to the requested value.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
              */
             moveToClosestFrequency: Command(0x8, TlvMoveToClosestFrequencyRequest, 0x8, TlvNoResponse)
@@ -504,21 +506,29 @@ export namespace LevelControl {
 
         commands: {
             /**
+             * This command will move the device to the specified level.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
              */
             moveToLevel: Command(0x0, TlvMoveToLevelRequest, 0x0, TlvNoResponse),
 
             /**
+             * This command will move the device using the specified values.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
              */
             move: Command(0x1, TlvMoveRequest, 0x1, TlvNoResponse),
 
             /**
+             * This command will do a relative step change of the device using the specified values.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
              */
             step: Command(0x2, TlvStepRequest, 0x2, TlvNoResponse),
 
             /**
+             * This command will stop the actions of various other commands that are still in progress.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
              */
             stop: Command(0x3, TlvStopRequest, 0x3, TlvNoResponse),

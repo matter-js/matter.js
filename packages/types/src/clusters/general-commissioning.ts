@@ -7,15 +7,15 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
-import { Attribute, Command, WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
+import { Attribute, Command, WritableAttribute, FixedAttribute, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvUInt16, TlvUInt32, TlvEnum, TlvUInt64 } from "../tlv/TlvNumber.js";
 import { AccessLevel } from "@matter/model";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
+import { TlvByteString, TlvString } from "../tlv/TlvString.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { TlvString } from "../tlv/TlvString.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
@@ -32,7 +32,14 @@ export namespace GeneralCommissioning {
          *
          * Supports Terms & Conditions acknowledgement
          */
-        TermsAndConditions = "TermsAndConditions"
+        TermsAndConditions = "TermsAndConditions",
+
+        /**
+         * NetworkRecovery (NR)
+         *
+         * Supports Network Recovery
+         */
+        NetworkRecovery = "NetworkRecovery"
     }
 
     /**
@@ -51,7 +58,8 @@ export namespace GeneralCommissioning {
 
         /**
          * This field shall contain the user responses to the Enhanced Setup Flow Terms & Conditions as a map where each
-         * bit set in the bitmap corresponds to an accepted term in the file located at EnhancedSetupFlowTCUrl.
+         * bit set in the bitmap corresponds to an accepted term in the file located at Section 11.23.6.22,
+         * “EnhancedSetupFlowTCUrl”.
          *
          * ### Effect on Receipt
          *
@@ -154,18 +162,45 @@ export namespace GeneralCommissioning {
     export interface SetTcAcknowledgementsResponse extends TypeFromSchema<typeof TlvSetTcAcknowledgementsResponse> {}
 
     /**
-     * This structure provides some constant values that may be of use to all commissioners.
+     * This data type is derived from enum8, however, the maximum value of the enumeration shall be less than 15.
+     *
+     * This enumeration is used by the NetworkRecoveryReason attribute and may be embedded in the beacons advertising
+     * the need for Network Recovery.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.5.3
+     */
+    export enum NetworkRecoveryReason {
+        /**
+         * Unspecified / unknown reason of network failure
+         */
+        Unspecified = 0,
+
+        /**
+         * Credentials for the configured operational network are not valid
+         */
+        Auth = 1,
+
+        /**
+         * Configured network cannot be found (e.g. the device cannot see the configured Wi-Fi SSID, Thread end-node is
+         * unable to find a parent router on the PAN)
+         */
+        Visibility = 2
+    }
+
+    /**
+     * This structure provides some constant values that may be of use to all commissioners.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.10.5.4
      */
     export const TlvBasicCommissioningInfo = TlvObject({
         /**
          * This field shall contain a conservative initial duration (in seconds) to set in the FailSafe for the
          * commissioning flow to complete successfully. This may vary depending on the speed or sleepiness of the
-         * Commissionee. This value, if used in the ArmFailSafe command’s ExpiryLengthSeconds field SHOULD allow a
-         * Commissioner to proceed with a nominal commissioning without having to-rearm the fail-safe, with some margin.
+         * Commissionee. This value, if used in the Section 11.10.7.2, “ArmFailSafe” command’s ExpiryLengthSeconds field
+         * SHOULD allow a Commissioner to proceed with a nominal commissioning without having to-rearm the fail-safe,
+         * with some margin.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.5.3.1
+         * @see {@link MatterSpecification.v142.Core} § 11.10.5.4.1
          */
         failSafeExpiryLengthSeconds: TlvField(0, TlvUInt16),
 
@@ -174,10 +209,10 @@ export namespace GeneralCommissioning {
          * safe timer can be re-armed. See Section 11.10.7.2.1, “Fail Safe Context”.
          *
          * The value of this field shall be greater than or equal to the FailSafeExpiryLengthSeconds. Absent additional
-         * guidelines, it is recommended that the value of this field be aligned with the initial Announcement Duration
-         * and default to 900 seconds.
+         * guidelines, it is recommended that the value of this field be aligned with the initial Section 5.4.2.3,
+         * “Announcement Duration” and default to 900 seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.5.3.2
+         * @see {@link MatterSpecification.v142.Core} § 11.10.5.4.2
          */
         maxCumulativeFailsafeSeconds: TlvField(1, TlvUInt16)
     });
@@ -185,7 +220,7 @@ export namespace GeneralCommissioning {
     /**
      * This structure provides some constant values that may be of use to all commissioners.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.5.3
+     * @see {@link MatterSpecification.v142.Core} § 11.10.5.4
      */
     export interface BasicCommissioningInfo extends TypeFromSchema<typeof TlvBasicCommissioningInfo> {}
 
@@ -404,10 +439,10 @@ export namespace GeneralCommissioning {
              *
              * Upon Factory Data Reset, this attribute shall be set to a value of True.
              *
-             * When Custom Commissioning Flow is used to obtain user consent (e.g. because the Commissioner does not
-             * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that
-             * this attribute is set to False before returning the user back to the original Commissioner (see Section
-             * 5.7.4, “Enhanced Setup Flow (ESF)”).
+             * When Section 5.7.3, “Custom Commissioning Flow” is used to obtain user consent (e.g. because the
+             * Commissioner does not support the TC feature), the manufacturer-provided means for obtaining user consent
+             * shall ensure that this attribute is set to False before returning the user back to the original
+             * Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
              *
              * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
              */
@@ -451,6 +486,43 @@ export namespace GeneralCommissioning {
     });
 
     /**
+     * A GeneralCommissioningCluster supports these elements if it supports feature NetworkRecovery.
+     */
+    export const NetworkRecoveryComponent = MutableCluster.Component({
+        attributes: {
+            /**
+             * This attribute shall contain the identifier to be included in the advertisements used during the Network
+             * Recovery Flow. This identifier is intended to be advertised over the air and used by an Administrator to
+             * establish a Node’s identity without revealing its Node ID.
+             *
+             * The attribute shall contain a random 64-bit value, that value shall be reset on factory reset and shall
+             * remain unchanged until a next factory reset. It is important that this value be selected at random from a
+             * 64-bit number space to ensure a high likelihood of uniqueness from values selected by other Nodes. This
+             * value SHOULD be obtained through Crypto_DRBG(len = 64).
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.11
+             */
+            recoveryIdentifier: Attribute(
+                0xa,
+                TlvByteString.bound({ length: 8 }),
+                { persistent: true, readAcl: AccessLevel.Manage, writeAcl: AccessLevel.Manage }
+            ),
+
+            /**
+             * This attribute shall contain the primary reason that triggered the Network Recovery flow and its
+             * associated advertisements. Null when the Node is not undergoing a Network Recovery flow.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.12
+             */
+            networkRecoveryReason: Attribute(
+                0xb,
+                TlvNullable(TlvEnum<NetworkRecoveryReason>()),
+                { default: null, readAcl: AccessLevel.Manage, writeAcl: AccessLevel.Manage }
+            )
+        }
+    });
+
+    /**
      * These elements and properties are present in all GeneralCommissioning clusters.
      */
     export const Base = MutableCluster.Component({
@@ -462,7 +534,12 @@ export namespace GeneralCommissioning {
             /**
              * Supports Terms & Conditions acknowledgement
              */
-            termsAndConditions: BitFlag(0)
+            termsAndConditions: BitFlag(0),
+
+            /**
+             * Supports Network Recovery
+             */
+            networkRecovery: BitFlag(1)
         },
 
         attributes: {
@@ -488,7 +565,7 @@ export namespace GeneralCommissioning {
 
             /**
              * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See
-             * Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
+             * Section 11.10.5.4, “BasicCommissioningInfo” for more information.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
              */
@@ -497,8 +574,8 @@ export namespace GeneralCommissioning {
             /**
              * Indicates the regulatory configuration for the product.
              *
-             * Note that the country code is part of Basic Information Cluster and therefore NOT listed on the
-             * RegulatoryConfig attribute.
+             * Note that the country code is part of Section 11.1, “Basic Information Cluster” and therefore NOT listed
+             * on the RegulatoryConfig attribute.
              *
              * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
              */
@@ -532,7 +609,22 @@ export namespace GeneralCommissioning {
              *
              * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
              */
-            supportsConcurrentConnection: FixedAttribute(0x4, TlvBoolean, { default: true })
+            supportsConcurrentConnection: FixedAttribute(0x4, TlvBoolean, { default: true }),
+
+            /**
+             * The server shall set this attribute to true if and only if is currently operating on the commissioning
+             * channel but cannot operate on the operational channel because it is not powered.
+             *
+             * This may happen during NFC-based commissioning, when the commissioning channel is NFC Transport Layer
+             * (NTL), because it can harvest energy from NFC to operate. However, such a Commissionee must be powered on
+             * to switch to the operational channel.
+             *
+             * This attribute is used by the Commissioner as described in step 18 of Section 5.5, “Commissioning Flows”.
+             * This attribute is linked to the Commissionee behavior after reception of the ConnectNetwork Command.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.13
+             */
+            isCommissioningWithoutPower: OptionalAttribute(0xc, TlvBoolean, { default: false })
         },
 
         commands: {
@@ -611,31 +703,33 @@ export namespace GeneralCommissioning {
              *     the same fail-safe timer period.
              *
              * On creation of the Fail Safe Context a second timer shall be created to expire at
-             * MaxCumulativeFailsafeSeconds as specified in BasicCommissioningInfo. This Cumulative Fail Safe Context
-             * timer (CFSC timer) serves to limit the lifetime of any particular Fail Safe Context; it shall NOT be
-             * extended or modified on subsequent invocations of ArmFailSafe associated with this Fail Safe Context.
-             * Upon expiry of the CFSC timer, the receiver shall execute cleanup behavior equivalent to that of
+             * MaxCumulativeFailsafeSeconds as specified in Section 11.10.5.4, “BasicCommissioningInfo”. This Cumulative
+             * Fail Safe Context timer (CFSC timer) serves to limit the lifetime of any particular Fail Safe Context; it
+             * shall NOT be extended or modified on subsequent invocations of ArmFailSafe associated with this Fail Safe
+             * Context. Upon expiry of the CFSC timer, the receiver shall execute cleanup behavior equivalent to that of
              * fail-safe timer expiration as detailed in Section 11.10.7.2.2, “Behavior on expiry of Fail-Safe timer”.
              * Termination of the session prior to the expiration of that timer for any reason (including a successful
              * end of commissioning or an expiry of a fail-safe timer) shall also delete the CFSC timer.
              *
              * ### Behavior on expiry of Fail-Safe timer
              *
-             * If the fail-safe timer expires before the CommissioningComplete command is successfully invoked, the
-             * following sequence of clean-up steps shall be executed, in order, by the receiver:
+             * If the fail-safe timer expires before the Section 11.10.7.6, “CommissioningComplete” command is
+             * successfully invoked, the following sequence of clean-up steps shall be executed, in order, by the
+             * receiver:
              *
-             *   1. Terminate any open PASE secure session by clearing any associated Secure Session Context at the
-             *      Server.
+             *   1. Terminate any open PASE secure session by clearing any associated Section 4.13.3.1, “Secure Session
+             *      Context” at the Server.
              *
              *   2. Revoke the temporary administrative privileges granted to any open PASE session (see Section
              *      6.6.2.9, “Bootstrapping of the Access Control Cluster”) at the Server.
              *
              *   3. If an AddNOC or UpdateNOC command has been successfully invoked, terminate all CASE sessions
              *      associated with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section
-             *      11.10.7.2, “ArmFailSafe Command”) by clearing any associated Secure Session Context at the Server.
+             *      11.10.7.2, “ArmFailSafe”) by clearing any associated Section 4.13.3.1, “Secure Session Context” at
+             *      the Server.
              *
-             *   4. Reset the configuration of all Network Commissioning Networks attribute to their state prior to the
-             *      Fail-Safe being armed.
+             *   4. Reset the configuration of all Network Commissioning Section 11.9.6.2, “Networks” attribute to their
+             *      state prior to the Fail-Safe being armed.
              *
              *   5. If an UpdateNOC command had been successfully invoked, revert the state of operational key pair, NOC
              *      and ICAC for that Fabric to the state prior to the Fail-Safe timer being armed, for the Fabric Index
@@ -656,7 +750,7 @@ export namespace GeneralCommissioning {
              *   8. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently referenced by
              *      any entry in the Fabrics attribute.
              *
-             *   9. Reset the Breadcrumb attribute to zero.
+             *   9. Reset the Section 11.10.6.1, “Breadcrumb” attribute to zero.
              *
              *   10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the Node
              *       rollback the state of all non fabric-scoped data present in the Fail-Safe context.
@@ -788,7 +882,8 @@ export namespace GeneralCommissioning {
          * combinations.
          */
         extensions: MutableCluster.Extensions(
-            { flags: { termsAndConditions: true }, component: TermsAndConditionsComponent }
+            { flags: { termsAndConditions: true }, component: TermsAndConditionsComponent },
+            { flags: { networkRecovery: true }, component: NetworkRecoveryComponent }
         )
     });
 
@@ -813,6 +908,7 @@ export namespace GeneralCommissioning {
 
     export const Cluster: Cluster = ClusterInstance;
     const TC = { termsAndConditions: true };
+    const NR = { networkRecovery: true };
 
     /**
      * @see {@link Complete}
@@ -844,6 +940,14 @@ export namespace GeneralCommissioning {
             tcUpdateDeadline: MutableCluster.AsConditional(
                 TermsAndConditionsComponent.attributes.tcUpdateDeadline,
                 { mandatoryIf: [TC] }
+            ),
+            recoveryIdentifier: MutableCluster.AsConditional(
+                NetworkRecoveryComponent.attributes.recoveryIdentifier,
+                { mandatoryIf: [NR] }
+            ),
+            networkRecoveryReason: MutableCluster.AsConditional(
+                NetworkRecoveryComponent.attributes.networkRecoveryReason,
+                { mandatoryIf: [NR] }
             )
         },
 

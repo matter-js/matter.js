@@ -173,6 +173,7 @@ Resource.add({
 
         {
             tag: "command", name: "CancelMessagesRequest", xref: "cluster§1.16.7.2",
+            details: "This command will cancel the message IDs specified.",
 
             children: [{
                 tag: "field", name: "MessageIDs", xref: "cluster§1.16.7.2.1",

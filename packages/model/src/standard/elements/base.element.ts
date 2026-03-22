@@ -9,38 +9,27 @@
 import { MatterDefinition } from "../MatterDefinition.js";
 import {
     DeviceTypeElement as DeviceType,
-    FieldElement as Field,
+    ConditionElement as Condition,
     RequirementElement as Requirement
 } from "../../elements/index.js";
 
 export const BaseDt = DeviceType(
     { name: "Base", classification: "base" },
-
-    Field(
-        { name: "conditions", type: "enum8" },
-        Field({ name: "Zha" }),
-        Field({ name: "Zse" }),
-        Field({ name: "Gp" }),
-        Field({ name: "Zigbee" }),
-        Field({ name: "SuZi" }),
-        Field({ name: "Matter" }),
-        Field({ name: "LanguageLocale" }),
-        Field({ name: "TimeLocale" }),
-        Field({ name: "UnitLocale" }),
-        Field({ name: "Sit" }),
-        Field({ name: "Lit" }),
-        Field({ name: "Active" }),
-        Field({ name: "Node" }),
-        Field({ name: "App" }),
-        Field({ name: "Simple" }),
-        Field({ name: "Dynamic" }),
-        Field({ name: "Composed" }),
-        Field({ name: "Client" }),
-        Field({ name: "Server" }),
-        Field({ name: "Duplicate" }),
-        Field({ name: "BridgedPowerSourceInfo" })
-    ),
-
+    Condition({ name: "LanguageLocale" }),
+    Condition({ name: "TimeLocale" }),
+    Condition({ name: "UnitLocale" }),
+    Condition({ name: "Sit" }),
+    Condition({ name: "Lit" }),
+    Condition({ name: "Active" }),
+    Condition({ name: "Node" }),
+    Condition({ name: "App" }),
+    Condition({ name: "Simple" }),
+    Condition({ name: "Dynamic" }),
+    Condition({ name: "Composed" }),
+    Condition({ name: "Client" }),
+    Condition({ name: "Server" }),
+    Condition({ name: "Duplicate" }),
+    Condition({ name: "BridgedPowerSourceInfo" }),
     Requirement(
         { name: "Descriptor", id: 0x1d, conformance: "M", element: "serverCluster" },
         Requirement({ name: "TAGLIST", conformance: "Duplicate", element: "feature" })

@@ -172,6 +172,7 @@ Resource.add(
 
             {
                 tag: "command", name: "SuppressAlarm", xref: "cluster§1.8.7.1",
+                details: "This command will suppress the alarm modes specified.",
                 children: [{
                     tag: "field", name: "AlarmsToSuppress", xref: "cluster§1.8.7.1.1",
                     details: "This field shall indicate the alarm modes to suppress."
@@ -180,6 +181,7 @@ Resource.add(
 
             {
                 tag: "command", name: "EnableDisableAlarm", xref: "cluster§1.8.7.2",
+                details: "This command allows setting the enable or disable value for the specified alarm modes.",
                 children: [{
                     tag: "field", name: "AlarmsToEnableDisable", xref: "cluster§1.8.7.2.1",
                     details: "This field shall indicate the alarm modes to either enable or disable depending on the bit status, " +

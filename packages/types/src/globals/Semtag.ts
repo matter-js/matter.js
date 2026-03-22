@@ -50,7 +50,7 @@ export const TlvSemtag = TlvObject({
      * The Tag field shall be the ID of a semantic tag located within the namespace indicated by NamespaceID.
      *
      * A device may expose tags from the common or device-specific namespaces and from manufacturer-specific namespaces
-     * in a single TagList.
+     * in a single Section 9.5.6.5, “TagList”.
      *
      * @see {@link MatterSpecification.v142.Core} § 7.19.2.46.3
      */

@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, Logger } from "#general";
-import { DeviceClassification, DeviceTypeElement, FieldElement, RequirementElement } from "#model";
+import { ConditionElement, DeviceClassification, DeviceTypeElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
 import {
@@ -17,7 +17,7 @@ import {
     Str,
     StrWithSuperscripts,
 } from "./html-translators.js";
-import { DeviceReference } from "./spec-types.js";
+import { DeviceReference, HtmlReference } from "./spec-types.js";
 import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 
 const logger = Logger.get("translate-devices");
@@ -42,6 +42,7 @@ export function* translateDevice(deviceRef: DeviceReference) {
 
     addDocumentation(device, deviceRef);
     addConditions(device, deviceRef);
+    addConditionRequirements(device, deviceRef);
     addClusters(device, deviceRef);
     addComposing(device, deviceRef);
 
@@ -58,9 +59,9 @@ function createDevice(deviceRef: DeviceReference) {
     }
 
     const metadata = translateTable("deviceType", deviceRef.classification, {
-        id: Integer,
-        name: Alias(Identifier, "devicename"),
-        superset: Optional(Identifier),
+        id: Alias(Integer, "devicetypeid"),
+        name: Alias(Identifier, "devicename", "devicetypename"),
+        superset: Optional(Alias(Identifier, "supersetof")),
         class: LowerIdentifier,
         scope: LowerIdentifier,
     })[0];
@@ -133,10 +134,9 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
         return;
     }
 
-    const conditions = Array<FieldElement>();
+    const records = Array<{ name: string; description?: string; xref?: any }>();
     deviceRef.conditionSets.forEach(conditionRef => {
         const definitions = translateTable("condition", conditionRef, {
-            tag: Constant("field" as const),
             name: Alias(
                 Identifier,
 
@@ -154,29 +154,67 @@ function addConditions(device: DeviceTypeElement, deviceRef: DeviceReference) {
         });
 
         if (definitions) {
-            conditions.push(...definitions);
+            records.push(...definitions);
         }
     });
 
-    const translated = translateRecordsToMatter("conditions", conditions, FieldElement);
-
-    if (translated?.length) {
+    if (records.length) {
         if (!device.children) {
             device.children = [];
         }
-        device.children.push(
-            FieldElement({
-                name: "conditions",
-                type: "enum8",
-                children: conditions,
-            }),
-        );
+        for (const r of records) {
+            device.children.push(
+                ConditionElement({
+                    name: r.name,
+                    description: r.description,
+                    xref: r.xref,
+                }),
+            );
+        }
+    }
+}
+
+function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceReference) {
+    if (!deviceRef.conditionRequirements) {
+        return;
+    }
+
+    // Use "condition" as the tag so installPreciseDetails matches detail sections titled
+    // "FooCondition Condition" via the standard "${name} ${tag}" pattern
+    const records = translateTable("condition", deviceRef.conditionRequirements, {
+        location: Optional(Str),
+        id: Optional(Alias(Integer, "devicetypeid")),
+        deviceTypeName: Optional(Alias(Identifier, "devicetypename")),
+        name: Alias(Identifier, "condition"),
+        conformance: Optional(ConformanceCode),
+    });
+
+    if (!records.length) {
+        return;
+    }
+
+    if (!device.children) {
+        device.children = [];
+    }
+
+    for (const r of records) {
+        const qualifiedType = r.deviceTypeName ? `${camelize(r.deviceTypeName, true)}.${r.name}` : undefined;
+        const element = RequirementElement({
+            name: r.name,
+            type: qualifiedType,
+            element: RequirementElement.ElementType.Condition,
+            conformance: r.conformance,
+            xref: r.xref,
+            details: r.details,
+        });
+
+        device.children.push(element);
     }
 }
 
 function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const clusterRecords = translateTable("clusters", deviceRef.clusters, {
-        id: Optional(Alias(Integer, "identifier")),
+        id: Optional(Alias(Integer, "identifier", "clusterid")),
         name: Alias(ClusterName, "clustername", "cluster"),
         element: Alias((el: HTMLElement) => {
             const cs = LowerIdentifier(el);
@@ -218,7 +256,7 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
 
     const elementRecords = translateTable("elements", deviceRef.elements, {
         id: Optional(Integer),
-        cluster: ClusterName,
+        cluster: Alias(ClusterName, "clustername"),
         element: Identifier,
         name: Identifier,
         constraint: Optional(ConstraintStr),
@@ -256,28 +294,151 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
 
 function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const composingTypeRecords = translateTable("composingTypes", deviceRef.composingTypes, {
-        id: Integer,
-        name: Identifier,
+        id: Alias(Integer, "deviceid", "devicetypeid"),
+        name: Alias(Identifier, "devicename", "devicetypename", "devicetype"),
         element: Constant("deviceType"),
         quality: Optional(Str),
         conformance: Optional(ConformanceCode),
     });
 
-    const composingTypes = translateRecordsToMatter("clusters", composingTypeRecords, RequirementElement);
-    if (!composingTypes?.length) {
+    const composingTypesMaybe = translateRecordsToMatter("clusters", composingTypeRecords, RequirementElement);
+    if (!composingTypesMaybe?.length) {
         return;
     }
+    const composingTypes: RequirementElement[] = composingTypesMaybe;
 
     if (!device.children) {
         device.children = [];
     }
-    device.children.push(...composingTypes);
 
-    const composingElementRecords = translateTable("composingElements", deviceRef.composingElements, {
-        deviceid: Integer,
-        device: Identifier,
+    /**
+     * Extract the ordinal instance number from a group header like "Power Source (1st)" → 1.
+     * Returns undefined if no ordinal is present (single-instance group).
+     */
+    function extractInstance(noteText: string): number | undefined {
+        const match = noteText.match(/\((\d+)(?:st|nd|rd|th)\)/i);
+        return match ? parseInt(match[1]) : undefined;
+    }
+
+    /**
+     * Given a row index and the notes array (with position info), find the instance number for that row
+     * from the nearest preceding group header note.  Returns undefined when no ordinal is present.
+     */
+    type NotesArray = NonNullable<NonNullable<HtmlReference["tables"]>[number]["notes"]>;
+    function rowInstance(rowIndex: number, notes: NotesArray): number | undefined {
+        let latest: NotesArray[number] | undefined;
+        for (const n of notes) {
+            if (n.beforeRowIndex <= rowIndex && (!latest || n.beforeRowIndex >= latest.beforeRowIndex)) {
+                latest = n;
+            }
+        }
+        return latest ? extractInstance(latest.note.textContent ?? "") : undefined;
+    }
+
+    // Map from "deviceTypeId:instance" (or just "deviceTypeId") to RequirementElement
+    const instanceMap = new Map<string, RequirementElement>();
+    // Track device type IDs that have instance-specific entries (so the un-instanced base is suppressed)
+    const instancedDeviceIds = new Set<number>();
+
+    function instanceKey(deviceid: number, instance: number | undefined): string {
+        return instance === undefined ? `${deviceid}` : `${deviceid}:${instance}`;
+    }
+
+    /**
+     * Find or create a RequirementElement for a specific (deviceTypeId, instance) pair.
+     * Instance-specific entries are created as copies of the base composingType and added to device.children.
+     */
+    function getOrCreateComposingType(deviceid: number, instance: number | undefined): RequirementElement | undefined {
+        const key = instanceKey(deviceid, instance);
+        if (instanceMap.has(key)) {
+            return instanceMap.get(key)!;
+        }
+
+        const base = composingTypes.find(ct => ct.id === deviceid);
+        if (!base) {
+            logger.error(`No composing device type ${deviceid}`);
+            return undefined;
+        }
+
+        if (instance === undefined) {
+            instanceMap.set(key, base);
+            return base;
+        }
+
+        // Create an instance-specific RequirementElement copied from the base
+        const instanceType = RequirementElement({
+            id: base.id,
+            name: base.name,
+            element: RequirementElement.ElementType.DeviceType,
+            conformance: base.conformance,
+            instance,
+        });
+        instanceMap.set(key, instanceType);
+        instancedDeviceIds.add(deviceid);
+        device.children!.push(instanceType);
+        return instanceType;
+    }
+
+    // Find or create a cluster child on a composing device type requirement
+    function getOrCreateCluster(
+        composingType: RequirementElement,
+        clusterid: number,
+        clustername: string,
+        elementType: string,
+    ) {
+        let cluster = composingType.children?.find(c => (c as RequirementElement).id === clusterid) as
+            | RequirementElement
+            | undefined;
+        if (!cluster) {
+            cluster = RequirementElement({
+                id: clusterid,
+                name: clustername,
+                element: elementType as RequirementElement.ElementType,
+            });
+            if (composingType.children) {
+                composingType.children.push(cluster);
+            } else {
+                composingType.children = [cluster];
+            }
+        }
+        return cluster;
+    }
+
+    // Process cluster requirements on component device types (spec section X.Y.Z.1)
+    const composingClusters = deviceRef.composingClusters;
+    const composingClusterRecords = translateTable("composingClusters", composingClusters, {
+        deviceid: Alias(Integer, "devicetypeid"),
+        device: Alias(Identifier, "devicetypename"),
         clusterid: Integer,
-        cluster: Identifier,
+        cluster: Alias(ClusterName, "clustername"),
+        element: Alias((el: HTMLElement) => {
+            const cs = LowerIdentifier(el);
+            return cs === "client"
+                ? RequirementElement.ElementType.ClientCluster
+                : RequirementElement.ElementType.ServerCluster;
+        }, "clientserver"),
+        conformance: Optional(ConformanceCode),
+    });
+
+    const clusterNotes = composingClusters?.tables?.[0]?.notes ?? [];
+    for (let i = 0; i < composingClusterRecords.length; i++) {
+        const record = composingClusterRecords[i];
+        const instance = rowInstance(i, clusterNotes);
+        const composingType = getOrCreateComposingType(record.deviceid, instance);
+        if (!composingType) continue;
+        const cluster = getOrCreateCluster(composingType, record.clusterid, record.cluster, record.element);
+        if (record.conformance !== undefined) {
+            cluster.conformance = record.conformance;
+        }
+    }
+
+    // Process element requirements on component device types (spec section X.Y.Z.2)
+    const composingElements = deviceRef.composingElements;
+    const composingElementRecords = translateTable("composingElements", composingElements, {
+        deviceid: Alias(Integer, "devicetypeid"),
+        device: Alias(Identifier, "devicetypename"),
+        clusterid: Integer,
+        cluster: Alias(ClusterName, "clustername"),
         element: LowerIdentifier,
         name: Identifier,
         constraint: Optional(ConstraintStr),
@@ -285,12 +446,11 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
         conformance: Optional(Str),
     });
 
-    if (!composingElementRecords?.length) {
-        return;
-    }
-
-    for (const record of composingElementRecords) {
-        const composingType = composingTypes.find(ct => ct.id === record.deviceid);
+    const elementNotes = composingElements?.tables?.[0]?.notes ?? [];
+    for (let i = 0; i < composingElementRecords.length; i++) {
+        const record = composingElementRecords[i];
+        const instance = rowInstance(i, elementNotes);
+        const composingType = getOrCreateComposingType(record.deviceid, instance);
         if (!composingType) {
             logger.error(
                 `No device ${record.deviceid} for ${record.cluster} ${record.element} requirement ${record.name}`,
@@ -298,29 +458,29 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
             continue;
         }
 
-        let cluster = composingType.children?.find(child => child.id === record.clusterid) as
-            | RequirementElement
-            | undefined;
-        if (!cluster) {
-            cluster = RequirementElement({ id: record.clusterid, name: record.cluster, element: "serverCluster" });
-            if (composingType.children) {
-                composingType.children.push(cluster);
-            } else {
-                composingType.children = [cluster];
-            }
-        }
+        const cluster = getOrCreateCluster(composingType, record.clusterid, record.cluster, "serverCluster");
 
         if (!cluster.children) {
             cluster.children = [];
         }
+        const elementType = camelize(record.element) as RequirementElement.ElementType;
+        const name = elementType === RequirementElement.ElementType.Feature ? record.name.toUpperCase() : record.name;
+
         cluster.children.push(
             RequirementElement({
-                element: camelize(record.element) as RequirementElement.ElementType,
-                name: record.name,
+                element: elementType,
+                name,
                 constraint: record.constraint,
                 access: record.access,
                 conformance: record.conformance,
             }),
         );
+    }
+
+    // Add un-instanced composingTypes that weren't replaced by instance-specific entries
+    for (const ct of composingTypes) {
+        if (!instancedDeviceIds.has(ct.id!) && !device.children!.includes(ct)) {
+            device.children!.push(ct);
+        }
     }
 }

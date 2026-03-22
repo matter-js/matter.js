@@ -8,11 +8,11 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
+import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
-import { LevelControlServer as BaseLevelControlServer } from "../behaviors/level-control/LevelControlServer.js";
 import { ColorControlServer as BaseColorControlServer } from "../behaviors/color-control/ColorControlServer.js";
 import {
     OccupancySensingBehavior as BaseOccupancySensingBehavior
@@ -46,14 +46,6 @@ export namespace ColorTemperatureLightRequirements {
     export const GroupsServer = BaseGroupsServer;
 
     /**
-     * The ScenesManagement cluster is required by the Matter specification.
-     *
-     * This version of {@link ScenesManagementServer} is specialized per the specification.
-     */
-    export const ScenesManagementServer = BaseScenesManagementServer
-        .alter({ commands: { copyScene: { optional: false } } });
-
-    /**
      * The OnOff cluster is required by the Matter specification.
      *
      * This version of {@link OnOffServer} is specialized per the specification.
@@ -74,6 +66,14 @@ export namespace ColorTemperatureLightRequirements {
                 maxLevel: { default: 254, min: 254, max: 255 }
             }
         });
+
+    /**
+     * The ScenesManagement cluster is required by the Matter specification.
+     *
+     * This version of {@link ScenesManagementServer} is specialized per the specification.
+     */
+    export const ScenesManagementServer = BaseScenesManagementServer
+        .alter({ commands: { copyScene: { optional: false } } });
 
     /**
      * The ColorControl cluster is required by the Matter specification.
@@ -98,9 +98,9 @@ export namespace ColorTemperatureLightRequirements {
         mandatory: {
             Identify: IdentifyServer,
             Groups: GroupsServer,
-            ScenesManagement: ScenesManagementServer,
             OnOff: OnOffServer,
             LevelControl: LevelControlServer,
+            ScenesManagement: ScenesManagementServer,
             ColorControl: ColorControlServer
         }
     };
@@ -120,9 +120,9 @@ export const ColorTemperatureLightDeviceDefinition = MutableEndpoint({
     behaviors: SupportedBehaviors(
         ColorTemperatureLightRequirements.server.mandatory.Identify,
         ColorTemperatureLightRequirements.server.mandatory.Groups,
-        ColorTemperatureLightRequirements.server.mandatory.ScenesManagement,
         ColorTemperatureLightRequirements.server.mandatory.OnOff,
         ColorTemperatureLightRequirements.server.mandatory.LevelControl,
+        ColorTemperatureLightRequirements.server.mandatory.ScenesManagement,
         ColorTemperatureLightRequirements.server.mandatory.ColorControl
     )
 });

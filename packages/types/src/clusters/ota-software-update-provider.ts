@@ -25,6 +25,10 @@ export namespace OtaSoftwareUpdateProvider {
      * Note that only HTTP over TLS (HTTPS) is supported (see RFC 7230). Using HTTP without TLS shall NOT be supported,
      * as there is no way to authenticate the involved participants.
      *
+     * > [!NOTE]
+     *
+     * > Support for the asynchronous BDX mode is provisional.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.3
      */
     export enum DownloadProtocol {
@@ -84,9 +88,9 @@ export namespace OtaSoftwareUpdateProvider {
          * This field shall contain a list of all download protocols supported by the OTA Requestor.
          *
          * This field shall be used by the OTA Provider to generate the correct URI for the location of the Software
-         * Image when one is found to be available. The values of BDX Synchronous and BDX Asynchronous shall always be
-         * supported by an OTA Provider. Furthermore, OTA Providers with access to external networking SHOULD support
-         * the HTTPS protocol. OTA Providers may support other protocols.
+         * Image when one is found to be available. BDX Synchronous transfer mode shall always be supported by an OTA
+         * Provider. Furthermore, OTA Providers with access to external networking SHOULD support the HTTPS protocol.
+         * OTA Providers may support other protocols.
          *
          * The algorithm to select the specific protocol to use in a given Software Image URI is
          * implementation-dependent, provided that the rules in Section 11.20.3.3.1, “Download Protocol selection” are
@@ -256,6 +260,8 @@ export namespace OtaSoftwareUpdateProvider {
     }
 
     /**
+     * This command is sent in response to the QueryImage command.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2
      */
     export const TlvQueryImageResponse = TlvObject({
@@ -270,14 +276,12 @@ export namespace OtaSoftwareUpdateProvider {
         status: TlvField(0, TlvEnum<Status>()),
 
         /**
-         * This field shall convey the minimum time to wait, in seconds from the time of this response, before sending
-         * another QueryImage command or beginning a download from the OTA Provider. OTA Requestors shall respect this
-         * minimum delay, unless they had previously restarted and lost track of it. OTA Providers SHOULD expect OTA
-         * Requestors to follow this value to their best capability, however, a restarting Node may come back sooner,
-         * due to having lost track of this state response.
-         *
-         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
-         * “QueryImageResponse Command”.
+         * This field shall be provided when the Status field is set to Busy, and may be provided in other cases. This
+         * field, if provided, shall convey the minimum time to wait, in seconds from the time of this response, before
+         * sending another QueryImage command or beginning a download from the OTA Provider. OTA Requestors shall
+         * respect this minimum delay, unless they had previously restarted and lost track of it. OTA Providers SHOULD
+         * expect OTA Requestors to follow this value to their best capability, however, a restarting Node may come back
+         * sooner, due to having lost track of this state response.
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for details about the rules regarding this field.
          *
@@ -455,6 +459,8 @@ export namespace OtaSoftwareUpdateProvider {
     });
 
     /**
+     * This command is sent in response to the QueryImage command.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2
      */
     export interface QueryImageResponse extends TypeFromSchema<typeof TlvQueryImageResponse> {}
@@ -536,6 +542,8 @@ export namespace OtaSoftwareUpdateProvider {
     }
 
     /**
+     * This command is sent in response to the ApplyUpdateRequest command.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4
      */
     export const TlvApplyUpdateResponse = TlvObject({
@@ -560,6 +568,8 @@ export namespace OtaSoftwareUpdateProvider {
     });
 
     /**
+     * This command is sent in response to the ApplyUpdateRequest command.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4
      */
     export interface ApplyUpdateResponse extends TypeFromSchema<typeof TlvApplyUpdateResponse> {}
@@ -637,11 +647,15 @@ export namespace OtaSoftwareUpdateProvider {
             queryImage: Command(0x0, TlvQueryImageRequest, 0x1, TlvQueryImageResponse),
 
             /**
+             * This command requests the specified version be installed on the device.
+             *
              * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
              */
             applyUpdateRequest: Command(0x2, TlvApplyUpdateRequest, 0x3, TlvApplyUpdateResponse),
 
             /**
+             * This command tells the Provider that the specified update has been applied.
+             *
              * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
              */
             notifyUpdateApplied: Command(0x4, TlvNotifyUpdateAppliedRequest, 0x4, TlvNoResponse)
@@ -649,6 +663,8 @@ export namespace OtaSoftwareUpdateProvider {
     });
 
     /**
+     * This cluster implements the Provider role in the OTA process.
+     *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6
      */
     export interface Cluster extends Identity<typeof ClusterInstance> {}

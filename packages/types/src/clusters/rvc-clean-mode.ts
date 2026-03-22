@@ -31,7 +31,19 @@ export namespace RvcCleanMode {
          *
          * Dependency with the OnOff cluster
          */
-        OnOff = "OnOff"
+        OnOff = "OnOff",
+
+        /**
+         * DirectModeChange (DIRECTMODECH)
+         *
+         * This feature indicates whether the cluster implementation supports changing the clean modes while the RVC Run
+         * Mode cluster’s CurrentMode attribute is set to a mode without the Idle mode tag. If the implementation does
+         * not support such a change, the ChangeToModeResponse command shall have the StatusCode field set to the
+         * InvalidInMode value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 7.3.4.1
+         */
+        DirectModeChange = "DirectModeChange"
     }
 
     export enum ModeTag {
@@ -253,13 +265,23 @@ export namespace RvcCleanMode {
     export const Base = MutableCluster.Component({
         id: 0x55,
         name: "RvcCleanMode",
-        revision: 4,
+        revision: 5,
 
         features: {
             /**
              * Dependency with the OnOff cluster
              */
-            onOff: BitFlag(0)
+            onOff: BitFlag(0),
+
+            /**
+             * This feature indicates whether the cluster implementation supports changing the clean modes while the RVC
+             * Run Mode cluster’s CurrentMode attribute is set to a mode without the Idle mode tag. If the
+             * implementation does not support such a change, the ChangeToModeResponse command shall have the StatusCode
+             * field set to the InvalidInMode value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 7.3.4.1
+             */
+            directModeChange: BitFlag(20)
         },
 
         attributes: {

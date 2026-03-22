@@ -83,30 +83,31 @@ export namespace GeneralCommissioningInterface {
          *     fail-safe timer period.
          *
          * On creation of the Fail Safe Context a second timer shall be created to expire at
-         * MaxCumulativeFailsafeSeconds as specified in BasicCommissioningInfo. This Cumulative Fail Safe Context timer
-         * (CFSC timer) serves to limit the lifetime of any particular Fail Safe Context; it shall NOT be extended or
-         * modified on subsequent invocations of ArmFailSafe associated with this Fail Safe Context. Upon expiry of the
-         * CFSC timer, the receiver shall execute cleanup behavior equivalent to that of fail-safe timer expiration as
-         * detailed in Section 11.10.7.2.2, “Behavior on expiry of Fail-Safe timer”. Termination of the session prior to
-         * the expiration of that timer for any reason (including a successful end of commissioning or an expiry of a
-         * fail-safe timer) shall also delete the CFSC timer.
+         * MaxCumulativeFailsafeSeconds as specified in Section 11.10.5.4, “BasicCommissioningInfo”. This Cumulative
+         * Fail Safe Context timer (CFSC timer) serves to limit the lifetime of any particular Fail Safe Context; it
+         * shall NOT be extended or modified on subsequent invocations of ArmFailSafe associated with this Fail Safe
+         * Context. Upon expiry of the CFSC timer, the receiver shall execute cleanup behavior equivalent to that of
+         * fail-safe timer expiration as detailed in Section 11.10.7.2.2, “Behavior on expiry of Fail-Safe timer”.
+         * Termination of the session prior to the expiration of that timer for any reason (including a successful end
+         * of commissioning or an expiry of a fail-safe timer) shall also delete the CFSC timer.
          *
          * ### Behavior on expiry of Fail-Safe timer
          *
-         * If the fail-safe timer expires before the CommissioningComplete command is successfully invoked, the
-         * following sequence of clean-up steps shall be executed, in order, by the receiver:
+         * If the fail-safe timer expires before the Section 11.10.7.6, “CommissioningComplete” command is successfully
+         * invoked, the following sequence of clean-up steps shall be executed, in order, by the receiver:
          *
-         *   1. Terminate any open PASE secure session by clearing any associated Secure Session Context at the Server.
+         *   1. Terminate any open PASE secure session by clearing any associated Section 4.13.3.1, “Secure Session
+         *      Context” at the Server.
          *
          *   2. Revoke the temporary administrative privileges granted to any open PASE session (see Section 6.6.2.9,
          *      “Bootstrapping of the Access Control Cluster”) at the Server.
          *
          *   3. If an AddNOC or UpdateNOC command has been successfully invoked, terminate all CASE sessions associated
          *      with the Fabric whose Fabric Index is recorded in the Fail-Safe context (see Section 11.10.7.2,
-         *      “ArmFailSafe Command”) by clearing any associated Secure Session Context at the Server.
+         *      “ArmFailSafe”) by clearing any associated Section 4.13.3.1, “Secure Session Context” at the Server.
          *
-         *   4. Reset the configuration of all Network Commissioning Networks attribute to their state prior to the
-         *      Fail-Safe being armed.
+         *   4. Reset the configuration of all Network Commissioning Section 11.9.6.2, “Networks” attribute to their
+         *      state prior to the Fail-Safe being armed.
          *
          *   5. If an UpdateNOC command had been successfully invoked, revert the state of operational key pair, NOC and
          *      ICAC for that Fabric to the state prior to the Fail-Safe timer being armed, for the Fabric Index that
@@ -126,7 +127,7 @@ export namespace GeneralCommissioningInterface {
          *   8. Remove any RCACs added by the AddTrustedRootCertificate command that are not currently referenced by any
          *      entry in the Fabrics attribute.
          *
-         *   9. Reset the Breadcrumb attribute to zero.
+         *   9. Reset the Section 11.10.6.1, “Breadcrumb” attribute to zero.
          *
          *   10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the Node
          *       rollback the state of all non fabric-scoped data present in the Fail-Safe context.

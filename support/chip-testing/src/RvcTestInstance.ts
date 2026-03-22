@@ -5,7 +5,7 @@
  */
 
 import { InternalError, Logger, Seconds } from "@matter/general";
-import { AreaNamespaceTag, capitalize, deepCopy, Endpoint, ServerNode } from "@matter/main";
+import { capitalize, CommonAreaNamespaceTag, deepCopy, Endpoint, ServerNode } from "@matter/main";
 import { AdministratorCommissioningServer } from "@matter/main/behaviors/administrator-commissioning";
 import { NetworkCommissioningServer } from "@matter/main/behaviors/network-commissioning";
 import { ServiceAreaServer } from "@matter/main/behaviors/service-area";
@@ -310,7 +310,7 @@ export class RvcTestInstance extends NodeTestInstance {
                             locationInfo: {
                                 locationName: "Kitchen",
                                 floorNumber: 0,
-                                areaType: AreaNamespaceTag.Kitchen.tag,
+                                areaType: CommonAreaNamespaceTag.Kitchen.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -322,7 +322,7 @@ export class RvcTestInstance extends NodeTestInstance {
                             locationInfo: {
                                 locationName: "Living Room",
                                 floorNumber: 0,
-                                areaType: AreaNamespaceTag.LivingRoom.tag,
+                                areaType: CommonAreaNamespaceTag.LivingRoom.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -334,7 +334,7 @@ export class RvcTestInstance extends NodeTestInstance {
                             locationInfo: {
                                 locationName: "Bathroom",
                                 floorNumber: 0,
-                                areaType: AreaNamespaceTag.Bathroom.tag,
+                                areaType: CommonAreaNamespaceTag.Bathroom.tag,
                             },
                             landmarkInfo: null,
                         },
@@ -346,7 +346,7 @@ export class RvcTestInstance extends NodeTestInstance {
                             locationInfo: {
                                 locationName: "Bedroom",
                                 floorNumber: 0,
-                                areaType: AreaNamespaceTag.Bedroom.tag,
+                                areaType: CommonAreaNamespaceTag.Bedroom.tag,
                             },
                             landmarkInfo: null,
                         },

@@ -16,7 +16,18 @@ Resource.add({
     children: [
         {
             tag: "attribute", name: "FeatureMap", xref: "cluster§7.2.4",
-            children: [{ tag: "field", name: "DEPONOFF", details: "Dependency with the OnOff cluster" }]
+
+            children: [
+                { tag: "field", name: "DEPONOFF", details: "Dependency with the OnOff cluster" },
+
+                {
+                    tag: "field", name: "DIRECTMODECH", xref: "cluster§7.2.4.1",
+                    details: "This feature indicates whether the cluster implementation supports changing the run modes while the " +
+                        "RVC Run Mode cluster’s CurrentMode attribute is set to a mode without the Idle mode tag. If the " +
+                        "implementation does not support such a change, the ChangeToModeResponse command shall have the " +
+                        "StatusCode field set to the InvalidInMode value."
+                }
+            ]
         },
 
         {

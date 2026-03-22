@@ -279,7 +279,7 @@ export namespace ContentLauncher {
          *
          * This field shall NOT be present if the track is not an audio track.
          *
-         * If the track is an audio track, this field MUST be present. A value of null shall indicate that the server
+         * If the track is an audio track, this field shall be present. A value of null shall indicate that the server
          * can choose the audio output(s) to play the Audio Track on.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.3

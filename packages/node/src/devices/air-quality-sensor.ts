@@ -27,23 +27,23 @@ import {
     OzoneConcentrationMeasurementServer as BaseOzoneConcentrationMeasurementServer
 } from "../behaviors/ozone-concentration-measurement/OzoneConcentrationMeasurementServer.js";
 import {
+    Pm25ConcentrationMeasurementServer as BasePm25ConcentrationMeasurementServer
+} from "../behaviors/pm25-concentration-measurement/Pm25ConcentrationMeasurementServer.js";
+import {
     FormaldehydeConcentrationMeasurementServer as BaseFormaldehydeConcentrationMeasurementServer
 } from "../behaviors/formaldehyde-concentration-measurement/FormaldehydeConcentrationMeasurementServer.js";
 import {
     Pm1ConcentrationMeasurementServer as BasePm1ConcentrationMeasurementServer
 } from "../behaviors/pm1-concentration-measurement/Pm1ConcentrationMeasurementServer.js";
 import {
-    Pm25ConcentrationMeasurementServer as BasePm25ConcentrationMeasurementServer
-} from "../behaviors/pm25-concentration-measurement/Pm25ConcentrationMeasurementServer.js";
-import {
     Pm10ConcentrationMeasurementServer as BasePm10ConcentrationMeasurementServer
 } from "../behaviors/pm10-concentration-measurement/Pm10ConcentrationMeasurementServer.js";
 import {
-    RadonConcentrationMeasurementServer as BaseRadonConcentrationMeasurementServer
-} from "../behaviors/radon-concentration-measurement/RadonConcentrationMeasurementServer.js";
-import {
     TotalVolatileOrganicCompoundsConcentrationMeasurementServer as BaseTotalVolatileOrganicCompoundsConcentrationMeasurementServer
 } from "../behaviors/total-volatile-organic-compounds-concentration-measurement/TotalVolatileOrganicCompoundsConcentrationMeasurementServer.js";
+import {
+    RadonConcentrationMeasurementServer as BaseRadonConcentrationMeasurementServer
+} from "../behaviors/radon-concentration-measurement/RadonConcentrationMeasurementServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -119,6 +119,13 @@ export namespace AirQualitySensorRequirements {
     export const OzoneConcentrationMeasurementServer = BaseOzoneConcentrationMeasurementServer;
 
     /**
+     * The Pm25ConcentrationMeasurement cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link Pm25ConcentrationMeasurementServer} for convenience.
+     */
+    export const Pm25ConcentrationMeasurementServer = BasePm25ConcentrationMeasurementServer;
+
+    /**
      * The FormaldehydeConcentrationMeasurement cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link FormaldehydeConcentrationMeasurementServer} for
@@ -134,25 +141,11 @@ export namespace AirQualitySensorRequirements {
     export const Pm1ConcentrationMeasurementServer = BasePm1ConcentrationMeasurementServer;
 
     /**
-     * The Pm25ConcentrationMeasurement cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link Pm25ConcentrationMeasurementServer} for convenience.
-     */
-    export const Pm25ConcentrationMeasurementServer = BasePm25ConcentrationMeasurementServer;
-
-    /**
      * The Pm10ConcentrationMeasurement cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link Pm10ConcentrationMeasurementServer} for convenience.
      */
     export const Pm10ConcentrationMeasurementServer = BasePm10ConcentrationMeasurementServer;
-
-    /**
-     * The RadonConcentrationMeasurement cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link RadonConcentrationMeasurementServer} for convenience.
-     */
-    export const RadonConcentrationMeasurementServer = BaseRadonConcentrationMeasurementServer;
 
     /**
      * The TotalVolatileOrganicCompoundsConcentrationMeasurement cluster is optional per the Matter specification.
@@ -161,6 +154,13 @@ export namespace AirQualitySensorRequirements {
      * {@link TotalVolatileOrganicCompoundsConcentrationMeasurementServer} for convenience.
      */
     export const TotalVolatileOrganicCompoundsConcentrationMeasurementServer = BaseTotalVolatileOrganicCompoundsConcentrationMeasurementServer;
+
+    /**
+     * The RadonConcentrationMeasurement cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link RadonConcentrationMeasurementServer} for convenience.
+     */
+    export const RadonConcentrationMeasurementServer = BaseRadonConcentrationMeasurementServer;
 
     /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
@@ -175,12 +175,12 @@ export namespace AirQualitySensorRequirements {
             CarbonDioxideConcentrationMeasurement: CarbonDioxideConcentrationMeasurementServer,
             NitrogenDioxideConcentrationMeasurement: NitrogenDioxideConcentrationMeasurementServer,
             OzoneConcentrationMeasurement: OzoneConcentrationMeasurementServer,
+            Pm25ConcentrationMeasurement: Pm25ConcentrationMeasurementServer,
             FormaldehydeConcentrationMeasurement: FormaldehydeConcentrationMeasurementServer,
             Pm1ConcentrationMeasurement: Pm1ConcentrationMeasurementServer,
-            Pm25ConcentrationMeasurement: Pm25ConcentrationMeasurementServer,
             Pm10ConcentrationMeasurement: Pm10ConcentrationMeasurementServer,
-            RadonConcentrationMeasurement: RadonConcentrationMeasurementServer,
-            TotalVolatileOrganicCompoundsConcentrationMeasurement: TotalVolatileOrganicCompoundsConcentrationMeasurementServer
+            TotalVolatileOrganicCompoundsConcentrationMeasurement: TotalVolatileOrganicCompoundsConcentrationMeasurementServer,
+            RadonConcentrationMeasurement: RadonConcentrationMeasurementServer
         }
     };
 }

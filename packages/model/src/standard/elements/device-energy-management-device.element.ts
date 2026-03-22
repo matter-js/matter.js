@@ -10,14 +10,14 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import {
     DeviceTypeElement as DeviceType,
     RequirementElement as Requirement,
-    FieldElement as Field
+    ConditionElement as Condition
 } from "../../elements/index.js";
 
 export const DeviceEnergyManagementDt = DeviceType(
     { name: "DeviceEnergyManagement", id: 0x50d, classification: "utility" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1293, revision: 2 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1293, revision: 3 } ], element: "attribute" })
     ),
 
     Requirement(
@@ -32,7 +32,8 @@ export const DeviceEnergyManagementDt = DeviceType(
     Requirement(
         { name: "DeviceEnergyManagementMode", id: 0x9f, conformance: "ControllableESA, O", element: "serverCluster" }
     ),
-    Field({ name: "conditions", type: "enum8" }, Field({ name: "ControllableEsa" }))
+    Requirement({ name: "ElectricalGridConditions", id: 0xa0, conformance: "O", element: "clientCluster" }),
+    Condition({ name: "ControllableEsa" })
 );
 
 MatterDefinition.children.push(DeviceEnergyManagementDt);

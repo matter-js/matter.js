@@ -8,10 +8,10 @@
 
 import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { DoorLockServer as BaseDoorLockServer } from "../behaviors/door-lock/DoorLockServer.js";
-import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
+import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -40,13 +40,6 @@ export namespace DoorLockRequirements {
     export const DoorLockServer = BaseDoorLockServer;
 
     /**
-     * The Groups cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link GroupsServer} for convenience.
-     */
-    export const GroupsServer = BaseGroupsServer;
-
-    /**
      * The ScenesManagement cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link ScenesManagementServer} for convenience.
@@ -54,11 +47,18 @@ export namespace DoorLockRequirements {
     export const ScenesManagementServer = BaseScenesManagementServer;
 
     /**
+     * The Groups cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link GroupsServer} for convenience.
+     */
+    export const GroupsServer = BaseGroupsServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: { Identify: IdentifyServer, DoorLock: DoorLockServer },
-        optional: { Groups: GroupsServer, ScenesManagement: ScenesManagementServer }
+        optional: { ScenesManagement: ScenesManagementServer, Groups: GroupsServer }
     };
 }
 

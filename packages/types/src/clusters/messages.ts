@@ -570,6 +570,8 @@ export namespace Messages {
             presentMessagesRequest: Command(0x0, TlvPresentMessagesRequest, 0x0, TlvNoResponse),
 
             /**
+             * This command will cancel the message IDs specified.
+             *
              * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
              */
             cancelMessagesRequest: Command(0x1, TlvCancelMessagesRequest, 0x1, TlvNoResponse)
