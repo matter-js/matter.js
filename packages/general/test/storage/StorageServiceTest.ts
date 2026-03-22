@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Environment } from "#environment/Environment.js";
 import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
 import { StorageService } from "#storage/StorageService.js";
-import { Environment } from "#environment/Environment.js";
 
 describe("StorageService", () => {
     let env: Environment;
