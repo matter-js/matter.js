@@ -14,6 +14,10 @@ Resource.add({
         "Audio only streaming.",
 
     children: [
+        { tag: "requirement", name: "TlsCertificatesCond", xref: "device§16.5.3" },
+        { tag: "requirement", name: "PowerSourceCond", xref: "device§16.5.3" },
+        { tag: "requirement", name: "TimeSyncWithNtpcCond", xref: "device§16.5.3" },
+        { tag: "requirement", name: "TlsClientCond", xref: "device§16.5.3" },
         { tag: "requirement", name: "Identify", xref: "device§16.5.4" },
         { tag: "requirement", name: "Switch", xref: "device§16.5.4" },
         { tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.5.4" },

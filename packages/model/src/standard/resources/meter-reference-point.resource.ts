@@ -13,6 +13,7 @@ Resource.add({
     details: "A Meter Reference Point device provides details about tariffs and metering.",
 
     children: [
+        { tag: "requirement", name: "TimeSyncCond", xref: "device§14.6.4" },
         { tag: "requirement", name: "Identify", xref: "device§14.6.5" },
         { tag: "requirement", name: "ElectricalEnergyTariff", xref: "device§14.6.6" },
         { tag: "requirement", name: "ElectricalMeter", xref: "device§14.6.6" },

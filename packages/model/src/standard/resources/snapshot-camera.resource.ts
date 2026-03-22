@@ -14,6 +14,8 @@ Resource.add({
         "the Capture Snapshot command in the Camera AV Stream Management cluster.",
 
     children: [
+        { tag: "requirement", name: "PowerSourceCond", xref: "device§16.6.5" },
+        { tag: "requirement", name: "TimeSyncWithTzCond", xref: "device§16.6.5" },
         { tag: "requirement", name: "Identify", xref: "device§16.6.6" },
         { tag: "requirement", name: "OccupancySensing", xref: "device§16.6.6" },
         { tag: "requirement", name: "ZoneManagement", xref: "device§16.6.6" },

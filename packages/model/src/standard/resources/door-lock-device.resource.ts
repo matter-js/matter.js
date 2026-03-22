@@ -14,6 +14,9 @@ Resource.add({
         "of a manual or a remote method.",
 
     children: [
+        { tag: "requirement", name: "AclExtensionCond", xref: "device§8.1.4" },
+        { tag: "requirement", name: "TimeSyncCond", xref: "device§8.1.4" },
+        { tag: "requirement", name: "TimeSyncWithClientCond", xref: "device§8.1.4" },
         { tag: "requirement", name: "Identify", xref: "device§8.1.5" },
         { tag: "requirement", name: "ScenesManagement", xref: "device§8.1.5" },
         { tag: "requirement", name: "Groups", xref: "device§8.1.5" },

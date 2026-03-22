@@ -20,6 +20,11 @@ Resource.add({
         "  - Entry door to individual units in a multi-tenet building",
 
     children: [
+        { tag: "requirement", name: "TlsCertificatesCond", xref: "device§16.4.4" },
+        { tag: "requirement", name: "PowerSourceCond", xref: "device§16.4.4" },
+        { tag: "requirement", name: "TimeSyncWithNtpcCond", xref: "device§16.4.4" },
+        { tag: "requirement", name: "TimeSyncWithClientCond", xref: "device§16.4.4" },
+        { tag: "requirement", name: "TimeSyncWithTzCond", xref: "device§16.4.4" },
         { tag: "requirement", name: "Identify", xref: "device§16.4.5" },
         { tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.4.5" },
         { tag: "requirement", name: "CameraAvSettingsUserLevelManagement", xref: "device§16.4.5" },

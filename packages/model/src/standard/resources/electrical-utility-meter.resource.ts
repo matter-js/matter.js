@@ -12,5 +12,8 @@ Resource.add({
     tag: "deviceType", name: "ElectricalUtilityMeter", xref: "device§14.9",
     details: "An Electrical Utility Meter device provides utility account information, as well as optional details " +
         "about tariffs and metering.",
-    children: [{ tag: "requirement", name: "MeterIdentification", xref: "device§14.9.5" }]
+    children: [
+        { tag: "requirement", name: "TimeSyncCond", xref: "device§14.9.4" },
+        { tag: "requirement", name: "MeterIdentification", xref: "device§14.9.5" }
+    ]
 });

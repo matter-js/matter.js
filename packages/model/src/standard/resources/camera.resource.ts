@@ -14,6 +14,12 @@ Resource.add({
         "media, such as Audio, Video or Snapshots.",
 
     children: [
+        { tag: "requirement", name: "TlsCertificatesCond", xref: "device§16.1.5" },
+        { tag: "requirement", name: "PowerSourceCond", xref: "device§16.1.5" },
+        { tag: "requirement", name: "TimeSyncWithNtpcCond", xref: "device§16.1.5" },
+        { tag: "requirement", name: "TimeSyncWithClientCond", xref: "device§16.1.5" },
+        { tag: "requirement", name: "TimeSyncWithTzCond", xref: "device§16.1.5" },
+        { tag: "requirement", name: "TlsClientCond", xref: "device§16.1.5" },
         { tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.1.6" },
         {
             tag: "requirement", name: "WebRtcTransportProvider", discriminator: "M:serverCluster",

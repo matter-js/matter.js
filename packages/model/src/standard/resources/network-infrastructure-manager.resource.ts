@@ -29,7 +29,7 @@ Resource.add({
 
     children: [
         {
-            tag: "requirement", name: "ManagedAclAllowed",
+            tag: "requirement", name: "ManagedAclAllowed", xref: "device§15.3.5.1",
 
             details: "A Network Infrastructure Manager device may utilize the ManagedAclAllowed condition to allow the " +
                 "Managed Device (MNGD) feature flag of the Access Control Cluster on the device’s Root Node endpoint " +

@@ -179,11 +179,13 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
         return;
     }
 
-    const records = translateTable("conditionRequirements", deviceRef.conditionRequirements, {
+    // Use "condition" as the tag so installPreciseDetails matches detail sections titled
+    // "FooCondition Condition" via the standard "${name} ${tag}" pattern
+    const records = translateTable("condition", deviceRef.conditionRequirements, {
         location: Optional(Str),
         id: Optional(Alias(Integer, "devicetypeid")),
-        name: Optional(Alias(Identifier, "devicetypename")),
-        condition: Identifier,
+        deviceTypeName: Optional(Alias(Identifier, "devicetypename")),
+        name: Alias(Identifier, "condition"),
         conformance: Optional(ConformanceCode),
     });
 
@@ -191,35 +193,20 @@ function addConditionRequirements(device: DeviceTypeElement, deviceRef: DeviceRe
         return;
     }
 
-    // Custom detail mapping because condition detail sections are titled "FooCondition Condition" while
-    // the table's key field is "condition" not "name", so translateTable's built-in detail matching won't work
-    const detailLookup = new Map<string, HtmlReference>();
-    if (deviceRef.conditionRequirements.details) {
-        for (const detail of deviceRef.conditionRequirements.details) {
-            // Detail sections are named like "ManagedAclAllowed Condition"
-            const condName = detail.name.replace(/\s+condition$/i, "");
-            detailLookup.set(camelize(condName, true), detail);
-        }
-    }
-
     if (!device.children) {
         device.children = [];
     }
 
     for (const r of records) {
-        const deviceTypeName = r.name ? camelize(r.name, true) : undefined;
+        const qualifiedType = r.deviceTypeName ? `${camelize(r.deviceTypeName, true)}.${r.name}` : undefined;
         const element = RequirementElement({
-            name: r.condition,
-            type: deviceTypeName ? `${deviceTypeName}.${r.condition}` : undefined,
+            name: r.name,
+            type: qualifiedType,
             element: RequirementElement.ElementType.Condition,
             conformance: r.conformance,
+            xref: r.xref,
+            details: r.details,
         });
-
-        // Add documentation from the detail section if available
-        const detail = detailLookup.get(r.condition);
-        if (detail) {
-            addDocumentation(element, detail);
-        }
 
         device.children.push(element);
     }
