@@ -254,6 +254,17 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
         }
     }
 
+    // Also index implicitly-created cluster requirements (e.g. Descriptor) so element
+    // requirements referencing them can be attached
+    if (device.children) {
+        for (const child of device.children) {
+            const req = child as RequirementElement;
+            if (req.element === RequirementElement.ElementType.ServerCluster && !clusterIndex.has(req.name.toLowerCase())) {
+                clusterIndex.set(req.name.toLowerCase(), [req]);
+            }
+        }
+    }
+
     const elementRecords = translateTable("elements", deviceRef.elements, {
         id: Optional(Integer),
         cluster: Alias(ClusterName, "clustername"),

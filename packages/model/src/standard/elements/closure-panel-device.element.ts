@@ -13,7 +13,8 @@ export const ClosurePanelDt = DeviceType(
     { name: "ClosurePanel", id: 0x231, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 561, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 561, revision: 1 } ], element: "attribute" }),
+        Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "WindowCovering", id: 0x102, conformance: "X", element: "serverCluster" }),
     Requirement({ name: "ClosureControl", id: 0x104, conformance: "X", element: "serverCluster" }),

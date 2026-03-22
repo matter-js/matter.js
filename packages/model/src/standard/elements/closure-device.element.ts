@@ -13,7 +13,8 @@ export const ClosureDt = DeviceType(
     { name: "Closure", id: 0x230, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 560, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 560, revision: 1 } ], element: "attribute" }),
+        Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "WindowCovering", id: 0x102, conformance: "X", element: "serverCluster" }),
