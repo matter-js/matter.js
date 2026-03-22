@@ -50,7 +50,12 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             compressLog: descriptor.compressLog,
             headSnapshot: descriptor.headSnapshot,
         });
-        await storage.initialize();
+        try {
+            await storage.initialize();
+        } catch (error) {
+            await storage.close().catch(() => {});
+            throw error;
+        }
         return storage;
     }
 

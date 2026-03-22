@@ -6,7 +6,7 @@
 
 import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
 import { StorageService } from "#storage/StorageService.js";
-import { Environment } from "../../src/environment/Environment.js";
+import { Environment } from "#environment/Environment.js";
 
 describe("StorageService", () => {
     let env: Environment;

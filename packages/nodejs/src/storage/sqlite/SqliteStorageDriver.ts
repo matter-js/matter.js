@@ -304,7 +304,7 @@ export class SqliteStorageDriver extends FilesystemStorageDriver implements Clon
 
     override async initialize(): Promise<void> {
         if (this.isInitialized) {
-            throw new SqliteStorageDriverError("initialize", "", "Storage already initialized!");
+            throw new SqliteStorageDriverError("initialize", this.tableName, "Storage already initialized!");
         }
         if (!this.#databaseCreator) {
             this.#openDatabase(await platformDatabaseCreator());
