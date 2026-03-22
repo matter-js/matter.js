@@ -133,9 +133,12 @@ export class DnssdNames {
             }
         }
 
-        // Emit discovered events after all records are installed so observers see complete state
+        // Emit discovered events after all records are installed so observers see complete state.
+        // Re-check isDiscovered in case a goodbye in the same message reverted the state.
         for (const name of newlyDiscovered) {
-            this.#discovered.emit(name);
+            if (name.isDiscovered) {
+                this.#discovered.emit(name);
+            }
         }
     }
 

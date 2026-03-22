@@ -102,6 +102,7 @@ export function DiscoveryData(kvs: Map<string, string>) {
 export function discoveryDataDiagnostics(data: DiscoveryData & { addresses?: ServerAddress[] }, kind?: string) {
     return Diagnostic.dict({
         kind,
+        DN: data.DN,
         SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
         SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
         SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
@@ -110,6 +111,8 @@ export function discoveryDataDiagnostics(data: DiscoveryData & { addresses?: Ser
         PH: data.PH,
         ICD: data.ICD,
         VP: data.VP,
+        RI: data.RI,
+        PI: data.PI,
     });
 }
 

@@ -116,19 +116,28 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
             this.#timeout = undefined;
         }
 
-        this.#cleanup();
-
         let result: MaybePromise<T>;
         try {
             result = this.onComplete();
         } catch (e) {
+            this.#cleanup();
             this.#reject(e);
             return;
         }
 
         if (MaybePromise.is(result)) {
-            result.then(this.#resolve, this.#reject);
+            result.then(
+                value => {
+                    this.#cleanup();
+                    this.#resolve(value);
+                },
+                error => {
+                    this.#cleanup();
+                    this.#reject(error);
+                },
+            );
         } else {
+            this.#cleanup();
             this.#resolve(result);
         }
     }

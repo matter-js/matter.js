@@ -206,12 +206,32 @@ export class CommissionableMdnsScanner implements Scanner {
         }
 
         const ipService = new IpService(name.qname, Diagnostic.via("commissionable-scanner"), this.#names);
+
+        // Try to build the device immediately.  If required TXT fields (D, CM) are not yet available (e.g. TXT
+        // arrives after the initial SRV/PTR), observe the name and retry on subsequent updates.
         const device = buildCommissionableDevice(name);
-        if (device === undefined) {
-            void ipService.close();
+        if (device !== undefined) {
+            this.#cacheDevice(lower, device, ipService, name);
             return;
         }
 
+        // TXT not yet available — observe for updates until we can build the device or it disappears
+        const pendingObserver = ({ name: changedName }: DnssdName.Changes) => {
+            if (!changedName.isDiscovered) {
+                this.#observers.off(name, pendingObserver);
+                void ipService.close();
+                return;
+            }
+            const built = buildCommissionableDevice(changedName);
+            if (built !== undefined) {
+                this.#observers.off(name, pendingObserver);
+                this.#cacheDevice(lower, built, ipService, name);
+            }
+        };
+        this.#observers.on(name, pendingObserver);
+    }
+
+    #cacheDevice(lower: string, device: CommissionableDevice, ipService: IpService, name: DnssdName) {
         const observer = ({ name: changedName }: DnssdName.Changes) => {
             if (!changedName.isDiscovered) {
                 const cached = this.#cache.get(lower);
