@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { NodeLifecycle } from "#node/NodeLifecycle.js";
 import { deepCopy, ImplementationError, Logger } from "@matter/general";
-import { DatatypeModel, FieldElement } from "@matter/model";
+import { FieldElement } from "@matter/model";
 import {
     assertRemoteActor,
     Fabric,
@@ -24,7 +24,7 @@ const logger = Logger.get("GroupKeyManagementServer");
 const MAX_64BIT_TIME = BigInt("0xffffffffffffffff");
 
 // Enhance the schema by a fabric scoped structure for the GroupKeySetStruct to enable persistence
-const groupKeySetStruct = GroupKeyManagementBehavior.schema.get(DatatypeModel, "GroupKeySetStruct")!;
+const groupKeySetStruct = GroupKeyManagementBehavior.schema.datatypes.require("GroupKeySetStruct");
 const groupKeySetStructFS = groupKeySetStruct.extend(
     {
         name: "GroupKeySetStructFS",

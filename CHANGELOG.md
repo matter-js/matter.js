@@ -16,6 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
 
 - @matter/model
+    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Enhancement: First Model preparations for Matter 1.5
 
 - @matter/\*:
@@ -33,8 +34,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/nodejs-shell
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
 
+- @matter/types
+    - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
+
 - @matter/protocol
-    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterwards
+    - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterward
     - Breaking: Some of the lower-level APIs in @matter/protocol have changed.  This will be transparent to most users
     - Feature: We have rewritten the logic for establishing operational connections to other nodes.  The new implementation should be faster, more resilient, and offers more knobs for tuning
     - Feature: A new "network profile" feature allows you to tune parallelism and other interaction parameters based on categories including transport type and thread channel
@@ -48,6 +52,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Several enhancements around OTA updates and transfers, also when nodes restart in the middle of the process
     - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
+    - Adjustment: Respond with a Busy message to PASE connection attempts when another establishment attempt is already in progress
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
     - Fix: Ensures to try multiple discovered devices when the PASE establishment to the first device failed (e.g., because of a wrong passcode)

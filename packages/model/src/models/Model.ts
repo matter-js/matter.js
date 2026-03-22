@@ -82,6 +82,13 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     }
 
     /**
+     * The camelCase form of {@link name}, suitable for use as a JS property key.
+     */
+    get propertyName(): string {
+        return camelize(this.name);
+    }
+
+    /**
      * Did validation find errors?
      */
     get valid() {
@@ -96,19 +103,19 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     get path(): string {
         if (this.parent && this.parent.tag !== ElementTag.Matter) {
             if (this.parent.tag === ElementTag.Field) {
-                return `${this.parent.path}.${camelize(this.name)}`;
+                return `${this.parent.path}.${this.propertyName}`;
             }
 
             if (this.parent.tag === ElementTag.Cluster) {
                 switch (this.tag) {
                     case ElementTag.Attribute:
-                        return `${this.parent.path}.state.${camelize(this.name, false)}`;
+                        return `${this.parent.path}.state.${this.propertyName}`;
 
                     case ElementTag.Command:
-                        return `${this.parent.path}.${camelize(this.name, false)}`;
+                        return `${this.parent.path}.${this.propertyName}`;
 
                     case ElementTag.Event:
-                        return `${this.parent.path}.events.${camelize(this.name, false)}`;
+                        return `${this.parent.path}.events.${this.propertyName}`;
                 }
             }
 
@@ -116,7 +123,7 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
             if (parent.tag !== ElementTag.Cluster) {
                 const parentMetatype = (parent as { effectiveMetatype?: Metatype })?.effectiveMetatype;
                 if (parentMetatype === Metatype.object || parentMetatype === Metatype.array) {
-                    return `${parent.path}.${camelize(this.name, false)}`;
+                    return `${parent.path}.${this.propertyName}`;
                 }
             }
 
@@ -357,7 +364,14 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     /**
      * Retrieve a specific child by ID or name.
      */
-    get<T extends Model>(type: Model.Type<T>, key: number | string): T | undefined {
+    get<T extends Model>(type: Model.Type<T>, key: undefined): undefined;
+    get<T extends Model>(type: Model.Type<T>, key: number | string): T | undefined;
+    get<T extends Model>(type: Model.Type<T>, key: number | string | undefined): T | undefined;
+
+    get<T extends Model>(type: Model.Type<T>, key: number | string | undefined): T | undefined {
+        if (key === undefined) {
+            return undefined;
+        }
         return this.children.get(type, key);
     }
 

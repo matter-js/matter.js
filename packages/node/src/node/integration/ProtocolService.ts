@@ -402,7 +402,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
-        const name = camelize(member.name);
+        const name = member.propertyName;
         switch (tag) {
             case "attribute": {
                 if (!member.effectiveConformance.isMandatory && !supportedElements.attributes.has(name)) {

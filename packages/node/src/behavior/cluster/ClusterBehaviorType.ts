@@ -211,7 +211,7 @@ function createDerivedState({ cluster, scope, base, newProps }: DerivationContex
     // Index schema members by name
     const props = {} as Record<string, ValueModel[]>;
     for (const member of scope.membersOf(scope.owner, { conformance: "deconflicted" })) {
-        const name = camelize(member.name);
+        const name = member.propertyName;
         if (props[name]) {
             props[name].push(member as ValueModel);
         } else {
@@ -310,7 +310,7 @@ function createDerivedEvents({ scope, base, newProps, forClient }: DerivationCon
         conformance: "conformant",
         tags: [ElementTag.Event],
     })) {
-        const name = camelize(event.name);
+        const name = event.propertyName;
         applicableClusterEvents.add(name);
 
         // Do not implement if already supported
@@ -451,13 +451,13 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
     // compatible with the "client" clusters.  Commands that are nonconformant will not appear in the type and if
     // somehow invoked will result in an "unimplemented" error
     const names = new Set(
-        scope.membersOf(scope.owner, { tags: [ElementTag.Command] }).map(command => camelize(command.name)),
+        scope.membersOf(scope.owner, { tags: [ElementTag.Command] }).map(command => command.propertyName),
     );
 
     const conformantNames = new Set(
         scope
             .membersOf(scope.owner, { tags: [ElementTag.Command], conformance: "conformant" })
-            .map(command => camelize(command.name)),
+            .map(command => command.propertyName),
     );
 
     for (const name of names) {

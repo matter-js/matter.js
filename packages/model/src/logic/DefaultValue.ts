@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, camelize, Duration, NotImplementedError } from "@matter/general";
+import { Bytes, Duration, NotImplementedError } from "@matter/general";
 import { FieldValue, Metatype } from "../common/index.js";
 import type { ValueModel } from "../models/ValueModel.js";
 import { DecodedBitmap } from "./DecodedBitmap.js";
@@ -150,7 +150,7 @@ function buildObject(scope: Scope, model: ValueModel, ifValid: boolean) {
     let result: { [key: string]: any } | undefined;
 
     for (const child of scope.membersOf(model, { conformance: "conformant" })) {
-        const name = camelize(child.name);
+        const name = child.propertyName;
         if (result && result[name] !== undefined) {
             continue;
         }

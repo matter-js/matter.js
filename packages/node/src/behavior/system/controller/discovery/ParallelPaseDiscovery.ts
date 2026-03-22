@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError } from "@matter/general";
+import { CanceledError, causedBy, Diagnostic, Logger, MatterAggregateError } from "@matter/general";
+import { CommissioningError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryError } from "./DiscoveryError.js";
+
+const logger = Logger.get("ParallelPaseDiscovery");
 
 /**
  * Base class for discovery flows that run parallel PASE establishments with a first-to-win race gate.
@@ -21,7 +24,8 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #pending = new Set<Promise<unknown>>();
     #abort = new AbortController();
     #winner?: W;
-    #winnerPromise?: Promise<unknown>;
+    #winnerAttempt?: Promise<unknown>;
+    #extractWinner?: (result: unknown) => W | undefined;
 
     protected get abortSignal() {
         return this.#abort.signal;
@@ -53,23 +57,38 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         // attempt is declared before assignment so the winOnPase closure can reference it by name.
         // The closure is only ever invoked asynchronously (after PASE establishes), well after
         // the synchronous assignment below.
-        let attempt!: Promise<R>;
+        let attempt!: Promise<R | undefined>;
+        let isWinner = false;
 
         const winOnPase = () => {
             if (this.#paseWon) return false;
             this.#paseWon = true;
+            isWinner = true;
             this.stop();
             this.#abort.abort();
             this.#pending.delete(attempt);
-            this.#winnerPromise = attempt.then(result => {
-                this.#winner = extractWinner(result);
-            });
+            this.#winnerAttempt = attempt;
+            this.#extractWinner = extractWinner as (result: unknown) => W | undefined;
             return true;
         };
 
-        attempt = Promise.resolve(factory(winOnPase)).finally(() => {
-            this.#pending.delete(attempt);
-        });
+        attempt = Promise.resolve(factory(winOnPase))
+            .catch(error => {
+                if (isWinner) {
+                    // Winner's error is meaningful — must propagate to onComplete
+                    throw error;
+                }
+                // Loser: resolve to prevent unhandled rejection
+                if (causedBy(error, CanceledError, CommissioningError, PeerCommunicationError)) {
+                    logger.debug("Canceled parallel commissioning attempt:", Diagnostic.errorMessage(error));
+                } else {
+                    logger.info("Unexpected error from parallel commissioning attempt:", error);
+                }
+                return undefined;
+            })
+            .finally(() => {
+                this.#pending.delete(attempt);
+            });
 
         this.#pending.add(attempt);
     }
@@ -81,8 +100,11 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         }
 
         try {
-            // Await winner's operation.  Any error here is meaningful and propagates to the caller.
-            await this.#winnerPromise;
+            // Await winner's full operation (e.g. commissioning).  Errors here are meaningful
+            // and propagate to the caller.
+            if (this.#winnerAttempt !== undefined) {
+                this.#winner = this.#extractWinner!(await this.#winnerAttempt);
+            }
         } finally {
             // Await loser cleanup (canceled PASE sessions, etc.) and absorb errors — these are expected
             // side effects of the race and are not relevant to the caller.

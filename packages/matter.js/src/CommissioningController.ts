@@ -60,7 +60,7 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { BasicInformation } from "@matter/types/clusters";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
 
@@ -404,7 +404,7 @@ export class CommissioningController {
                 continue;
             }
             const networkState = peer.stateOf(NetworkClient);
-            const desiredDisabled = !!this.#options.autoConnect;
+            const desiredDisabled = this.#options.autoConnect === false;
             if (desiredDisabled !== networkState.isDisabled) {
                 await peer.set({ network: { isDisabled: desiredDisabled } });
             }

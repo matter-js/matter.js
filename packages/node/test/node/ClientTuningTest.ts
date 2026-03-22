@@ -56,7 +56,7 @@ describe("ClientTuningTest", () => {
         // Unspecified fields should retain their defaults
         expect(timing.delayAfterPeerError).equals(PeerTimingParameters.defaults.delayAfterPeerError);
         expect(timing.delayAfterUnhandledError).equals(PeerTimingParameters.defaults.delayAfterUnhandledError);
-        expect(timing.minimumTimeBetweenMrpKicks).equals(PeerTimingParameters.defaults.minimumTimeBetweenMrpKicks);
+        expect(timing.kickThrottleInterval).equals(PeerTimingParameters.defaults.kickThrottleInterval);
     });
 
     it("custom profiles propagate to NetworkProfiles", async () => {

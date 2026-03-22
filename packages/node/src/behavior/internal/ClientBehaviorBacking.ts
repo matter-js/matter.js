@@ -7,7 +7,7 @@
 import { GlobalAttributeState } from "#behavior/cluster/ClusterState.js";
 import { DatasourceCache } from "#endpoint/index.js";
 import { SupportedElements } from "#endpoint/properties/Behaviors.js";
-import { camelize, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterModel } from "@matter/model";
 import { AttributeId, CommandId } from "@matter/types";
 import { BehaviorBacking } from "./BehaviorBacking.js";
@@ -30,7 +30,7 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         const attributeIds = new Set(attributeList);
         for (const attr of schema.attributes) {
             if (attributeIds.has(attr.id as AttributeId)) {
-                attributes.add(camelize(attr.name));
+                attributes.add(attr.propertyName);
             }
         }
 
@@ -38,7 +38,7 @@ export class ClientBehaviorBacking extends BehaviorBacking {
         const commandIds = new Set(acceptedCommandList);
         for (const cmd of schema.commands) {
             if (cmd.isRequest && commandIds.has(cmd.id as CommandId)) {
-                commands.add(camelize(cmd.name));
+                commands.add(cmd.propertyName);
             }
         }
 

@@ -519,7 +519,6 @@ export class ControllerCommissioningFlow {
             stepNumber: 18, // includes step 19 (CASE connection)
             subStepNumber: 1,
             name: "Reconnect",
-            reArmFailsafe: true,
             stepLogic: () => this.#reconnectWithDevice(),
         });
 

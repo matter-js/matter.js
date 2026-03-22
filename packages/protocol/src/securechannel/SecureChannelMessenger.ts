@@ -5,7 +5,17 @@
  */
 
 import { TransientPeerCommunicationError } from "#peer/PeerCommunicationError.js";
-import { Bytes, DataReader, Diagnostic, Duration, Endian, Millis, Seconds, UnexpectedDataError } from "@matter/general";
+import {
+    Bytes,
+    DataReader,
+    DataWriter,
+    Diagnostic,
+    Duration,
+    Endian,
+    Millis,
+    Seconds,
+    UnexpectedDataError,
+} from "@matter/general";
 import { GeneralStatusCode, SecureChannelStatusCode, SecureMessageType, TlvSchema, VendorId } from "@matter/types";
 import { Message } from "../codec/MessageCodec.js";
 import { ExchangeSendOptions, MessageExchange } from "../protocol/MessageExchange.js";
@@ -128,6 +138,21 @@ export class SecureChannelMessenger {
         return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.Success, abort);
     }
 
+    sendBusy(minimumRetryInterval: Duration, abort?: AbortSignal) {
+        if (minimumRetryInterval <= 0) {
+            throw new Error("Busy minimum retry interval must be greater than 0ms");
+        }
+        const writer = new DataWriter(Endian.Little);
+        writer.writeUInt16(Math.min(minimumRetryInterval, 0xffff));
+        return this.#sendStatusReport(
+            GeneralStatusCode.Busy,
+            SecureChannelStatusCode.Busy,
+            abort,
+            undefined,
+            writer.toByteArray(),
+        );
+    }
+
     sendCloseSession(abort?: AbortSignal) {
         return this.#sendStatusReport(GeneralStatusCode.Success, SecureChannelStatusCode.CloseSession, abort, false);
     }
@@ -149,12 +174,14 @@ export class SecureChannelMessenger {
         protocolStatus: SecureChannelStatusCode,
         abort?: AbortSignal,
         requiresAck?: boolean,
+        protocolData?: Bytes,
     ) {
         await this.exchange.send(
             SecureMessageType.StatusReport,
             SecureChannelStatusMessage.encode({
                 generalStatus,
                 protocolStatus,
+                protocolData,
             }),
             {
                 requiresAck,
