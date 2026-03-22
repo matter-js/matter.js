@@ -577,8 +577,9 @@ export namespace PeerConnection {
         session: Session,
         network: NetworkProfile,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
+        addressOverride?: ServerAddressUdp,
     ) {
-        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network });
+        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network, addressOverride });
 
         function onSend(_message: Message, retransmission: number) {
             if (retransmission) {

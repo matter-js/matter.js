@@ -8,7 +8,7 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import { ExchangeProvider, NewExchangeOptions } from "#protocol/ExchangeProvider.js";
 import type { MessageExchange } from "#protocol/MessageExchange.js";
 import { MRP } from "#protocol/MRP.js";
-import { ChannelType, Duration } from "@matter/general";
+import { ChannelType, Duration, InternalError } from "@matter/general";
 import { INTERACTION_PROTOCOL_ID } from "@matter/types";
 import { Peer } from "./Peer.js";
 import { PeerConnection } from "./PeerConnection.js";
@@ -47,8 +47,11 @@ export class PeerExchangeProvider extends ExchangeProvider {
         const isGroup = PeerAddress.isGroup(this.#peer.address);
 
         while (true) {
-            if (!isGroup) {
-                // Connections grab their own network slot so connect before getting our own
+            if (!isGroup && !options?.requireExistingSession) {
+                // Connections grab their own network slot so connect before getting our own.
+                // Probes skip connect because they verify liveness of the current session — calling
+                // connect would establish a new session if the current one is broken, defeating the
+                // purpose of a lightweight reachability check.
                 await this.#peer.connect(options);
                 abort?.throwIfAborted();
             }
@@ -63,6 +66,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     ? await this.#context.sessions.groupSessionForAddress(this.#peer.address, this.#context.exchanges)
                     : this.#peer.newestSession;
                 if (session === undefined) {
+                    if (options?.requireExistingSession) {
+                        // Slot will be closed when error is caught
+                        throw new InternalError("No existing session available for probe");
+                    }
                     // We had a session before getting the slot, but it was closed. Restart
                     slot.close();
                     continue;
@@ -74,6 +81,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     session,
                     network,
                     options?.protocol ?? INTERACTION_PROTOCOL_ID,
+                    options?.addressOverride,
                 );
 
                 exchange.closing.on(() => {

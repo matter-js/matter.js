@@ -77,6 +77,14 @@ export interface PeerTimingParameters {
         /** Cooldown after a restart triggered by an explicit {@link Peer.kick} call. */
         connect: Duration;
     };
+
+    /**
+     * Delay after detecting mDNS address changes before probing the session.
+     *
+     * Address changes can arrive in bursts (e.g. Thread network rekey).  We wait this long after the last
+     * change before checking whether the session's IP is still valid.
+     */
+    addressChangeStabilizationDelay: Duration;
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -133,5 +141,6 @@ export namespace PeerTimingParameters {
             addressChange: Minutes(30),
             connect: Minutes(10),
         },
+        addressChangeStabilizationDelay: Seconds(10),
     };
 }

@@ -44,6 +44,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Several enhancements around session management when nodes reconnect or new sessions get pushed by the device
     - Enhancement: Several enhancements around OTA updates and transfers, also when nodes restart in the middle of the process
     - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
+    - Enhancement: Probes discovered addresses and potentially updates session addresses when they change even when we have a valid working session 
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
     - Adjustment: Respond with a Busy message to PASE connection attempts when another establishment attempt is already in progress
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
