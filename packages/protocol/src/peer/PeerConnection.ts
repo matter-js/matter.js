@@ -41,6 +41,14 @@ import { PeerTimingParameters } from "./PeerTimingParameters.js";
 const logger = Logger.get("PeerConnection");
 
 /**
+ * Identifies who triggered an MRP exchange restart kick.
+ *
+ * - `"discover"` — triggered by DNS-SD address discovery (mDNS resolution completed)
+ * - `"connect"` — triggered explicitly via `peer.kick()` or `Peer.ConnectOptions.kick`
+ */
+export type KickOrigin = "discover" | "connect";
+
+/**
  * Establishes a CASE session with a peer.
  *
  * Returns a session or undefined if aborted.
@@ -137,6 +145,10 @@ export async function PeerConnection(
     // Exchange "kick" driver
     const kicker = options?.kicker;
 
+    // Shared timestamp of the last kick-triggered exchange restart.
+    // Scoped to this PeerConnection call so all concurrent address attempts share one rate-limit clock.
+    let lastRestartAt: Timestamp | undefined;
+
     // Start the attempt scheduler
     workers.add(scheduleAttempts());
 
@@ -231,7 +243,7 @@ export async function PeerConnection(
             if (attemptingFallback && ServerAddress.isEqual(attemptingFallback, address)) {
                 // The "fallback" is now a "real" address
                 attemptingFallback = undefined;
-                kicker?.emit(); // ... and kick the MRP loop
+                kicker?.emit("discover"); // ... and trigger rediscovery / restart of the CASE exchange as needed
             }
 
             return;
@@ -413,14 +425,35 @@ export async function PeerConnection(
 
         let kick: Disposable | undefined;
 
+        // localAbort wraps addressAbort; firing it aborts only this single attempt so connect() can
+        // loop back and open a fresh exchange (fresh MRP backoff) without aborting the address entirely.
+        using localAbort = new Abort({ abort: addressAbort });
+
         try {
             using _pairing = attemptLifetime.join("pairing");
 
-            kick = kicker?.use(() => exchange.kick());
+            kick = kicker?.use((origin: KickOrigin) => {
+                const threshold =
+                    origin === "discover"
+                        ? context.timing.kickRestartCooldown.addressChange
+                        : context.timing.kickRestartCooldown.connect;
+
+                if (lastRestartAt === undefined || Timestamp.delta(lastRestartAt) >= threshold) {
+                    info(via, address, `Restarting exchange on "${origin}" kick`);
+                    lastRestartAt = Time.nowMs;
+                    localAbort();
+                } else {
+                    debug(
+                        via,
+                        address,
+                        `Suppressing "${origin}" kick, last restart was ${Duration.format(Timestamp.delta(lastRestartAt))} ago`,
+                    );
+                }
+            });
 
             const { session } = await caseClient.pair(exchange, fabric, peer.address.nodeId, {
                 ...options,
-                abort: addressAbort,
+                abort: localAbort,
                 caseAuthenticatedTags: peer.descriptor.caseAuthenticatedTags,
                 maxInitialRetransmissions: Infinity,
                 maxInitialRetransmissionTime: timing.maxDelayBetweenInitialContactRetries,
@@ -527,7 +560,7 @@ export namespace PeerConnection {
     export interface Options {
         abort?: AbortSignal;
         network?: string;
-        kicker?: Observable<[]>;
+        kicker?: Observable<[KickOrigin]>;
 
         /**
          * Per-call overrides for timing parameters.

@@ -17,7 +17,7 @@ import { nullable } from "#decoration/decorators/nullable.js";
 import { response } from "#decoration/decorators/response.js";
 import { writable } from "#decoration/index.js";
 import { AttributeModel } from "#models/AttributeModel.js";
-import { CommandModel, FieldModel } from "#models/index.js";
+import { CommandModel } from "#models/index.js";
 import { Schema } from "#models/Schema.js";
 import { uint16, uint32, uint8 } from "#standard/elements/models.js";
 
@@ -30,7 +30,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.name).equals("bar");
     });
@@ -57,7 +57,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).true;
         expect(bar!.quality.nonvolatile).not.true;
@@ -73,7 +73,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Foo);
         expect(schema.children.length).equals(1);
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.quality.nullable).not.true;
         expect(bar!.quality.nonvolatile).true;
@@ -110,11 +110,11 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Obj2);
 
-        const foo = schema.conformant.properties.for("foo");
+        const foo = schema.conformant.properties("foo");
         expect(foo).not.undefined;
         expect(foo!.base).equals(uint16);
 
-        const bar = schema.get(FieldModel, "bar");
+        const bar = schema.fields("bar");
         expect(bar).not.undefined;
         expect(bar!.base).equals(uint32);
     });
@@ -132,7 +132,7 @@ describe("FieldSemantics", () => {
 
         const schema = Schema.Required(Container);
 
-        const items = schema.get(FieldModel, "items");
+        const items = schema.fields("items");
         expect(items).not.undefined;
 
         const entry = items!.member("entry");

@@ -39,7 +39,7 @@ import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
 import { PeerUnreachableError } from "./PeerCommunicationError.js";
-import { PeerConnection } from "./PeerConnection.js";
+import { type KickOrigin, PeerConnection } from "./PeerConnection.js";
 import { ObservablePeerDescriptor, PeerDescriptor } from "./PeerDescriptor.js";
 import { PeerExchangeProvider } from "./PeerExchangeProvider.js";
 import { PeerTimingParameters } from "./PeerTimingParameters.js";
@@ -291,10 +291,12 @@ export class Peer {
     /**
      * Kick the connection process.
      *
-     * This will temporarily increase MRP responsiveness of any ongoing connection attempt.
+     * Aborts the current CASE handshake exchange and restarts it from scratch with a fresh MRP
+     * backoff. Rate-limited; repeated calls within {@link PeerTimingParameters.kickRestartCooldown}
+     * are suppressed.
      */
     kick() {
-        this.#connecting?.kick();
+        this.#connecting?.kick("connect");
     }
 
     /**
@@ -394,8 +396,8 @@ export class Peer {
             ? PeerTimingParameters.merge(this.#context.timing, options.timing)
             : this.#context.timing;
 
-        const kicker = new QuietObservable({
-            minimumEmitInterval: timing.minimumTimeBetweenMrpKicks,
+        const kicker = new QuietObservable<[KickOrigin]>({
+            minimumEmitInterval: timing.kickThrottleInterval,
             skipSuppressedEmits: true,
         });
 
@@ -413,8 +415,8 @@ export class Peer {
                 added[Symbol.dispose]();
             }),
 
-            kick() {
-                kicker.emit();
+            kick(origin: KickOrigin) {
+                kicker.emit(origin);
             },
         };
         this.#workers.add(this.#connecting);
@@ -476,5 +478,5 @@ export namespace Peer {
 interface ConnectionProcess {
     done: Promise<NodeSession | void>;
     abort: Abort;
-    kick: () => void;
+    kick: (origin: KickOrigin) => void;
 }

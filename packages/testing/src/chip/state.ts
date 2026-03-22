@@ -169,6 +169,8 @@ export const State = {
                 console.error("Teardown error:", e);
             }
         }
+
+        Values.isInitialized = false;
     },
 
     /**

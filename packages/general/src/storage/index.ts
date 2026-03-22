@@ -11,6 +11,7 @@ export * from "./MemoryStorageDriver.js";
 export * from "./MockStorageService.js";
 export * from "./StorageContext.js";
 export * from "./StorageDriver.js";
+export * from "./StorageDriverHandle.js";
 export * from "./StorageManager.js";
 export * from "./StorageMigration.js";
 export * from "./StorageService.js";

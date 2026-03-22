@@ -92,7 +92,8 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { BasicInformation, GeneralCommissioning } from "@matter/types/clusters";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;
@@ -159,48 +160,54 @@ export class MatterController {
 
         const baseStorage: StorageManager = await options.environment.get(StorageService).open(options.id);
 
-        // Storage data migration from legacy Controller to ServerNode based controller
-        const oldStorage = baseStorage.createContext("credentials");
-        const newStorage = baseStorage.createContext("certificates");
-        const newFabricStorage = baseStorage.createContext("fabrics");
+        try {
+            // Storage data migration from legacy Controller to ServerNode based controller
+            const oldStorage = baseStorage.createContext("credentials");
+            const newStorage = baseStorage.createContext("certificates");
+            const newFabricStorage = baseStorage.createContext("fabrics");
 
-        const keys = await oldStorage.keys();
+            const keys = await oldStorage.keys();
 
-        const newFabrics = await newFabricStorage.get<Fabric.Config[]>("fabrics", []);
-        if (keys.length !== 0) {
-            for (const key of await oldStorage.keys()) {
-                if (key === "fabric") {
-                    if (rootFabric !== undefined) {
-                        logger.debug("Skipping fabric migration because a rootFabric was provided.");
-                        continue;
-                    }
-                    const oldFabric = await oldStorage.get<Fabric.Config>("fabric");
-                    if (
-                        newFabrics.length &&
-                        newFabrics.some(
-                            fab =>
-                                fab.fabricIndex === oldFabric.fabricIndex &&
-                                Bytes.areEqual(fab.rootCert, oldFabric.rootCert),
-                        )
-                    ) {
-                        logger.debug("Skipping fabric migration because a new storage already has matching fabric");
-                        continue;
-                    }
-                    fabric = await Fabric.create(Environment.default.get(Crypto), oldFabric);
-                } else {
-                    // Migrates Certificate Authority data to a new location
-                    if (!(await newStorage.has(key))) {
-                        await newStorage.set(key, await oldStorage.get(key));
+            const newFabrics = await newFabricStorage.get<Fabric.Config[]>("fabrics", []);
+            if (keys.length !== 0) {
+                for (const key of await oldStorage.keys()) {
+                    if (key === "fabric") {
+                        if (rootFabric !== undefined) {
+                            logger.debug("Skipping fabric migration because a rootFabric was provided.");
+                            continue;
+                        }
+                        const oldFabric = await oldStorage.get<Fabric.Config>("fabric");
+                        if (
+                            newFabrics.length &&
+                            newFabrics.some(
+                                fab =>
+                                    fab.fabricIndex === oldFabric.fabricIndex &&
+                                    Bytes.areEqual(fab.rootCert, oldFabric.rootCert),
+                            )
+                        ) {
+                            logger.debug("Skipping fabric migration because a new storage already has matching fabric");
+                            continue;
+                        }
+                        fabric = await Fabric.create(Environment.default.get(Crypto), oldFabric);
+                    } else {
+                        // Migrates Certificate Authority data to a new location
+                        if (!(await newStorage.has(key))) {
+                            await newStorage.set(key, await oldStorage.get(key));
+                        }
                     }
                 }
             }
-        }
 
-        if (rootCertificateAuthority !== undefined) {
-            environment.set(CertificateAuthority, rootCertificateAuthority);
+            if (rootCertificateAuthority !== undefined) {
+                environment.set(CertificateAuthority, rootCertificateAuthority);
+            }
+        } finally {
+            try {
+                await baseStorage.close();
+            } catch (closeError) {
+                logger.warn("Error closing base storage:", closeError);
+            }
         }
-
-        await baseStorage.close();
 
         controller = new MatterController({
             ...options,

@@ -37,6 +37,10 @@ export class WebReporter implements Reporter {
         proxy("beginStep", name);
     }
 
+    passTest(name: string) {
+        proxy("passTest", name);
+    }
+
     endRun(stats?: Stats) {
         proxy("endRun", stats);
     }

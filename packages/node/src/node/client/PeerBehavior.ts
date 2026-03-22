@@ -379,7 +379,7 @@ interface DiscoveredShapeAnalysis {
  * Analyze a discovered cluster shape to determine how we should override the behavior and schema.
  */
 function DiscoveredShapeAnalysis(shape: PeerBehavior.DiscoveredClusterShape): DiscoveredShapeAnalysis {
-    const standardCluster = Matter.get(ClusterModel, shape.id);
+    const standardCluster = Matter.clusters(shape.id);
     const schema =
         standardCluster ??
         new ClusterModel({ id: shape.id, name: createUnknownName("Cluster", shape.id), revision: shape.revision });

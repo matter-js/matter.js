@@ -57,9 +57,26 @@ export interface PeerTimingParameters {
     delayAfterUnhandledError: Duration;
 
     /**
-     * Minimum delay between MRP loop "kicks".
+     * Minimum interval between kick signals reaching the connection handler.
+     *
+     * Rapid-fire kicks (e.g. from mDNS bursts) are throttled at the observable level so only one
+     * signal per interval is delivered.
      */
-    minimumTimeBetweenMrpKicks: Duration;
+    kickThrottleInterval: Duration;
+
+    /**
+     * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
+     *
+     * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
+     * These cooldowns prevent restarts from happening too frequently.
+     */
+    kickRestartCooldown: {
+        /** Cooldown after a restart triggered by DNS-SD address change. */
+        addressChange: Duration;
+
+        /** Cooldown after a restart triggered by an explicit {@link Peer.kick} call. */
+        connect: Duration;
+    };
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -111,6 +128,10 @@ export namespace PeerTimingParameters {
         delayAfterNetworkError: Seconds(15),
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
-        minimumTimeBetweenMrpKicks: Seconds(3),
+        kickThrottleInterval: Seconds(3),
+        kickRestartCooldown: {
+            addressChange: Minutes(30),
+            connect: Minutes(10),
+        },
     };
 }

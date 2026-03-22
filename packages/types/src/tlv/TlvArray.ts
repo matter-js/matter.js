@@ -140,6 +140,27 @@ export class ArraySchema<T> extends TlvSchema<T[]> {
     }
 }
 
+const arrayCache = new WeakMap<TlvSchema<any>, Map<string, ArraySchema<any>>>();
+
 /** Array TLV schema. */
-export const TlvArray = <T>(elementSchema: TlvSchema<T>, { minLength, maxLength, length }: LengthConstraints = {}) =>
-    new ArraySchema(elementSchema, length ?? minLength, length ?? maxLength);
+export const TlvArray = <T>(
+    elementSchema: TlvSchema<T>,
+    { minLength, maxLength, length }: LengthConstraints = {},
+): ArraySchema<T> => {
+    const effectiveMin = length ?? minLength;
+    const effectiveMax = length ?? maxLength;
+    const key = `${effectiveMin}:${effectiveMax}`;
+
+    let inner = arrayCache.get(elementSchema);
+    if (inner === undefined) {
+        inner = new Map();
+        arrayCache.set(elementSchema, inner);
+    }
+
+    let result = inner.get(key) as ArraySchema<T> | undefined;
+    if (result === undefined) {
+        result = new ArraySchema(elementSchema, effectiveMin, effectiveMax);
+        inner.set(key, result);
+    }
+    return result;
+};

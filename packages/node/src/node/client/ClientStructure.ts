@@ -27,10 +27,8 @@ import {
 import {
     AcceptedCommandList,
     AttributeList,
-    ClusterModel,
     ClusterRevision,
     DeviceClassification,
-    DeviceTypeModel,
     FeatureMap,
     GeneratedCommandList,
     Matter,
@@ -601,7 +599,7 @@ export class ClientStructure {
                 }
 
                 let isApp = false;
-                const model = Matter.get(DeviceTypeModel, dt.deviceType);
+                const model = Matter.deviceTypes(dt.deviceType);
                 if (model !== undefined) {
                     isApp = DeviceClassification.isApplication(model.classification);
                 }
@@ -784,7 +782,7 @@ export class ClientStructure {
         }
 
         // Try to resolve by looking up the cluster model by capitalized behavior name (e.g. "onOff" → "OnOff")
-        const clusterModel = Matter.get(ClusterModel, capitalize(behaviorId));
+        const clusterModel = Matter.clusters(capitalize(behaviorId));
         if (clusterModel) {
             return this.#clusterFor(endpoint, clusterModel.id as ClusterId);
         }

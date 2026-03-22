@@ -68,7 +68,7 @@ import {
     TlvEventFilter,
     TypeFromSchema,
 } from "@matter/types";
-import { AccessControl } from "@matter/types/clusters";
+import { AccessControl } from "@matter/types/clusters/access-control";
 
 const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);

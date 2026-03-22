@@ -5,7 +5,6 @@
  */
 
 import {
-    camelize,
     deepCopy,
     Entropy,
     ImplementationError,
@@ -402,7 +401,7 @@ function configure(options: Datasource.Options): Internals {
             } else {
                 const field = options.supervisor.schema.member(id);
                 if (field !== undefined) {
-                    event = events[`${camelize(field.name)}$Changed`];
+                    event = events[`${field.propertyName}$Changed`];
                 }
             }
 

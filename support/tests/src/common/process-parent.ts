@@ -74,7 +74,10 @@ export class ParentProcess {
             return this.#activeChild;
         }
 
-        const child = fork(join(import.meta.dirname, "..", this.#script), [], { stdio: "pipe" });
+        const child = fork(join(import.meta.dirname, "..", this.#script), [], {
+            stdio: "pipe",
+            execArgv: ["--expose-gc"],
+        });
         const outstandingRequests = new Map();
 
         this.#activeChild = {

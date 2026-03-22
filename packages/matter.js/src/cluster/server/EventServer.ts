@@ -13,7 +13,7 @@ import {
     MaybePromise,
     Time,
 } from "@matter/general";
-import { AccessLevel, ClusterModel, EventModel, MatterModel } from "@matter/model";
+import { AccessLevel, Matter } from "@matter/model";
 import { Message, NumberedOccurrence, Occurrence, OccurrenceManager, SecureSession, Session } from "@matter/protocol";
 import {
     Attributes,
@@ -50,9 +50,9 @@ export function createEventServer<
     readAcl: AccessLevel | undefined,
 ): EventServer<T> {
     let fabricSensitive = false;
-    const clusterFromModel = MatterModel.standard.get(ClusterModel, clusterDef.id);
+    const clusterFromModel = Matter.clusters(clusterDef.id);
     if (clusterFromModel !== undefined) {
-        const eventModel = clusterFromModel.get(EventModel, eventDef.id);
+        const eventModel = clusterFromModel.events(eventDef.id);
         if (eventModel !== undefined) {
             fabricSensitive = eventModel.fabricSensitive;
         }

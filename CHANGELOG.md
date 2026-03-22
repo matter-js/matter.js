@@ -12,6 +12,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 ## __WORK IN PROGRESS__
 
 - @matter/model
+    - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Enhancement: First Model preparations for Matter 1.5
 
 - @matter/node
@@ -25,6 +26,9 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-shell
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
+
+- @matter/types
+    - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
 
 - @matter/protocol
     - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterwards

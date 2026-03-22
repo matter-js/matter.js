@@ -220,7 +220,6 @@ export class MessageExchange {
     #messageSendCounter = 0;
     #messageReceivedCounter = 0;
     #retransmissionTimer?: Timer;
-    #kick?: () => void;
 
     constructor(config: MessageExchange.Config) {
         const {
@@ -440,8 +439,6 @@ export class MessageExchange {
             }
 
             throw e;
-        } finally {
-            this.#kick = undefined;
         }
     }
 
@@ -566,12 +563,6 @@ export class MessageExchange {
             this.#retransmissionTimer = Time.getTimer(`retransmitting ${Message.via(this, message)}`, backOff, () =>
                 this.#retransmitMessage(message, expectedProcessingTime),
             );
-            this.#kick = () => {
-                if (this.#retransmissionTimer?.isRunning) {
-                    this.#retransmissionTimer.stop();
-                    this.#retransmitMessage(message, expectedProcessingTime);
-                }
-            };
             const { promise, resolver } = createPromise<Message | undefined>();
             ackPromise = promise;
             this.#sentMessageAckSuccess = resolver;
@@ -661,13 +652,6 @@ export class MessageExchange {
         });
 
         return await this.#messagesQueue.read(localAbort);
-    }
-
-    /**
-     * If a transmission using MRP is active, short-circuits the MRP loop and sends the next packet immediately.
-     */
-    kick() {
-        this.#kick?.();
     }
 
     async sendStandaloneAckForMessage(message: Message) {
@@ -880,8 +864,8 @@ export class MessageExchange {
             } catch (error) {
                 logger.error(this.via, `Unhandled error closing exchange`, error);
             }
-            if (cause) {
-                // We have sent the Ack, so close here, no retries needed
+            if (cause || this.#sentMessageToAck === undefined) {
+                // We have sent the Ack and there's nothing left waiting for a peer ack, close directly
                 await this.#close(cause);
                 return;
             }
