@@ -71,28 +71,6 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     // Name resolution scope may change as we visit the AST; the base version creates a name reference if the the name
     // is visible in scope.  Other nodes may temporarily override this though
     let createNameReference = (name: string): DynamicNode => {
-        // Cross-command field references (e.g. "SolicitOffer.VideoStreamID") resolve from the
-        // request payload passed via ValidationLocation.requestData
-        if (name.includes(".")) {
-            const [, fieldName] = name.split(".", 2);
-            const key = camelize(fieldName);
-            return {
-                code: Code.Evaluate,
-
-                evaluate: (_value, options) => {
-                    // If requestData is available, resolve the field from it
-                    if (options?.requestData !== undefined) {
-                        return {
-                            code: Code.Value,
-                            value: (options.requestData as Val.Struct)[key],
-                        };
-                    }
-                    // Without request context, treat as optional (safe default)
-                    return { code: Code.Optional };
-                },
-            };
-        }
-
         const resolver = NameResolver(supervisor, schema.parent, camelize(name));
         if (resolver) {
             return {
@@ -107,8 +85,19 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             };
         }
 
-        // Unresolved names are always undefined
-        return { code: Code.Value, value: undefined };
+        // Name not found through normal resolution — defer to optional fallback resolver at runtime
+        return {
+            code: Code.Evaluate,
+
+            evaluate: (_value, options) => {
+                const value = options?.resolveAdditional?.(name);
+                if (value !== undefined) {
+                    return { code: Code.Value, value };
+                }
+                // Unresolved names are undefined
+                return { code: Code.Value, value: undefined };
+            },
+        };
     };
 
     // Compile the AST

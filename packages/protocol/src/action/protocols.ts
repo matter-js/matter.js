@@ -7,7 +7,7 @@
 import { InteractionSession } from "#action/Interactable.js";
 import { OccurrenceManager } from "#events/OccurrenceManager.js";
 import { MaybePromise, Observable } from "@matter/general";
-import { DataModelPath, MatterModel, type Schema } from "@matter/model";
+import { DataModelPath, MatterModel } from "@matter/model";
 import type {
     AttributeId,
     ClusterId,
@@ -234,16 +234,6 @@ export interface CommandTypeProtocol extends AddressableElementProtocol<CommandI
      * Access control information for the command.
      */
     limits: AccessControl.Limits;
-
-    /**
-     * The model for the request command, used for conformance validation.
-     */
-    requestModel?: Schema;
-
-    /**
-     * The model for the response command (if any), used for conformance validation.
-     */
-    responseModel?: Schema;
 }
 
 /**

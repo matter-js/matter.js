@@ -34,10 +34,10 @@ export interface ValidationLocation {
     location?: string[];
 
     /**
-     * When validating a command response, the decoded request payload is provided here so that
-     * cross-command conformance references (e.g. "SolicitOffer.VideoStreamID") can be resolved.
+     * Optional fallback name resolver for names not found through normal sibling/parent resolution.
+     * Used e.g. to resolve cross-command field references during response validation.
      */
-    requestData?: Val.Struct;
+    resolveAdditional?: (name: string) => Val | undefined;
 }
 
 export namespace ValidationLocation {
