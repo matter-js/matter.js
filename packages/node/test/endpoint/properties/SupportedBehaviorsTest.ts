@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { SupportedBehaviors } from "#endpoint/properties/SupportedBehaviors.js";
 import { ColorControl } from "@matter/types/clusters/color-control";
@@ -61,5 +62,24 @@ describe("SupportedBehaviors", () => {
         sb satisfies { windowCovering: WC2; colorControl: CC; onOff: OO };
         ({}) as IsNever<typeof sb> satisfies false;
         expect(sb).deep.equal({ windowCovering: WC2, colorControl: CC, onOff: OO });
+    });
+
+    it("rejects behavior ID starting with uppercase", () => {
+        class UpperBehavior extends Behavior {
+            static override readonly id = "GCEvents";
+        }
+
+        expect(() => {
+            SupportedBehaviors(UpperBehavior);
+        }).throws('Behavior ID "GCEvents" must be lowerCamelCase (expected "gcEvents")');
+    });
+
+    it("accepts behavior ID starting with lowercase", () => {
+        class LowerBehavior extends Behavior {
+            static override readonly id = "gcEvents";
+        }
+
+        const sb = SupportedBehaviors(LowerBehavior);
+        expect(sb).deep.equal({ gcEvents: LowerBehavior });
     });
 });
