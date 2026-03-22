@@ -140,7 +140,7 @@ export class SecureChannelMessenger {
 
     sendBusy(minimumRetryInterval: Duration, abort?: AbortSignal) {
         if (minimumRetryInterval <= 0) {
-            throw new Error("Busy minimal retry interval must be greater than 0ms");
+            throw new Error("Busy minimum retry interval must be greater than 0ms");
         }
         const writer = new DataWriter(Endian.Little);
         writer.writeUInt16(Math.min(minimumRetryInterval, 0xffff));
