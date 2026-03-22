@@ -71,7 +71,7 @@ describe("SupportedBehaviors", () => {
 
         expect(() => {
             SupportedBehaviors(UpperBehavior);
-        }).throws('Behavior ID "GCEvents" must be lowerCamelCase (expected "gcEvents")');
+        }).throws('Behavior ID "GCEvents" must start with a lowercase letter');
     });
 
     it("accepts behavior ID starting with lowercase", () => {
@@ -81,5 +81,14 @@ describe("SupportedBehaviors", () => {
 
         const sb = SupportedBehaviors(LowerBehavior);
         expect(sb).deep.equal({ gcEvents: LowerBehavior });
+    });
+
+    it("accepts hyphenated behavior ID", () => {
+        class HyphenBehavior extends Behavior {
+            static override readonly id = "test-plugin";
+        }
+
+        const sb = SupportedBehaviors(HyphenBehavior);
+        expect(sb).deep.equal({ "test-plugin": HyphenBehavior });
     });
 });

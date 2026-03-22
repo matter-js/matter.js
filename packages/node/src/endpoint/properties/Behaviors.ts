@@ -470,9 +470,13 @@ export class Behaviors {
      * injected once the endpoint is initialized.
      */
     inject(type: Behavior.Type, options?: Behavior.Options, notify = true) {
-        const camelized = camelize(type.id);
-        if (type.id !== camelized) {
-            throw new ImplementationError(`Behavior ID "${type.id}" must be lowerCamelCase (expected "${camelized}")`);
+        if (typeof type.id !== "string") {
+            throw new ImplementationError("Behavior type has no ID");
+        }
+        if (!/^[a-z]/.test(type.id)) {
+            throw new ImplementationError(
+                `Behavior ID "${type.id}" must start with a lowercase letter (for example "${camelize(type.id)}")`,
+            );
         }
 
         if (options) {
