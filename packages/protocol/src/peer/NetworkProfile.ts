@@ -83,7 +83,10 @@ export class NetworkProfiles {
                     merged.connect = merge(base[key].connect ?? {}, connect) as NetworkProfiles.ConcreteLimits;
                 }
                 if (probeAddress !== undefined) {
-                    merged.probeAddress = merge(base[key].probeAddress ?? {}, probeAddress) as NetworkProfiles.ConcreteLimits;
+                    merged.probeAddress = merge(
+                        base[key].probeAddress ?? {},
+                        probeAddress,
+                    ) as NetworkProfiles.ConcreteLimits;
                 }
                 base[key] = merged;
             }
@@ -137,9 +140,17 @@ export class NetworkProfiles {
             });
         }
         if (limits.probeAddress) {
-            network.probeAddress = this.configure(`${id}:probe`, { ...limits.probeAddress, connect: undefined, probeAddress: undefined });
+            network.probeAddress = this.configure(`${id}:probe`, {
+                ...limits.probeAddress,
+                connect: undefined,
+                probeAddress: undefined,
+            });
         }
-        logger.info("Configure profile", id, Diagnostic.dict({ ...limits, connect: undefined, probeAddress: undefined }));
+        logger.info(
+            "Configure profile",
+            id,
+            Diagnostic.dict({ ...limits, connect: undefined, probeAddress: undefined }),
+        );
         this.#networks.set(id, network);
         return network;
     }

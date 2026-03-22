@@ -581,7 +581,9 @@ export class MessageExchange {
         if (isStandaloneAck) {
             await this.channel.send(message, { exchange: this, addressOverride: this.#addressOverride });
         } else {
-            await abort.attempt(this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }));
+            await abort.attempt(
+                this.channel.send(message, { exchange: this, logContext, addressOverride: this.#addressOverride }),
+            );
         }
         if (abort.aborted) {
             return;
