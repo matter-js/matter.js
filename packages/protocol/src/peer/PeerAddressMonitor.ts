@@ -4,15 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import {
-    Diagnostic,
-    Duration,
-    isIpNetworkChannel,
-    Logger,
-    ServerAddress,
-    Time,
-    Timer,
-} from "@matter/general";
+import { Diagnostic, Duration, isIpNetworkChannel, Logger, ServerAddress, Time, Timer } from "@matter/general";
 import type { Peer } from "./Peer.js";
 
 const logger = Logger.get("PeerAddressMonitor");
@@ -28,12 +20,19 @@ const logger = Logger.get("PeerAddressMonitor");
  */
 export class PeerAddressMonitor {
     readonly #peer: Peer;
+    readonly #abort: AbortSignal;
     readonly #timer: Timer;
     readonly #trackWork: (work: PromiseLike<void>) => void;
     #probing?: Promise<void>;
 
-    constructor(peer: Peer, stabilizationDelay: Duration, trackWork: (work: PromiseLike<void>) => void) {
+    constructor(
+        peer: Peer,
+        stabilizationDelay: Duration,
+        abort: AbortSignal,
+        trackWork: (work: PromiseLike<void>) => void,
+    ) {
         this.#peer = peer;
+        this.#abort = abort;
         this.#trackWork = trackWork;
         this.#timer = Time.getTimer("address check stabilization", stabilizationDelay, () => {
             if (!this.#probing) {
@@ -106,7 +105,7 @@ export class PeerAddressMonitor {
         const probeNetwork = network.probeAddress ?? network;
 
         // Probe the current address — maybe mDNS is just stale and the address still works
-        if (await interaction.probe({ network: probeNetwork.id, abort: this.#peer.abort })) {
+        if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort })) {
             logger.debug(via, "Probe succeeded at current address, keeping session");
             return;
         }

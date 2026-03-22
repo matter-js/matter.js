@@ -103,6 +103,7 @@ export class Peer {
         this.#addressMonitor = new PeerAddressMonitor(
             this,
             context.timing.addressChangeStabilizationDelay,
+            this.#abort,
             work => this.#workers.add(work),
         );
 
@@ -240,10 +241,6 @@ export class Peer {
 
     get network() {
         return this.#context.networks.forPeer(this);
-    }
-
-    get abort(): AbortSignal {
-        return this.#abort;
     }
 
     /**
