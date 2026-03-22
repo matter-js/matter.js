@@ -47961,7 +47961,8 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 560, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 560, revision: 1 } ], element: "attribute" }),
+            Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
         ),
         Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster", xref: "device§8.5.5" }),
         Requirement(
@@ -48000,7 +48001,8 @@ export const SpecMatter = Matter(
 
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 561, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 561, revision: 1 } ], element: "attribute" }),
+            Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
         ),
         Requirement(
             { name: "WindowCovering", id: 0x102, conformance: "X", element: "serverCluster", xref: "device§8.6.3" }
@@ -49185,7 +49187,8 @@ export const SpecMatter = Matter(
         },
         Requirement(
             { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1299, revision: 1 } ], element: "attribute" })
+            Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1299, revision: 1 } ], element: "attribute" }),
+            Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
         ),
         Condition({
             name: "ActiveTariff", description: "The tariff represents the currently active tariff",

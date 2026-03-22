@@ -17,7 +17,8 @@ export const ElectricalEnergyTariffDt = DeviceType(
     { name: "ElectricalEnergyTariff", id: 0x513, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1299, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 1299, revision: 1 } ], element: "attribute" }),
+        Requirement({ name: "TAGLIST", conformance: "M", element: "feature" })
     ),
     Requirement({ name: "CommodityPrice", id: 0x95, conformance: "[ActiveTariff].a+", element: "serverCluster" }),
     Requirement({ name: "ElectricalGridConditions", id: 0xa0, conformance: "O", element: "serverCluster" }),
