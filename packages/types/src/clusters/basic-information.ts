@@ -1413,7 +1413,13 @@ export namespace BasicInformation {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `BasicInformation` instead of `BasicInformation.Complete`)
+     */
+    export type Complete = typeof BasicInformation;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x28);
     export const name = "BasicInformation" as const;
     export const revision = 5;

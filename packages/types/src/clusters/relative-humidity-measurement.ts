@@ -185,7 +185,14 @@ export namespace RelativeHumidityMeasurement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `RelativeHumidityMeasurement` instead of
+     * `RelativeHumidityMeasurement.Complete`)
+     */
+    export type Complete = typeof RelativeHumidityMeasurement;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x405);
     export const name = "RelativeHumidityMeasurement" as const;
     export const revision = 3;

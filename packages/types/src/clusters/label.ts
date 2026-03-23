@@ -116,7 +116,12 @@ export namespace Label {
         }
     });
 
-    export const Complete = Base;
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `Label` instead of `Label.Complete`)
+     */
+    export type Complete = typeof Label;
+
+    export declare const Complete: Complete;
     export const name = "Label" as const;
     export const revision = 1;
     export const schema = LabelModel;

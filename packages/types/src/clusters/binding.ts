@@ -186,7 +186,13 @@ export namespace Binding {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `Binding` instead of `Binding.Complete`)
+     */
+    export type Complete = typeof Binding;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x1e);
     export const name = "Binding" as const;
     export const revision = 1;

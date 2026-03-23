@@ -263,19 +263,12 @@ export namespace Pm10ConcentrationMeasurement {
     export const Cluster: Cluster = ClusterInstance;
 
     /**
-     * This cluster supports all Pm10ConcentrationMeasurement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
+     * @deprecated Use the cluster namespace directly (e.g. `Pm10ConcentrationMeasurement` instead of
+     * `Pm10ConcentrationMeasurement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        ...ConcentrationMeasurement.Complete,
-        id: 0x42d,
-        name: "Pm10ConcentrationMeasurement"
-    });
+    export type Complete = typeof Pm10ConcentrationMeasurement;
 
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x42d);
     export const name = "Pm10ConcentrationMeasurement" as const;
     export const revision = 3;

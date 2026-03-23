@@ -1331,47 +1331,13 @@ export namespace ContentLauncher {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const UP = { urlPlayback: true };
-    const CS = { contentSearch: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ContentLauncher` instead of `ContentLauncher.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof ContentLauncher;
 
-        attributes: {
-            acceptHeader: MutableCluster.AsConditional(
-                UrlPlaybackComponent.attributes.acceptHeader,
-                { mandatoryIf: [UP] }
-            ),
-            supportedStreamingProtocols: MutableCluster.AsConditional(
-                UrlPlaybackComponent.attributes.supportedStreamingProtocols,
-                { mandatoryIf: [UP] }
-            )
-        },
-
-        commands: {
-            launchContent: MutableCluster.AsConditional(
-                ContentSearchComponent.commands.launchContent,
-                { mandatoryIf: [CS] }
-            ),
-            launchUrl: MutableCluster.AsConditional(UrlPlaybackComponent.commands.launchUrl, { mandatoryIf: [UP] })
-        }
-    });
-
-    /**
-     * This cluster supports all ContentLauncher features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x50a);
     export const name = "ContentLauncher" as const;
     export const revision = 2;

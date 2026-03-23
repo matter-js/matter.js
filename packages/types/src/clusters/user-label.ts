@@ -81,7 +81,13 @@ export namespace UserLabel {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `UserLabel` instead of `UserLabel.Complete`)
+     */
+    export type Complete = typeof UserLabel;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x41);
     export const name = "UserLabel" as const;
     export const revision = 1;

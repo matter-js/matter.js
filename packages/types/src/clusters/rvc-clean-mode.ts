@@ -461,7 +461,13 @@ export namespace RvcCleanMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `RvcCleanMode` instead of `RvcCleanMode.Complete`)
+     */
+    export type Complete = typeof RvcCleanMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x55);
     export const name = "RvcCleanMode" as const;
     export const revision = 4;

@@ -474,7 +474,14 @@ export namespace OvenCavityOperationalState {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `OvenCavityOperationalState` instead of
+     * `OvenCavityOperationalState.Complete`)
+     */
+    export type Complete = typeof OvenCavityOperationalState;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x48);
     export const name = "OvenCavityOperationalState" as const;
     export const revision = 2;

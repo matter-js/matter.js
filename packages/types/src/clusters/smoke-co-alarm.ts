@@ -1187,61 +1187,13 @@ export namespace SmokeCoAlarm {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const SMOKE = { smokeAlarm: true };
-    const CO = { coAlarm: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `SmokeCoAlarm` instead of `SmokeCoAlarm.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof SmokeCoAlarm;
 
-        attributes: {
-            ...Base.attributes,
-            smokeState: MutableCluster.AsConditional(
-                SmokeAlarmComponent.attributes.smokeState,
-                { mandatoryIf: [SMOKE] }
-            ),
-            coState: MutableCluster.AsConditional(CoAlarmComponent.attributes.coState, { mandatoryIf: [CO] }),
-            contaminationState: MutableCluster.AsConditional(
-                SmokeAlarmComponent.attributes.contaminationState,
-                { optionalIf: [SMOKE] }
-            ),
-            smokeSensitivityLevel: MutableCluster.AsConditional(
-                SmokeAlarmComponent.attributes.smokeSensitivityLevel,
-                { optionalIf: [SMOKE] }
-            )
-        },
-
-        commands: Base.commands,
-
-        events: {
-            ...Base.events,
-            smokeAlarm: MutableCluster.AsConditional(SmokeAlarmComponent.events.smokeAlarm, { mandatoryIf: [SMOKE] }),
-            coAlarm: MutableCluster.AsConditional(CoAlarmComponent.events.coAlarm, { mandatoryIf: [CO] }),
-            interconnectSmokeAlarm: MutableCluster.AsConditional(
-                SmokeAlarmComponent.events.interconnectSmokeAlarm,
-                { optionalIf: [SMOKE] }
-            ),
-            interconnectCoAlarm: MutableCluster.AsConditional(
-                CoAlarmComponent.events.interconnectCoAlarm,
-                { optionalIf: [CO] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all SmokeCoAlarm features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x5c);
     export const name = "SmokeCoAlarm" as const;
     export const revision = 1;

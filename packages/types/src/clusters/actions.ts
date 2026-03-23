@@ -1751,7 +1751,13 @@ export namespace Actions {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `Actions` instead of `Actions.Complete`)
+     */
+    export type Complete = typeof Actions;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x25);
     export const name = "Actions" as const;
     export const revision = 1;

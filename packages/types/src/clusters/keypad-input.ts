@@ -362,7 +362,13 @@ export namespace KeypadInput {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `KeypadInput` instead of `KeypadInput.Complete`)
+     */
+    export type Complete = typeof KeypadInput;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x509);
     export const name = "KeypadInput" as const;
     export const revision = 1;

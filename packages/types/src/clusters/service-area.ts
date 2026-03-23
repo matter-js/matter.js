@@ -1586,42 +1586,13 @@ export namespace ServiceArea {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const MAPS = { maps: true };
-    const PROG = { progressReporting: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ServiceArea` instead of `ServiceArea.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof ServiceArea;
 
-        attributes: {
-            ...Cluster.attributes,
-            supportedMaps: MutableCluster.AsConditional(
-                MapsComponent.attributes.supportedMaps,
-                { mandatoryIf: [MAPS] }
-            ),
-            progress: MutableCluster.AsConditional(
-                ProgressReportingComponent.attributes.progress,
-                { mandatoryIf: [PROG] }
-            )
-        },
-
-        commands: Cluster.commands
-    });
-
-    /**
-     * This cluster supports all ServiceArea features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x150);
     export const name = "ServiceArea" as const;
     export const revision = 2;

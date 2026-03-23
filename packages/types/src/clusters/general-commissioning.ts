@@ -1620,59 +1620,14 @@ export namespace GeneralCommissioning {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const TC = { termsAndConditions: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `GeneralCommissioning` instead of
+     * `GeneralCommissioning.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof GeneralCommissioning;
 
-        attributes: {
-            ...Cluster.attributes,
-            tcAcceptedVersion: MutableCluster.AsConditional(
-                TermsAndConditionsComponent.attributes.tcAcceptedVersion,
-                { mandatoryIf: [TC] }
-            ),
-            tcMinRequiredVersion: MutableCluster.AsConditional(
-                TermsAndConditionsComponent.attributes.tcMinRequiredVersion,
-                { mandatoryIf: [TC] }
-            ),
-            tcAcknowledgements: MutableCluster.AsConditional(
-                TermsAndConditionsComponent.attributes.tcAcknowledgements,
-                { mandatoryIf: [TC] }
-            ),
-            tcAcknowledgementsRequired: MutableCluster.AsConditional(
-                TermsAndConditionsComponent.attributes.tcAcknowledgementsRequired,
-                { mandatoryIf: [TC] }
-            ),
-            tcUpdateDeadline: MutableCluster.AsConditional(
-                TermsAndConditionsComponent.attributes.tcUpdateDeadline,
-                { mandatoryIf: [TC] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            setTcAcknowledgements: MutableCluster.AsConditional(
-                TermsAndConditionsComponent.commands.setTcAcknowledgements,
-                { mandatoryIf: [TC] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all GeneralCommissioning features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x30);
     export const name = "GeneralCommissioning" as const;
     export const revision = 2;

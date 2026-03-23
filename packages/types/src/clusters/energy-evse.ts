@@ -2657,104 +2657,13 @@ export namespace EnergyEvse {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const V2X = { v2X: true };
-    const PREF = { chargingPreferences: true };
-    const SOC = { soCReporting: true };
-    const PNC = { plugAndCharge: true };
-    const RFID = { rfid: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `EnergyEvse` instead of `EnergyEvse.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof EnergyEvse;
 
-        attributes: {
-            ...Cluster.attributes,
-            dischargingEnabledUntil: MutableCluster.AsConditional(
-                V2XComponent.attributes.dischargingEnabledUntil,
-                { mandatoryIf: [V2X] }
-            ),
-            maximumDischargeCurrent: MutableCluster.AsConditional(
-                V2XComponent.attributes.maximumDischargeCurrent,
-                { mandatoryIf: [V2X] }
-            ),
-            nextChargeStartTime: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.attributes.nextChargeStartTime,
-                { mandatoryIf: [PREF] }
-            ),
-            nextChargeTargetTime: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.attributes.nextChargeTargetTime,
-                { mandatoryIf: [PREF] }
-            ),
-            nextChargeRequiredEnergy: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.attributes.nextChargeRequiredEnergy,
-                { mandatoryIf: [PREF] }
-            ),
-            nextChargeTargetSoC: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.attributes.nextChargeTargetSoC,
-                { mandatoryIf: [PREF] }
-            ),
-            approximateEvEfficiency: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.attributes.approximateEvEfficiency,
-                { optionalIf: [PREF] }
-            ),
-            stateOfCharge: MutableCluster.AsConditional(
-                SoCReportingComponent.attributes.stateOfCharge,
-                { mandatoryIf: [SOC] }
-            ),
-            batteryCapacity: MutableCluster.AsConditional(
-                SoCReportingComponent.attributes.batteryCapacity,
-                { mandatoryIf: [SOC] }
-            ),
-            vehicleId: MutableCluster.AsConditional(
-                PlugAndChargeComponent.attributes.vehicleId,
-                { mandatoryIf: [PNC] }
-            ),
-            sessionEnergyDischarged: MutableCluster.AsConditional(
-                V2XComponent.attributes.sessionEnergyDischarged,
-                { mandatoryIf: [V2X] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            enableDischarging: MutableCluster.AsConditional(
-                V2XComponent.commands.enableDischarging,
-                { mandatoryIf: [V2X] }
-            ),
-            setTargets: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.commands.setTargets,
-                { mandatoryIf: [PREF] }
-            ),
-            getTargets: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.commands.getTargets,
-                { mandatoryIf: [PREF] }
-            ),
-            clearTargets: MutableCluster.AsConditional(
-                ChargingPreferencesComponent.commands.clearTargets,
-                { mandatoryIf: [PREF] }
-            )
-        },
-
-        events: {
-            ...Cluster.events,
-            rfid: MutableCluster.AsConditional(RfidComponent.events.rfid, { optionalIf: [RFID] })
-        }
-    });
-
-    /**
-     * This cluster supports all EnergyEvse features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x99);
     export const name = "EnergyEvse" as const;
     export const revision = 3;

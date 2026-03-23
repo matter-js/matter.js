@@ -430,7 +430,13 @@ export namespace LaundryWasherMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `LaundryWasherMode` instead of `LaundryWasherMode.Complete`)
+     */
+    export type Complete = typeof LaundryWasherMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x51);
     export const name = "LaundryWasherMode" as const;
     export const revision = 3;

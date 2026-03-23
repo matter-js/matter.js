@@ -442,7 +442,13 @@ export namespace WaterHeaterMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `WaterHeaterMode` instead of `WaterHeaterMode.Complete`)
+     */
+    export type Complete = typeof WaterHeaterMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x9e);
     export const name = "WaterHeaterMode" as const;
     export const revision = 1;

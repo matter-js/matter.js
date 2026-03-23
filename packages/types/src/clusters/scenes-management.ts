@@ -1512,7 +1512,13 @@ export namespace ScenesManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `ScenesManagement` instead of `ScenesManagement.Complete`)
+     */
+    export type Complete = typeof ScenesManagement;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x62);
     export const name = "ScenesManagement" as const;
     export const revision = 1;

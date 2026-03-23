@@ -483,51 +483,13 @@ export namespace EnergyPreference {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const BALA = { energyBalance: true };
-    const LPMS = { lowPowerModeSensitivity: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `EnergyPreference` instead of `EnergyPreference.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof EnergyPreference;
 
-        attributes: {
-            energyBalances: MutableCluster.AsConditional(
-                EnergyBalanceComponent.attributes.energyBalances,
-                { mandatoryIf: [BALA] }
-            ),
-            currentEnergyBalance: MutableCluster.AsConditional(
-                EnergyBalanceComponent.attributes.currentEnergyBalance,
-                { mandatoryIf: [BALA] }
-            ),
-            energyPriorities: MutableCluster.AsConditional(
-                EnergyBalanceComponent.attributes.energyPriorities,
-                { mandatoryIf: [BALA] }
-            ),
-            lowPowerModeSensitivities: MutableCluster.AsConditional(
-                LowPowerModeSensitivityComponent.attributes.lowPowerModeSensitivities,
-                { mandatoryIf: [LPMS] }
-            ),
-            currentLowPowerModeSensitivity: MutableCluster.AsConditional(
-                LowPowerModeSensitivityComponent.attributes.currentLowPowerModeSensitivity,
-                { mandatoryIf: [LPMS] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all EnergyPreference features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x9b);
     export const name = "EnergyPreference" as const;
     export const revision = 1;

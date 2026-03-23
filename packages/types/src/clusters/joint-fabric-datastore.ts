@@ -3634,7 +3634,14 @@ export namespace JointFabricDatastore {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `JointFabricDatastore` instead of
+     * `JointFabricDatastore.Complete`)
+     */
+    export type Complete = typeof JointFabricDatastore;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x752);
     export const name = "JointFabricDatastore" as const;
     export const revision = 1;

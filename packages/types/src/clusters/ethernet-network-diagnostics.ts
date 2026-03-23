@@ -479,59 +479,14 @@ export namespace EthernetNetworkDiagnostics {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const PKTCNT = { packetCounts: true };
-    const ERRCNT = { errorCounts: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `EthernetNetworkDiagnostics` instead of
+     * `EthernetNetworkDiagnostics.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof EthernetNetworkDiagnostics;
 
-        attributes: {
-            ...Cluster.attributes,
-            packetRxCount: MutableCluster.AsConditional(
-                PacketCountsComponent.attributes.packetRxCount,
-                { mandatoryIf: [PKTCNT] }
-            ),
-            packetTxCount: MutableCluster.AsConditional(
-                PacketCountsComponent.attributes.packetTxCount,
-                { mandatoryIf: [PKTCNT] }
-            ),
-            txErrCount: MutableCluster.AsConditional(
-                ErrorCountsComponent.attributes.txErrCount,
-                { mandatoryIf: [ERRCNT] }
-            ),
-            collisionCount: MutableCluster.AsConditional(
-                ErrorCountsComponent.attributes.collisionCount,
-                { mandatoryIf: [ERRCNT] }
-            ),
-            overrunCount: MutableCluster.AsConditional(
-                ErrorCountsComponent.attributes.overrunCount,
-                { mandatoryIf: [ERRCNT] }
-            )
-        },
-
-        commands: {
-            resetCounts: MutableCluster.AsConditional(
-                PacketCountsOrErrorCountsComponent.commands.resetCounts,
-                { mandatoryIf: [PKTCNT, ERRCNT] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all EthernetNetworkDiagnostics features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x37);
     export const name = "EthernetNetworkDiagnostics" as const;
     export const revision = 1;

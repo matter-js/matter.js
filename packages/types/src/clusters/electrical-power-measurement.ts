@@ -1732,84 +1732,14 @@ export namespace ElectricalPowerMeasurement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const ALTC = { alternatingCurrent: true };
-    const HARM = { harmonics: true };
-    const PWRQ = { powerQuality: true };
-    const POLY = { polyphasePower: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ElectricalPowerMeasurement` instead of
+     * `ElectricalPowerMeasurement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof ElectricalPowerMeasurement;
 
-        attributes: {
-            ...Base.attributes,
-            reactiveCurrent: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.reactiveCurrent,
-                { optionalIf: [ALTC] }
-            ),
-            apparentCurrent: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.apparentCurrent,
-                { optionalIf: [ALTC] }
-            ),
-            reactivePower: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.reactivePower,
-                { optionalIf: [ALTC] }
-            ),
-            apparentPower: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.apparentPower,
-                { optionalIf: [ALTC] }
-            ),
-            rmsVoltage: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.rmsVoltage,
-                { optionalIf: [ALTC] }
-            ),
-            rmsCurrent: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.rmsCurrent,
-                { optionalIf: [ALTC] }
-            ),
-            rmsPower: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.rmsPower,
-                { optionalIf: [ALTC] }
-            ),
-            frequency: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.frequency,
-                { optionalIf: [ALTC] }
-            ),
-            harmonicCurrents: MutableCluster.AsConditional(
-                HarmonicsComponent.attributes.harmonicCurrents,
-                { mandatoryIf: [HARM] }
-            ),
-            harmonicPhases: MutableCluster.AsConditional(
-                PowerQualityComponent.attributes.harmonicPhases,
-                { mandatoryIf: [PWRQ] }
-            ),
-            powerFactor: MutableCluster.AsConditional(
-                AlternatingCurrentComponent.attributes.powerFactor,
-                { optionalIf: [ALTC] }
-            ),
-            neutralCurrent: MutableCluster.AsConditional(
-                PolyphasePowerComponent.attributes.neutralCurrent,
-                { optionalIf: [POLY] }
-            )
-        },
-
-        events: Base.events
-    });
-
-    /**
-     * This cluster supports all ElectricalPowerMeasurement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x90);
     export const name = "ElectricalPowerMeasurement" as const;
     export const revision = 3;

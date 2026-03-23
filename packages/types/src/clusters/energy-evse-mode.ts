@@ -464,7 +464,13 @@ export namespace EnergyEvseMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `EnergyEvseMode` instead of `EnergyEvseMode.Complete`)
+     */
+    export type Complete = typeof EnergyEvseMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x9d);
     export const name = "EnergyEvseMode" as const;
     export const revision = 2;

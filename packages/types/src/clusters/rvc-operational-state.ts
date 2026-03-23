@@ -825,7 +825,14 @@ export namespace RvcOperationalState {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `RvcOperationalState` instead of
+     * `RvcOperationalState.Complete`)
+     */
+    export type Complete = typeof RvcOperationalState;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x61);
     export const name = "RvcOperationalState" as const;
     export const revision = 3;

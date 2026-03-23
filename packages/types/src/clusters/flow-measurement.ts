@@ -166,7 +166,13 @@ export namespace FlowMeasurement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `FlowMeasurement` instead of `FlowMeasurement.Complete`)
+     */
+    export type Complete = typeof FlowMeasurement;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x404);
     export const name = "FlowMeasurement" as const;
     export const revision = 3;

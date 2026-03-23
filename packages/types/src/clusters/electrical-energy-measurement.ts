@@ -1151,67 +1151,14 @@ export namespace ElectricalEnergyMeasurement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const IMPE_CUME = { importedEnergy: true, cumulativeEnergy: true };
-    const EXPE_CUME = { exportedEnergy: true, cumulativeEnergy: true };
-    const IMPE_PERE = { importedEnergy: true, periodicEnergy: true };
-    const EXPE_PERE = { exportedEnergy: true, periodicEnergy: true };
-    const CUME = { cumulativeEnergy: true };
-    const PERE = { periodicEnergy: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ElectricalEnergyMeasurement` instead of
+     * `ElectricalEnergyMeasurement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof ElectricalEnergyMeasurement;
 
-        attributes: {
-            ...Base.attributes,
-            cumulativeEnergyImported: MutableCluster.AsConditional(
-                ImportedEnergyAndCumulativeEnergyComponent.attributes.cumulativeEnergyImported,
-                { mandatoryIf: [IMPE_CUME] }
-            ),
-            cumulativeEnergyExported: MutableCluster.AsConditional(
-                ExportedEnergyAndCumulativeEnergyComponent.attributes.cumulativeEnergyExported,
-                { mandatoryIf: [EXPE_CUME] }
-            ),
-            periodicEnergyImported: MutableCluster.AsConditional(
-                ImportedEnergyAndPeriodicEnergyComponent.attributes.periodicEnergyImported,
-                { mandatoryIf: [IMPE_PERE] }
-            ),
-            periodicEnergyExported: MutableCluster.AsConditional(
-                ExportedEnergyAndPeriodicEnergyComponent.attributes.periodicEnergyExported,
-                { mandatoryIf: [EXPE_PERE] }
-            ),
-            cumulativeEnergyReset: MutableCluster.AsConditional(
-                CumulativeEnergyComponent.attributes.cumulativeEnergyReset,
-                { optionalIf: [CUME] }
-            )
-        },
-
-        events: {
-            cumulativeEnergyMeasured: MutableCluster.AsConditional(
-                CumulativeEnergyComponent.events.cumulativeEnergyMeasured,
-                { mandatoryIf: [CUME] }
-            ),
-            periodicEnergyMeasured: MutableCluster.AsConditional(
-                PeriodicEnergyComponent.events.periodicEnergyMeasured,
-                { mandatoryIf: [PERE] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all ElectricalEnergyMeasurement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x91);
     export const name = "ElectricalEnergyMeasurement" as const;
     export const revision = 1;

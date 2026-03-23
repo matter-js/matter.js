@@ -1079,54 +1079,13 @@ export namespace FanControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const SPD = { multiSpeed: true };
-    const RCK = { rocking: true };
-    const WND = { wind: true };
-    const DIR = { airflowDirection: true };
-    const STEP = { step: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `FanControl` instead of `FanControl.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof FanControl;
 
-        attributes: {
-            ...Cluster.attributes,
-            speedMax: MutableCluster.AsConditional(MultiSpeedComponent.attributes.speedMax, { mandatoryIf: [SPD] }),
-            speedSetting: MutableCluster.AsConditional(
-                MultiSpeedComponent.attributes.speedSetting,
-                { mandatoryIf: [SPD] }
-            ),
-            speedCurrent: MutableCluster.AsConditional(
-                MultiSpeedComponent.attributes.speedCurrent,
-                { mandatoryIf: [SPD] }
-            ),
-            rockSupport: MutableCluster.AsConditional(RockingComponent.attributes.rockSupport, { mandatoryIf: [RCK] }),
-            rockSetting: MutableCluster.AsConditional(RockingComponent.attributes.rockSetting, { mandatoryIf: [RCK] }),
-            windSupport: MutableCluster.AsConditional(WindComponent.attributes.windSupport, { mandatoryIf: [WND] }),
-            windSetting: MutableCluster.AsConditional(WindComponent.attributes.windSetting, { mandatoryIf: [WND] }),
-            airflowDirection: MutableCluster.AsConditional(
-                AirflowDirectionComponent.attributes.airflowDirection,
-                { mandatoryIf: [DIR] }
-            )
-        },
-
-        commands: { step: MutableCluster.AsConditional(StepComponent.commands.step, { mandatoryIf: [STEP] }) }
-    });
-
-    /**
-     * This cluster supports all FanControl features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x202);
     export const name = "FanControl" as const;
     export const revision = 5;

@@ -399,7 +399,13 @@ export namespace MicrowaveOvenMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `MicrowaveOvenMode` instead of `MicrowaveOvenMode.Complete`)
+     */
+    export type Complete = typeof MicrowaveOvenMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x5e);
     export const name = "MicrowaveOvenMode" as const;
     export const revision = 2;

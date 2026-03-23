@@ -62,7 +62,6 @@ import {
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { CommissioningControllerNodeOptions, NodeStates, PairedNode } from "./device/PairedNode.js";
 import { MatterController, PairedNodeDetails } from "./MatterController.js";
-import type { ClusterStatePropertiesOf } from "./util/ClusterTypeHelpers.js";
 
 const logger = new Logger("CommissioningController");
 
@@ -220,7 +219,7 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      * Options for the BasicInformation cluster of the Controller node.
      * The vendorId is determined by the adminVendorId!
      */
-    readonly basicInformation?: Partial<Omit<ClusterStatePropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+    readonly basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
 };
 
 /**

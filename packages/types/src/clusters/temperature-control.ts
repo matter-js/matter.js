@@ -450,55 +450,14 @@ export namespace TemperatureControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const TN = { temperatureNumber: true };
-    const STEP = { temperatureStep: true };
-    const TL = { temperatureLevel: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `TemperatureControl` instead of
+     * `TemperatureControl.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof TemperatureControl;
 
-        attributes: {
-            temperatureSetpoint: MutableCluster.AsConditional(
-                TemperatureNumberComponent.attributes.temperatureSetpoint,
-                { mandatoryIf: [TN] }
-            ),
-            minTemperature: MutableCluster.AsConditional(
-                TemperatureNumberComponent.attributes.minTemperature,
-                { mandatoryIf: [TN] }
-            ),
-            maxTemperature: MutableCluster.AsConditional(
-                TemperatureNumberComponent.attributes.maxTemperature,
-                { mandatoryIf: [TN] }
-            ),
-            step: MutableCluster.AsConditional(TemperatureStepComponent.attributes.step, { mandatoryIf: [STEP] }),
-            selectedTemperatureLevel: MutableCluster.AsConditional(
-                TemperatureLevelComponent.attributes.selectedTemperatureLevel,
-                { mandatoryIf: [TL] }
-            ),
-            supportedTemperatureLevels: MutableCluster.AsConditional(
-                TemperatureLevelComponent.attributes.supportedTemperatureLevels,
-                { mandatoryIf: [TL] }
-            )
-        },
-
-        commands: Base.commands
-    });
-
-    /**
-     * This cluster supports all TemperatureControl features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x56);
     export const name = "TemperatureControl" as const;
     export const revision = 1;

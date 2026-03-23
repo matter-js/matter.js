@@ -2563,79 +2563,14 @@ export namespace NetworkCommissioning {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const WI = { wiFiNetworkInterface: true };
-    const TH = { threadNetworkInterface: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `NetworkCommissioning` instead of
+     * `NetworkCommissioning.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof NetworkCommissioning;
 
-        attributes: {
-            ...Base.attributes,
-            scanMaxTimeSeconds: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.attributes.scanMaxTimeSeconds,
-                { mandatoryIf: [WI, TH] }
-            ),
-            connectMaxTimeSeconds: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.attributes.connectMaxTimeSeconds,
-                { mandatoryIf: [WI, TH] }
-            ),
-            supportedWiFiBands: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceComponent.attributes.supportedWiFiBands,
-                { mandatoryIf: [WI] }
-            ),
-            supportedThreadFeatures: MutableCluster.AsConditional(
-                ThreadNetworkInterfaceComponent.attributes.supportedThreadFeatures,
-                { mandatoryIf: [TH] }
-            ),
-            threadVersion: MutableCluster.AsConditional(
-                ThreadNetworkInterfaceComponent.attributes.threadVersion,
-                { mandatoryIf: [TH] }
-            )
-        },
-
-        commands: {
-            scanNetworks: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.scanNetworks,
-                { mandatoryIf: [WI, TH] }
-            ),
-            addOrUpdateWiFiNetwork: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceComponent.commands.addOrUpdateWiFiNetwork,
-                { mandatoryIf: [WI] }
-            ),
-            addOrUpdateThreadNetwork: MutableCluster.AsConditional(
-                ThreadNetworkInterfaceComponent.commands.addOrUpdateThreadNetwork,
-                { mandatoryIf: [TH] }
-            ),
-            removeNetwork: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.removeNetwork,
-                { mandatoryIf: [WI, TH] }
-            ),
-            connectNetwork: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.connectNetwork,
-                { mandatoryIf: [WI, TH] }
-            ),
-            reorderNetwork: MutableCluster.AsConditional(
-                WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.reorderNetwork,
-                { mandatoryIf: [WI, TH] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all NetworkCommissioning features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x31);
     export const name = "NetworkCommissioning" as const;
     export const revision = 2;

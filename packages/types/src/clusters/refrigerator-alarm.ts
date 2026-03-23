@@ -395,33 +395,13 @@ export namespace RefrigeratorAlarm {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const RESET = { reset: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `RefrigeratorAlarm` instead of `RefrigeratorAlarm.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
-        attributes: {
-            ...Cluster.attributes,
-            latch: MutableCluster.AsConditional(ResetComponent.attributes.latch, { mandatoryIf: [RESET] })
-        },
-        commands: { reset: MutableCluster.AsConditional(ResetComponent.commands.reset, { mandatoryIf: [RESET] }) },
-        events: Cluster.events
-    });
+    export type Complete = typeof RefrigeratorAlarm;
 
-    /**
-     * This cluster supports all RefrigeratorAlarm features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x57);
     export const name = "RefrigeratorAlarm" as const;
     export const revision = 1;

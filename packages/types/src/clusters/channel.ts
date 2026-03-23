@@ -1812,59 +1812,13 @@ export namespace Channel {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const CL = { channelList: true };
-    const LI = { lineupInfo: true };
-    const EG = { electronicGuide: true };
-    const RP_EG = { recordProgram: true, electronicGuide: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `Channel` instead of `Channel.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof Channel;
 
-        attributes: {
-            ...Cluster.attributes,
-            channelList: MutableCluster.AsConditional(
-                ChannelListComponent.attributes.channelList,
-                { mandatoryIf: [CL] }
-            ),
-            lineup: MutableCluster.AsConditional(LineupInfoComponent.attributes.lineup, { mandatoryIf: [LI] })
-        },
-
-        commands: {
-            ...Cluster.commands,
-            changeChannel: MutableCluster.AsConditional(
-                ChannelListOrLineupInfoComponent.commands.changeChannel,
-                { mandatoryIf: [CL, LI] }
-            ),
-            getProgramGuide: MutableCluster.AsConditional(
-                ElectronicGuideComponent.commands.getProgramGuide,
-                { mandatoryIf: [EG] }
-            ),
-            recordProgram: MutableCluster.AsConditional(
-                RecordProgramAndElectronicGuideComponent.commands.recordProgram,
-                { mandatoryIf: [RP_EG] }
-            ),
-            cancelRecordProgram: MutableCluster.AsConditional(
-                RecordProgramAndElectronicGuideComponent.commands.cancelRecordProgram,
-                { mandatoryIf: [RP_EG] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all Channel features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x504);
     export const name = "Channel" as const;
     export const revision = 2;

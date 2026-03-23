@@ -11,7 +11,6 @@ import { Attribute, OptionalAttribute, FixedAttribute } from "../cluster/Cluster
 import { TlvFloat, TlvEnum, TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
-import { Identity } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ConcentrationMeasurement as ConcentrationMeasurementModel } from "@matter/model";
 
@@ -568,73 +567,13 @@ export namespace ConcentrationMeasurement {
         )
     });
 
-    const MEA = { numericMeasurement: true };
-    const PEA = { peakMeasurement: true };
-    const AVG = { averageMeasurement: true };
-    const LEV = { levelIndication: true };
-
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ConcentrationMeasurement` instead of
+     * `ConcentrationMeasurement.Complete`)
      */
-    export const CompleteInstance = MutableCluster.Component({
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof ConcentrationMeasurement;
 
-        attributes: {
-            ...Base.attributes,
-            measuredValue: MutableCluster.AsConditional(
-                NumericMeasurementComponent.attributes.measuredValue,
-                { mandatoryIf: [MEA] }
-            ),
-            minMeasuredValue: MutableCluster.AsConditional(
-                NumericMeasurementComponent.attributes.minMeasuredValue,
-                { mandatoryIf: [MEA] }
-            ),
-            maxMeasuredValue: MutableCluster.AsConditional(
-                NumericMeasurementComponent.attributes.maxMeasuredValue,
-                { mandatoryIf: [MEA] }
-            ),
-            peakMeasuredValue: MutableCluster.AsConditional(
-                PeakMeasurementComponent.attributes.peakMeasuredValue,
-                { mandatoryIf: [PEA] }
-            ),
-            peakMeasuredValueWindow: MutableCluster.AsConditional(
-                PeakMeasurementComponent.attributes.peakMeasuredValueWindow,
-                { mandatoryIf: [PEA] }
-            ),
-            averageMeasuredValue: MutableCluster.AsConditional(
-                AverageMeasurementComponent.attributes.averageMeasuredValue,
-                { mandatoryIf: [AVG] }
-            ),
-            averageMeasuredValueWindow: MutableCluster.AsConditional(
-                AverageMeasurementComponent.attributes.averageMeasuredValueWindow,
-                { mandatoryIf: [AVG] }
-            ),
-            uncertainty: MutableCluster.AsConditional(
-                NumericMeasurementComponent.attributes.uncertainty,
-                { optionalIf: [MEA] }
-            ),
-            measurementUnit: MutableCluster.AsConditional(
-                NumericMeasurementComponent.attributes.measurementUnit,
-                { mandatoryIf: [MEA] }
-            ),
-            levelValue: MutableCluster.AsConditional(
-                LevelIndicationComponent.attributes.levelValue,
-                { mandatoryIf: [LEV] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all ConcentrationMeasurement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const name = "ConcentrationMeasurement" as const;
     export const revision = 3;
     export const schema = ConcentrationMeasurementModel;

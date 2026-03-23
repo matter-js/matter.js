@@ -1931,78 +1931,14 @@ export namespace PumpConfigurationAndControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const PRSCONST = { constantPressure: true };
-    const AUTO = { automatic: true };
-    const PRSCOMP = { compensatedPressure: true };
-    const SPD = { constantSpeed: true };
-    const FLW = { constantFlow: true };
-    const TEMP = { constantTemperature: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `PumpConfigurationAndControl` instead of
+     * `PumpConfigurationAndControl.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof PumpConfigurationAndControl;
 
-        attributes: {
-            ...Base.attributes,
-            minConstPressure: MutableCluster.AsConditional(
-                ConstantPressureComponent.attributes.minConstPressure,
-                { mandatoryIf: [PRSCONST], optionalIf: [AUTO] }
-            ),
-            maxConstPressure: MutableCluster.AsConditional(
-                ConstantPressureComponent.attributes.maxConstPressure,
-                { mandatoryIf: [PRSCONST], optionalIf: [AUTO] }
-            ),
-            minCompPressure: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.minCompPressure,
-                { optionalIf: [AUTO], mandatoryIf: [PRSCOMP] }
-            ),
-            maxCompPressure: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.maxCompPressure,
-                { optionalIf: [AUTO], mandatoryIf: [PRSCOMP] }
-            ),
-            minConstSpeed: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.minConstSpeed,
-                { optionalIf: [AUTO], mandatoryIf: [SPD] }
-            ),
-            maxConstSpeed: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.maxConstSpeed,
-                { optionalIf: [AUTO], mandatoryIf: [SPD] }
-            ),
-            minConstFlow: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.minConstFlow,
-                { optionalIf: [AUTO], mandatoryIf: [FLW] }
-            ),
-            maxConstFlow: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.maxConstFlow,
-                { optionalIf: [AUTO], mandatoryIf: [FLW] }
-            ),
-            minConstTemp: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.minConstTemp,
-                { optionalIf: [AUTO], mandatoryIf: [TEMP] }
-            ),
-            maxConstTemp: MutableCluster.AsConditional(
-                AutomaticComponent.attributes.maxConstTemp,
-                { optionalIf: [AUTO], mandatoryIf: [TEMP] }
-            )
-        },
-
-        events: Base.events
-    });
-
-    /**
-     * This cluster supports all PumpConfigurationAndControl features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x200);
     export const name = "PumpConfigurationAndControl" as const;
     export const revision = 4;
