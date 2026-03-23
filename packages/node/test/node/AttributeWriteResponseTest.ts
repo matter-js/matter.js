@@ -6,7 +6,7 @@
 
 import { AttributeWriteResponse, Write } from "@matter/protocol";
 import { EndpointNumber, StatusCode, TlvString, WriteRequest } from "@matter/types";
-import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MockServerNode } from "./mock-server-node.js";
 
 describe("AttributeWriteRequest", () => {
@@ -16,7 +16,7 @@ describe("AttributeWriteRequest", () => {
             node,
             Write.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "Test Label",
             }),
@@ -42,7 +42,7 @@ describe("AttributeWriteRequest", () => {
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "Test Label 2",
             }),
@@ -69,7 +69,7 @@ describe("AttributeWriteRequest", () => {
             node,
             Write.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "Test Label",
             }),
@@ -95,7 +95,7 @@ describe("AttributeWriteRequest", () => {
         const response = await writeAttr(
             node,
             Write.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "Test Label 2",
             }),
@@ -111,7 +111,7 @@ describe("AttributeWriteRequest", () => {
             node,
             Write.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
                 value: "Matter.js Test Vendor",
             }),
@@ -137,7 +137,7 @@ describe("AttributeWriteRequest", () => {
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "vendorName",
                 value: "Matter.js Test Vendor",
             }),
@@ -153,7 +153,7 @@ describe("AttributeWriteRequest", () => {
             node,
             Write.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "Test Label",
                 version: 99,
@@ -180,7 +180,7 @@ describe("AttributeWriteRequest", () => {
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "Test Label",
                 version: 99,
@@ -208,7 +208,7 @@ describe("AttributeWriteRequest", () => {
             node,
             Write.Attribute({
                 endpoint: node,
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "12345678901234567890123456789012345", // 32 chars max
             }),
@@ -234,7 +234,7 @@ describe("AttributeWriteRequest", () => {
         const response = await writeAttrAsAdmin(
             node,
             Write.Attribute({
-                cluster: BasicInformationCluster,
+                cluster: BasicInformation,
                 attributes: "nodeLabel",
                 value: "12345678901234567890123456789012345", // 32 chars max
             }),
@@ -263,7 +263,7 @@ describe("AttributeWriteRequest", () => {
                     {
                         path: {
                             endpointId: EndpointNumber(0),
-                            clusterId: BasicInformationCluster.id,
+                            clusterId: BasicInformation.id,
                         },
                         data: TlvString.encodeTlv("Test Label"),
                     },
