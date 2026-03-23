@@ -6,49 +6,94 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { PowerTopology as PowerTopologyModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 
 /**
  * Definitions for the PowerTopology cluster.
+ *
+ * The Power Topology Cluster provides a mechanism for expressing how power is flowing between endpoints.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.8
  */
 export declare namespace PowerTopology {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x009c;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "PowerTopology";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the PowerTopology cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link PowerTopology} supports these elements if it supports feature "SetTopology".
      */
-    export namespace SetTopologyComponent {
-        export interface Attributes {
-            /**
-             * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
-             * hosting this server.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
-             */
-            readonly availableEndpoints: EndpointNumber[];
-        }
+    export interface SetTopologyAttributes {
+        /**
+         * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
+         * hosting this server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+         */
+        availableEndpoints: EndpointNumber[];
     }
 
     /**
      * {@link PowerTopology} supports these elements if it supports feature "DynamicPowerFlow".
      */
-    export namespace DynamicPowerFlowComponent {
-        export interface Attributes {
-            /**
-             * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
-             * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
-             */
-            readonly activeEndpoints: EndpointNumber[];
-        }
+    export interface DynamicPowerFlowAttributes {
+        /**
+         * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
+         * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+         */
+        activeEndpoints: EndpointNumber[];
     }
 
-    export interface Attributes extends Partial<SetTopologyComponent.Attributes>, Partial<DynamicPowerFlowComponent.Attributes> {}
+    /**
+     * Attributes that may appear in {@link PowerTopology}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
+         * hosting this server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+         */
+        availableEndpoints: EndpointNumber[];
+
+        /**
+         * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
+         * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+         */
+        activeEndpoints: EndpointNumber[];
+    }
+
     export type Components = [
-        { flags: { setTopology: true }, attributes: SetTopologyComponent.Attributes },
-        { flags: { dynamicPowerFlow: true }, attributes: DynamicPowerFlowComponent.Attributes }
+        { flags: { setTopology: true }, attributes: SetTopologyAttributes },
+        { flags: { dynamicPowerFlow: true }, attributes: DynamicPowerFlowAttributes }
     ];
     export type Features = "NodeTopology" | "TreeTopology" | "SetTopology" | "DynamicPowerFlow";
 
@@ -87,22 +132,36 @@ export declare namespace PowerTopology {
         DynamicPowerFlow = "DynamicPowerFlow"
     }
 
-    export const id: ClusterId;
-    export const name: "PowerTopology";
-    export const revision: 1;
-    export const schema: typeof PowerTopologyModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link PowerTopology}.
+     */
     export const Cluster: typeof PowerTopology;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `PowerTopology` instead of `PowerTopology.Complete`)
+     * @deprecated Use {@link PowerTopology}.
      */
     export const Complete: typeof PowerTopology;
 
     export const Typing: PowerTopology;
 }
 
+/**
+ * @deprecated Use {@link PowerTopology}.
+ */
 export declare const PowerTopologyCluster: typeof PowerTopology;
-export interface PowerTopology extends ClusterTyping { Attributes: PowerTopology.Attributes; Features: PowerTopology.Features; Components: PowerTopology.Components }
+
+export interface PowerTopology extends ClusterTyping {
+    Attributes: PowerTopology.Attributes;
+    Features: PowerTopology.Features;
+    Components: PowerTopology.Components;
+}

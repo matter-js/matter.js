@@ -355,7 +355,7 @@ export class TlvGenerator {
 
                 this.importTlv("tlv/TlvObject", tlv);
                 struct
-                    .atom(camelize(field.name), `${tlv}(${field.effectiveId}, ${this.reference(field)})`)
+                    .atom(field.propertyName, `${tlv}(${field.effectiveId}, ${this.reference(field)})`)
                     .document(field);
             });
         });
@@ -411,7 +411,7 @@ export class TlvGenerator {
                 continue;
             }
 
-            bitmap.atom(camelize(child.name), type).document(child);
+            bitmap.atom(child.propertyName, type).document(child);
         }
 
         return bitmap;
@@ -517,7 +517,7 @@ export class TlvGenerator {
         switch (model.tag) {
             case ElementTag.Attribute:
                 definition.document({
-                    details: `The value of the ${this.owner.name} ${camelize(model.name)} attribute`,
+                    details: `The value of the ${this.owner.name} ${model.propertyName} attribute`,
                     xref: model.xref,
                 });
                 break;
@@ -528,7 +528,7 @@ export class TlvGenerator {
                     definition.document(model);
                 } else {
                     definition.document({
-                        details: `Input to the ${this.owner.name} ${camelize(model.name)} command`,
+                        details: `Input to the ${this.owner.name} ${model.propertyName} command`,
                         xref: model.xref,
                     });
                 }
@@ -536,7 +536,7 @@ export class TlvGenerator {
 
             case ElementTag.Event:
                 definition.document({
-                    details: `Body of the ${this.owner.name} ${camelize(model.name)} event`,
+                    details: `Body of the ${this.owner.name} ${model.propertyName} event`,
                     xref: model.xref,
                 });
                 break;
@@ -547,7 +547,7 @@ export class TlvGenerator {
                     definition.document(model);
                 } else {
                     definition.document({
-                        details: `The value of ${this.owner.name}.${camelize(model.name)}`,
+                        details: `The value of ${this.owner.name}.${model.propertyName}`,
                         xref: model.xref,
                     });
                 }

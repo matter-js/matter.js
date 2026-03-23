@@ -6,144 +6,245 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { EthernetNetworkDiagnostics as EthernetNetworkDiagnosticsModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the EthernetNetworkDiagnostics cluster.
+ *
+ * The Ethernet Network Diagnostics Cluster provides a means to acquire standardized diagnostics metrics that may be
+ * used by a Node to assist a user or Administrator in diagnosing potential problems. The Ethernet Network Diagnostics
+ * Cluster attempts to centralize all metrics that are relevant to a potential Ethernet connection to a Node.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.16
  */
 export declare namespace EthernetNetworkDiagnostics {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0037;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "EthernetNetworkDiagnostics";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the EthernetNetworkDiagnostics cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link EthernetNetworkDiagnostics} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the current nominal, usable speed at the top of the physical layer of the Node. A value of null
-             * shall indicate that the interface is not currently configured or operational.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.1
-             */
-            readonly phyRate?: PhyRate | null;
+    export interface BaseAttributes {
+        /**
+         * Indicates the current nominal, usable speed at the top of the physical layer of the Node. A value of null
+         * shall indicate that the interface is not currently configured or operational.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.1
+         */
+        phyRate?: PhyRate | null;
 
-            /**
-             * Indicates if the Node is currently utilizing the full-duplex operating mode. A value of null shall
-             * indicate that the interface is not currently configured or operational.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.2
-             */
-            readonly fullDuplex?: boolean | null;
+        /**
+         * Indicates if the Node is currently utilizing the full-duplex operating mode. A value of null shall indicate
+         * that the interface is not currently configured or operational.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.2
+         */
+        fullDuplex?: boolean | null;
 
-            /**
-             * Indicates the value of the Carrier Detect control signal present on the ethernet network interface. A
-             * value of null shall indicate that the interface is not currently configured or operational.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.8
-             */
-            readonly carrierDetect?: boolean | null;
+        /**
+         * Indicates the value of the Carrier Detect control signal present on the ethernet network interface. A value
+         * of null shall indicate that the interface is not currently configured or operational.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.8
+         */
+        carrierDetect?: boolean | null;
 
-            /**
-             * Indicates the duration of time, in minutes, that it has been since the ethernet network interface has
-             * reset for any reason.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.9
-             */
-            readonly timeSinceReset?: number | bigint;
-        }
+        /**
+         * Indicates the duration of time, in minutes, that it has been since the ethernet network interface has reset
+         * for any reason.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.9
+         */
+        timeSinceReset?: number | bigint;
     }
 
     /**
      * {@link EthernetNetworkDiagnostics} supports these elements if it supports feature "PacketCounts".
      */
-    export namespace PacketCountsComponent {
-        export interface Attributes {
-            /**
-             * Indicates the number of packets that have been received on the ethernet network interface. The attribute
-             * shall be reset to 0 upon a reboot of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.3
-             */
-            readonly packetRxCount: number | bigint;
+    export interface PacketCountsAttributes {
+        /**
+         * Indicates the number of packets that have been received on the ethernet network interface. The attribute
+         * shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.3
+         */
+        packetRxCount: number | bigint;
 
-            /**
-             * Indicates the number of packets that have been successfully transferred on the ethernet network
-             * interface. The attribute shall be reset to 0 upon a reboot of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.4
-             */
-            readonly packetTxCount: number | bigint;
-        }
+        /**
+         * Indicates the number of packets that have been successfully transferred on the ethernet network interface.
+         * The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.4
+         */
+        packetTxCount: number | bigint;
     }
 
     /**
      * {@link EthernetNetworkDiagnostics} supports these elements if it supports feature "ErrorCounts".
      */
-    export namespace ErrorCountsComponent {
-        export interface Attributes {
-            /**
-             * Indicates the number of failed packet transmissions that have occurred on the ethernet network interface.
-             * The attribute shall be reset to 0 upon a reboot of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.5
-             */
-            readonly txErrCount: number | bigint;
+    export interface ErrorCountsAttributes {
+        /**
+         * Indicates the number of failed packet transmissions that have occurred on the ethernet network interface. The
+         * attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.5
+         */
+        txErrCount: number | bigint;
 
-            /**
-             * Indicates the number of collisions that have occurred while attempting to transmit a packet on the
-             * ethernet network interface. The attribute shall be reset to 0 upon a reboot of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.6
-             */
-            readonly collisionCount: number | bigint;
+        /**
+         * Indicates the number of collisions that have occurred while attempting to transmit a packet on the ethernet
+         * network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.6
+         */
+        collisionCount: number | bigint;
 
-            /**
-             * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to
-             * retain all packets on the ethernet network interface. The attribute shall be reset to 0 upon a reboot of
-             * the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.6.7
-             */
-            readonly overrunCount: number | bigint;
-        }
+        /**
+         * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
+         * all packets on the ethernet network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.7
+         */
+        overrunCount: number | bigint;
+    }
+
+    /**
+     * Attributes that may appear in {@link EthernetNetworkDiagnostics}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the current nominal, usable speed at the top of the physical layer of the Node. A value of null
+         * shall indicate that the interface is not currently configured or operational.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.1
+         */
+        phyRate: PhyRate | null;
+
+        /**
+         * Indicates if the Node is currently utilizing the full-duplex operating mode. A value of null shall indicate
+         * that the interface is not currently configured or operational.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.2
+         */
+        fullDuplex: boolean | null;
+
+        /**
+         * Indicates the value of the Carrier Detect control signal present on the ethernet network interface. A value
+         * of null shall indicate that the interface is not currently configured or operational.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.8
+         */
+        carrierDetect: boolean | null;
+
+        /**
+         * Indicates the duration of time, in minutes, that it has been since the ethernet network interface has reset
+         * for any reason.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.9
+         */
+        timeSinceReset: number | bigint;
+
+        /**
+         * Indicates the number of packets that have been received on the ethernet network interface. The attribute
+         * shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.3
+         */
+        packetRxCount: number | bigint;
+
+        /**
+         * Indicates the number of packets that have been successfully transferred on the ethernet network interface.
+         * The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.4
+         */
+        packetTxCount: number | bigint;
+
+        /**
+         * Indicates the number of failed packet transmissions that have occurred on the ethernet network interface. The
+         * attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.5
+         */
+        txErrCount: number | bigint;
+
+        /**
+         * Indicates the number of collisions that have occurred while attempting to transmit a packet on the ethernet
+         * network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.6
+         */
+        collisionCount: number | bigint;
+
+        /**
+         * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
+         * all packets on the ethernet network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.6.7
+         */
+        overrunCount: number | bigint;
     }
 
     /**
      * {@link EthernetNetworkDiagnostics} supports these elements if it supports feature "PacketCountsOrErrorCounts".
      */
-    export namespace PacketCountsOrErrorCountsComponent {
-        export interface Commands {
-            /**
-             * This command is used to reset the count attributes.
-             *
-             * Reception of this command shall reset the following attributes to 0:
-             *
-             *   - PacketRxCount
-             *
-             *   - PacketTxCount
-             *
-             *   - TxErrCount
-             *
-             *   - CollisionCount
-             *
-             *   - OverrunCount
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.16.7.1
-             */
-            resetCounts(): MaybePromise;
-        }
+    export interface PacketCountsOrErrorCountsCommands {
+        /**
+         * This command is used to reset the count attributes.
+         *
+         * Reception of this command shall reset the following attributes to 0:
+         *
+         *   - PacketRxCount
+         *
+         *   - PacketTxCount
+         *
+         *   - TxErrCount
+         *
+         *   - CollisionCount
+         *
+         *   - OverrunCount
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.16.7.1
+         */
+        resetCounts(): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<PacketCountsComponent.Attributes>, Partial<ErrorCountsComponent.Attributes> {}
-    export interface Commands extends PacketCountsOrErrorCountsComponent.Commands {}
+    /**
+     * Commands that may appear in {@link EthernetNetworkDiagnostics}.
+     */
+    export interface Commands extends PacketCountsOrErrorCountsCommands {}
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
-        { flags: { packetCounts: true }, attributes: PacketCountsComponent.Attributes },
-        { flags: { errorCounts: true }, attributes: ErrorCountsComponent.Attributes },
-        { flags: { packetCounts: true }, commands: PacketCountsOrErrorCountsComponent.Commands },
-        { flags: { errorCounts: true }, commands: PacketCountsOrErrorCountsComponent.Commands }
+        { flags: {}, attributes: BaseAttributes },
+        { flags: { packetCounts: true }, attributes: PacketCountsAttributes },
+        { flags: { errorCounts: true }, attributes: ErrorCountsAttributes },
+        { flags: { packetCounts: true }, commands: PacketCountsOrErrorCountsCommands },
+        { flags: { errorCounts: true }, commands: PacketCountsOrErrorCountsCommands }
     ];
 
     export type Features = "PacketCounts" | "ErrorCounts";
@@ -225,25 +326,42 @@ export declare namespace EthernetNetworkDiagnostics {
         Rate400G = 9
     }
 
-    export const id: ClusterId;
-    export const name: "EthernetNetworkDiagnostics";
-    export const revision: 1;
-    export const schema: typeof EthernetNetworkDiagnosticsModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link EthernetNetworkDiagnostics}.
+     */
     export const Cluster: typeof EthernetNetworkDiagnostics;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `EthernetNetworkDiagnostics` instead of
-     * `EthernetNetworkDiagnostics.Complete`)
+     * @deprecated Use {@link EthernetNetworkDiagnostics}.
      */
     export const Complete: typeof EthernetNetworkDiagnostics;
 
     export const Typing: EthernetNetworkDiagnostics;
 }
 
+/**
+ * @deprecated Use {@link EthernetNetworkDiagnostics}.
+ */
 export declare const EthernetNetworkDiagnosticsCluster: typeof EthernetNetworkDiagnostics;
-export interface EthernetNetworkDiagnostics extends ClusterTyping { Attributes: EthernetNetworkDiagnostics.Attributes; Commands: EthernetNetworkDiagnostics.Commands; Features: EthernetNetworkDiagnostics.Features; Components: EthernetNetworkDiagnostics.Components }
+
+export interface EthernetNetworkDiagnostics extends ClusterTyping {
+    Attributes: EthernetNetworkDiagnostics.Attributes;
+    Commands: EthernetNetworkDiagnostics.Commands;
+    Features: EthernetNetworkDiagnostics.Features;
+    Components: EthernetNetworkDiagnostics.Components;
+}

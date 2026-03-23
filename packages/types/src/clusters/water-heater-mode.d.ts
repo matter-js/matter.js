@@ -6,57 +6,113 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { ModeBase } from "./mode-base.js";
 import type { VendorId } from "../datatype/VendorId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { WaterHeaterMode as WaterHeaterModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the WaterHeaterMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for water heater devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 9.6
  */
 export declare namespace WaterHeaterMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x009e;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "WaterHeaterMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the WaterHeaterMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link WaterHeaterMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags
-             * field list.
-             *
-             * At least one entry in the SupportedModes attribute shall include the Off mode tag in the ModeTags field
-             * list.
-             *
-             * An entry in the SupportedModes attribute that includes one of an Off, Manual, or Timed tag shall NOT also
-             * include an additional instance of any one of these tag types.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.6.6.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags field
+         * list.
+         *
+         * At least one entry in the SupportedModes attribute shall include the Off mode tag in the ModeTags field list.
+         *
+         * An entry in the SupportedModes attribute that includes one of an Off, Manual, or Timed tag shall NOT also
+         * include an additional instance of any one of these tag types.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.6.6.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 9.6.6
-             */
-            readonly currentMode: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 9.6.6
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link WaterHeaterMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags field
+         * list.
+         *
+         * At least one entry in the SupportedModes attribute shall include the Off mode tag in the ModeTags field list.
+         *
+         * An entry in the SupportedModes attribute that includes one of an Off, Manual, or Timed tag shall NOT also
+         * include an additional instance of any one of these tag types.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.6.6.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 9.6.6
+         */
+        currentMode: number;
+    }
+
+    /**
+     * {@link WaterHeaterMode} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to change device modes.
+         *
+         * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         */
+        changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link WaterHeaterMode}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "OnOff";
 
     /**
@@ -242,24 +298,42 @@ export declare namespace WaterHeaterMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "WaterHeaterMode";
-    export const revision: 1;
-    export const schema: typeof WaterHeaterModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link WaterHeaterMode}.
+     */
     export const Cluster: typeof WaterHeaterMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `WaterHeaterMode` instead of `WaterHeaterMode.Complete`)
+     * @deprecated Use {@link WaterHeaterMode}.
      */
     export const Complete: typeof WaterHeaterMode;
 
     export const Typing: WaterHeaterMode;
 }
 
+/**
+ * @deprecated Use {@link WaterHeaterMode}.
+ */
 export declare const WaterHeaterModeCluster: typeof WaterHeaterMode;
-export interface WaterHeaterMode extends ClusterTyping { Attributes: WaterHeaterMode.Attributes; Commands: WaterHeaterMode.Commands; Features: WaterHeaterMode.Features; Components: WaterHeaterMode.Components }
+
+export interface WaterHeaterMode extends ClusterTyping {
+    Attributes: WaterHeaterMode.Attributes;
+    Commands: WaterHeaterMode.Commands;
+    Features: WaterHeaterMode.Features;
+    Components: WaterHeaterMode.Components;
+}

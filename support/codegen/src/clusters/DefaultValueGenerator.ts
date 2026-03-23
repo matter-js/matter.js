@@ -6,7 +6,7 @@
 
 import { InternalError, Properties } from "#general";
 import { DefaultValue, Metatype, Scope, ValueModel } from "#model";
-import { camelize, serialize } from "../util/string.js";
+import { serialize } from "../util/string.js";
 import { SpecializedNumbers, specializedNumberTypeFor } from "./NumberConstants.js";
 import { TlvGenerator } from "./TlvGenerator.js";
 
@@ -92,7 +92,7 @@ export class DefaultValueGenerator {
         }
 
         const members = this.#scope.membersOf(model);
-        const fields = Object.fromEntries(members.map(member => [camelize(member.name), member]));
+        const fields = Object.fromEntries(members.map(member => [member.propertyName, member]));
 
         const properties = {} as { [name: string]: boolean | number | string };
         for (const name in defaultValue) {
@@ -141,7 +141,7 @@ export class DefaultValueGenerator {
         const alreadyProcessed = new Set<string>();
         let result: Properties | undefined;
         for (const member of this.#scope.membersOf(model, { conformance: "deconflicted" })) {
-            const name = camelize(member.name);
+            const name = member.propertyName;
 
             // Members are listed with overrides first so we ignore subsequent definitions for the same name
             if (alreadyProcessed.has(name)) {

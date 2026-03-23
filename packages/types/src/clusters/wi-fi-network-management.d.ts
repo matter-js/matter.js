@@ -6,82 +6,158 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { Bytes, MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { WiFiNetworkManagement as WiFiNetworkManagementModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { Bytes, MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the WiFiNetworkManagement cluster.
+ *
+ * This cluster provides an interface for getting information about the Wi-Fi network that a Network Infrastructure
+ * Manager device type provides. Privileged nodes within the same fabric as a Network Infrastructure Manager can use
+ * these interfaces to request information related to the Wi-Fi Network such as SSID and Passphrase.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 10.2
  */
 export declare namespace WiFiNetworkManagement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0451;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "WiFiNetworkManagement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the WiFiNetworkManagement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link WiFiNetworkManagement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the SSID of the primary Wi-Fi network provided by this device.
-             *
-             * A value of null shall indicate that no primary Wi-Fi network is available (e.g. because the Wi-Fi network
-             * has not yet been configured by the user).
-             *
-             * > [!NOTE]
-             *
-             * > The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified.
-             *   Implementations must be careful to support transferring these byte strings without requiring a
-             *   particular encoding. The most common encoding is UTF-8, however this is just a convention. Some
-             *   configurations may use Latin-1 or other character sets.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.1
-             */
-            readonly ssid: Bytes | null;
+    export interface BaseAttributes {
+        /**
+         * Indicates the SSID of the primary Wi-Fi network provided by this device.
+         *
+         * A value of null shall indicate that no primary Wi-Fi network is available (e.g. because the Wi-Fi network has
+         * not yet been configured by the user).
+         *
+         * > [!NOTE]
+         *
+         * > The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified.
+         *   Implementations must be careful to support transferring these byte strings without requiring a particular
+         *   encoding. The most common encoding is UTF-8, however this is just a convention. Some configurations may use
+         *   Latin-1 or other character sets.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.1
+         */
+        ssid: Bytes | null;
 
-            /**
-             * This attribute shall contain an arbitrary numeric value; this value shall increase whenever the
-             * passphrase or PSK associated with the primary Wi-Fi network provided by this device changes.
-             *
-             * A value of null shall indicate that no primary Wi-Fi network is available.
-             *
-             * Clients can subscribe to this attribute or compare its value to a locally cached copy to detect if a
-             * cached passphrase value has become stale.
-             *
-             * It is recommended that servers implement this attribute as either a timestamp or a counter. When
-             * implemented as a counter it SHOULD be initialized with a random value.
-             *
-             * > [!NOTE]
-             *
-             * > The passphrase itself is not exposed as an attribute to avoid its unintentional retrieval or caching by
-             *   clients that use wildcard reads or otherwise routinely read all available attributes. It can be
-             *   retrieved using the NetworkPassphraseRequest command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.2
-             */
-            readonly passphraseSurrogate: number | bigint | null;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to request the current WPA-Personal passphrase or PSK associated with the Wi-Fi
-             * network provided by this device.
-             *
-             * If the command is not executed via a CASE session, the command shall be rejected with a status of
-             * UNSUPPORTED_ACCESS.
-             *
-             * If no primary Wi-Fi network is available (the SSID attribute is null), the command shall be rejected with
-             * a status of INVALID_IN_STATE.
-             *
-             * Otherwise a NetworkPassphraseResponse shall be generated.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.1
-             */
-            networkPassphraseRequest(): MaybePromise<NetworkPassphraseResponse>;
-        }
+        /**
+         * This attribute shall contain an arbitrary numeric value; this value shall increase whenever the passphrase or
+         * PSK associated with the primary Wi-Fi network provided by this device changes.
+         *
+         * A value of null shall indicate that no primary Wi-Fi network is available.
+         *
+         * Clients can subscribe to this attribute or compare its value to a locally cached copy to detect if a cached
+         * passphrase value has become stale.
+         *
+         * It is recommended that servers implement this attribute as either a timestamp or a counter. When implemented
+         * as a counter it SHOULD be initialized with a random value.
+         *
+         * > [!NOTE]
+         *
+         * > The passphrase itself is not exposed as an attribute to avoid its unintentional retrieval or caching by
+         *   clients that use wildcard reads or otherwise routinely read all available attributes. It can be retrieved
+         *   using the NetworkPassphraseRequest command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.2
+         */
+        passphraseSurrogate: number | bigint | null;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link WiFiNetworkManagement}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the SSID of the primary Wi-Fi network provided by this device.
+         *
+         * A value of null shall indicate that no primary Wi-Fi network is available (e.g. because the Wi-Fi network has
+         * not yet been configured by the user).
+         *
+         * > [!NOTE]
+         *
+         * > The SSID in Wi-Fi is a collection of 1-32 bytes, the text encoding of which is not specified.
+         *   Implementations must be careful to support transferring these byte strings without requiring a particular
+         *   encoding. The most common encoding is UTF-8, however this is just a convention. Some configurations may use
+         *   Latin-1 or other character sets.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.1
+         */
+        ssid: Bytes | null;
+
+        /**
+         * This attribute shall contain an arbitrary numeric value; this value shall increase whenever the passphrase or
+         * PSK associated with the primary Wi-Fi network provided by this device changes.
+         *
+         * A value of null shall indicate that no primary Wi-Fi network is available.
+         *
+         * Clients can subscribe to this attribute or compare its value to a locally cached copy to detect if a cached
+         * passphrase value has become stale.
+         *
+         * It is recommended that servers implement this attribute as either a timestamp or a counter. When implemented
+         * as a counter it SHOULD be initialized with a random value.
+         *
+         * > [!NOTE]
+         *
+         * > The passphrase itself is not exposed as an attribute to avoid its unintentional retrieval or caching by
+         *   clients that use wildcard reads or otherwise routinely read all available attributes. It can be retrieved
+         *   using the NetworkPassphraseRequest command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.2
+         */
+        passphraseSurrogate: number | bigint | null;
+    }
+
+    /**
+     * {@link WiFiNetworkManagement} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to request the current WPA-Personal passphrase or PSK associated with the Wi-Fi network
+         * provided by this device.
+         *
+         * If the command is not executed via a CASE session, the command shall be rejected with a status of
+         * UNSUPPORTED_ACCESS.
+         *
+         * If no primary Wi-Fi network is available (the SSID attribute is null), the command shall be rejected with a
+         * status of INVALID_IN_STATE.
+         *
+         * Otherwise a NetworkPassphraseResponse shall be generated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.1
+         */
+        networkPassphraseRequest(): MaybePromise<NetworkPassphraseResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link WiFiNetworkManagement}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
 
     /**
      * This command shall be generated in response to a NetworkPassphraseRequest command.
@@ -111,24 +187,36 @@ export declare namespace WiFiNetworkManagement {
         passphrase: Bytes;
     }
 
-    export const id: ClusterId;
-    export const name: "WiFiNetworkManagement";
-    export const revision: 1;
-    export const schema: typeof WiFiNetworkManagementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * @deprecated Use {@link WiFiNetworkManagement}.
+     */
     export const Cluster: typeof WiFiNetworkManagement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `WiFiNetworkManagement` instead of
-     * `WiFiNetworkManagement.Complete`)
+     * @deprecated Use {@link WiFiNetworkManagement}.
      */
     export const Complete: typeof WiFiNetworkManagement;
 
     export const Typing: WiFiNetworkManagement;
 }
 
+/**
+ * @deprecated Use {@link WiFiNetworkManagement}.
+ */
 export declare const WiFiNetworkManagementCluster: typeof WiFiNetworkManagement;
-export interface WiFiNetworkManagement extends ClusterTyping { Attributes: WiFiNetworkManagement.Attributes; Commands: WiFiNetworkManagement.Commands; Components: WiFiNetworkManagement.Components }
+
+export interface WiFiNetworkManagement extends ClusterTyping {
+    Attributes: WiFiNetworkManagement.Attributes;
+    Commands: WiFiNetworkManagement.Commands;
+    Components: WiFiNetworkManagement.Components;
+}

@@ -6,71 +6,131 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { AudioOutput as AudioOutputModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the AudioOutput cluster.
+ *
+ * This cluster provides an interface for controlling the Output on a Video Player device such as a TV.
+ *
+ * This cluster would be supported on a device with audio outputs like a Video Player device (Smart TV, TV Setup Top
+ * Box, Smart Speaker, etc).
+ *
+ * This cluster provides the list of available outputs and provides commands for selecting and renaming them.
+ *
+ * The cluster server for Audio Output is implemented by a device that has configurable audio output.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.5
  */
 export declare namespace AudioOutput {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x050b;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "AudioOutput";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the AudioOutput cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link AudioOutput} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute provides the list of outputs supported by the device.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
-             */
-            readonly outputList: OutputInfo[];
+    export interface BaseAttributes {
+        /**
+         * This attribute provides the list of outputs supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
+         */
+        outputList: OutputInfo[];
 
-            /**
-             * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
-             */
-            readonly currentOutput: number;
-        }
+        /**
+         * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
+         */
+        currentOutput: number;
+    }
 
-        export interface Commands {
-            /**
-             * Upon receipt, this shall change the output on the device to the output at a specific index in the Output
-             * List.
-             *
-             * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker
-             * endpoint on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
-             */
-            selectOutput(request: SelectOutputRequest): MaybePromise;
-        }
+    /**
+     * Attributes that may appear in {@link AudioOutput}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute provides the list of outputs supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
+         */
+        outputList: OutputInfo[];
+
+        /**
+         * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
+         */
+        currentOutput: number;
+    }
+
+    /**
+     * {@link AudioOutput} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * Upon receipt, this shall change the output on the device to the output at a specific index in the Output
+         * List.
+         *
+         * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker
+         * endpoint on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
+         */
+        selectOutput(request: SelectOutputRequest): MaybePromise;
     }
 
     /**
      * {@link AudioOutput} supports these elements if it supports feature "NameUpdates".
      */
-    export namespace NameUpdatesComponent {
-        export interface Commands {
-            /**
-             * Upon receipt, this shall rename the output at a specific index in the Output List.
-             *
-             * Updates to the output name shall appear in the device’s settings menus. Name updates may automatically be
-             * sent to the actual device to which the output connects.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
-             */
-            renameOutput(request: RenameOutputRequest): MaybePromise;
-        }
+    export interface NameUpdatesCommands {
+        /**
+         * Upon receipt, this shall rename the output at a specific index in the Output List.
+         *
+         * Updates to the output name shall appear in the device’s settings menus. Name updates may automatically be
+         * sent to the actual device to which the output connects.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
+         */
+        renameOutput(request: RenameOutputRequest): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands, NameUpdatesComponent.Commands {}
+    /**
+     * Commands that may appear in {@link AudioOutput}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        NameUpdatesCommands
+    {}
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
-        { flags: { nameUpdates: true }, commands: NameUpdatesComponent.Commands }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { nameUpdates: true }, commands: NameUpdatesCommands }
     ];
     export type Features = "NameUpdates";
 
@@ -166,24 +226,42 @@ export declare namespace AudioOutput {
         Other = 5
     }
 
-    export const id: ClusterId;
-    export const name: "AudioOutput";
-    export const revision: 1;
-    export const schema: typeof AudioOutputModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link AudioOutput}.
+     */
     export const Cluster: typeof AudioOutput;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `AudioOutput` instead of `AudioOutput.Complete`)
+     * @deprecated Use {@link AudioOutput}.
      */
     export const Complete: typeof AudioOutput;
 
     export const Typing: AudioOutput;
 }
 
+/**
+ * @deprecated Use {@link AudioOutput}.
+ */
 export declare const AudioOutputCluster: typeof AudioOutput;
-export interface AudioOutput extends ClusterTyping { Attributes: AudioOutput.Attributes; Commands: AudioOutput.Commands; Features: AudioOutput.Features; Components: AudioOutput.Components }
+
+export interface AudioOutput extends ClusterTyping {
+    Attributes: AudioOutput.Attributes;
+    Commands: AudioOutput.Commands;
+    Features: AudioOutput.Features;
+    Components: AudioOutput.Components;
+}

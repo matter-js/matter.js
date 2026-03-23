@@ -6,228 +6,421 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { SubjectId } from "../datatype/SubjectId.js";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
-import type { NodeId } from "../datatype/NodeId.js";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
-import type { ClusterId } from "../datatype/ClusterId.js";
+import type { NodeId } from "../datatype/NodeId.js";
 import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { AccessControl as AccessControlModel } from "@matter/model";
 
 /**
  * Definitions for the AccessControl cluster.
+ *
+ * The Access Control Cluster exposes a data model view of a Node’s Access Control List (ACL), which codifies the rules
+ * used to manage and enforce Access Control for the Node’s endpoints and their associated cluster instances. Access to
+ * this Access Control Cluster itself requires a special Administer privilege level, such that only Nodes granted such
+ * privilege (hereafter termed "Administrators") can manage the Access Control Cluster.
+ *
+ * The Access Control Cluster shall be present on the root node endpoint of each Node, and shall NOT be present on any
+ * other Endpoint of any Node.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 9.10
  */
 export declare namespace AccessControl {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x001f;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "AccessControl";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the AccessControl cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link AccessControl} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * An attempt to add an Access Control Entry when no more entries are available shall result in a
-             * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
-             * access control limits.
-             *
-             * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
-             * supported by the server.
-             *
-             * Each Access Control Entry codifies a single grant of privilege on this Node, and is used by the Access
-             * Control Privilege Granting algorithm to determine if a subject has privilege to interact with targets on
-             * the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.3
-             */
-            acl: AccessControlEntry[];
+    export interface BaseAttributes {
+        /**
+         * An attempt to add an Access Control Entry when no more entries are available shall result in a
+         * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
+         * access control limits.
+         *
+         * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
+         * supported by the server.
+         *
+         * Each Access Control Entry codifies a single grant of privilege on this Node, and is used by the Access
+         * Control Privilege Granting algorithm to determine if a subject has privilege to interact with targets on the
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.3
+         */
+        acl: AccessControlEntry[];
 
-            /**
-             * This attribute shall provide the minimum number of Subjects per entry that are supported by this server.
-             *
-             * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT
-             * decrease across time as software updates occur that could impact this value. If this is a concern for a
-             * given implementation, it is recommended to only use the minimum value required and avoid reporting a
-             * higher value than the required minimum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.5
-             */
-            readonly subjectsPerAccessControlEntry: number;
+        /**
+         * This attribute shall provide the minimum number of Subjects per entry that are supported by this server.
+         *
+         * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT decrease
+         * across time as software updates occur that could impact this value. If this is a concern for a given
+         * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
+         * than the required minimum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.5
+         */
+        subjectsPerAccessControlEntry: number;
 
-            /**
-             * This attribute shall provide the minimum number of Targets per entry that are supported by this server.
-             *
-             * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT
-             * decrease across time as software updates occur that could impact this value. If this is a concern for a
-             * given implementation, it is recommended to only use the minimum value required and avoid reporting a
-             * higher value than the required minimum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.6
-             */
-            readonly targetsPerAccessControlEntry: number;
+        /**
+         * This attribute shall provide the minimum number of Targets per entry that are supported by this server.
+         *
+         * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT decrease
+         * across time as software updates occur that could impact this value. If this is a concern for a given
+         * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
+         * than the required minimum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.6
+         */
+        targetsPerAccessControlEntry: number;
 
-            /**
-             * This attribute shall provide the minimum number of ACL Entries per fabric that are supported by this
-             * server.
-             *
-             * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT
-             * decrease across time as software updates occur that could impact this value. If this is a concern for a
-             * given implementation, it is recommended to only use the minimum value required and avoid reporting a
-             * higher value than the required minimum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.7
-             */
-            readonly accessControlEntriesPerFabric: number;
-        }
-
-        export interface Events {
-            /**
-             * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by
-             * an Administrator.
-             *
-             *   - Each added entry shall generate an event with ChangeType Added.
-             *
-             *   - Each changed entry shall generate an event with ChangeType Changed.
-             *
-             *   - Each removed entry shall generate an event with ChangeType Removed.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
-             */
-            accessControlEntryChanged: AccessControlEntryChangedEvent;
-        }
+        /**
+         * This attribute shall provide the minimum number of ACL Entries per fabric that are supported by this server.
+         *
+         * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT decrease
+         * across time as software updates occur that could impact this value. If this is a concern for a given
+         * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
+         * than the required minimum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.7
+         */
+        accessControlEntriesPerFabric: number;
     }
 
     /**
      * {@link AccessControl} supports these elements if it supports feature "Extension".
      */
-    export namespace ExtensionComponent {
-        export interface Attributes {
-            /**
-             * If present, the Access Control Extensions may be used by Administrators to store arbitrary data related
-             * to fabric’s Access Control Entries.
-             *
-             * The Access Control Extension list shall support a single extension entry per supported fabric.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.4
-             */
-            extension: AccessControlExtension[];
-        }
-
-        export interface Events {
-            /**
-             * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
-             * changed by an Administrator.
-             *
-             *   - Each added extension shall generate an event with ChangeType Added.
-             *
-             *   - Each changed extension shall generate an event with ChangeType Changed.
-             *
-             *   - Each removed extension shall generate an event with ChangeType Removed.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
-             */
-            accessControlExtensionChanged: AccessControlExtensionChangedEvent;
-        }
+    export interface ExtensionAttributes {
+        /**
+         * If present, the Access Control Extensions may be used by Administrators to store arbitrary data related to
+         * fabric’s Access Control Entries.
+         *
+         * The Access Control Extension list shall support a single extension entry per supported fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.4
+         */
+        extension: AccessControlExtension[];
     }
 
     /**
      * {@link AccessControl} supports these elements if it supports feature "ManagedDevice".
      */
-    export namespace ManagedDeviceComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall provide the set of CommissioningAccessRestrictionEntryStruct applied during
-             * commissioning on a managed device.
-             *
-             * When present, the CommissioningARL attribute shall indicate the access restrictions applying during
-             * commissioning.
-             *
-             * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
-             * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more
-             * information about the features related to controlling access to a Node’s Endpoint Clusters ("Targets"
-             * hereafter) from other Nodes.
-             *
-             * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
-             * restrictions.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.8
-             */
-            readonly commissioningArl: CommissioningAccessRestrictionEntry[];
+    export interface ManagedDeviceAttributes {
+        /**
+         * This attribute shall provide the set of CommissioningAccessRestrictionEntryStruct applied during
+         * commissioning on a managed device.
+         *
+         * When present, the CommissioningARL attribute shall indicate the access restrictions applying during
+         * commissioning.
+         *
+         * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
+         * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information
+         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
+         * other Nodes.
+         *
+         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * restrictions.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.8
+         */
+        commissioningArl: CommissioningAccessRestrictionEntry[];
 
-            /**
-             * This attribute shall provide the set of AccessRestrictionEntryStruct applied to the associated fabric on
-             * a managed device.
-             *
-             * When present, the ARL attribute shall indicate the access restrictions applying to the accessing fabric.
-             * In contrast, the CommissioningARL attribute indicates the accessing restrictions that apply when there is
-             * no accessing fabric, such as during commissioning.
-             *
-             * The access restrictions are externally added/removed based on the particular relationship the device
-             * hosting this server has with external entities such as its owner, external service provider, or end-user.
-             *
-             * Attempts to access data model elements described by an entry in the ARL attribute for the accessing
-             * fabric shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about
-             * the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other
-             * Nodes.
-             *
-             * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
-             * restrictions.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.6.9
-             */
-            readonly arl: AccessRestrictionEntry[];
-        }
-
-        export interface Commands {
-            /**
-             * This command signals to the service associated with the device vendor that the fabric administrator would
-             * like a review of the current restrictions on the accessing fabric. This command includes an optional list
-             * of ARL entries that the fabric administrator would like removed.
-             *
-             * In response, a ReviewFabricRestrictionsResponse is sent which contains a token that can be used to
-             * correlate a review request with a FabricRestrictionReviewUpdate event.
-             *
-             * Within 1 hour of the ReviewFabricRestrictionsResponse, the FabricRestrictionReviewUpdate event shall be
-             * generated, in order to indicate completion of the review and any additional steps required by the user
-             * for the review.
-             *
-             * A review may include obtaining consent from the user, which can take time. For example, the user may need
-             * to respond to an email or a push notification.
-             *
-             * The ARL attribute may change at any time due to actions taken by the user, or the service associated with
-             * the device vendor.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
-             */
-            reviewFabricRestrictions(request: ReviewFabricRestrictionsRequest): MaybePromise<ReviewFabricRestrictionsResponse>;
-        }
-
-        export interface Events {
-            /**
-             * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
-             * restriction review. Due to the requirement to generate this event within a bound time frame of successful
-             * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client
-             * may present to the user in order to help the user locate the user interface for the Managed Device
-             * feature.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
-             */
-            fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
-        }
+        /**
+         * This attribute shall provide the set of AccessRestrictionEntryStruct applied to the associated fabric on a
+         * managed device.
+         *
+         * When present, the ARL attribute shall indicate the access restrictions applying to the accessing fabric. In
+         * contrast, the CommissioningARL attribute indicates the accessing restrictions that apply when there is no
+         * accessing fabric, such as during commissioning.
+         *
+         * The access restrictions are externally added/removed based on the particular relationship the device hosting
+         * this server has with external entities such as its owner, external service provider, or end-user.
+         *
+         * Attempts to access data model elements described by an entry in the ARL attribute for the accessing fabric
+         * shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about the
+         * features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other Nodes.
+         *
+         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * restrictions.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.9
+         */
+        arl: AccessRestrictionEntry[];
     }
 
-    export interface Attributes extends Base.Attributes, Partial<ExtensionComponent.Attributes>, Partial<ManagedDeviceComponent.Attributes> {}
-    export interface Commands extends ManagedDeviceComponent.Commands {}
-    export interface Events extends Base.Events, ExtensionComponent.Events, ManagedDeviceComponent.Events {}
+    /**
+     * Attributes that may appear in {@link AccessControl}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * An attempt to add an Access Control Entry when no more entries are available shall result in a
+         * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
+         * access control limits.
+         *
+         * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
+         * supported by the server.
+         *
+         * Each Access Control Entry codifies a single grant of privilege on this Node, and is used by the Access
+         * Control Privilege Granting algorithm to determine if a subject has privilege to interact with targets on the
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.3
+         */
+        acl: AccessControlEntry[];
+
+        /**
+         * This attribute shall provide the minimum number of Subjects per entry that are supported by this server.
+         *
+         * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT decrease
+         * across time as software updates occur that could impact this value. If this is a concern for a given
+         * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
+         * than the required minimum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.5
+         */
+        subjectsPerAccessControlEntry: number;
+
+        /**
+         * This attribute shall provide the minimum number of Targets per entry that are supported by this server.
+         *
+         * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT decrease
+         * across time as software updates occur that could impact this value. If this is a concern for a given
+         * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
+         * than the required minimum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.6
+         */
+        targetsPerAccessControlEntry: number;
+
+        /**
+         * This attribute shall provide the minimum number of ACL Entries per fabric that are supported by this server.
+         *
+         * Since reducing this value over time may invalidate ACL entries already written, this value shall NOT decrease
+         * across time as software updates occur that could impact this value. If this is a concern for a given
+         * implementation, it is recommended to only use the minimum value required and avoid reporting a higher value
+         * than the required minimum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.7
+         */
+        accessControlEntriesPerFabric: number;
+
+        /**
+         * If present, the Access Control Extensions may be used by Administrators to store arbitrary data related to
+         * fabric’s Access Control Entries.
+         *
+         * The Access Control Extension list shall support a single extension entry per supported fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.4
+         */
+        extension: AccessControlExtension[];
+
+        /**
+         * This attribute shall provide the set of CommissioningAccessRestrictionEntryStruct applied during
+         * commissioning on a managed device.
+         *
+         * When present, the CommissioningARL attribute shall indicate the access restrictions applying during
+         * commissioning.
+         *
+         * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
+         * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information
+         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
+         * other Nodes.
+         *
+         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * restrictions.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.8
+         */
+        commissioningArl: CommissioningAccessRestrictionEntry[];
+
+        /**
+         * This attribute shall provide the set of AccessRestrictionEntryStruct applied to the associated fabric on a
+         * managed device.
+         *
+         * When present, the ARL attribute shall indicate the access restrictions applying to the accessing fabric. In
+         * contrast, the CommissioningARL attribute indicates the accessing restrictions that apply when there is no
+         * accessing fabric, such as during commissioning.
+         *
+         * The access restrictions are externally added/removed based on the particular relationship the device hosting
+         * this server has with external entities such as its owner, external service provider, or end-user.
+         *
+         * Attempts to access data model elements described by an entry in the ARL attribute for the accessing fabric
+         * shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about the
+         * features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other Nodes.
+         *
+         * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
+         * restrictions.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.6.9
+         */
+        arl: AccessRestrictionEntry[];
+    }
+
+    /**
+     * {@link AccessControl} supports these elements if it supports feature "ManagedDevice".
+     */
+    export interface ManagedDeviceCommands {
+        /**
+         * This command signals to the service associated with the device vendor that the fabric administrator would
+         * like a review of the current restrictions on the accessing fabric. This command includes an optional list of
+         * ARL entries that the fabric administrator would like removed.
+         *
+         * In response, a ReviewFabricRestrictionsResponse is sent which contains a token that can be used to correlate
+         * a review request with a FabricRestrictionReviewUpdate event.
+         *
+         * Within 1 hour of the ReviewFabricRestrictionsResponse, the FabricRestrictionReviewUpdate event shall be
+         * generated, in order to indicate completion of the review and any additional steps required by the user for
+         * the review.
+         *
+         * A review may include obtaining consent from the user, which can take time. For example, the user may need to
+         * respond to an email or a push notification.
+         *
+         * The ARL attribute may change at any time due to actions taken by the user, or the service associated with the
+         * device vendor.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
+         */
+        reviewFabricRestrictions(request: ReviewFabricRestrictionsRequest): MaybePromise<ReviewFabricRestrictionsResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link AccessControl}.
+     */
+    export interface Commands extends ManagedDeviceCommands {}
+
+    /**
+     * {@link AccessControl} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
+         * Administrator.
+         *
+         *   - Each added entry shall generate an event with ChangeType Added.
+         *
+         *   - Each changed entry shall generate an event with ChangeType Changed.
+         *
+         *   - Each removed entry shall generate an event with ChangeType Removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
+         */
+        accessControlEntryChanged: AccessControlEntryChangedEvent;
+    }
+
+    /**
+     * {@link AccessControl} supports these elements if it supports feature "Extension".
+     */
+    export interface ExtensionEvents {
+        /**
+         * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
+         * changed by an Administrator.
+         *
+         *   - Each added extension shall generate an event with ChangeType Added.
+         *
+         *   - Each changed extension shall generate an event with ChangeType Changed.
+         *
+         *   - Each removed extension shall generate an event with ChangeType Removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
+         */
+        accessControlExtensionChanged: AccessControlExtensionChangedEvent;
+    }
+
+    /**
+     * {@link AccessControl} supports these elements if it supports feature "ManagedDevice".
+     */
+    export interface ManagedDeviceEvents {
+        /**
+         * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
+         * restriction review. Due to the requirement to generate this event within a bound time frame of successful
+         * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client may
+         * present to the user in order to help the user locate the user interface for the Managed Device feature.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
+         */
+        fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
+    }
+
+    /**
+     * Events that may appear in {@link AccessControl}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
+         * Administrator.
+         *
+         *   - Each added entry shall generate an event with ChangeType Added.
+         *
+         *   - Each changed entry shall generate an event with ChangeType Changed.
+         *
+         *   - Each removed entry shall generate an event with ChangeType Removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
+         */
+        accessControlEntryChanged: AccessControlEntryChangedEvent;
+
+        /**
+         * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is
+         * changed by an Administrator.
+         *
+         *   - Each added extension shall generate an event with ChangeType Added.
+         *
+         *   - Each changed extension shall generate an event with ChangeType Changed.
+         *
+         *   - Each removed extension shall generate an event with ChangeType Removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
+         */
+        accessControlExtensionChanged: AccessControlExtensionChangedEvent;
+
+        /**
+         * The cluster shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric
+         * restriction review. Due to the requirement to generate this event within a bound time frame of successful
+         * receipt of the ReviewFabricRestrictions command, this event may include additional steps that the client may
+         * present to the user in order to help the user locate the user interface for the Managed Device feature.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
+         */
+        fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, events: Base.Events },
-        { flags: { extension: true }, attributes: ExtensionComponent.Attributes, events: ExtensionComponent.Events },
+        { flags: {}, attributes: BaseAttributes, events: BaseEvents },
+        { flags: { extension: true }, attributes: ExtensionAttributes, events: ExtensionEvents },
 
         {
             flags: { managedDevice: true },
-            attributes: ManagedDeviceComponent.Attributes,
-            commands: ManagedDeviceComponent.Commands,
-            events: ManagedDeviceComponent.Events
+            attributes: ManagedDeviceAttributes,
+            commands: ManagedDeviceCommands,
+            events: ManagedDeviceEvents
         }
     ];
 
@@ -472,60 +665,6 @@ export declare namespace AccessControl {
     }
 
     /**
-     * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
-     * Administrator.
-     *
-     *   - Each added entry shall generate an event with ChangeType Added.
-     *
-     *   - Each changed entry shall generate an event with ChangeType Changed.
-     *
-     *   - Each removed entry shall generate an event with ChangeType Removed.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
-     */
-    export interface AccessControlEntryChangedEvent {
-        /**
-         * The Node ID of the Administrator that made the change, if the change occurred via a CASE session.
-         *
-         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
-         * CASE or PASE session; the other shall be null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.1
-         */
-        adminNodeId: NodeId | null;
-
-        /**
-         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASE session.
-         * Non-zero values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
-         *
-         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
-         * CASE or PASE session; the other shall be null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.2
-         */
-        adminPasscodeId: number | null;
-
-        /**
-         * The type of change as appropriate.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.3
-         */
-        changeType: ChangeType;
-
-        /**
-         * The latest value of the changed entry.
-         *
-         * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
-         * scarce.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.4
-         */
-        latestValue: AccessControlEntry | null;
-
-        fabricIndex: FabricIndex;
-    }
-
-    /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.7
      */
     export interface AccessControlExtension {
@@ -548,60 +687,6 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.5.7.1
          */
         data: Bytes;
-
-        fabricIndex: FabricIndex;
-    }
-
-    /**
-     * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is changed
-     * by an Administrator.
-     *
-     *   - Each added extension shall generate an event with ChangeType Added.
-     *
-     *   - Each changed extension shall generate an event with ChangeType Changed.
-     *
-     *   - Each removed extension shall generate an event with ChangeType Removed.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
-     */
-    export interface AccessControlExtensionChangedEvent {
-        /**
-         * The Node ID of the Administrator that made the change, if the change occurred via a CASE session.
-         *
-         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
-         * CASE or PASE session; the other shall be null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.1
-         */
-        adminNodeId: NodeId | null;
-
-        /**
-         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASE session.
-         * Non-zero values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
-         *
-         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
-         * CASE or PASE session; the other shall be null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.2
-         */
-        adminPasscodeId: number | null;
-
-        /**
-         * The type of change as appropriate.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.3
-         */
-        changeType: ChangeType;
-
-        /**
-         * The latest value of the changed extension.
-         *
-         * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
-         * scarce.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.4
-         */
-        latestValue: AccessControlExtension | null;
 
         fabricIndex: FabricIndex;
     }
@@ -718,6 +803,114 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.8.2.1
          */
         token: number | bigint;
+    }
+
+    /**
+     * The cluster shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
+     * Administrator.
+     *
+     *   - Each added entry shall generate an event with ChangeType Added.
+     *
+     *   - Each changed entry shall generate an event with ChangeType Changed.
+     *
+     *   - Each removed entry shall generate an event with ChangeType Removed.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
+     */
+    export interface AccessControlEntryChangedEvent {
+        /**
+         * The Node ID of the Administrator that made the change, if the change occurred via a CASE session.
+         *
+         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
+         * CASE or PASE session; the other shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.1
+         */
+        adminNodeId: NodeId | null;
+
+        /**
+         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASE session.
+         * Non-zero values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
+         *
+         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
+         * CASE or PASE session; the other shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.2
+         */
+        adminPasscodeId: number | null;
+
+        /**
+         * The type of change as appropriate.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.3
+         */
+        changeType: ChangeType;
+
+        /**
+         * The latest value of the changed entry.
+         *
+         * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
+         * scarce.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.1.4
+         */
+        latestValue: AccessControlEntry | null;
+
+        fabricIndex: FabricIndex;
+    }
+
+    /**
+     * The cluster shall generate AccessControlExtensionChanged events whenever its extension attribute data is changed
+     * by an Administrator.
+     *
+     *   - Each added extension shall generate an event with ChangeType Added.
+     *
+     *   - Each changed extension shall generate an event with ChangeType Changed.
+     *
+     *   - Each removed extension shall generate an event with ChangeType Removed.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
+     */
+    export interface AccessControlExtensionChangedEvent {
+        /**
+         * The Node ID of the Administrator that made the change, if the change occurred via a CASE session.
+         *
+         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
+         * CASE or PASE session; the other shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.1
+         */
+        adminNodeId: NodeId | null;
+
+        /**
+         * The Passcode ID of the Administrator that made the change, if the change occurred via a PASE session.
+         * Non-zero values are reserved for future use (see PasscodeId generation in PBKDFParamRequest).
+         *
+         * Exactly one of AdminNodeID and AdminPasscodeID shall be set, depending on whether the change occurred via a
+         * CASE or PASE session; the other shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.2
+         */
+        adminPasscodeId: number | null;
+
+        /**
+         * The type of change as appropriate.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.3
+         */
+        changeType: ChangeType;
+
+        /**
+         * The latest value of the changed extension.
+         *
+         * This field SHOULD be set if resources are adequate for it; otherwise it shall be set to NULL if resources are
+         * scarce.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.10.9.2.4
+         */
+        latestValue: AccessControlExtension | null;
+
+        fabricIndex: FabricIndex;
     }
 
     /**
@@ -1065,26 +1258,48 @@ export declare namespace AccessControl {
         id: number | null;
     }
 
-    export const id: ClusterId;
-    export const name: "AccessControl";
-    export const revision: 2;
-    export const schema: typeof AccessControlModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link AccessControl}.
+     */
     export const Cluster: typeof AccessControl;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `AccessControl` instead of `AccessControl.Complete`)
+     * @deprecated Use {@link AccessControl}.
      */
     export const Complete: typeof AccessControl;
 
     export const Typing: AccessControl;
 }
 
+/**
+ * @deprecated Use {@link AccessControl}.
+ */
 export declare const AccessControlCluster: typeof AccessControl;
-export interface AccessControl extends ClusterTyping { Attributes: AccessControl.Attributes; Commands: AccessControl.Commands; Events: AccessControl.Events; Features: AccessControl.Features; Components: AccessControl.Components }
+
+export interface AccessControl extends ClusterTyping {
+    Attributes: AccessControl.Attributes;
+    Commands: AccessControl.Commands;
+    Events: AccessControl.Events;
+    Features: AccessControl.Features;
+    Components: AccessControl.Components;
+}

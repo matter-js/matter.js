@@ -6,81 +6,142 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { MediaInput as MediaInputModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the MediaInput cluster.
+ *
+ * This cluster provides an interface for controlling the Input Selector on a media device such as a Video Player.
+ *
+ * This cluster would be implemented on TV and other media streaming devices, as well as devices that provide input to
+ * or output from such devices.
+ *
+ * This cluster provides the list of available inputs and provides commands for selecting and renaming them.
+ *
+ * The cluster server for Media Input is implemented by a device that has selectable input, such as a Video Player
+ * device.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.9
  */
 export declare namespace MediaInput {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0507;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "MediaInput";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the MediaInput cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link MediaInput} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute shall provide a list of the media inputs supported by the device.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
-             */
-            readonly inputList: InputInfo[];
+    export interface BaseAttributes {
+        /**
+         * This attribute shall provide a list of the media inputs supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
+         */
+        inputList: InputInfo[];
 
-            /**
-             * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
-             */
-            readonly currentInput: number;
-        }
+        /**
+         * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
+         */
+        currentInput: number;
+    }
 
-        export interface Commands {
-            /**
-             * Upon receipt, this command shall change the media input on the device to the input at a specific index in
-             * the Input List.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.1
-             */
-            selectInput(request: SelectInputRequest): MaybePromise;
+    /**
+     * Attributes that may appear in {@link MediaInput}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall provide a list of the media inputs supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
+         */
+        inputList: InputInfo[];
 
-            /**
-             * Upon receipt, this command shall display the active status of the input list on screen.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.2
-             */
-            showInputStatus(): MaybePromise;
+        /**
+         * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
+         */
+        currentInput: number;
+    }
 
-            /**
-             * Upon receipt, this command shall hide the input list from the screen.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.3
-             */
-            hideInputStatus(): MaybePromise;
-        }
+    /**
+     * {@link MediaInput} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * Upon receipt, this command shall change the media input on the device to the input at a specific index in the
+         * Input List.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.1
+         */
+        selectInput(request: SelectInputRequest): MaybePromise;
+
+        /**
+         * Upon receipt, this command shall display the active status of the input list on screen.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.2
+         */
+        showInputStatus(): MaybePromise;
+
+        /**
+         * Upon receipt, this command shall hide the input list from the screen.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.3
+         */
+        hideInputStatus(): MaybePromise;
     }
 
     /**
      * {@link MediaInput} supports these elements if it supports feature "NameUpdates".
      */
-    export namespace NameUpdatesComponent {
-        export interface Commands {
-            /**
-             * Upon receipt, this command shall rename the input at a specific index in the Input List.
-             *
-             * Updates to the input name shall appear in the device’s settings menus.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.4
-             */
-            renameInput(request: RenameInputRequest): MaybePromise;
-        }
+    export interface NameUpdatesCommands {
+        /**
+         * Upon receipt, this command shall rename the input at a specific index in the Input List.
+         *
+         * Updates to the input name shall appear in the device’s settings menus.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.4
+         */
+        renameInput(request: RenameInputRequest): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands, NameUpdatesComponent.Commands {}
+    /**
+     * Commands that may appear in {@link MediaInput}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        NameUpdatesCommands
+    {}
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
-        { flags: { nameUpdates: true }, commands: NameUpdatesComponent.Commands }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { nameUpdates: true }, commands: NameUpdatesCommands }
     ];
     export type Features = "NameUpdates";
 
@@ -185,24 +246,42 @@ export declare namespace MediaInput {
         Other = 11
     }
 
-    export const id: ClusterId;
-    export const name: "MediaInput";
-    export const revision: 1;
-    export const schema: typeof MediaInputModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link MediaInput}.
+     */
     export const Cluster: typeof MediaInput;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `MediaInput` instead of `MediaInput.Complete`)
+     * @deprecated Use {@link MediaInput}.
      */
     export const Complete: typeof MediaInput;
 
     export const Typing: MediaInput;
 }
 
+/**
+ * @deprecated Use {@link MediaInput}.
+ */
 export declare const MediaInputCluster: typeof MediaInput;
-export interface MediaInput extends ClusterTyping { Attributes: MediaInput.Attributes; Commands: MediaInput.Commands; Features: MediaInput.Features; Components: MediaInput.Components }
+
+export interface MediaInput extends ClusterTyping {
+    Attributes: MediaInput.Attributes;
+    Commands: MediaInput.Commands;
+    Features: MediaInput.Features;
+    Components: MediaInput.Components;
+}

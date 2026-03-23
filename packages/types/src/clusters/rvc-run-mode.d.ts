@@ -6,56 +6,113 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { ModeBase } from "./mode-base.js";
 import type { VendorId } from "../datatype/VendorId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { RvcRunMode as RvcRunModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the RvcRunMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for the running modes of robotic vacuum cleaner devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 7.2
  */
 export declare namespace RvcRunMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0054;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "RvcRunMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the RvcRunMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link RvcRunMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags field.
-             *
-             * At least one entry in the SupportedModes attribute (different from the one above) shall include the
-             * Cleaning mode tag in the ModeTags field.
-             *
-             * The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a
-             * mode’s ModeTags.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags field.
+         *
+         * At least one entry in the SupportedModes attribute (different from the one above) shall include the Cleaning
+         * mode tag in the ModeTags field.
+         *
+         * The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a mode’s
+         * ModeTags.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
-             */
-            readonly currentMode: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link RvcRunMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags field.
+         *
+         * At least one entry in the SupportedModes attribute (different from the one above) shall include the Cleaning
+         * mode tag in the ModeTags field.
+         *
+         * The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a mode’s
+         * ModeTags.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
+         */
+        currentMode: number;
+    }
+
+    /**
+     * {@link RvcRunMode} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to change device modes.
+         *
+         * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         */
+        changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link RvcRunMode}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "OnOff";
 
     /**
@@ -308,24 +365,42 @@ export declare namespace RvcRunMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "RvcRunMode";
-    export const revision: 3;
-    export const schema: typeof RvcRunModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link RvcRunMode}.
+     */
     export const Cluster: typeof RvcRunMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `RvcRunMode` instead of `RvcRunMode.Complete`)
+     * @deprecated Use {@link RvcRunMode}.
      */
     export const Complete: typeof RvcRunMode;
 
     export const Typing: RvcRunMode;
 }
 
+/**
+ * @deprecated Use {@link RvcRunMode}.
+ */
 export declare const RvcRunModeCluster: typeof RvcRunMode;
-export interface RvcRunMode extends ClusterTyping { Attributes: RvcRunMode.Attributes; Commands: RvcRunMode.Commands; Features: RvcRunMode.Features; Components: RvcRunMode.Components }
+
+export interface RvcRunMode extends ClusterTyping {
+    Attributes: RvcRunMode.Attributes;
+    Commands: RvcRunMode.Commands;
+    Features: RvcRunMode.Features;
+    Components: RvcRunMode.Components;
+}

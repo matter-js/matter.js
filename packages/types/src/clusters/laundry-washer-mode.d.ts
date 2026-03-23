@@ -6,51 +6,103 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { ModeBase } from "./mode-base.js";
 import type { VendorId } from "../datatype/VendorId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { LaundryWasherMode as LaundryWasherModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the LaundryWasherMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for laundry washer as well as laundry dryer devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 8.5
  */
 export declare namespace LaundryWasherMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0051;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "LaundryWasherMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the LaundryWasherMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link LaundryWasherMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags
-             * field list.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.5.6.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field
+         * list.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 8.5.6
-             */
-            readonly currentMode: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link LaundryWasherMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field
+         * list.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6
+         */
+        currentMode: number;
+    }
+
+    /**
+     * {@link LaundryWasherMode} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to change device modes.
+         *
+         * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         */
+        changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link LaundryWasherMode}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "OnOff";
 
     /**
@@ -241,24 +293,42 @@ export declare namespace LaundryWasherMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "LaundryWasherMode";
-    export const revision: 3;
-    export const schema: typeof LaundryWasherModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link LaundryWasherMode}.
+     */
     export const Cluster: typeof LaundryWasherMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `LaundryWasherMode` instead of `LaundryWasherMode.Complete`)
+     * @deprecated Use {@link LaundryWasherMode}.
      */
     export const Complete: typeof LaundryWasherMode;
 
     export const Typing: LaundryWasherMode;
 }
 
+/**
+ * @deprecated Use {@link LaundryWasherMode}.
+ */
 export declare const LaundryWasherModeCluster: typeof LaundryWasherMode;
-export interface LaundryWasherMode extends ClusterTyping { Attributes: LaundryWasherMode.Attributes; Commands: LaundryWasherMode.Commands; Features: LaundryWasherMode.Features; Components: LaundryWasherMode.Components }
+
+export interface LaundryWasherMode extends ClusterTyping {
+    Attributes: LaundryWasherMode.Attributes;
+    Commands: LaundryWasherMode.Commands;
+    Features: LaundryWasherMode.Features;
+    Components: LaundryWasherMode.Components;
+}

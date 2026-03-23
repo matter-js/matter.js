@@ -7,182 +7,346 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { OccupancySensing as OccupancySensingModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 
 /**
  * Definitions for the OccupancySensing cluster.
+ *
+ * The server cluster provides an interface to occupancy sensing functionality based on one or more sensing modalities,
+ * including configuration and provision of notifications of occupancy status.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 2.7
  */
 export declare namespace OccupancySensing {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0406;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "OccupancySensing";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 5;
+
+    /**
+     * Canonical metadata for the OccupancySensing cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link OccupancySensing} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the sensed (processed) status of occupancy. For compatibility reasons this is expressed as a
-             * bitmap where the status is indicated in bit 0: a value of 1 means occupied, and 0 means unoccupied, with
-             * the other bits set to 0; this can be considered equivalent to a boolean.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.1
-             */
-            readonly occupancy: Occupancy;
+    export interface BaseAttributes {
+        /**
+         * Indicates the sensed (processed) status of occupancy. For compatibility reasons this is expressed as a bitmap
+         * where the status is indicated in bit 0: a value of 1 means occupied, and 0 means unoccupied, with the other
+         * bits set to 0; this can be considered equivalent to a boolean.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.1
+         */
+        occupancy: Occupancy;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
-             */
-            readonly occupancySensorType: OccupancySensorType;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
+         */
+        occupancySensorType: OccupancySensorType;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
-             */
-            readonly occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
+         */
+        occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
 
-            /**
-             * This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied
-             * state after the last detection of occupancy in the sensed area. This is equivalent to the legacy
-             * *OccupiedToUnoccupiedDelay attributes.
-             *
-             * Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 for
-             * HoldTime shall NOT be used.
-             *
-             * The figure below illustrates this with an example of how this attribute is used for a PIR sensor. It uses
-             * threshold detection to generate an "internal detection" signal, which needs post-processing to become
-             * usable for transmission (traffic shaping). The bit in the Occupancy attribute will be set to 1 when the
-             * internal detection signal goes high, and will stay at 1 for HoldTime after the (last) instance where the
-             * internal detection signal goes low.
-             *
-             * The top half of the figure shows the case of a single trigger: the bit in the Occupancy attribute will be
-             * 1 for the duration of the PIR signal exceeding the threshold plus HoldTime. The bottom half of the figure
-             * shows the case of multiple triggers: the second trigger starts before the HoldTime of the first trigger
-             * has expired; this results in a single period of the bit in the Occupancy attribute being 1. The bit in
-             * the Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds
-             * the threshold until HoldTime after the last moment where the PIR exceeded the threshold.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.3
-             */
-            holdTime?: number;
+        /**
+         * This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied state
+         * after the last detection of occupancy in the sensed area. This is equivalent to the legacy
+         * *OccupiedToUnoccupiedDelay attributes.
+         *
+         * Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 for
+         * HoldTime shall NOT be used.
+         *
+         * The figure below illustrates this with an example of how this attribute is used for a PIR sensor. It uses
+         * threshold detection to generate an "internal detection" signal, which needs post-processing to become usable
+         * for transmission (traffic shaping). The bit in the Occupancy attribute will be set to 1 when the internal
+         * detection signal goes high, and will stay at 1 for HoldTime after the (last) instance where the internal
+         * detection signal goes low.
+         *
+         * The top half of the figure shows the case of a single trigger: the bit in the Occupancy attribute will be 1
+         * for the duration of the PIR signal exceeding the threshold plus HoldTime. The bottom half of the figure shows
+         * the case of multiple triggers: the second trigger starts before the HoldTime of the first trigger has
+         * expired; this results in a single period of the bit in the Occupancy attribute being 1. The bit in the
+         * Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds the
+         * threshold until HoldTime after the last moment where the PIR exceeded the threshold.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.3
+         */
+        holdTime?: number;
 
-            /**
-             * Indicates the server’s limits, and default value, for the HoldTime attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.4
-             */
-            readonly holdTimeLimits?: HoldTimeLimits;
-        }
-
-        export interface Events {
-            /**
-             * If this event is supported, it shall be generated when the Occupancy attribute changes.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
-             */
-            occupancyChanged?: OccupancyChangedEvent;
-        }
+        /**
+         * Indicates the server’s limits, and default value, for the HoldTime attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.4
+         */
+        holdTimeLimits?: HoldTimeLimits;
     }
 
     /**
      * {@link OccupancySensing} supports these elements if it supports feature "PassiveInfrared".
      */
-    export namespace PassiveInfraredComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
-             * state after the last detection of occupancy in the sensed area.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.6
-             */
-            pirOccupiedToUnoccupiedDelay?: number;
+    export interface PassiveInfraredAttributes {
+        /**
+         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
+         * state after the last detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.6
+         */
+        pirOccupiedToUnoccupiedDelay?: number;
 
-            /**
-             * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied
-             * state after the first detection of occupancy in the sensed area.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.7
-             */
-            pirUnoccupiedToOccupiedDelay?: number;
+        /**
+         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied state
+         * after the first detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.7
+         */
+        pirUnoccupiedToOccupiedDelay?: number;
 
-            /**
-             * This attribute shall specify the number of occupancy detection events that must occur in the period
-             * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.8
-             */
-            pirUnoccupiedToOccupiedThreshold?: number;
-        }
+        /**
+         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.8
+         */
+        pirUnoccupiedToOccupiedThreshold?: number;
     }
 
     /**
      * {@link OccupancySensing} supports these elements if it supports feature "Ultrasonic".
      */
-    export namespace UltrasonicComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
-             * unoccupied state after the last detection of occupancy in the sensed area.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.9
-             */
-            ultrasonicOccupiedToUnoccupiedDelay?: number;
+    export interface UltrasonicAttributes {
+        /**
+         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
+         * unoccupied state after the last detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.9
+         */
+        ultrasonicOccupiedToUnoccupiedDelay?: number;
 
-            /**
-             * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
-             * occupied state after the first detection of occupancy in the sensed area.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.10
-             */
-            ultrasonicUnoccupiedToOccupiedDelay?: number;
+        /**
+         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its occupied
+         * state after the first detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.10
+         */
+        ultrasonicUnoccupiedToOccupiedDelay?: number;
 
-            /**
-             * This attribute shall specify the number of occupancy detection events that must occur in the period
-             * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.11
-             */
-            ultrasonicUnoccupiedToOccupiedThreshold?: number;
-        }
+        /**
+         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.11
+         */
+        ultrasonicUnoccupiedToOccupiedThreshold?: number;
     }
 
     /**
      * {@link OccupancySensing} supports these elements if it supports feature "PhysicalContact".
      */
-    export namespace PhysicalContactComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor
-             * changes to its unoccupied state after detecting the unoccupied event.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.12
-             */
-            physicalContactOccupiedToUnoccupiedDelay?: number;
+    export interface PhysicalContactAttributes {
+        /**
+         * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor changes
+         * to its unoccupied state after detecting the unoccupied event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.12
+         */
+        physicalContactOccupiedToUnoccupiedDelay?: number;
 
-            /**
-             * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to
-             * its occupied state after the first detection of the occupied event.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.13
-             */
-            physicalContactUnoccupiedToOccupiedDelay?: number;
+        /**
+         * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to its
+         * occupied state after the first detection of the occupied event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.13
+         */
+        physicalContactUnoccupiedToOccupiedDelay?: number;
 
-            /**
-             * This attribute shall specify the number of occupancy detection events that must occur in the period
-             * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied
-             * state.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.14
-             */
-            physicalContactUnoccupiedToOccupiedThreshold?: number;
-        }
+        /**
+         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.14
+         */
+        physicalContactUnoccupiedToOccupiedThreshold?: number;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<PassiveInfraredComponent.Attributes>, Partial<UltrasonicComponent.Attributes>, Partial<PhysicalContactComponent.Attributes> {}
-    export interface Events extends Base.Events {}
+    /**
+     * Attributes that may appear in {@link OccupancySensing}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the sensed (processed) status of occupancy. For compatibility reasons this is expressed as a bitmap
+         * where the status is indicated in bit 0: a value of 1 means occupied, and 0 means unoccupied, with the other
+         * bits set to 0; this can be considered equivalent to a boolean.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.1
+         */
+        occupancy: Occupancy;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
+         */
+        occupancySensorType: OccupancySensorType;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6
+         */
+        occupancySensorTypeBitmap: OccupancySensorTypeBitmap;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the sensor changes to its unoccupied state
+         * after the last detection of occupancy in the sensed area. This is equivalent to the legacy
+         * *OccupiedToUnoccupiedDelay attributes.
+         *
+         * Low values of HoldTime SHOULD be avoided since they could lead to many reporting messages. A value 0 for
+         * HoldTime shall NOT be used.
+         *
+         * The figure below illustrates this with an example of how this attribute is used for a PIR sensor. It uses
+         * threshold detection to generate an "internal detection" signal, which needs post-processing to become usable
+         * for transmission (traffic shaping). The bit in the Occupancy attribute will be set to 1 when the internal
+         * detection signal goes high, and will stay at 1 for HoldTime after the (last) instance where the internal
+         * detection signal goes low.
+         *
+         * The top half of the figure shows the case of a single trigger: the bit in the Occupancy attribute will be 1
+         * for the duration of the PIR signal exceeding the threshold plus HoldTime. The bottom half of the figure shows
+         * the case of multiple triggers: the second trigger starts before the HoldTime of the first trigger has
+         * expired; this results in a single period of the bit in the Occupancy attribute being 1. The bit in the
+         * Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds the
+         * threshold until HoldTime after the last moment where the PIR exceeded the threshold.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.3
+         */
+        holdTime: number;
+
+        /**
+         * Indicates the server’s limits, and default value, for the HoldTime attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.4
+         */
+        holdTimeLimits: HoldTimeLimits;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its unoccupied
+         * state after the last detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.6
+         */
+        pirOccupiedToUnoccupiedDelay: number;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the PIR sensor changes to its occupied state
+         * after the first detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.7
+         */
+        pirUnoccupiedToOccupiedDelay: number;
+
+        /**
+         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * PIRUnoccupiedToOccupiedDelay, before the PIR sensor changes to its occupied state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.8
+         */
+        pirUnoccupiedToOccupiedThreshold: number;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its
+         * unoccupied state after the last detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.9
+         */
+        ultrasonicOccupiedToUnoccupiedDelay: number;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the Ultrasonic sensor changes to its occupied
+         * state after the first detection of occupancy in the sensed area.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.10
+         */
+        ultrasonicUnoccupiedToOccupiedDelay: number;
+
+        /**
+         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * UltrasonicUnoccupiedToOccupiedDelay, before the Ultrasonic sensor changes to its occupied state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.11
+         */
+        ultrasonicUnoccupiedToOccupiedThreshold: number;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the physical contact occupancy sensor changes
+         * to its unoccupied state after detecting the unoccupied event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.12
+         */
+        physicalContactOccupiedToUnoccupiedDelay: number;
+
+        /**
+         * This attribute shall specify the time delay, in seconds, before the physical contact sensor changes to its
+         * occupied state after the first detection of the occupied event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.13
+         */
+        physicalContactUnoccupiedToOccupiedDelay: number;
+
+        /**
+         * This attribute shall specify the number of occupancy detection events that must occur in the period
+         * PhysicalContactUnoccupiedToOccupiedDelay, before the PhysicalContact sensor changes to its occupied state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.6.14
+         */
+        physicalContactUnoccupiedToOccupiedThreshold: number;
+    }
+
+    /**
+     * {@link OccupancySensing} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * If this event is supported, it shall be generated when the Occupancy attribute changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
+         */
+        occupancyChanged?: OccupancyChangedEvent;
+    }
+
+    /**
+     * Events that may appear in {@link OccupancySensing}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * If this event is supported, it shall be generated when the Occupancy attribute changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
+         */
+        occupancyChanged: OccupancyChangedEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, events: Base.Events },
-        { flags: { passiveInfrared: true }, attributes: PassiveInfraredComponent.Attributes },
-        { flags: { ultrasonic: true }, attributes: UltrasonicComponent.Attributes },
-        { flags: { physicalContact: true }, attributes: PhysicalContactComponent.Attributes }
+        { flags: {}, attributes: BaseAttributes, events: BaseEvents },
+        { flags: { passiveInfrared: true }, attributes: PassiveInfraredAttributes },
+        { flags: { ultrasonic: true }, attributes: UltrasonicAttributes },
+        { flags: { physicalContact: true }, attributes: PhysicalContactAttributes }
     ];
 
     export type Features = "Other" | "PassiveInfrared" | "Ultrasonic" | "PhysicalContact" | "ActiveInfrared" | "Radar" | "RfSensing" | "Vision";
@@ -366,24 +530,42 @@ export declare namespace OccupancySensing {
         occupancy: Occupancy;
     }
 
-    export const id: ClusterId;
-    export const name: "OccupancySensing";
-    export const revision: 5;
-    export const schema: typeof OccupancySensingModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link OccupancySensing}.
+     */
     export const Cluster: typeof OccupancySensing;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `OccupancySensing` instead of `OccupancySensing.Complete`)
+     * @deprecated Use {@link OccupancySensing}.
      */
     export const Complete: typeof OccupancySensing;
 
     export const Typing: OccupancySensing;
 }
 
+/**
+ * @deprecated Use {@link OccupancySensing}.
+ */
 export declare const OccupancySensingCluster: typeof OccupancySensing;
-export interface OccupancySensing extends ClusterTyping { Attributes: OccupancySensing.Attributes; Events: OccupancySensing.Events; Features: OccupancySensing.Features; Components: OccupancySensing.Components }
+
+export interface OccupancySensing extends ClusterTyping {
+    Attributes: OccupancySensing.Attributes;
+    Events: OccupancySensing.Events;
+    Features: OccupancySensing.Features;
+    Components: OccupancySensing.Components;
+}

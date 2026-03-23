@@ -6,409 +6,783 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ElectricalPowerMeasurement as ElectricalPowerMeasurementModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
 
 /**
  * Definitions for the ElectricalPowerMeasurement cluster.
+ *
+ * This cluster provides a mechanism for querying data about electrical power as measured by the server.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 2.13
  */
 export declare namespace ElectricalPowerMeasurement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0090;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ElectricalPowerMeasurement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the ElectricalPowerMeasurement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ElectricalPowerMeasurement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This shall indicate the current mode of the server. For some servers, such as an EV, this may change
-             * depending on the mode of charging or discharging.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.1
-             */
-            readonly powerMode: PowerMode;
+    export interface BaseAttributes {
+        /**
+         * This shall indicate the current mode of the server. For some servers, such as an EV, this may change
+         * depending on the mode of charging or discharging.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.1
+         */
+        powerMode: PowerMode;
 
-            /**
-             * This shall indicate the maximum number of measurement types the server is capable of reporting.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.2
-             */
-            readonly numberOfMeasurementTypes: number;
+        /**
+         * This shall indicate the maximum number of measurement types the server is capable of reporting.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.2
+         */
+        numberOfMeasurementTypes: number;
 
-            /**
-             * This shall indicate a list of accuracy specifications for the measurement types supported by the server.
-             * There shall be an entry for ActivePower, as well as any other measurement types implemented by this
-             * server.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.3
-             */
-            readonly accuracy: MeasurementAccuracy[];
+        /**
+         * This shall indicate a list of accuracy specifications for the measurement types supported by the server.
+         * There shall be an entry for ActivePower, as well as any other measurement types implemented by this server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.3
+         */
+        accuracy: MeasurementAccuracy[];
 
-            /**
-             * This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be
-             * measured, a value of null shall be returned.
-             *
-             * A positive value represents power imported, while a negative value represents power exported.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the Polyphase Power feature is set, this value represents the combined active power imported or
-             * exported.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.9
-             */
-            readonly activePower: number | bigint | null;
+        /**
+         * This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured,
+         * a value of null shall be returned.
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the Polyphase Power feature is set, this value represents the combined active power imported or exported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.9
+         */
+        activePower: number | bigint | null;
 
-            /**
-             * This shall indicate a list of measured ranges for different measurement types. Each measurement type
-             * shall have at most one entry in this list, representing the range of measurements in the most recent
-             * measurement period.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.4
-             */
-            readonly ranges?: MeasurementRange[];
+        /**
+         * This shall indicate a list of measured ranges for different measurement types. Each measurement type shall
+         * have at most one entry in this list, representing the range of measurements in the most recent measurement
+         * period.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.4
+         */
+        ranges?: MeasurementRange[];
 
-            /**
-             * This shall indicate the most recent Voltage reading in millivolts (mV).
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the voltage cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.5
-             */
-            readonly voltage?: number | bigint | null;
+        /**
+         * This shall indicate the most recent Voltage reading in millivolts (mV).
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the voltage cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.5
+         */
+        voltage?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent ActiveCurrent reading in milliamps (mA).
-             *
-             * A positive value represents current flowing into the server, while a negative value represents current
-             * flowing out of the server.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the current cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.6
-             */
-            readonly activeCurrent?: number | bigint | null;
-        }
-
-        export interface Events {
-            /**
-             * If supported, this event shall be generated at the end of a measurement period. The start and end times
-             * for measurement periods shall be determined by the server, and may represent overlapping periods.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
-             */
-            measurementPeriodRanges?: MeasurementPeriodRangesEvent;
-        }
+        /**
+         * This shall indicate the most recent ActiveCurrent reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the current cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.6
+         */
+        activeCurrent?: number | bigint | null;
     }
 
     /**
      * {@link ElectricalPowerMeasurement} supports these elements if it supports feature "AlternatingCurrent".
      */
-    export namespace AlternatingCurrentComponent {
-        export interface Attributes {
-            /**
-             * This shall indicate the most recent ReactiveCurrent reading in milliamps (mA).
-             *
-             * A positive value represents current flowing into the server, while a negative value represents current
-             * flowing out of the server.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the current cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.7
-             */
-            readonly reactiveCurrent?: number | bigint | null;
+    export interface AlternatingCurrentAttributes {
+        /**
+         * This shall indicate the most recent ReactiveCurrent reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the current cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.7
+         */
+        reactiveCurrent?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and
-             * reactive currents) reading in milliamps (mA).
-             *
-             * A positive value represents current flowing into the server, while a negative value represents current
-             * flowing out of the server.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the active or reactive currents cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.8
-             */
-            readonly apparentCurrent?: number | bigint | null;
+        /**
+         * This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and reactive
+         * currents) reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the active or reactive currents cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.8
+         */
+        apparentCurrent?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
-             *
-             * A positive value represents power imported, while a negative value represents power exported.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the reactive power cannot be measured, a value of null shall be returned.
-             *
-             * If the Polyphase Power feature is supported, this value represents the combined reactive power imported
-             * or exported.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.10
-             */
-            readonly reactivePower?: number | bigint | null;
+        /**
+         * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the reactive power cannot be measured, a value of null shall be returned.
+         *
+         * If the Polyphase Power feature is supported, this value represents the combined reactive power imported or
+         * exported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.10
+         */
+        reactivePower?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA).
-             *
-             * A positive value represents power imported, while a negative value represents power exported.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the apparent power cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.11
-             */
-            readonly apparentPower?: number | bigint | null;
+        /**
+         * This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA).
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the apparent power cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.11
+         */
+        apparentPower?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent RMSVoltage reading in millivolts (mV).
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the RMS voltage cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.12
-             */
-            readonly rmsVoltage?: number | bigint | null;
+        /**
+         * This shall indicate the most recent RMSVoltage reading in millivolts (mV).
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the RMS voltage cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.12
+         */
+        rmsVoltage?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent RMSCurrent reading in milliamps (mA).
-             *
-             * A positive value represents current flowing into the server, while a negative value represents current
-             * flowing out of the server.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the RMS current cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.13
-             */
-            readonly rmsCurrent?: number | bigint | null;
+        /**
+         * This shall indicate the most recent RMSCurrent reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the RMS current cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.13
+         */
+        rmsCurrent?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent RMSPower reading in milliwatts (mW).
-             *
-             * A positive value represents power imported, while a negative value represents power exported.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the RMS power cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.14
-             */
-            readonly rmsPower?: number | bigint | null;
+        /**
+         * This shall indicate the most recent RMSPower reading in milliwatts (mW).
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the RMS power cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.14
+         */
+        rmsPower?: number | bigint | null;
 
-            /**
-             * This shall indicate the most recent Frequency reading in millihertz (mHz).
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the frequency cannot be measured, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.15
-             */
-            readonly frequency?: number | bigint | null;
+        /**
+         * This shall indicate the most recent Frequency reading in millihertz (mHz).
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the frequency cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.15
+         */
+        frequency?: number | bigint | null;
 
-            /**
-             * This shall indicate the Power Factor ratio in +/- 1/100ths of a percent.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.18
-             */
-            readonly powerFactor?: number | bigint | null;
-        }
+        /**
+         * This shall indicate the Power Factor ratio in +/- 1/100ths of a percent.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.18
+         */
+        powerFactor?: number | bigint | null;
     }
 
     /**
      * {@link ElectricalPowerMeasurement} supports these elements if it supports feature "Harmonics".
      */
-    export namespace HarmonicsComponent {
-        export interface Attributes {
-            /**
-             * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
-             * representing the harmonic current reading for the harmonic order specified by Order.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.16
-             */
-            readonly harmonicCurrents: HarmonicMeasurement[] | null;
-        }
+    export interface HarmonicsAttributes {
+        /**
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the harmonic current reading for the harmonic order specified by Order.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.16
+         */
+        harmonicCurrents: HarmonicMeasurement[] | null;
     }
 
     /**
      * {@link ElectricalPowerMeasurement} supports these elements if it supports feature "PowerQuality".
      */
-    export namespace PowerQualityComponent {
-        export interface Attributes {
-            /**
-             * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
-             * representing the most recent phase of the harmonic current reading for the harmonic order specified by
-             * Order.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.17
-             */
-            readonly harmonicPhases: HarmonicMeasurement[] | null;
-        }
+    export interface PowerQualityAttributes {
+        /**
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the most recent phase of the harmonic current reading for the harmonic order specified by Order.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.17
+         */
+        harmonicPhases: HarmonicMeasurement[] | null;
     }
 
     /**
      * {@link ElectricalPowerMeasurement} supports these elements if it supports feature "PolyphasePower".
      */
-    export namespace PolyphasePowerComponent {
-        export interface Attributes {
-            /**
-             * This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived
-             * value, taking the magnitude of the vector sum of phase currents.
-             *
-             * If the neutral current cannot be measured or derived, a value of null shall be returned.
-             *
-             * A positive value represents an imbalance between the phase currents when power is imported.
-             *
-             * A negative value represents an imbalance between the phase currents when power is exported.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.19
-             */
-            readonly neutralCurrent?: number | bigint | null;
-        }
+    export interface PolyphasePowerAttributes {
+        /**
+         * This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived
+         * value, taking the magnitude of the vector sum of phase currents.
+         *
+         * If the neutral current cannot be measured or derived, a value of null shall be returned.
+         *
+         * A positive value represents an imbalance between the phase currents when power is imported.
+         *
+         * A negative value represents an imbalance between the phase currents when power is exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.19
+         */
+        neutralCurrent?: number | bigint | null;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<AlternatingCurrentComponent.Attributes>, Partial<HarmonicsComponent.Attributes>, Partial<PowerQualityComponent.Attributes>, Partial<PolyphasePowerComponent.Attributes> {}
-    export interface Events extends Base.Events {}
+    /**
+     * Attributes that may appear in {@link ElectricalPowerMeasurement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This shall indicate the current mode of the server. For some servers, such as an EV, this may change
+         * depending on the mode of charging or discharging.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.1
+         */
+        powerMode: PowerMode;
+
+        /**
+         * This shall indicate the maximum number of measurement types the server is capable of reporting.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.2
+         */
+        numberOfMeasurementTypes: number;
+
+        /**
+         * This shall indicate a list of accuracy specifications for the measurement types supported by the server.
+         * There shall be an entry for ActivePower, as well as any other measurement types implemented by this server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.3
+         */
+        accuracy: MeasurementAccuracy[];
+
+        /**
+         * This shall indicate the most recent ActivePower reading in milliwatts (mW). If the power cannot be measured,
+         * a value of null shall be returned.
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the Polyphase Power feature is set, this value represents the combined active power imported or exported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.9
+         */
+        activePower: number | bigint | null;
+
+        /**
+         * This shall indicate a list of measured ranges for different measurement types. Each measurement type shall
+         * have at most one entry in this list, representing the range of measurements in the most recent measurement
+         * period.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.4
+         */
+        ranges: MeasurementRange[];
+
+        /**
+         * This shall indicate the most recent Voltage reading in millivolts (mV).
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the voltage cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.5
+         */
+        voltage: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent ActiveCurrent reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the current cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.6
+         */
+        activeCurrent: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent ReactiveCurrent reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the current cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.7
+         */
+        reactiveCurrent: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent ApparentCurrent (square root sum of the squares of active and reactive
+         * currents) reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the active or reactive currents cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.8
+         */
+        apparentCurrent: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent ReactivePower reading in millivolt-amps reactive (mVAR).
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the reactive power cannot be measured, a value of null shall be returned.
+         *
+         * If the Polyphase Power feature is supported, this value represents the combined reactive power imported or
+         * exported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.10
+         */
+        reactivePower: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent ApparentPower reading in millivolt-amps (mVA).
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the apparent power cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.11
+         */
+        apparentPower: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent RMSVoltage reading in millivolts (mV).
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the RMS voltage cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.12
+         */
+        rmsVoltage: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent RMSCurrent reading in milliamps (mA).
+         *
+         * A positive value represents current flowing into the server, while a negative value represents current
+         * flowing out of the server.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the RMS current cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.13
+         */
+        rmsCurrent: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent RMSPower reading in milliwatts (mW).
+         *
+         * A positive value represents power imported, while a negative value represents power exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the RMS power cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.14
+         */
+        rmsPower: number | bigint | null;
+
+        /**
+         * This shall indicate the most recent Frequency reading in millihertz (mHz).
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the frequency cannot be measured, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.15
+         */
+        frequency: number | bigint | null;
+
+        /**
+         * This shall indicate the Power Factor ratio in +/- 1/100ths of a percent.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.18
+         */
+        powerFactor: number | bigint | null;
+
+        /**
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the harmonic current reading for the harmonic order specified by Order.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.16
+         */
+        harmonicCurrents: HarmonicMeasurement[] | null;
+
+        /**
+         * This shall indicate a list of HarmonicMeasurementStruct values, with each HarmonicMeasurementStruct
+         * representing the most recent phase of the harmonic current reading for the harmonic order specified by Order.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.17
+         */
+        harmonicPhases: HarmonicMeasurement[] | null;
+
+        /**
+         * This shall indicate the most recent NeutralCurrent reading in milliamps (mA). Typically this is a derived
+         * value, taking the magnitude of the vector sum of phase currents.
+         *
+         * If the neutral current cannot be measured or derived, a value of null shall be returned.
+         *
+         * A positive value represents an imbalance between the phase currents when power is imported.
+         *
+         * A negative value represents an imbalance between the phase currents when power is exported.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.6.19
+         */
+        neutralCurrent: number | bigint | null;
+    }
+
+    /**
+     * {@link ElectricalPowerMeasurement} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * If supported, this event shall be generated at the end of a measurement period. The start and end times for
+         * measurement periods shall be determined by the server, and may represent overlapping periods.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
+         */
+        measurementPeriodRanges?: MeasurementPeriodRangesEvent;
+    }
+
+    /**
+     * Events that may appear in {@link ElectricalPowerMeasurement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * If supported, this event shall be generated at the end of a measurement period. The start and end times for
+         * measurement periods shall be determined by the server, and may represent overlapping periods.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
+         */
+        measurementPeriodRanges: MeasurementPeriodRangesEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, events: Base.Events },
-        { flags: { alternatingCurrent: true }, attributes: AlternatingCurrentComponent.Attributes },
-        { flags: { harmonics: true }, attributes: HarmonicsComponent.Attributes },
-        { flags: { powerQuality: true }, attributes: PowerQualityComponent.Attributes },
-        { flags: { polyphasePower: true }, attributes: PolyphasePowerComponent.Attributes }
+        { flags: {}, attributes: BaseAttributes, events: BaseEvents },
+        { flags: { alternatingCurrent: true }, attributes: AlternatingCurrentAttributes },
+        { flags: { harmonics: true }, attributes: HarmonicsAttributes },
+        { flags: { powerQuality: true }, attributes: PowerQualityAttributes },
+        { flags: { polyphasePower: true }, attributes: PolyphasePowerAttributes }
     ];
 
     export type Features = "DirectCurrent" | "AlternatingCurrent" | "PolyphasePower" | "Harmonics" | "PowerQuality";
@@ -606,21 +980,6 @@ export declare namespace ElectricalPowerMeasurement {
     }
 
     /**
-     * If supported, this event shall be generated at the end of a measurement period. The start and end times for
-     * measurement periods shall be determined by the server, and may represent overlapping periods.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
-     */
-    export interface MeasurementPeriodRangesEvent {
-        /**
-         * This shall indicate the value of the Ranges attribute at the time of event generation.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1.1
-         */
-        ranges: MeasurementRange[];
-    }
-
-    /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4
      */
     export interface HarmonicMeasurement {
@@ -648,6 +1007,21 @@ export declare namespace ElectricalPowerMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4.2
          */
         measurement: number | bigint | null;
+    }
+
+    /**
+     * If supported, this event shall be generated at the end of a measurement period. The start and end times for
+     * measurement periods shall be determined by the server, and may represent overlapping periods.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
+     */
+    export interface MeasurementPeriodRangesEvent {
+        /**
+         * This shall indicate the value of the Ranges attribute at the time of event generation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1.1
+         */
+        ranges: MeasurementRange[];
     }
 
     /**
@@ -737,25 +1111,42 @@ export declare namespace ElectricalPowerMeasurement {
         ApparentEnergy = 16
     }
 
-    export const id: ClusterId;
-    export const name: "ElectricalPowerMeasurement";
-    export const revision: 3;
-    export const schema: typeof ElectricalPowerMeasurementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link ElectricalPowerMeasurement}.
+     */
     export const Cluster: typeof ElectricalPowerMeasurement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ElectricalPowerMeasurement` instead of
-     * `ElectricalPowerMeasurement.Complete`)
+     * @deprecated Use {@link ElectricalPowerMeasurement}.
      */
     export const Complete: typeof ElectricalPowerMeasurement;
 
     export const Typing: ElectricalPowerMeasurement;
 }
 
+/**
+ * @deprecated Use {@link ElectricalPowerMeasurement}.
+ */
 export declare const ElectricalPowerMeasurementCluster: typeof ElectricalPowerMeasurement;
-export interface ElectricalPowerMeasurement extends ClusterTyping { Attributes: ElectricalPowerMeasurement.Attributes; Events: ElectricalPowerMeasurement.Events; Features: ElectricalPowerMeasurement.Features; Components: ElectricalPowerMeasurement.Components }
+
+export interface ElectricalPowerMeasurement extends ClusterTyping {
+    Attributes: ElectricalPowerMeasurement.Attributes;
+    Events: ElectricalPowerMeasurement.Events;
+    Features: ElectricalPowerMeasurement.Features;
+    Components: ElectricalPowerMeasurement.Components;
+}

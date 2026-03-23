@@ -6,146 +6,250 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { ConcentrationMeasurement } from "./concentration-measurement.js";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { Pm10ConcentrationMeasurement as Pm10ConcentrationMeasurementModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { ConcentrationMeasurement } from "./concentration-measurement.js";
 
 /**
  * Definitions for the Pm10ConcentrationMeasurement cluster.
  */
 export declare namespace Pm10ConcentrationMeasurement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x042d;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "Pm10ConcentrationMeasurement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the Pm10ConcentrationMeasurement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link Pm10ConcentrationMeasurement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
-             */
-            readonly measurementMedium: ConcentrationMeasurement.MeasurementMedium;
-        }
+    export interface BaseAttributes {
+        /**
+         * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
+         */
+        measurementMedium: ConcentrationMeasurement.MeasurementMedium;
     }
 
     /**
      * {@link Pm10ConcentrationMeasurement} supports these elements if it supports feature "NumericMeasurement".
      */
-    export namespace NumericMeasurementComponent {
-        export interface Attributes {
-            /**
-             * Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s unit
-             * is represented by MeasurementUnit.
-             *
-             * A value of null indicates that the measurement is unknown or outside the valid range.
-             *
-             * MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
-             */
-            readonly measuredValue: number | null;
+    export interface NumericMeasurementAttributes {
+        /**
+         * Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s unit is
+         * represented by MeasurementUnit.
+         *
+         * A value of null indicates that the measurement is unknown or outside the valid range.
+         *
+         * MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
+         */
+        measuredValue: number | null;
 
-            /**
-             * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of
-             * null indicates that the MinMeasuredValue is not defined.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
-             */
-            readonly minMeasuredValue: number | null;
+        /**
+         * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of null
+         * indicates that the MinMeasuredValue is not defined.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
+         */
+        minMeasuredValue: number | null;
 
-            /**
-             * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of
-             * null indicates that the MaxMeasuredValue is not defined.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
-             */
-            readonly maxMeasuredValue: number | null;
+        /**
+         * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of null
+         * indicates that the MaxMeasuredValue is not defined.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
+         */
+        maxMeasuredValue: number | null;
 
-            /**
-             * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
-             */
-            readonly measurementUnit: ConcentrationMeasurement.MeasurementUnit;
+        /**
+         * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
+         */
+        measurementUnit: ConcentrationMeasurement.MeasurementUnit;
 
-            /**
-             * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This
-             * is considered a +/- value and should be considered to be in MeasurementUnit.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
-             */
-            readonly uncertainty?: number;
-        }
+        /**
+         * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This is
+         * considered a +/- value and should be considered to be in MeasurementUnit.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
+         */
+        uncertainty?: number;
     }
 
     /**
      * {@link Pm10ConcentrationMeasurement} supports these elements if it supports feature "PeakMeasurement".
      */
-    export namespace PeakMeasurementComponent {
-        export interface Attributes {
-            /**
-             * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow.
-             * If this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
-             */
-            readonly peakMeasuredValue: number | null;
+    export interface PeakMeasurementAttributes {
+        /**
+         * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow. If
+         * this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
+         */
+        peakMeasuredValue: number | null;
 
-            /**
-             * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
-             */
-            readonly peakMeasuredValueWindow: number;
-        }
+        /**
+         * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
+         */
+        peakMeasuredValueWindow: number;
     }
 
     /**
      * {@link Pm10ConcentrationMeasurement} supports these elements if it supports feature "AverageMeasurement".
      */
-    export namespace AverageMeasurementComponent {
-        export interface Attributes {
-            /**
-             * Indicates the average value of MeasuredValue that has been measured during the
-             * AverageMeasuredValueWindow. If this attribute is provided, the AverageMeasuredValueWindow attribute shall
-             * also be provided.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
-             */
-            readonly averageMeasuredValue: number | null;
+    export interface AverageMeasurementAttributes {
+        /**
+         * Indicates the average value of MeasuredValue that has been measured during the AverageMeasuredValueWindow. If
+         * this attribute is provided, the AverageMeasuredValueWindow attribute shall also be provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
+         */
+        averageMeasuredValue: number | null;
 
-            /**
-             * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
-             */
-            readonly averageMeasuredValueWindow: number;
-        }
+        /**
+         * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
+         */
+        averageMeasuredValueWindow: number;
     }
 
     /**
      * {@link Pm10ConcentrationMeasurement} supports these elements if it supports feature "LevelIndication".
      */
-    export namespace LevelIndicationComponent {
-        export interface Attributes {
-            /**
-             * Indicates the level of the substance detected. See LevelValueEnum.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
-             */
-            readonly levelValue: ConcentrationMeasurement.LevelValue;
-        }
+    export interface LevelIndicationAttributes {
+        /**
+         * Indicates the level of the substance detected. See LevelValueEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
+         */
+        levelValue: ConcentrationMeasurement.LevelValue;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<NumericMeasurementComponent.Attributes>, Partial<PeakMeasurementComponent.Attributes>, Partial<AverageMeasurementComponent.Attributes>, Partial<LevelIndicationComponent.Attributes> {}
+    /**
+     * Attributes that may appear in {@link Pm10ConcentrationMeasurement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
+         */
+        measurementMedium: ConcentrationMeasurement.MeasurementMedium;
+
+        /**
+         * Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s unit is
+         * represented by MeasurementUnit.
+         *
+         * A value of null indicates that the measurement is unknown or outside the valid range.
+         *
+         * MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
+         */
+        measuredValue: number | null;
+
+        /**
+         * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of null
+         * indicates that the MinMeasuredValue is not defined.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
+         */
+        minMeasuredValue: number | null;
+
+        /**
+         * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of null
+         * indicates that the MaxMeasuredValue is not defined.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
+         */
+        maxMeasuredValue: number | null;
+
+        /**
+         * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
+         */
+        measurementUnit: ConcentrationMeasurement.MeasurementUnit;
+
+        /**
+         * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This is
+         * considered a +/- value and should be considered to be in MeasurementUnit.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
+         */
+        uncertainty: number;
+
+        /**
+         * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow. If
+         * this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
+         */
+        peakMeasuredValue: number | null;
+
+        /**
+         * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
+         */
+        peakMeasuredValueWindow: number;
+
+        /**
+         * Indicates the average value of MeasuredValue that has been measured during the AverageMeasuredValueWindow. If
+         * this attribute is provided, the AverageMeasuredValueWindow attribute shall also be provided.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
+         */
+        averageMeasuredValue: number | null;
+
+        /**
+         * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
+         */
+        averageMeasuredValueWindow: number;
+
+        /**
+         * Indicates the level of the substance detected. See LevelValueEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
+         */
+        levelValue: ConcentrationMeasurement.LevelValue;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
-        { flags: { numericMeasurement: true }, attributes: NumericMeasurementComponent.Attributes },
-        { flags: { peakMeasurement: true }, attributes: PeakMeasurementComponent.Attributes },
-        { flags: { averageMeasurement: true }, attributes: AverageMeasurementComponent.Attributes },
-        { flags: { levelIndication: true }, attributes: LevelIndicationComponent.Attributes }
+        { flags: {}, attributes: BaseAttributes },
+        { flags: { numericMeasurement: true }, attributes: NumericMeasurementAttributes },
+        { flags: { peakMeasurement: true }, attributes: PeakMeasurementAttributes },
+        { flags: { averageMeasurement: true }, attributes: AverageMeasurementAttributes },
+        { flags: { levelIndication: true }, attributes: LevelIndicationAttributes }
     ];
 
     export type Features = "NumericMeasurement" | "LevelIndication" | "MediumLevel" | "CriticalLevel" | "PeakMeasurement" | "AverageMeasurement";
@@ -199,23 +303,36 @@ export declare namespace Pm10ConcentrationMeasurement {
         AverageMeasurement = "AverageMeasurement"
     }
 
-    export const id: ClusterId;
-    export const name: "Pm10ConcentrationMeasurement";
-    export const revision: 3;
-    export const schema: typeof Pm10ConcentrationMeasurementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link Pm10ConcentrationMeasurement}.
+     */
     export const Cluster: typeof Pm10ConcentrationMeasurement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `Pm10ConcentrationMeasurement` instead of
-     * `Pm10ConcentrationMeasurement.Complete`)
+     * @deprecated Use {@link Pm10ConcentrationMeasurement}.
      */
     export const Complete: typeof Pm10ConcentrationMeasurement;
 
     export const Typing: Pm10ConcentrationMeasurement;
 }
 
+/**
+ * @deprecated Use {@link Pm10ConcentrationMeasurement}.
+ */
 export declare const Pm10ConcentrationMeasurementCluster: typeof Pm10ConcentrationMeasurement;
-export interface Pm10ConcentrationMeasurement extends ClusterTyping { Attributes: Pm10ConcentrationMeasurement.Attributes; Features: Pm10ConcentrationMeasurement.Features; Components: Pm10ConcentrationMeasurement.Components }
+
+export interface Pm10ConcentrationMeasurement extends ClusterTyping {
+    Attributes: Pm10ConcentrationMeasurement.Attributes;
+    Features: Pm10ConcentrationMeasurement.Features;
+    Components: Pm10ConcentrationMeasurement.Components;
+}

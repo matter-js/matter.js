@@ -6,45 +6,71 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { VendorId } from "../datatype/VendorId.js";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { OtaSoftwareUpdateProvider as OtaSoftwareUpdateProviderModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the OtaSoftwareUpdateProvider cluster.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.20.6
  */
 export declare namespace OtaSoftwareUpdateProvider {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0029;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "OtaSoftwareUpdateProvider";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the OtaSoftwareUpdateProvider cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link OtaSoftwareUpdateProvider} always supports these elements.
      */
-    export namespace Base {
-        export interface Commands {
-            /**
-             * Upon receipt, this command shall trigger an attempt to find an updated Software Image by the OTA Provider
-             * to match the OTA Requestor’s constraints provided in the payload fields.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1
-             */
-            queryImage(request: QueryImageRequest): MaybePromise<QueryImageResponse>;
+    export interface BaseCommands {
+        /**
+         * Upon receipt, this command shall trigger an attempt to find an updated Software Image by the OTA Provider to
+         * match the OTA Requestor’s constraints provided in the payload fields.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1
+         */
+        queryImage(request: QueryImageRequest): MaybePromise<QueryImageResponse>;
 
-            /**
-             * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
-             */
-            applyUpdateRequest(request: ApplyUpdateRequest): MaybePromise<ApplyUpdateResponse>;
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
+         */
+        applyUpdateRequest(request: ApplyUpdateRequest): MaybePromise<ApplyUpdateResponse>;
 
-            /**
-             * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
-             */
-            notifyUpdateApplied(request: NotifyUpdateAppliedRequest): MaybePromise;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
+         */
+        notifyUpdateApplied(request: NotifyUpdateAppliedRequest): MaybePromise;
     }
 
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, commands: Base.Commands }];
+    /**
+     * Commands that may appear in {@link OtaSoftwareUpdateProvider}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, commands: BaseCommands }];
 
     /**
      * Upon receipt, this command shall trigger an attempt to find an updated Software Image by the OTA Provider to
@@ -586,22 +612,30 @@ export declare namespace OtaSoftwareUpdateProvider {
         VendorSpecific = 3
     }
 
-    export const id: ClusterId;
-    export const name: "OtaSoftwareUpdateProvider";
-    export const revision: 1;
-    export const schema: typeof OtaSoftwareUpdateProviderModel;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * @deprecated Use {@link OtaSoftwareUpdateProvider}.
+     */
     export const Cluster: typeof OtaSoftwareUpdateProvider;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `OtaSoftwareUpdateProvider` instead of
-     * `OtaSoftwareUpdateProvider.Complete`)
+     * @deprecated Use {@link OtaSoftwareUpdateProvider}.
      */
     export const Complete: typeof OtaSoftwareUpdateProvider;
 
     export const Typing: OtaSoftwareUpdateProvider;
 }
 
+/**
+ * @deprecated Use {@link OtaSoftwareUpdateProvider}.
+ */
 export declare const OtaSoftwareUpdateProviderCluster: typeof OtaSoftwareUpdateProvider;
-export interface OtaSoftwareUpdateProvider extends ClusterTyping { Commands: OtaSoftwareUpdateProvider.Commands; Components: OtaSoftwareUpdateProvider.Components }
+
+export interface OtaSoftwareUpdateProvider extends ClusterTyping {
+    Commands: OtaSoftwareUpdateProvider.Commands;
+    Components: OtaSoftwareUpdateProvider.Components;
+}

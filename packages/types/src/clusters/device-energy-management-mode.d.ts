@@ -6,60 +6,121 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { ModeBase } from "./mode-base.js";
 import type { VendorId } from "../datatype/VendorId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { DeviceEnergyManagementMode as DeviceEnergyManagementModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the DeviceEnergyManagementMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for Device Energy Management devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 9.8
  */
 export declare namespace DeviceEnergyManagementMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x009f;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "DeviceEnergyManagementMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the DeviceEnergyManagementMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link DeviceEnergyManagementMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the
-             * ModeTags field.
-             *
-             * At least one entry in the SupportedModes attribute shall include the LocalOptimization mode tag in the
-             * ModeTags field list.
-             *
-             * At least one entry in the SupportedModes attribute shall include the GridOptimization mode tag in the
-             * ModeTags field list.
-             *
-             * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization,
-             * or GridOptimization tags shall NOT also include NoOptimization tag.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the ModeTags
+         * field.
+         *
+         * At least one entry in the SupportedModes attribute shall include the LocalOptimization mode tag in the
+         * ModeTags field list.
+         *
+         * At least one entry in the SupportedModes attribute shall include the GridOptimization mode tag in the
+         * ModeTags field list.
+         *
+         * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization, or
+         * GridOptimization tags shall NOT also include NoOptimization tag.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
-             */
-            readonly currentMode: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link DeviceEnergyManagementMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the ModeTags
+         * field.
+         *
+         * At least one entry in the SupportedModes attribute shall include the LocalOptimization mode tag in the
+         * ModeTags field list.
+         *
+         * At least one entry in the SupportedModes attribute shall include the GridOptimization mode tag in the
+         * ModeTags field list.
+         *
+         * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization, or
+         * GridOptimization tags shall NOT also include NoOptimization tag.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
+         */
+        currentMode: number;
+    }
+
+    /**
+     * {@link DeviceEnergyManagementMode} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to change device modes.
+         *
+         * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         */
+        changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link DeviceEnergyManagementMode}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "OnOff";
 
     /**
@@ -251,25 +312,42 @@ export declare namespace DeviceEnergyManagementMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "DeviceEnergyManagementMode";
-    export const revision: 2;
-    export const schema: typeof DeviceEnergyManagementModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link DeviceEnergyManagementMode}.
+     */
     export const Cluster: typeof DeviceEnergyManagementMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `DeviceEnergyManagementMode` instead of
-     * `DeviceEnergyManagementMode.Complete`)
+     * @deprecated Use {@link DeviceEnergyManagementMode}.
      */
     export const Complete: typeof DeviceEnergyManagementMode;
 
     export const Typing: DeviceEnergyManagementMode;
 }
 
+/**
+ * @deprecated Use {@link DeviceEnergyManagementMode}.
+ */
 export declare const DeviceEnergyManagementModeCluster: typeof DeviceEnergyManagementMode;
-export interface DeviceEnergyManagementMode extends ClusterTyping { Attributes: DeviceEnergyManagementMode.Attributes; Commands: DeviceEnergyManagementMode.Commands; Features: DeviceEnergyManagementMode.Features; Components: DeviceEnergyManagementMode.Components }
+
+export interface DeviceEnergyManagementMode extends ClusterTyping {
+    Attributes: DeviceEnergyManagementMode.Attributes;
+    Commands: DeviceEnergyManagementMode.Commands;
+    Features: DeviceEnergyManagementMode.Features;
+    Components: DeviceEnergyManagementMode.Components;
+}

@@ -7,63 +7,127 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { TimeFormatLocalization as TimeFormatLocalizationModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 
 /**
  * Definitions for the TimeFormatLocalization cluster.
+ *
+ * Nodes should be expected to be deployed to any and all regions of the world. These global regions may have differing
+ * preferences for how dates and times are conveyed. As such, Nodes that visually or audibly convey time information
+ * need a mechanism by which they can be configured to use a user’s preferred format.
+ *
+ * This cluster supports an interface to a Node. It provides attributes for determining and configuring time and date
+ * formatting information that a Node shall utilize when conveying values to a user.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.4
  */
 export declare namespace TimeFormatLocalization {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x002c;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "TimeFormatLocalization";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the TimeFormatLocalization cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link TimeFormatLocalization} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the format that the Node is currently configured to use when conveying the hour unit of time.
-             *
-             * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
-             * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
-             * format, and if ActiveLocale is not present, the hour format is unknown.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
-             */
-            hourFormat: HourFormat;
-        }
+    export interface BaseAttributes {
+        /**
+         * Indicates the format that the Node is currently configured to use when conveying the hour unit of time.
+         *
+         * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+         * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
+         * format, and if ActiveLocale is not present, the hour format is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
+         */
+        hourFormat: HourFormat;
     }
 
     /**
      * {@link TimeFormatLocalization} supports these elements if it supports feature "CalendarFormat".
      */
-    export namespace CalendarFormatComponent {
-        export interface Attributes {
-            /**
-             * Indicates the calendar format that the Node is currently configured to use when conveying dates.
-             *
-             * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
-             * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the
-             * calendar type, and if ActiveLocale is not present, the calendar type is unknown.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
-             */
-            activeCalendarType: CalendarType;
+    export interface CalendarFormatAttributes {
+        /**
+         * Indicates the calendar format that the Node is currently configured to use when conveying dates.
+         *
+         * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+         * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar
+         * type, and if ActiveLocale is not present, the calendar type is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
+         */
+        activeCalendarType: CalendarType;
 
-            /**
-             * Indicates a list of CalendarTypeEnum values that are supported by the Node. The list shall NOT contain
-             * any duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum
-             * length of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within
-             * CalendarTypeEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
-             */
-            readonly supportedCalendarTypes: CalendarType[];
-        }
+        /**
+         * Indicates a list of CalendarTypeEnum values that are supported by the Node. The list shall NOT contain any
+         * duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum length
+         * of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within CalendarTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
+         */
+        supportedCalendarTypes: CalendarType[];
     }
 
-    export interface Attributes extends Base.Attributes, Partial<CalendarFormatComponent.Attributes> {}
+    /**
+     * Attributes that may appear in {@link TimeFormatLocalization}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the format that the Node is currently configured to use when conveying the hour unit of time.
+         *
+         * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+         * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
+         * format, and if ActiveLocale is not present, the hour format is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
+         */
+        hourFormat: HourFormat;
+
+        /**
+         * Indicates the calendar format that the Node is currently configured to use when conveying dates.
+         *
+         * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+         * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar
+         * type, and if ActiveLocale is not present, the calendar type is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
+         */
+        activeCalendarType: CalendarType;
+
+        /**
+         * Indicates a list of CalendarTypeEnum values that are supported by the Node. The list shall NOT contain any
+         * duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum length
+         * of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within CalendarTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
+         */
+        supportedCalendarTypes: CalendarType[];
+    }
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
-        { flags: { calendarFormat: true }, attributes: CalendarFormatComponent.Attributes }
+        { flags: {}, attributes: BaseAttributes },
+        { flags: { calendarFormat: true }, attributes: CalendarFormatAttributes }
     ];
     export type Features = "CalendarFormat";
 
@@ -171,23 +235,36 @@ export declare namespace TimeFormatLocalization {
         UseActiveLocale = 255
     }
 
-    export const id: ClusterId;
-    export const name: "TimeFormatLocalization";
-    export const revision: 1;
-    export const schema: typeof TimeFormatLocalizationModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link TimeFormatLocalization}.
+     */
     export const Cluster: typeof TimeFormatLocalization;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `TimeFormatLocalization` instead of
-     * `TimeFormatLocalization.Complete`)
+     * @deprecated Use {@link TimeFormatLocalization}.
      */
     export const Complete: typeof TimeFormatLocalization;
 
     export const Typing: TimeFormatLocalization;
 }
 
+/**
+ * @deprecated Use {@link TimeFormatLocalization}.
+ */
 export declare const TimeFormatLocalizationCluster: typeof TimeFormatLocalization;
-export interface TimeFormatLocalization extends ClusterTyping { Attributes: TimeFormatLocalization.Attributes; Features: TimeFormatLocalization.Features; Components: TimeFormatLocalization.Components }
+
+export interface TimeFormatLocalization extends ClusterTyping {
+    Attributes: TimeFormatLocalization.Attributes;
+    Features: TimeFormatLocalization.Features;
+    Components: TimeFormatLocalization.Components;
+}

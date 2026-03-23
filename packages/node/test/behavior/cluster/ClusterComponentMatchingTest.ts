@@ -28,6 +28,10 @@ import { OnOff } from "@matter/types/clusters/on-off";
 // Test namespace — mirrors OnOff's shape (Base / Lighting / NotOffOnly)
 // ---------------------------------------------------------------------------
 
+interface BaseAttributes {
+    attr1: string;
+}
+
 interface BaseMethods {
     baseCmd(): void;
 }
@@ -42,12 +46,12 @@ interface NotFeatureBMethods {
 
 /**
  * Mimics the unified Components tuple:
- *   { flags: {}, commands: Base, attributes: ... }
+ *   { flags: {}, commands: Base, attributes: BaseAttributes }
  *   { flags: { featureA: true }, commands: FeatureA }
  *   { flags: { featureB: false }, commands: NotFeatureB }
  */
 type TestComponents = [
-    { flags: {}; attributes: { attr1: string }; commands: BaseMethods },
+    { flags: {}; attributes: BaseAttributes; commands: BaseMethods },
     { flags: { featureA: true }; commands: FeatureAMethods },
     { flags: { featureB: false }; commands: NotFeatureBMethods },
 ];

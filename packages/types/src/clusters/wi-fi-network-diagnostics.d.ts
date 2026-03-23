@@ -6,197 +6,359 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { Bytes, MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { WiFiNetworkDiagnostics as WiFiNetworkDiagnosticsModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { Bytes, MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the WiFiNetworkDiagnostics cluster.
+ *
+ * The Wi-Fi Network Diagnostics Cluster provides a means to acquire standardized diagnostics metrics that may be used
+ * by a Node to assist a user or Administrator in diagnosing potential problems. The Wi-Fi Network Diagnostics Cluster
+ * attempts to centralize all metrics that are relevant to a potential Wi-Fi radio running on a Node.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.15
  */
 export declare namespace WiFiNetworkDiagnostics {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0036;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "WiFiNetworkDiagnostics";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the WiFiNetworkDiagnostics cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link WiFiNetworkDiagnostics} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.1
-             */
-            readonly bssid: Bytes | null;
+    export interface BaseAttributes {
+        /**
+         * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.1
+         */
+        bssid: Bytes | null;
 
-            /**
-             * Indicates the current type of Wi-Fi security used.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.2
-             */
-            readonly securityType: SecurityType | null;
+        /**
+         * Indicates the current type of Wi-Fi security used.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.2
+         */
+        securityType: SecurityType | null;
 
-            /**
-             * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.3
-             */
-            readonly wiFiVersion: WiFiVersion | null;
+        /**
+         * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.3
+         */
+        wiFiVersion: WiFiVersion | null;
 
-            /**
-             * Indicates the channel that Wi-Fi communication is currently operating on.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.4
-             */
-            readonly channelNumber: number | null;
+        /**
+         * Indicates the channel that Wi-Fi communication is currently operating on.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.4
+         */
+        channelNumber: number | null;
 
-            /**
-             * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.5
-             */
-            readonly rssi: number | null;
+        /**
+         * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.5
+         */
+        rssi: number | null;
 
-            /**
-             * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.12
-             */
-            readonly currentMaxRate?: number | bigint | null;
-        }
-
-        export interface Events {
-            /**
-             * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result
-             * of de-authenticated or dis-association and indicates the reason.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
-             */
-            disconnection?: DisconnectionEvent;
-
-            /**
-             * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a
-             * Wi-Fi access point, but is unable to successfully associate or authenticate, after exhausting all
-             * internal retries of its supplicant.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
-             */
-            associationFailure?: AssociationFailureEvent;
-
-            /**
-             * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
-             * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated
-             * to a Wi-Fi Access Point.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
-             */
-            connectionStatus?: ConnectionStatusEvent;
-        }
+        /**
+         * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.12
+         */
+        currentMaxRate?: number | bigint | null;
     }
 
     /**
      * {@link WiFiNetworkDiagnostics} supports these elements if it supports feature "ErrorCounts".
      */
-    export namespace ErrorCountsComponent {
-        export interface Attributes {
-            /**
-             * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
-             * ability to count beacons expected and not received, this value may remain set to zero.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.6
-             */
-            readonly beaconLostCount: number | null;
+    export interface ErrorCountsAttributes {
+        /**
+         * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
+         * ability to count beacons expected and not received, this value may remain set to zero.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.6
+         */
+        beaconLostCount: number | null;
 
-            /**
-             * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to
-             * retain all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.13
-             */
-            readonly overrunCount: number | bigint | null;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to reset the count attributes.
-             *
-             * Reception of this command shall reset the following attributes to 0:
-             *
-             *   - BeaconLostCount
-             *
-             *   - BeaconRxCount
-             *
-             *   - PacketMulticastRxCount
-             *
-             *   - PacketMulticastTxCount
-             *
-             *   - PacketUnicastRxCount
-             *
-             *   - PacketUnicastTxCount
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
-             */
-            resetCounts(): MaybePromise;
-        }
+        /**
+         * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
+         * all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.13
+         */
+        overrunCount: number | bigint | null;
     }
 
     /**
      * {@link WiFiNetworkDiagnostics} supports these elements if it supports feature "PacketCounts".
      */
-    export namespace PacketCountsComponent {
-        export interface Attributes {
-            /**
-             * Indicates the count of the number of received beacons. The total number of expected beacons that could
-             * have been received during the interval since association SHOULD match the sum of BeaconRxCount and
-             * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
-             * remain set to zero.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.7
-             */
-            readonly beaconRxCount: number | null;
+    export interface PacketCountsAttributes {
+        /**
+         * Indicates the count of the number of received beacons. The total number of expected beacons that could have
+         * been received during the interval since association SHOULD match the sum of BeaconRxCount and
+         * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
+         * remain set to zero.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.7
+         */
+        beaconRxCount: number | null;
 
-            /**
-             * Indicates the number of multicast packets received by the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.8
-             */
-            readonly packetMulticastRxCount: number | null;
+        /**
+         * Indicates the number of multicast packets received by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.8
+         */
+        packetMulticastRxCount: number | null;
 
-            /**
-             * Indicates the number of multicast packets transmitted by the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.9
-             */
-            readonly packetMulticastTxCount: number | null;
+        /**
+         * Indicates the number of multicast packets transmitted by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.9
+         */
+        packetMulticastTxCount: number | null;
 
-            /**
-             * Indicates the number of unicast packets received by the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.10
-             */
-            readonly packetUnicastRxCount: number | null;
+        /**
+         * Indicates the number of unicast packets received by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.10
+         */
+        packetUnicastRxCount: number | null;
 
-            /**
-             * Indicates the number of unicast packets transmitted by the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.15.6.11
-             */
-            readonly packetUnicastTxCount: number | null;
-        }
+        /**
+         * Indicates the number of unicast packets transmitted by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.11
+         */
+        packetUnicastTxCount: number | null;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<ErrorCountsComponent.Attributes>, Partial<PacketCountsComponent.Attributes> {}
-    export interface Commands extends ErrorCountsComponent.Commands {}
-    export interface Events extends Base.Events {}
+    /**
+     * Attributes that may appear in {@link WiFiNetworkDiagnostics}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.1
+         */
+        bssid: Bytes | null;
+
+        /**
+         * Indicates the current type of Wi-Fi security used.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.2
+         */
+        securityType: SecurityType | null;
+
+        /**
+         * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.3
+         */
+        wiFiVersion: WiFiVersion | null;
+
+        /**
+         * Indicates the channel that Wi-Fi communication is currently operating on.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.4
+         */
+        channelNumber: number | null;
+
+        /**
+         * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.5
+         */
+        rssi: number | null;
+
+        /**
+         * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.12
+         */
+        currentMaxRate: number | bigint | null;
+
+        /**
+         * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
+         * ability to count beacons expected and not received, this value may remain set to zero.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.6
+         */
+        beaconLostCount: number | null;
+
+        /**
+         * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
+         * all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.13
+         */
+        overrunCount: number | bigint | null;
+
+        /**
+         * Indicates the count of the number of received beacons. The total number of expected beacons that could have
+         * been received during the interval since association SHOULD match the sum of BeaconRxCount and
+         * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
+         * remain set to zero.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.7
+         */
+        beaconRxCount: number | null;
+
+        /**
+         * Indicates the number of multicast packets received by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.8
+         */
+        packetMulticastRxCount: number | null;
+
+        /**
+         * Indicates the number of multicast packets transmitted by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.9
+         */
+        packetMulticastTxCount: number | null;
+
+        /**
+         * Indicates the number of unicast packets received by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.10
+         */
+        packetUnicastRxCount: number | null;
+
+        /**
+         * Indicates the number of unicast packets transmitted by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.6.11
+         */
+        packetUnicastTxCount: number | null;
+    }
+
+    /**
+     * {@link WiFiNetworkDiagnostics} supports these elements if it supports feature "ErrorCounts".
+     */
+    export interface ErrorCountsCommands {
+        /**
+         * This command is used to reset the count attributes.
+         *
+         * Reception of this command shall reset the following attributes to 0:
+         *
+         *   - BeaconLostCount
+         *
+         *   - BeaconRxCount
+         *
+         *   - PacketMulticastRxCount
+         *
+         *   - PacketMulticastTxCount
+         *
+         *   - PacketUnicastRxCount
+         *
+         *   - PacketUnicastTxCount
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
+         */
+        resetCounts(): MaybePromise;
+    }
+
+    /**
+     * Commands that may appear in {@link WiFiNetworkDiagnostics}.
+     */
+    export interface Commands extends ErrorCountsCommands {}
+
+    /**
+     * {@link WiFiNetworkDiagnostics} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+         * de-authenticated or dis-association and indicates the reason.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+         */
+        disconnection?: DisconnectionEvent;
+
+        /**
+         * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a Wi-Fi
+         * access point, but is unable to successfully associate or authenticate, after exhausting all internal retries
+         * of its supplicant.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+         */
+        associationFailure?: AssociationFailureEvent;
+
+        /**
+         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+         * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
+         * Wi-Fi Access Point.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+         */
+        connectionStatus?: ConnectionStatusEvent;
+    }
+
+    /**
+     * Events that may appear in {@link WiFiNetworkDiagnostics}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+         * de-authenticated or dis-association and indicates the reason.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+         */
+        disconnection: DisconnectionEvent;
+
+        /**
+         * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a Wi-Fi
+         * access point, but is unable to successfully associate or authenticate, after exhausting all internal retries
+         * of its supplicant.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+         */
+        associationFailure: AssociationFailureEvent;
+
+        /**
+         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+         * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
+         * Wi-Fi Access Point.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+         */
+        connectionStatus: ConnectionStatusEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, events: Base.Events },
-        {
-            flags: { errorCounts: true },
-            attributes: ErrorCountsComponent.Attributes,
-            commands: ErrorCountsComponent.Commands
-        },
-        { flags: { packetCounts: true }, attributes: PacketCountsComponent.Attributes }
+        { flags: {}, attributes: BaseAttributes, events: BaseEvents },
+        { flags: { errorCounts: true }, attributes: ErrorCountsAttributes, commands: ErrorCountsCommands },
+        { flags: { packetCounts: true }, attributes: PacketCountsAttributes }
     ];
-
     export type Features = "PacketCounts" | "ErrorCounts";
 
     /**
@@ -381,27 +543,48 @@ export declare namespace WiFiNetworkDiagnostics {
         NotConnected = 1
     }
 
-    export const id: ClusterId;
-    export const name: "WiFiNetworkDiagnostics";
-    export const revision: 1;
-    export const schema: typeof WiFiNetworkDiagnosticsModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link WiFiNetworkDiagnostics}.
+     */
     export const Cluster: typeof WiFiNetworkDiagnostics;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `WiFiNetworkDiagnostics` instead of
-     * `WiFiNetworkDiagnostics.Complete`)
+     * @deprecated Use {@link WiFiNetworkDiagnostics}.
      */
     export const Complete: typeof WiFiNetworkDiagnostics;
 
     export const Typing: WiFiNetworkDiagnostics;
 }
 
+/**
+ * @deprecated Use {@link WiFiNetworkDiagnostics}.
+ */
 export declare const WiFiNetworkDiagnosticsCluster: typeof WiFiNetworkDiagnostics;
-export interface WiFiNetworkDiagnostics extends ClusterTyping { Attributes: WiFiNetworkDiagnostics.Attributes; Commands: WiFiNetworkDiagnostics.Commands; Events: WiFiNetworkDiagnostics.Events; Features: WiFiNetworkDiagnostics.Features; Components: WiFiNetworkDiagnostics.Components }
+
+export interface WiFiNetworkDiagnostics extends ClusterTyping {
+    Attributes: WiFiNetworkDiagnostics.Attributes;
+    Commands: WiFiNetworkDiagnostics.Commands;
+    Events: WiFiNetworkDiagnostics.Events;
+    Features: WiFiNetworkDiagnostics.Features;
+    Components: WiFiNetworkDiagnostics.Components;
+}

@@ -6,193 +6,278 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { GroupId } from "../datatype/GroupId.js";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { GroupKeyManagement as GroupKeyManagementModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the GroupKeyManagement cluster.
+ *
+ * The Group Key Management cluster manages group keys for the node. The cluster is scoped to the node and is a
+ * singleton for the node. This cluster maintains a list of groups supported by the node. Each group list entry supports
+ * a single group, with a single group ID and single group key. Duplicate groups are not allowed in the list. Additions
+ * or removal of a group entry are performed via modifications of the list. Such modifications require Administer
+ * privilege.
+ *
+ * Each group entry includes a membership list of zero of more endpoints that are members of the group on the node.
+ * Modification of this membership list is done via the Groups cluster, which is scoped to an endpoint. See the Chapter
+ * 9, System Model Specification specification for more information on groups.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.2
  */
 export declare namespace GroupKeyManagement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x003f;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "GroupKeyManagement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the GroupKeyManagement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link GroupKeyManagement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
-             * particular group key set.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
-             */
-            groupKeyMap: GroupKeyMap[];
+    export interface BaseAttributes {
+        /**
+         * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
+         * particular group key set.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
+         */
+        groupKeyMap: GroupKeyMap[];
 
-            /**
-             * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about
-             * how a given logical Group ID maps to a particular set of endpoints, and a name for the group. The content
-             * of this attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms
-             * referred to as the 'node-wide Group Table'.
-             *
-             * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
-             * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped
-             * endpoint, the entire GroupTable entry for that given GroupId shall be removed.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
-             */
-            readonly groupTable: GroupInfoMap[];
+        /**
+         * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
+         * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
+         * attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms referred to
+         * as the 'node-wide Group Table'.
+         *
+         * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
+         * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
+         * the entire GroupTable entry for that given GroupId shall be removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
+         */
+        groupTable: GroupInfoMap[];
 
-            /**
-             * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute
-             * shall be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2,
-             * “Group Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value
-             * of the MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
-             */
-            readonly maxGroupsPerFabric: number;
+        /**
+         * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute shall
+         * be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2, “Group
+         * Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
+         * MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
+         */
+        maxGroupsPerFabric: number;
 
-            /**
-             * Indicates the maximum number of group key sets this node supports per fabric. The value of this attribute
-             * shall be set according to the minimum number of group key sets to support as specified in Section
-             * 2.11.1.2, “Group Limits”.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
-             */
-            readonly maxGroupKeysPerFabric: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used by Administrators to set the state of a given Group Key Set, including atomically
-             * updating the state of all epoch keys.
-             *
-             * ### Effect on Receipt
-             *
-             * The following validations shall be done against the content of the GroupKeySet field:
-             *
-             *   - If the EpochKey0 field is null or its associated EpochStartTime0 field is null, then this command
-             *     shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             *   - If the EpochKey0 field’s length is not exactly 16 bytes, then this command shall fail with a
-             *     CONSTRAINT_ERROR status code responded to the client.
-             *
-             *   - If the EpochStartTime0 is set to 0, then this command shall fail with an INVALID_COMMAND status code
-             *     responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be set to
-             *     zero, due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct (see Section
-             *     11.18.6.8.1, “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet field sent by a
-             *     client.
-             *
-             *   - If the EpochKey1 field is not null, then the EpochKey0 field shall NOT be null. Otherwise this
-             *     command shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             *   - If the EpochKey1 field is not null, and the field’s length is not exactly 16 bytes, then this command
-             *     shall fail with a CONSTRAINT_ERROR status code responded to the client.
-             *
-             *   - If the EpochKey1 field is not null, its associated EpochStartTime1 field shall NOT be null and shall
-             *     contain a later epoch start time than the epoch start time found in the EpochStartTime0 field.
-             *     Otherwise this command shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             *   - If exactly one of the EpochKey1 or EpochStartTime1 is null, rather than both being null, or neither
-             *     being null, then this command shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             *   - If the EpochKey2 field is not null, then the EpochKey1 and EpochKey0 fields shall NOT be null.
-             *     Otherwise this command shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             *   - If the EpochKey2 field is not null, and the field’s length is not exactly 16 bytes, then this command
-             *     shall fail with a CONSTRAINT_ERROR status code responded to the client.
-             *
-             *   - If the EpochKey2 field is not null, its associated EpochStartTime2 field shall NOT be null and shall
-             *     contain a later epoch start time than the epoch start time found in the EpochStartTime1 field.
-             *     Otherwise this command shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             *   - If exactly one of the EpochKey2 or EpochStartTime2 is null, rather than both being null, or neither
-             *     being null, then this command shall fail with an INVALID_COMMAND status code responded to the client.
-             *
-             * If there exists a Group Key Set associated with the accessing fabric which has the same GroupKeySetID as
-             * that provided in the GroupKeySet field, then the contents of that group key set shall be replaced. A
-             * replacement shall be done by executing the equivalent of entirely removing the previous Group Key Set
-             * with the given GroupKeySetID, followed by an addition of a Group Key Set with the provided configuration.
-             * Otherwise, if the GroupKeySetID did not match an existing entry, a new Group Key Set associated with the
-             * accessing fabric shall be created with the provided data. The Group Key Set shall be written to
-             * non-volatile storage.
-             *
-             * Upon completion, this command shall send a status code back to the initiator:
-             *
-             *   - If the Group Key Set was properly installed or updated on the Node, the status code shall be set to
-             *     SUCCESS.
-             *
-             *   - If there are insufficient resources on the receiver to store an additional Group Key Set, the status
-             *     code shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);
-             *
-             *   - Otherwise, this status code shall be set to FAILURE.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
-             */
-            keySetWrite(request: KeySetWriteRequest): MaybePromise;
-
-            /**
-             * This command is used by Administrators to read the state of a given Group Key Set.
-             *
-             * ### Effect on Receipt
-             *
-             * If there exists a Group Key Set associated with the accessing fabric which has the same GroupKeySetID as
-             * that provided in the GroupKeySetID field, then the contents of that Group Key Set shall be sent in a
-             * KeySetReadResponse command, but with the EpochKey0, EpochKey1 and EpochKey2 fields replaced by null.
-             *
-             * Otherwise, if the GroupKeySetID does not refer to a Group Key Set associated with the accessing fabric,
-             * then this command shall fail with a NOT_FOUND status code.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
-             */
-            keySetRead(request: KeySetReadRequest): MaybePromise<KeySetReadResponse>;
-
-            /**
-             * This command is used by Administrators to remove all state of a given Group Key Set.
-             *
-             * ### Effect on Receipt
-             *
-             * If there exists a Group Key Set associated with the accessing fabric which has the same GroupKeySetID as
-             * that provided in the GroupKeySetID field, then the contents of that Group Key Set shall be removed,
-             * including all epoch keys it contains.
-             *
-             * If there exist any entries for the accessing fabric within the GroupKeyMap attribute that refer to the
-             * GroupKeySetID just removed, then these entries shall be removed from that list.
-             *
-             * This command shall fail with an INVALID_COMMAND status code back to the initiator if the GroupKeySetID
-             * being removed is 0, which is the Key Set associated with the Identity Protection Key (IPK). The only
-             * method to remove the IPK is usage of the RemoveFabric command or any operation which causes the
-             * equivalent of a RemoveFabric to occur by side-effect.
-             *
-             * This command shall send a SUCCESS status code back to the initiator on success, or NOT_FOUND if the
-             * GroupKeySetID requested did not exist.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
-             */
-            keySetRemove(request: KeySetRemoveRequest): MaybePromise;
-
-            /**
-             * This command is used by Administrators to query a list of all Group Key Sets associated with the
-             * accessing fabric.
-             *
-             * ### Effect on Receipt
-             *
-             * Upon receipt, this command shall iterate all stored GroupKeySetStruct associated with the accessing
-             * fabric and generate a KeySetReadAllIndicesResponse command containing the list of GroupKeySetID values
-             * from those structs.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.2.7.5
-             */
-            keySetReadAllIndices(): MaybePromise<KeySetReadAllIndicesResponse>;
-        }
+        /**
+         * Indicates the maximum number of group key sets this node supports per fabric. The value of this attribute
+         * shall be set according to the minimum number of group key sets to support as specified in Section 2.11.1.2,
+         * “Group Limits”.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
+         */
+        maxGroupKeysPerFabric: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link GroupKeyManagement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
+         * particular group key set.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
+         */
+        groupKeyMap: GroupKeyMap[];
+
+        /**
+         * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
+         * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
+         * attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms referred to
+         * as the 'node-wide Group Table'.
+         *
+         * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
+         * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
+         * the entire GroupTable entry for that given GroupId shall be removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
+         */
+        groupTable: GroupInfoMap[];
+
+        /**
+         * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute shall
+         * be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2, “Group
+         * Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
+         * MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
+         */
+        maxGroupsPerFabric: number;
+
+        /**
+         * Indicates the maximum number of group key sets this node supports per fabric. The value of this attribute
+         * shall be set according to the minimum number of group key sets to support as specified in Section 2.11.1.2,
+         * “Group Limits”.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
+         */
+        maxGroupKeysPerFabric: number;
+    }
+
+    /**
+     * {@link GroupKeyManagement} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used by Administrators to set the state of a given Group Key Set, including atomically
+         * updating the state of all epoch keys.
+         *
+         * ### Effect on Receipt
+         *
+         * The following validations shall be done against the content of the GroupKeySet field:
+         *
+         *   - If the EpochKey0 field is null or its associated EpochStartTime0 field is null, then this command shall
+         *     fail with an INVALID_COMMAND status code responded to the client.
+         *
+         *   - If the EpochKey0 field’s length is not exactly 16 bytes, then this command shall fail with a
+         *     CONSTRAINT_ERROR status code responded to the client.
+         *
+         *   - If the EpochStartTime0 is set to 0, then this command shall fail with an INVALID_COMMAND status code
+         *     responded to the client. Note that internally, a GroupKeySetStruct’s EpochStartTime0 may be set to zero,
+         *     due to the behavior of the AddNOC command which synthesizes a GroupKeySetStruct (see Section 11.18.6.8.1,
+         *     “IPKValue Field”). However, the value 0 is illegal in the GroupKeySet field sent by a client.
+         *
+         *   - If the EpochKey1 field is not null, then the EpochKey0 field shall NOT be null. Otherwise this command
+         *     shall fail with an INVALID_COMMAND status code responded to the client.
+         *
+         *   - If the EpochKey1 field is not null, and the field’s length is not exactly 16 bytes, then this command
+         *     shall fail with a CONSTRAINT_ERROR status code responded to the client.
+         *
+         *   - If the EpochKey1 field is not null, its associated EpochStartTime1 field shall NOT be null and shall
+         *     contain a later epoch start time than the epoch start time found in the EpochStartTime0 field. Otherwise
+         *     this command shall fail with an INVALID_COMMAND status code responded to the client.
+         *
+         *   - If exactly one of the EpochKey1 or EpochStartTime1 is null, rather than both being null, or neither being
+         *     null, then this command shall fail with an INVALID_COMMAND status code responded to the client.
+         *
+         *   - If the EpochKey2 field is not null, then the EpochKey1 and EpochKey0 fields shall NOT be null. Otherwise
+         *     this command shall fail with an INVALID_COMMAND status code responded to the client.
+         *
+         *   - If the EpochKey2 field is not null, and the field’s length is not exactly 16 bytes, then this command
+         *     shall fail with a CONSTRAINT_ERROR status code responded to the client.
+         *
+         *   - If the EpochKey2 field is not null, its associated EpochStartTime2 field shall NOT be null and shall
+         *     contain a later epoch start time than the epoch start time found in the EpochStartTime1 field. Otherwise
+         *     this command shall fail with an INVALID_COMMAND status code responded to the client.
+         *
+         *   - If exactly one of the EpochKey2 or EpochStartTime2 is null, rather than both being null, or neither being
+         *     null, then this command shall fail with an INVALID_COMMAND status code responded to the client.
+         *
+         * If there exists a Group Key Set associated with the accessing fabric which has the same GroupKeySetID as that
+         * provided in the GroupKeySet field, then the contents of that group key set shall be replaced. A replacement
+         * shall be done by executing the equivalent of entirely removing the previous Group Key Set with the given
+         * GroupKeySetID, followed by an addition of a Group Key Set with the provided configuration. Otherwise, if the
+         * GroupKeySetID did not match an existing entry, a new Group Key Set associated with the accessing fabric shall
+         * be created with the provided data. The Group Key Set shall be written to non-volatile storage.
+         *
+         * Upon completion, this command shall send a status code back to the initiator:
+         *
+         *   - If the Group Key Set was properly installed or updated on the Node, the status code shall be set to
+         *     SUCCESS.
+         *
+         *   - If there are insufficient resources on the receiver to store an additional Group Key Set, the status code
+         *     shall be set to RESOURCE_EXHAUSTED (see Section 2.11.1.2, “Group Limits”);
+         *
+         *   - Otherwise, this status code shall be set to FAILURE.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
+         */
+        keySetWrite(request: KeySetWriteRequest): MaybePromise;
+
+        /**
+         * This command is used by Administrators to read the state of a given Group Key Set.
+         *
+         * ### Effect on Receipt
+         *
+         * If there exists a Group Key Set associated with the accessing fabric which has the same GroupKeySetID as that
+         * provided in the GroupKeySetID field, then the contents of that Group Key Set shall be sent in a
+         * KeySetReadResponse command, but with the EpochKey0, EpochKey1 and EpochKey2 fields replaced by null.
+         *
+         * Otherwise, if the GroupKeySetID does not refer to a Group Key Set associated with the accessing fabric, then
+         * this command shall fail with a NOT_FOUND status code.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
+         */
+        keySetRead(request: KeySetReadRequest): MaybePromise<KeySetReadResponse>;
+
+        /**
+         * This command is used by Administrators to remove all state of a given Group Key Set.
+         *
+         * ### Effect on Receipt
+         *
+         * If there exists a Group Key Set associated with the accessing fabric which has the same GroupKeySetID as that
+         * provided in the GroupKeySetID field, then the contents of that Group Key Set shall be removed, including all
+         * epoch keys it contains.
+         *
+         * If there exist any entries for the accessing fabric within the GroupKeyMap attribute that refer to the
+         * GroupKeySetID just removed, then these entries shall be removed from that list.
+         *
+         * This command shall fail with an INVALID_COMMAND status code back to the initiator if the GroupKeySetID being
+         * removed is 0, which is the Key Set associated with the Identity Protection Key (IPK). The only method to
+         * remove the IPK is usage of the RemoveFabric command or any operation which causes the equivalent of a
+         * RemoveFabric to occur by side-effect.
+         *
+         * This command shall send a SUCCESS status code back to the initiator on success, or NOT_FOUND if the
+         * GroupKeySetID requested did not exist.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
+         */
+        keySetRemove(request: KeySetRemoveRequest): MaybePromise;
+
+        /**
+         * This command is used by Administrators to query a list of all Group Key Sets associated with the accessing
+         * fabric.
+         *
+         * ### Effect on Receipt
+         *
+         * Upon receipt, this command shall iterate all stored GroupKeySetStruct associated with the accessing fabric
+         * and generate a KeySetReadAllIndicesResponse command containing the list of GroupKeySetID values from those
+         * structs.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.7.5
+         */
+        keySetReadAllIndices(): MaybePromise<KeySetReadAllIndicesResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link GroupKeyManagement}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "CacheAndSync";
 
     /**
@@ -529,25 +614,42 @@ export declare namespace GroupKeyManagement {
         groupKeyMulticastPolicy?: GroupKeyMulticastPolicy;
     }
 
-    export const id: ClusterId;
-    export const name: "GroupKeyManagement";
-    export const revision: 2;
-    export const schema: typeof GroupKeyManagementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link GroupKeyManagement}.
+     */
     export const Cluster: typeof GroupKeyManagement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `GroupKeyManagement` instead of
-     * `GroupKeyManagement.Complete`)
+     * @deprecated Use {@link GroupKeyManagement}.
      */
     export const Complete: typeof GroupKeyManagement;
 
     export const Typing: GroupKeyManagement;
 }
 
+/**
+ * @deprecated Use {@link GroupKeyManagement}.
+ */
 export declare const GroupKeyManagementCluster: typeof GroupKeyManagement;
-export interface GroupKeyManagement extends ClusterTyping { Attributes: GroupKeyManagement.Attributes; Commands: GroupKeyManagement.Commands; Features: GroupKeyManagement.Features; Components: GroupKeyManagement.Components }
+
+export interface GroupKeyManagement extends ClusterTyping {
+    Attributes: GroupKeyManagement.Attributes;
+    Commands: GroupKeyManagement.Commands;
+    Features: GroupKeyManagement.Features;
+    Components: GroupKeyManagement.Components;
+}

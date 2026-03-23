@@ -6,117 +6,165 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { JointFabricAdministrator as JointFabricAdministratorModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the JointFabricAdministrator cluster.
+ *
+ * An instance of the Joint Fabric Administrator Cluster only applies to Joint Fabric Administrator nodes fulfilling the
+ * role of Anchor CA.
+ *
+ * > [!NOTE]
+ *
+ * > Support for Joint Fabric Administrator Cluster is provisional.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.25
  */
 export declare namespace JointFabricAdministrator {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0753;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "JointFabricAdministrator";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the JointFabricAdministrator cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link JointFabricAdministrator} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
-             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field
-             * shall have the value of null if there is no fabric associated with the JointFabric.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
-             */
-            administratorFabricIndex: FabricIndex | null;
-        }
-
-        export interface Commands {
-            /**
-             * This command shall be generated during Joint Commissioning Method and subsequently be responded in the
-             * form of an ICACCSRResponse command.
-             *
-             * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-             * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
-             *
-             * If this command is received from a peer against FabricFabric Table Vendor ID Verification Procedure
-             * hasn’t been executed then it shall fail with a JfVidNotVerified status code sent back to the initiator.
-             *
-             * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
-             * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.7.1
-             */
-            icaccsrRequest(): MaybePromise<IcaccsrResponse>;
-
-            /**
-             * This command shall be generated and executed during Joint Commissioning Method and subsequently be
-             * responded in the form of an ICACResponse command.
-             *
-             * A Commissioner or Administrator shall issue this command after issuing the ICACCSRRequest command and
-             * receiving its response.
-             *
-             * A Commissioner or Administrator shall issue this command after performing the Attestation Procedure,
-             * Fabric Table VID Verification and after validating that the peer is authorized to act as an Administrator
-             * in its own Fabric.
-             *
-             * Check ICA Cross Signing for details about the generation of ICACValue.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.7.3
-             */
-            addIcac(request: AddIcacRequest): MaybePromise<IcacResponse>;
-
-            /**
-             * > [!NOTE]
-             *
-             * > This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator
-             *   Cluster. Refer to the OpenCommissioningWindow command for a description of the command behavior and
-             *   parameters.
-             *
-             * This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the initiator if
-             * the AdministratorFabricIndex field has the value of null.
-             *
-             * The parameters for OpenJointCommissioningWindow command are as follows:
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.7.5
-             */
-            openJointCommissioningWindow(request: OpenJointCommissioningWindowRequest): MaybePromise;
-
-            /**
-             * This command shall be sent by a candidate Joint Fabric Anchor Administrator to the current Joint Fabric
-             * Anchor Administrator to request transfer of the Anchor Fabric.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.7.6
-             */
-            transferAnchorRequest(): MaybePromise<TransferAnchorResponse>;
-
-            /**
-             * This command shall indicate the completion of the transfer of the Anchor Fabric to another Joint Fabric
-             * Ecosystem Administrator.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.7.8
-             */
-            transferAnchorComplete(): MaybePromise;
-
-            /**
-             * This command shall be used for communicating to client the endpoint that holds the Joint Fabric
-             * Administrator Cluster.
-             *
-             * This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
-             * Cluster.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
-             */
-            announceJointFabricAdministrator(request: AnnounceJointFabricAdministratorRequest): MaybePromise;
-        }
+    export interface BaseAttributes {
+        /**
+         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
+         * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
+         * have the value of null if there is no fabric associated with the JointFabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
+         */
+        administratorFabricIndex: FabricIndex | null;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link JointFabricAdministrator}.
+     */
+    export interface Attributes {
+        /**
+         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
+         * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
+         * have the value of null if there is no fabric associated with the JointFabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
+         */
+        administratorFabricIndex: FabricIndex | null;
+    }
+
+    /**
+     * {@link JointFabricAdministrator} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command shall be generated during Joint Commissioning Method and subsequently be responded in the form
+         * of an ICACCSRResponse command.
+         *
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
+         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         *
+         * If this command is received from a peer against FabricFabric Table Vendor ID Verification Procedure hasn’t
+         * been executed then it shall fail with a JfVidNotVerified status code sent back to the initiator.
+         *
+         * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
+         * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.1
+         */
+        icaccsrRequest(): MaybePromise<IcaccsrResponse>;
+
+        /**
+         * This command shall be generated and executed during Joint Commissioning Method and subsequently be responded
+         * in the form of an ICACResponse command.
+         *
+         * A Commissioner or Administrator shall issue this command after issuing the ICACCSRRequest command and
+         * receiving its response.
+         *
+         * A Commissioner or Administrator shall issue this command after performing the Attestation Procedure, Fabric
+         * Table VID Verification and after validating that the peer is authorized to act as an Administrator in its own
+         * Fabric.
+         *
+         * Check ICA Cross Signing for details about the generation of ICACValue.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.3
+         */
+        addIcac(request: AddIcacRequest): MaybePromise<IcacResponse>;
+
+        /**
+         * > [!NOTE]
+         *
+         * > This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator Cluster.
+         *   Refer to the OpenCommissioningWindow command for a description of the command behavior and parameters.
+         *
+         * This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the initiator if the
+         * AdministratorFabricIndex field has the value of null.
+         *
+         * The parameters for OpenJointCommissioningWindow command are as follows:
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.5
+         */
+        openJointCommissioningWindow(request: OpenJointCommissioningWindowRequest): MaybePromise;
+
+        /**
+         * This command shall be sent by a candidate Joint Fabric Anchor Administrator to the current Joint Fabric
+         * Anchor Administrator to request transfer of the Anchor Fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.6
+         */
+        transferAnchorRequest(): MaybePromise<TransferAnchorResponse>;
+
+        /**
+         * This command shall indicate the completion of the transfer of the Anchor Fabric to another Joint Fabric
+         * Ecosystem Administrator.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.8
+         */
+        transferAnchorComplete(): MaybePromise;
+
+        /**
+         * This command shall be used for communicating to client the endpoint that holds the Joint Fabric Administrator
+         * Cluster.
+         *
+         * This field shall contain the unique identifier for the endpoint that holds the Joint Fabric Administrator
+         * Cluster.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
+         */
+        announceJointFabricAdministrator(request: AnnounceJointFabricAdministratorRequest): MaybePromise;
+    }
+
+    /**
+     * Commands that may appear in {@link JointFabricAdministrator}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
 
     /**
      * This command shall be generated in response to a ICACCSRRequest command.
@@ -364,24 +412,36 @@ export declare namespace JointFabricAdministrator {
         constructor(message?: string, code?: Status, clusterCode?: number)
     }
 
-    export const id: ClusterId;
-    export const name: "JointFabricAdministrator";
-    export const revision: 1;
-    export const schema: typeof JointFabricAdministratorModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * @deprecated Use {@link JointFabricAdministrator}.
+     */
     export const Cluster: typeof JointFabricAdministrator;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `JointFabricAdministrator` instead of
-     * `JointFabricAdministrator.Complete`)
+     * @deprecated Use {@link JointFabricAdministrator}.
      */
     export const Complete: typeof JointFabricAdministrator;
 
     export const Typing: JointFabricAdministrator;
 }
 
+/**
+ * @deprecated Use {@link JointFabricAdministrator}.
+ */
 export declare const JointFabricAdministratorCluster: typeof JointFabricAdministrator;
-export interface JointFabricAdministrator extends ClusterTyping { Attributes: JointFabricAdministrator.Attributes; Commands: JointFabricAdministrator.Commands; Components: JointFabricAdministrator.Components }
+
+export interface JointFabricAdministrator extends ClusterTyping {
+    Attributes: JointFabricAdministrator.Attributes;
+    Commands: JointFabricAdministrator.Commands;
+    Components: JointFabricAdministrator.Components;
+}

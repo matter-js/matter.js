@@ -6,49 +6,124 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
 import type { Locationdesc } from "../globals/Locationdesc.js";
 import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { EcosystemInformation as EcosystemInformationModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the EcosystemInformation cluster.
+ *
+ * The Ecosystem Information Cluster provides extended device information for all the logical devices represented by a
+ * Bridged Node. The Ecosystem Information Cluster presents the view of device name and location metadata for
+ * presentation by a client of the cluster to a user. This cluster is intended to support Fabric Synchronization and be
+ * present on an endpoint with the BridgedNode device type listed in the DeviceTypeList of the endpoint’s Descriptor
+ * cluster.
+ *
+ * This augments the Bridged Device Basic Information Cluster in the following ways:
+ *
+ *   - The Ecosystem Information Cluster adds support for providing a name and location for individual endpoints. (The
+ *     endpoints do not need to be present on the Bridge for their name and location information to be present.)
+ *
+ *   - The Ecosystem Information Cluster adds metadata to support conflict resolution between multiple sources of the
+ *     name and location data.
+ *
+ *   - The Ecosystem Information Cluster supports user control for the presence of the name and location information by
+ *     specifying more restricted access.
+ *
+ * A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user organize and
+ * interact with their devices. Some examples may include:
+ *
+ *   - Directly organizing and labeling the devices in a client’s user interface.
+ *
+ *   - Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
+ *
+ * For the purposes of the Ecosystem Information Cluster section, an instance of the Ecosystem Information Cluster will
+ * be referred to as an "instance".
+ *
+ * @see {@link MatterSpecification.v142.Core} § 9.17
  */
 export declare namespace EcosystemInformation {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0750;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "EcosystemInformation";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the EcosystemInformation cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link EcosystemInformation} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time
-             * this will contain a single entry, but may grow with more complex device compositions (e.g. another
-             * bridge.) An empty list indicates that the information is not available.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
-             */
-            readonly deviceDirectory: EcosystemDevice[];
+    export interface BaseAttributes {
+        /**
+         * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time this
+         * will contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An
+         * empty list indicates that the information is not available.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
+         */
+        deviceDirectory: EcosystemDevice[];
 
-            /**
-             * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory
-             * entries, and shall NOT contain locations which are dynamically generated and removed by an ecosystem.
-             * (E.g. a location that is generated and removed based on the user being home is not permitted. However, an
-             * initially generated location name that does not quickly change is acceptable.) An empty list indicates
-             * that the information is not available.
-             *
-             * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
-             */
-            readonly locationDirectory: EcosystemLocation[];
-        }
+        /**
+         * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory entries,
+         * and shall NOT contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location
+         * that is generated and removed based on the user being home is not permitted. However, an initially generated
+         * location name that does not quickly change is acceptable.) An empty list indicates that the information is
+         * not available.
+         *
+         * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
+         */
+        locationDirectory: EcosystemLocation[];
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes }];
+    /**
+     * Attributes that may appear in {@link EcosystemInformation}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time this
+         * will contain a single entry, but may grow with more complex device compositions (e.g. another bridge.) An
+         * empty list indicates that the information is not available.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
+         */
+        deviceDirectory: EcosystemDevice[];
+
+        /**
+         * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory entries,
+         * and shall NOT contain locations which are dynamically generated and removed by an ecosystem. (E.g. a location
+         * that is generated and removed based on the user being home is not permitted. However, an initially generated
+         * location name that does not quickly change is acceptable.) An empty list indicates that the information is
+         * not available.
+         *
+         * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
+         */
+        locationDirectory: EcosystemLocation[];
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.17.4.2
@@ -197,22 +272,30 @@ export declare namespace EcosystemInformation {
         revision: number;
     }
 
-    export const id: ClusterId;
-    export const name: "EcosystemInformation";
-    export const revision: 1;
-    export const schema: typeof EcosystemInformationModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * @deprecated Use {@link EcosystemInformation}.
+     */
     export const Cluster: typeof EcosystemInformation;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `EcosystemInformation` instead of
-     * `EcosystemInformation.Complete`)
+     * @deprecated Use {@link EcosystemInformation}.
      */
     export const Complete: typeof EcosystemInformation;
 
     export const Typing: EcosystemInformation;
 }
 
+/**
+ * @deprecated Use {@link EcosystemInformation}.
+ */
 export declare const EcosystemInformationCluster: typeof EcosystemInformation;
-export interface EcosystemInformation extends ClusterTyping { Attributes: EcosystemInformation.Attributes; Components: EcosystemInformation.Components }
+
+export interface EcosystemInformation extends ClusterTyping {
+    Attributes: EcosystemInformation.Attributes;
+    Components: EcosystemInformation.Components;
+}

@@ -330,6 +330,24 @@ export class Block extends Entry {
         return section;
     }
 
+    /**
+     * Add an `export interface Name extends A, B, C {}` declaration.
+     *
+     * When there is only one clause, emits a single line.  With multiple clauses, wraps each onto its
+     * own indented line for readability.
+     */
+    extendsInterface(name: string, clauses: string[]) {
+        if (clauses.length === 1) {
+            return this.atom(`export interface ${name} extends ${clauses[0]} {}`);
+        }
+
+        const joined = clauses.map(c => `${INDENT}${c},`);
+        // Remove trailing comma from last clause
+        joined[joined.length - 1] = joined[joined.length - 1].slice(0, -1);
+
+        return this.atom(`export interface ${name} extends\n${joined.join("\n")}\n{}`);
+    }
+
     /** Add a block with separate statements terminated by ";" */
     statements(prefix = "", suffix = "") {
         const block = new StatementBlock(this, prefix, suffix);

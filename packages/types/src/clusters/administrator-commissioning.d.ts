@@ -6,160 +6,264 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
 import type { VendorId } from "../datatype/VendorId.js";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { AdministratorCommissioning as AdministratorCommissioningModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the AdministratorCommissioning cluster.
+ *
+ * This cluster is used to trigger a Node to allow a new Administrator to commission it. It defines Attributes, Commands
+ * and Responses needed for this purpose.
+ *
+ * There are two methods of commissioning, Basic Commissioning which may be supported and is described in Section 5.6.2,
+ * “Basic Commissioning Method (BCM)” and Enhanced Commissioning which shall be supported and is described in Section
+ * 5.6.3, “Enhanced Commissioning Method (ECM)”.
+ *
+ * For the management of Operational Credentials and Trusted Root Certificates, the Operational Credentials cluster is
+ * used.
+ *
+ * If the Administrator Commissioning Cluster server instance is present on an endpoint with the Root Node device type
+ * in the Descriptor cluster DeviceTypeList, then:
+ *
+ *   - The Commissioning Window shall be opened or closed on the node that the Root Node endpoint is on.
+ *
+ *   - The attributes shall indicate the state of the node that the Root Node endpoint is on.
+ *
+ * If the Administrator Commissioning Cluster server instance is present on an endpoint with the Bridged Node device
+ * type in the Descriptor cluster DeviceTypeList, then:
+ *
+ *   - The Commissioning Window shall be opened or closed on the node represented by the Bridged Node.
+ *
+ *   - The attributes shall indicate the state of the node that is represented by the Bridged Node.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.19
  */
 export declare namespace AdministratorCommissioning {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x003c;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "AdministratorCommissioning";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the AdministratorCommissioning cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link AdministratorCommissioning} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates whether a new Commissioning window has been opened by an Administrator, using either the
-             * OpenCommissioningWindow command or the OpenBasicCommissioningWindow command.
-             *
-             * This attribute shall revert to WindowNotOpen upon expiry of a commissioning window.
-             *
-             * > [!NOTE]
-             *
-             * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
-             *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on
-             *   initial commissioning.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.19.7.1
-             */
-            readonly windowStatus: CommissioningWindowStatus;
+    export interface BaseAttributes {
+        /**
+         * Indicates whether a new Commissioning window has been opened by an Administrator, using either the
+         * OpenCommissioningWindow command or the OpenBasicCommissioningWindow command.
+         *
+         * This attribute shall revert to WindowNotOpen upon expiry of a commissioning window.
+         *
+         * > [!NOTE]
+         *
+         * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
+         *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
+         *   commissioning.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.1
+         */
+        windowStatus: CommissioningWindowStatus;
 
-            /**
-             * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the
-             * FabricIndex associated with the Fabric scoping of the Administrator that opened the window. This may be
-             * used to cross-reference in the Fabrics attribute of the Operational Credentials cluster.
-             *
-             * If, during an open commissioning window, the fabric for the Administrator that opened the window is
-             * removed, then this attribute shall be set to null.
-             *
-             * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.19.7.2
-             */
-            readonly adminFabricIndex: FabricIndex | null;
+        /**
+         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the FabricIndex
+         * associated with the Fabric scoping of the Administrator that opened the window. This may be used to
+         * cross-reference in the Fabrics attribute of the Operational Credentials cluster.
+         *
+         * If, during an open commissioning window, the fabric for the Administrator that opened the window is removed,
+         * then this attribute shall be set to null.
+         *
+         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.2
+         */
+        adminFabricIndex: FabricIndex | null;
 
-            /**
-             * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
-             * associated with the Fabric scoping of the Administrator that opened the window. This field shall match
-             * the VendorID field of the Fabrics attribute list entry associated with the Administrator having opened
-             * the window, at the time of window opening. If the fabric for the Administrator that opened the window is
-             * removed from the node while the commissioning window is still open, this attribute shall NOT be updated.
-             *
-             * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.19.7.3
-             */
-            readonly adminVendorId: VendorId | null;
-        }
+        /**
+         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
+         * associated with the Fabric scoping of the Administrator that opened the window. This field shall match the
+         * VendorID field of the Fabrics attribute list entry associated with the Administrator having opened the
+         * window, at the time of window opening. If the fabric for the Administrator that opened the window is removed
+         * from the node while the commissioning window is still open, this attribute shall NOT be updated.
+         *
+         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.3
+         */
+        adminVendorId: VendorId | null;
+    }
 
-        export interface Commands {
-            /**
-             * This command is used by a current Administrator to instruct a Node to go into commissioning mode. The
-             * Enhanced Commissioning Method specifies a window of time during which an already commissioned Node
-             * accepts PASE sessions. The current Administrator MUST specify a timeout value for the duration of the
-             * OpenCommissioningWindow command.
-             *
-             * When the OpenCommissioningWindow command expires or commissioning completes, the Node shall remove the
-             * Passcode by deleting the PAKE passcode verifier as well as stop publishing the DNS-SD record
-             * corresponding to this command as described in Section 4.3.1, “Commissionable Node Discovery”. The
-             * commissioning into a new Fabric completes when the Node successfully receives a CommissioningComplete
-             * command, see Section 5.5, “Commissioning Flows”.
-             *
-             * The parameters for OpenCommissioningWindow command are as follows:
-             *
-             * A current Administrator may invoke this command to put a node in commissioning mode for the next
-             * Administrator. On completion, the command shall return a cluster specific status code from the Section
-             * 11.19.6, “Status Codes” below reflecting success or reasons for failure of the operation. The new
-             * Administrator shall discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) for
-             * commissioning.
-             *
-             * If any format or validity errors related to the PAKEPasscodeVerifier, Iterations or Salt arguments arise,
-             * this command shall fail with a cluster specific status code of PAKEParameterError.
-             *
-             * If a commissioning window is already currently open, this command shall fail with a cluster specific
-             * status code of Busy.
-             *
-             * If the fail-safe timer is currently armed, this command shall fail with a cluster specific status code of
-             * Busy, since it is likely that concurrent commissioning operations from multiple separate Commissioners
-             * are about to take place.
-             *
-             * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.19.8.1
-             */
-            openCommissioningWindow(request: OpenCommissioningWindowRequest): MaybePromise;
+    /**
+     * Attributes that may appear in {@link AdministratorCommissioning}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates whether a new Commissioning window has been opened by an Administrator, using either the
+         * OpenCommissioningWindow command or the OpenBasicCommissioningWindow command.
+         *
+         * This attribute shall revert to WindowNotOpen upon expiry of a commissioning window.
+         *
+         * > [!NOTE]
+         *
+         * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
+         *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
+         *   commissioning.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.1
+         */
+        windowStatus: CommissioningWindowStatus;
 
-            /**
-             * This command is used by a current Administrator to instruct a Node to revoke any active
-             * OpenCommissioningWindow or OpenBasicCommissioningWindow command. This is an idempotent command and the
-             * Node shall (for ECM) delete the temporary PAKEPasscodeVerifier and associated data, and stop publishing
-             * the DNS-SD record associated with the OpenCommissioningWindow or OpenBasicCommissioningWindow command,
-             * see Section 4.3.1, “Commissionable Node Discovery”.
-             *
-             * If no commissioning window was open at time of receipt, this command shall fail with a cluster specific
-             * status code of WindowNotOpen.
-             *
-             * If the commissioning window was open and the fail-safe was armed when this command is received, the
-             * device shall immediately expire the fail-safe and perform the cleanup steps outlined in Section
-             * 11.10.7.2.2, “Behavior on expiry of Fail-Safe timer”.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.19.8.3
-             */
-            revokeCommissioning(): MaybePromise;
-        }
+        /**
+         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the FabricIndex
+         * associated with the Fabric scoping of the Administrator that opened the window. This may be used to
+         * cross-reference in the Fabrics attribute of the Operational Credentials cluster.
+         *
+         * If, during an open commissioning window, the fabric for the Administrator that opened the window is removed,
+         * then this attribute shall be set to null.
+         *
+         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.2
+         */
+        adminFabricIndex: FabricIndex | null;
+
+        /**
+         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
+         * associated with the Fabric scoping of the Administrator that opened the window. This field shall match the
+         * VendorID field of the Fabrics attribute list entry associated with the Administrator having opened the
+         * window, at the time of window opening. If the fabric for the Administrator that opened the window is removed
+         * from the node while the commissioning window is still open, this attribute shall NOT be updated.
+         *
+         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.3
+         */
+        adminVendorId: VendorId | null;
+    }
+
+    /**
+     * {@link AdministratorCommissioning} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used by a current Administrator to instruct a Node to go into commissioning mode. The
+         * Enhanced Commissioning Method specifies a window of time during which an already commissioned Node accepts
+         * PASE sessions. The current Administrator MUST specify a timeout value for the duration of the
+         * OpenCommissioningWindow command.
+         *
+         * When the OpenCommissioningWindow command expires or commissioning completes, the Node shall remove the
+         * Passcode by deleting the PAKE passcode verifier as well as stop publishing the DNS-SD record corresponding to
+         * this command as described in Section 4.3.1, “Commissionable Node Discovery”. The commissioning into a new
+         * Fabric completes when the Node successfully receives a CommissioningComplete command, see Section 5.5,
+         * “Commissioning Flows”.
+         *
+         * The parameters for OpenCommissioningWindow command are as follows:
+         *
+         * A current Administrator may invoke this command to put a node in commissioning mode for the next
+         * Administrator. On completion, the command shall return a cluster specific status code from the Section
+         * 11.19.6, “Status Codes” below reflecting success or reasons for failure of the operation. The new
+         * Administrator shall discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) for
+         * commissioning.
+         *
+         * If any format or validity errors related to the PAKEPasscodeVerifier, Iterations or Salt arguments arise,
+         * this command shall fail with a cluster specific status code of PAKEParameterError.
+         *
+         * If a commissioning window is already currently open, this command shall fail with a cluster specific status
+         * code of Busy.
+         *
+         * If the fail-safe timer is currently armed, this command shall fail with a cluster specific status code of
+         * Busy, since it is likely that concurrent commissioning operations from multiple separate Commissioners are
+         * about to take place.
+         *
+         * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.8.1
+         */
+        openCommissioningWindow(request: OpenCommissioningWindowRequest): MaybePromise;
+
+        /**
+         * This command is used by a current Administrator to instruct a Node to revoke any active
+         * OpenCommissioningWindow or OpenBasicCommissioningWindow command. This is an idempotent command and the Node
+         * shall (for ECM) delete the temporary PAKEPasscodeVerifier and associated data, and stop publishing the DNS-SD
+         * record associated with the OpenCommissioningWindow or OpenBasicCommissioningWindow command, see Section
+         * 4.3.1, “Commissionable Node Discovery”.
+         *
+         * If no commissioning window was open at time of receipt, this command shall fail with a cluster specific
+         * status code of WindowNotOpen.
+         *
+         * If the commissioning window was open and the fail-safe was armed when this command is received, the device
+         * shall immediately expire the fail-safe and perform the cleanup steps outlined in Section 11.10.7.2.2,
+         * “Behavior on expiry of Fail-Safe timer”.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.8.3
+         */
+        revokeCommissioning(): MaybePromise;
     }
 
     /**
      * {@link AdministratorCommissioning} supports these elements if it supports feature "Basic".
      */
-    export namespace BasicComponent {
-        export interface Commands {
-            /**
-             * This command may be used by a current Administrator to instruct a Node to go into commissioning mode, if
-             * the node supports the Basic Commissioning Method. The Basic Commissioning Method specifies a window of
-             * time during which an already commissioned Node accepts PASE sessions. The current Administrator shall
-             * specify a timeout value for the duration of the OpenBasicCommissioningWindow command.
-             *
-             * If a commissioning window is already currently open, this command shall fail with a cluster specific
-             * status code of Busy.
-             *
-             * If the fail-safe timer is currently armed, this command shall fail with a cluster specific status code of
-             * Busy, since it is likely that concurrent commissioning operations from multiple separate Commissioners
-             * are about to take place.
-             *
-             * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
-             *
-             * The commissioning into a new Fabric completes when the Node successfully receives a CommissioningComplete
-             * command, see Section 5.5, “Commissioning Flows”. The new Administrator shall discover the Node on the IP
-             * network using DNS-based Service Discovery (DNS-SD) for commissioning.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.19.8.2
-             */
-            openBasicCommissioningWindow(request: OpenBasicCommissioningWindowRequest): MaybePromise;
-        }
+    export interface BasicCommands {
+        /**
+         * This command may be used by a current Administrator to instruct a Node to go into commissioning mode, if the
+         * node supports the Basic Commissioning Method. The Basic Commissioning Method specifies a window of time
+         * during which an already commissioned Node accepts PASE sessions. The current Administrator shall specify a
+         * timeout value for the duration of the OpenBasicCommissioningWindow command.
+         *
+         * If a commissioning window is already currently open, this command shall fail with a cluster specific status
+         * code of Busy.
+         *
+         * If the fail-safe timer is currently armed, this command shall fail with a cluster specific status code of
+         * Busy, since it is likely that concurrent commissioning operations from multiple separate Commissioners are
+         * about to take place.
+         *
+         * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
+         *
+         * The commissioning into a new Fabric completes when the Node successfully receives a CommissioningComplete
+         * command, see Section 5.5, “Commissioning Flows”. The new Administrator shall discover the Node on the IP
+         * network using DNS-based Service Discovery (DNS-SD) for commissioning.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.8.2
+         */
+        openBasicCommissioningWindow(request: OpenBasicCommissioningWindowRequest): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands, BasicComponent.Commands {}
+    /**
+     * Commands that may appear in {@link AdministratorCommissioning}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        BasicCommands
+    {}
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
-        { flags: { basic: true }, commands: BasicComponent.Commands }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { basic: true }, commands: BasicCommands }
     ];
     export type Features = "Basic";
 
@@ -382,25 +486,42 @@ export declare namespace AdministratorCommissioning {
         constructor(message?: string, code?: Status, clusterCode?: number)
     }
 
-    export const id: ClusterId;
-    export const name: "AdministratorCommissioning";
-    export const revision: 1;
-    export const schema: typeof AdministratorCommissioningModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link AdministratorCommissioning}.
+     */
     export const Cluster: typeof AdministratorCommissioning;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `AdministratorCommissioning` instead of
-     * `AdministratorCommissioning.Complete`)
+     * @deprecated Use {@link AdministratorCommissioning}.
      */
     export const Complete: typeof AdministratorCommissioning;
 
     export const Typing: AdministratorCommissioning;
 }
 
+/**
+ * @deprecated Use {@link AdministratorCommissioning}.
+ */
 export declare const AdministratorCommissioningCluster: typeof AdministratorCommissioning;
-export interface AdministratorCommissioning extends ClusterTyping { Attributes: AdministratorCommissioning.Attributes; Commands: AdministratorCommissioning.Commands; Features: AdministratorCommissioning.Features; Components: AdministratorCommissioning.Components }
+
+export interface AdministratorCommissioning extends ClusterTyping {
+    Attributes: AdministratorCommissioning.Attributes;
+    Commands: AdministratorCommissioning.Commands;
+    Features: AdministratorCommissioning.Features;
+    Components: AdministratorCommissioning.Components;
+}

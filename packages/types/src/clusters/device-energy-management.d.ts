@@ -6,395 +6,662 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { DeviceEnergyManagement as DeviceEnergyManagementModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the DeviceEnergyManagement cluster.
+ *
+ * This cluster allows a client to manage the power draw of a device. An example of such a client could be an Energy
+ * Management System (EMS) which controls an Energy Smart Appliance (ESA).
+ *
+ * In most deployments the EMS will be the client, and the ESA will host the Device Energy Management Cluster server.
+ *
+ * This cluster is intended to be generic in nature and could apply to any electrical load or generator (e.g. a Battery
+ * Electric Storage System - BESS, solar PV inverter, EVSE, HVAC, heat pump, hot water heater, white goods appliances
+ * etc).
+ *
+ * It consists of the following areas which shall be supported by all devices implementing this cluster:
+ *
+ *   - Description of ESA and its capabilities & power limits (sometimes referred to as a nameplate)
+ *
+ *   - Current state of operation (including user opt-out, safety limitations / alarms)
+ *
+ * There are some optional capabilities that some ESAs may be able to offer:
+ *
+ *   - Ability to control the load or generation
+ *
+ *   - Forecast data, including when it can be flexible (i.e. modify the power or time period)
+ *
+ *   - The ability to have their power profile adjusted by an EMS, and to provide an updated Forecast back to the EMS.
+ *
+ * This allows the EMS to manage multiple home loads and where ESAs can be flexible, continuously optimizing the home
+ * energy to minimize cost, reduce CO2 impact, maximize self-consumption of solar PV and provide Demand Side Response
+ * (DSR) Grid services.
+ *
+ * It is likely that the ESA may also use the Pricing Cluster to obtain incentive signals such as 'grid carbon
+ * intensity', 'time of use' or 'type of use' tariffs to schedule its operation to run at the cheapest and greenest
+ * times.
+ *
+ * > [!NOTE]
+ *
+ * > Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to communicate grid
+ *   events to the EMS. These are outside the scope of Matter.
+ *
+ * > [!NOTE]
+ *
+ * > Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give examples of how
+ *   ESAs may be mandated to support these features in the future.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 9.2
  */
 export declare namespace DeviceEnergyManagement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0098;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "DeviceEnergyManagement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 4;
+
+    /**
+     * Canonical metadata for the DeviceEnergyManagement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link DeviceEnergyManagement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the type of ESA.
-             *
-             * This attribute enables an EMS to understand some of the basic properties about how the energy may be
-             * consumed, generated, and stored by the ESA.
-             *
-             * For example, the heat energy converted by a heat pump will naturally be lost through the building to the
-             * outdoor environment relatively quickly, compared to storing heat in a well-insulated hot water tank.
-             * Similarly, battery storage and EVs can store electrical energy for much longer durations.
-             *
-             * This attribute can also help the EMS display information to a user and to make basic assumptions about
-             * typical best use of energy. For example, an EVSE may not always have an EV plugged in, so knowing the
-             * type of ESA that is being controlled can allow advanced energy management strategies.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.1
-             */
-            readonly esaType: EsaType;
+    export interface BaseAttributes {
+        /**
+         * Indicates the type of ESA.
+         *
+         * This attribute enables an EMS to understand some of the basic properties about how the energy may be
+         * consumed, generated, and stored by the ESA.
+         *
+         * For example, the heat energy converted by a heat pump will naturally be lost through the building to the
+         * outdoor environment relatively quickly, compared to storing heat in a well-insulated hot water tank.
+         * Similarly, battery storage and EVs can store electrical energy for much longer durations.
+         *
+         * This attribute can also help the EMS display information to a user and to make basic assumptions about
+         * typical best use of energy. For example, an EVSE may not always have an EV plugged in, so knowing the type of
+         * ESA that is being controlled can allow advanced energy management strategies.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.1
+         */
+        esaType: EsaType;
 
-            /**
-             * Indicates whether the ESA is classed as a generator or load. This allows an EMS to understand whether the
-             * power values reported by the ESA need to have their sign inverted when dealing with forecasts and
-             * adjustments.
-             *
-             * For example, a solar PV inverter (being a generator) may produce negative values to indicate generation
-             * (since power is flowing out of the node into the home), however a display showing the power to the
-             * consumers may need to present a positive solar production value to the consumer.
-             *
-             * For example, a home battery storage system (BESS) which needs to charge the battery and then discharge to
-             * the home loads, would be classed as a generator. These types of devices shall have this field set to
-             * true. When generating its forecast or advertising its PowerAdjustmentCapability, the power values shall
-             * be negative to indicate discharging to the loads in the home, and positive to indicate when it is
-             * charging its battery.
-             *
-             * GRID meter = Σ LoadPowers + Σ GeneratorPowers
-             *
-             * Example:
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.2
-             */
-            readonly esaCanGenerate: boolean;
+        /**
+         * Indicates whether the ESA is classed as a generator or load. This allows an EMS to understand whether the
+         * power values reported by the ESA need to have their sign inverted when dealing with forecasts and
+         * adjustments.
+         *
+         * For example, a solar PV inverter (being a generator) may produce negative values to indicate generation
+         * (since power is flowing out of the node into the home), however a display showing the power to the consumers
+         * may need to present a positive solar production value to the consumer.
+         *
+         * For example, a home battery storage system (BESS) which needs to charge the battery and then discharge to the
+         * home loads, would be classed as a generator. These types of devices shall have this field set to true. When
+         * generating its forecast or advertising its PowerAdjustmentCapability, the power values shall be negative to
+         * indicate discharging to the loads in the home, and positive to indicate when it is charging its battery.
+         *
+         * GRID meter = Σ LoadPowers + Σ GeneratorPowers
+         *
+         * Example:
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.2
+         */
+        esaCanGenerate: boolean;
 
-            /**
-             * Indicates the current state of the ESA.
-             *
-             * If the ESA is in the Offline or Fault state it cannot be controlled by an EMS, and may not be able to
-             * report its Forecast information. An EMS may subscribe to the ESAState to get notified about changes in
-             * operational state.
-             *
-             * The ESA may have a local user interface to allow a service technician to put the ESA into Offline mode,
-             * for example to avoid the EMS accidentally starting or stopping the appliance when it is being serviced or
-             * tested.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.3
-             */
-            readonly esaState: EsaState;
+        /**
+         * Indicates the current state of the ESA.
+         *
+         * If the ESA is in the Offline or Fault state it cannot be controlled by an EMS, and may not be able to report
+         * its Forecast information. An EMS may subscribe to the ESAState to get notified about changes in operational
+         * state.
+         *
+         * The ESA may have a local user interface to allow a service technician to put the ESA into Offline mode, for
+         * example to avoid the EMS accidentally starting or stopping the appliance when it is being serviced or tested.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.3
+         */
+        esaState: EsaState;
 
-            /**
-             * Indicates the minimum electrical power that the ESA can consume when switched on. This does not include
-             * when in power save or standby modes.
-             *
-             * > [!NOTE]
-             *
-             * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads
-             *   in the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
-             *   discharge its internal battery.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.4
-             */
-            readonly absMinPower: number | bigint;
+        /**
+         * Indicates the minimum electrical power that the ESA can consume when switched on. This does not include when
+         * in power save or standby modes.
+         *
+         * > [!NOTE]
+         *
+         * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads in
+         *   the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
+         *   discharge its internal battery.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.4
+         */
+        absMinPower: number | bigint;
 
-            /**
-             * Indicates the maximum electrical power that the ESA can consume when switched on.
-             *
-             * Note that for Generator ESAs that can charge a battery by importing power into the node (such as a
-             * battery storage inverter), the AbsMaxPower will be a positive number representing the maximum power at
-             * which the ESA can charge its internal battery.
-             *
-             * For example, a battery storage inverter that can charge its battery at a maximum power of 2000W and can
-             * discharge the battery at a maximum power of 3000W, would have a AbsMinPower: -3000, AbsMaxPower: 2000W.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.5
-             */
-            readonly absMaxPower: number | bigint;
-        }
+        /**
+         * Indicates the maximum electrical power that the ESA can consume when switched on.
+         *
+         * Note that for Generator ESAs that can charge a battery by importing power into the node (such as a battery
+         * storage inverter), the AbsMaxPower will be a positive number representing the maximum power at which the ESA
+         * can charge its internal battery.
+         *
+         * For example, a battery storage inverter that can charge its battery at a maximum power of 2000W and can
+         * discharge the battery at a maximum power of 3000W, would have a AbsMinPower: -3000, AbsMaxPower: 2000W.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.5
+         */
+        absMaxPower: number | bigint;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature "PowerAdjustment".
      */
-    export namespace PowerAdjustmentComponent {
-        export interface Attributes {
-            /**
-             * Indicates how the ESA can be adjusted at the current time, and the state of any active adjustment.
-             *
-             * A null value indicates that no power adjustment is currently possible, and nor is any adjustment
-             * currently active.
-             *
-             * This attribute SHOULD be updated periodically by ESAs to reflect any changes in internal state, for
-             * example temperature or stored energy, which would affect the power or duration limits.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once every 10 seconds on changes, or
-             *
-             *   - When it changes from null to any other value and vice versa.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.6
-             */
-            readonly powerAdjustmentCapability: PowerAdjustCapability | null;
-        }
-
-        export interface Commands {
-            /**
-             * Allows a client to request an adjustment in the power consumption of an ESA for a specified duration.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
-             */
-            powerAdjustRequest(request: PowerAdjustRequest): MaybePromise;
-
-            /**
-             * Allows a client to cancel an ongoing PowerAdjustmentRequest operation.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.2
-             */
-            cancelPowerAdjustRequest(): MaybePromise;
-        }
-
-        export interface Events {
-            /**
-             * This event shall be generated when the Power Adjustment session is started.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.1
-             */
-            powerAdjustStart: void;
-
-            /**
-             * This event shall be generated when the Power Adjustment session ends.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
-             */
-            powerAdjustEnd: PowerAdjustEndEvent;
-        }
+    export interface PowerAdjustmentAttributes {
+        /**
+         * Indicates how the ESA can be adjusted at the current time, and the state of any active adjustment.
+         *
+         * A null value indicates that no power adjustment is currently possible, and nor is any adjustment currently
+         * active.
+         *
+         * This attribute SHOULD be updated periodically by ESAs to reflect any changes in internal state, for example
+         * temperature or stored energy, which would affect the power or duration limits.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds on changes, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.6
+         */
+        powerAdjustmentCapability: PowerAdjustCapability | null;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature
      * "PowerForecastReportingOrStateForecastReporting".
      */
-    export namespace PowerForecastReportingOrStateForecastReportingComponent {
-        export interface Attributes {
-            /**
-             * This attribute allows an ESA to share its intended forecast with a client (such as an Energy Management
-             * System).
-             *
-             * A null value indicates that there is no forecast currently available (for example, a program has not yet
-             * been selected by the user).
-             *
-             * A server may reset this value attribute to null on a reboot, and it does not need to persist any previous
-             * forecasts.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once every 10 seconds on changes, or
-             *
-             *   - When it changes from null to any other value and vice versa, or
-             *
-             *   - As a result of a command which causes the forecast to be updated, or
-             *
-             *   - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
-             *     forecast.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.7
-             */
-            readonly forecast: Forecast | null;
-        }
+    export interface PowerForecastReportingOrStateForecastReportingAttributes {
+        /**
+         * This attribute allows an ESA to share its intended forecast with a client (such as an Energy Management
+         * System).
+         *
+         * A null value indicates that there is no forecast currently available (for example, a program has not yet been
+         * selected by the user).
+         *
+         * A server may reset this value attribute to null on a reboot, and it does not need to persist any previous
+         * forecasts.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds on changes, or
+         *
+         *   - When it changes from null to any other value and vice versa, or
+         *
+         *   - As a result of a command which causes the forecast to be updated, or
+         *
+         *   - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
+         *     forecast.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.7
+         */
+        forecast: Forecast | null;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature
      * "PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustment".
      */
-    export namespace PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent {
-        export interface Attributes {
-            /**
-             * Indicates the current Opt-Out state of the ESA. The ESA may have a local user interface to allow the user
-             * to control this OptOutState. An EMS may subscribe to the OptOutState to get notified about changes in
-             * operational state.
-             *
-             * If the ESA is in the LocalOptOut or OptOut states, so it cannot be controlled by an EMS for local
-             * optimization reasons, it shall reject any commands which have the AdjustmentCauseEnum value
-             * LocalOptimization. If the ESA is in the GridOptOut or OptOut states, so it cannot be controlled by an EMS
-             * for grid optimization reasons, it shall reject any commands which have the AdjustmentCauseEnum value
-             * GridOptimization.
-             *
-             * If the user changes the Opt-Out state of the ESA which is currently operating with a Forecast that is due
-             * to a previous StartTimeAdjustRequest, ModifyForecastRequest or RequestConstraintBasedForecast command
-             * that would now not be permitted due to the new Opt-out state (i.e. the Forecast attribute
-             * ForecastUpdateReason field currently contains a reason which is now opted out), the ESA shall behave as
-             * if it had received a CancelRequest command.
-             *
-             * If the user changes the Opt-Out state of the ESA which currently has the ESAStateEnum with value Paused
-             * due to a previous PauseRequest command that would now not be permitted due to the new Opt-out state, and
-             * the ESA supports the PFR or SFR features (i.e. the Forecast attribute ForecastUpdateReason field
-             * currently contains a reason which is now opted out), the ESA shall behave as if it had received a
-             * ResumeRequest command.
-             *
-             * If the user changes the Opt-Out state of the ESA which currently has the ESAStateEnum with value
-             * PowerAdjustActive due to a previous PowerAdjustRequest command that would now not be permitted due to the
-             * new Opt-out state (i.e. the Forecast attribute ForecastUpdateReason field currently contains a reason
-             * which is now opted out), the ESA shall behave as if it had received a CancelPowerAdjustRequest command.
-             *
-             * If the ESA is in the LocalOptOut, GridOptOut, or NoOptOut states, the device is still permitted to
-             * optimize its own energy usage, for example, using tariff information it may obtain.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.8
-             */
-            readonly optOutState: OptOutState;
-        }
+    export interface PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentAttributes {
+        /**
+         * Indicates the current Opt-Out state of the ESA. The ESA may have a local user interface to allow the user to
+         * control this OptOutState. An EMS may subscribe to the OptOutState to get notified about changes in
+         * operational state.
+         *
+         * If the ESA is in the LocalOptOut or OptOut states, so it cannot be controlled by an EMS for local
+         * optimization reasons, it shall reject any commands which have the AdjustmentCauseEnum value
+         * LocalOptimization. If the ESA is in the GridOptOut or OptOut states, so it cannot be controlled by an EMS for
+         * grid optimization reasons, it shall reject any commands which have the AdjustmentCauseEnum value
+         * GridOptimization.
+         *
+         * If the user changes the Opt-Out state of the ESA which is currently operating with a Forecast that is due to
+         * a previous StartTimeAdjustRequest, ModifyForecastRequest or RequestConstraintBasedForecast command that would
+         * now not be permitted due to the new Opt-out state (i.e. the Forecast attribute ForecastUpdateReason field
+         * currently contains a reason which is now opted out), the ESA shall behave as if it had received a
+         * CancelRequest command.
+         *
+         * If the user changes the Opt-Out state of the ESA which currently has the ESAStateEnum with value Paused due
+         * to a previous PauseRequest command that would now not be permitted due to the new Opt-out state, and the ESA
+         * supports the PFR or SFR features (i.e. the Forecast attribute ForecastUpdateReason field currently contains a
+         * reason which is now opted out), the ESA shall behave as if it had received a ResumeRequest command.
+         *
+         * If the user changes the Opt-Out state of the ESA which currently has the ESAStateEnum with value
+         * PowerAdjustActive due to a previous PowerAdjustRequest command that would now not be permitted due to the new
+         * Opt-out state (i.e. the Forecast attribute ForecastUpdateReason field currently contains a reason which is
+         * now opted out), the ESA shall behave as if it had received a CancelPowerAdjustRequest command.
+         *
+         * If the ESA is in the LocalOptOut, GridOptOut, or NoOptOut states, the device is still permitted to optimize
+         * its own energy usage, for example, using tariff information it may obtain.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.8
+         */
+        optOutState: OptOutState;
+    }
+
+    /**
+     * Attributes that may appear in {@link DeviceEnergyManagement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the type of ESA.
+         *
+         * This attribute enables an EMS to understand some of the basic properties about how the energy may be
+         * consumed, generated, and stored by the ESA.
+         *
+         * For example, the heat energy converted by a heat pump will naturally be lost through the building to the
+         * outdoor environment relatively quickly, compared to storing heat in a well-insulated hot water tank.
+         * Similarly, battery storage and EVs can store electrical energy for much longer durations.
+         *
+         * This attribute can also help the EMS display information to a user and to make basic assumptions about
+         * typical best use of energy. For example, an EVSE may not always have an EV plugged in, so knowing the type of
+         * ESA that is being controlled can allow advanced energy management strategies.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.1
+         */
+        esaType: EsaType;
+
+        /**
+         * Indicates whether the ESA is classed as a generator or load. This allows an EMS to understand whether the
+         * power values reported by the ESA need to have their sign inverted when dealing with forecasts and
+         * adjustments.
+         *
+         * For example, a solar PV inverter (being a generator) may produce negative values to indicate generation
+         * (since power is flowing out of the node into the home), however a display showing the power to the consumers
+         * may need to present a positive solar production value to the consumer.
+         *
+         * For example, a home battery storage system (BESS) which needs to charge the battery and then discharge to the
+         * home loads, would be classed as a generator. These types of devices shall have this field set to true. When
+         * generating its forecast or advertising its PowerAdjustmentCapability, the power values shall be negative to
+         * indicate discharging to the loads in the home, and positive to indicate when it is charging its battery.
+         *
+         * GRID meter = Σ LoadPowers + Σ GeneratorPowers
+         *
+         * Example:
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.2
+         */
+        esaCanGenerate: boolean;
+
+        /**
+         * Indicates the current state of the ESA.
+         *
+         * If the ESA is in the Offline or Fault state it cannot be controlled by an EMS, and may not be able to report
+         * its Forecast information. An EMS may subscribe to the ESAState to get notified about changes in operational
+         * state.
+         *
+         * The ESA may have a local user interface to allow a service technician to put the ESA into Offline mode, for
+         * example to avoid the EMS accidentally starting or stopping the appliance when it is being serviced or tested.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.3
+         */
+        esaState: EsaState;
+
+        /**
+         * Indicates the minimum electrical power that the ESA can consume when switched on. This does not include when
+         * in power save or standby modes.
+         *
+         * > [!NOTE]
+         *
+         * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads in
+         *   the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
+         *   discharge its internal battery.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.4
+         */
+        absMinPower: number | bigint;
+
+        /**
+         * Indicates the maximum electrical power that the ESA can consume when switched on.
+         *
+         * Note that for Generator ESAs that can charge a battery by importing power into the node (such as a battery
+         * storage inverter), the AbsMaxPower will be a positive number representing the maximum power at which the ESA
+         * can charge its internal battery.
+         *
+         * For example, a battery storage inverter that can charge its battery at a maximum power of 2000W and can
+         * discharge the battery at a maximum power of 3000W, would have a AbsMinPower: -3000, AbsMaxPower: 2000W.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.5
+         */
+        absMaxPower: number | bigint;
+
+        /**
+         * Indicates how the ESA can be adjusted at the current time, and the state of any active adjustment.
+         *
+         * A null value indicates that no power adjustment is currently possible, and nor is any adjustment currently
+         * active.
+         *
+         * This attribute SHOULD be updated periodically by ESAs to reflect any changes in internal state, for example
+         * temperature or stored energy, which would affect the power or duration limits.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds on changes, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.6
+         */
+        powerAdjustmentCapability: PowerAdjustCapability | null;
+
+        /**
+         * This attribute allows an ESA to share its intended forecast with a client (such as an Energy Management
+         * System).
+         *
+         * A null value indicates that there is no forecast currently available (for example, a program has not yet been
+         * selected by the user).
+         *
+         * A server may reset this value attribute to null on a reboot, and it does not need to persist any previous
+         * forecasts.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds on changes, or
+         *
+         *   - When it changes from null to any other value and vice versa, or
+         *
+         *   - As a result of a command which causes the forecast to be updated, or
+         *
+         *   - As a result of a change in the opt-out status which in turn may cause the ESA to recalculate its
+         *     forecast.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.7
+         */
+        forecast: Forecast | null;
+
+        /**
+         * Indicates the current Opt-Out state of the ESA. The ESA may have a local user interface to allow the user to
+         * control this OptOutState. An EMS may subscribe to the OptOutState to get notified about changes in
+         * operational state.
+         *
+         * If the ESA is in the LocalOptOut or OptOut states, so it cannot be controlled by an EMS for local
+         * optimization reasons, it shall reject any commands which have the AdjustmentCauseEnum value
+         * LocalOptimization. If the ESA is in the GridOptOut or OptOut states, so it cannot be controlled by an EMS for
+         * grid optimization reasons, it shall reject any commands which have the AdjustmentCauseEnum value
+         * GridOptimization.
+         *
+         * If the user changes the Opt-Out state of the ESA which is currently operating with a Forecast that is due to
+         * a previous StartTimeAdjustRequest, ModifyForecastRequest or RequestConstraintBasedForecast command that would
+         * now not be permitted due to the new Opt-out state (i.e. the Forecast attribute ForecastUpdateReason field
+         * currently contains a reason which is now opted out), the ESA shall behave as if it had received a
+         * CancelRequest command.
+         *
+         * If the user changes the Opt-Out state of the ESA which currently has the ESAStateEnum with value Paused due
+         * to a previous PauseRequest command that would now not be permitted due to the new Opt-out state, and the ESA
+         * supports the PFR or SFR features (i.e. the Forecast attribute ForecastUpdateReason field currently contains a
+         * reason which is now opted out), the ESA shall behave as if it had received a ResumeRequest command.
+         *
+         * If the user changes the Opt-Out state of the ESA which currently has the ESAStateEnum with value
+         * PowerAdjustActive due to a previous PowerAdjustRequest command that would now not be permitted due to the new
+         * Opt-out state (i.e. the Forecast attribute ForecastUpdateReason field currently contains a reason which is
+         * now opted out), the ESA shall behave as if it had received a CancelPowerAdjustRequest command.
+         *
+         * If the ESA is in the LocalOptOut, GridOptOut, or NoOptOut states, the device is still permitted to optimize
+         * its own energy usage, for example, using tariff information it may obtain.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.8.8
+         */
+        optOutState: OptOutState;
+    }
+
+    /**
+     * {@link DeviceEnergyManagement} supports these elements if it supports feature "PowerAdjustment".
+     */
+    export interface PowerAdjustmentCommands {
+        /**
+         * Allows a client to request an adjustment in the power consumption of an ESA for a specified duration.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
+         */
+        powerAdjustRequest(request: PowerAdjustRequest): MaybePromise;
+
+        /**
+         * Allows a client to cancel an ongoing PowerAdjustmentRequest operation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.2
+         */
+        cancelPowerAdjustRequest(): MaybePromise;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature "Pausable".
      */
-    export namespace PausableComponent {
-        export interface Commands {
-            /**
-             * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4
-             */
-            pauseRequest(request: PauseRequest): MaybePromise;
+    export interface PausableCommands {
+        /**
+         * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4
+         */
+        pauseRequest(request: PauseRequest): MaybePromise;
 
-            /**
-             * Allows a client to cancel the PauseRequest command and enable earlier resumption of operation.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.5
-             */
-            resumeRequest(): MaybePromise;
-        }
-
-        export interface Events {
-            /**
-             * This event shall be generated when the ESA enters the Paused state.
-             *
-             * There is no data for this event.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.3
-             */
-            paused: void;
-
-            /**
-             * This event shall be generated when the ESA leaves the Paused state and resumes operation.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
-             */
-            resumed: ResumedEvent;
-        }
+        /**
+         * Allows a client to cancel the PauseRequest command and enable earlier resumption of operation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.5
+         */
+        resumeRequest(): MaybePromise;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature "StartTimeAdjustment".
      */
-    export namespace StartTimeAdjustmentComponent {
-        export interface Commands {
-            /**
-             * Allows a client to adjust the start time of a Forecast sequence that has not yet started operation (i.e.
-             * where the current Forecast StartTime is in the future).
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3
-             */
-            startTimeAdjustRequest(request: StartTimeAdjustRequest): MaybePromise;
-        }
+    export interface StartTimeAdjustmentCommands {
+        /**
+         * Allows a client to adjust the start time of a Forecast sequence that has not yet started operation (i.e.
+         * where the current Forecast StartTime is in the future).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3
+         */
+        startTimeAdjustRequest(request: StartTimeAdjustRequest): MaybePromise;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature "ForecastAdjustment".
      */
-    export namespace ForecastAdjustmentComponent {
-        export interface Commands {
-            /**
-             * Allows a client to modify a Forecast within the limits allowed by the ESA.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6
-             */
-            modifyForecastRequest(request: ModifyForecastRequest): MaybePromise;
-        }
+    export interface ForecastAdjustmentCommands {
+        /**
+         * Allows a client to modify a Forecast within the limits allowed by the ESA.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6
+         */
+        modifyForecastRequest(request: ModifyForecastRequest): MaybePromise;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature "ConstraintBasedAdjustment".
      */
-    export namespace ConstraintBasedAdjustmentComponent {
-        export interface Commands {
-            /**
-             * Allows a client to ask the ESA to recompute its Forecast based on power and time constraints.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7
-             */
-            requestConstraintBasedForecast(request: RequestConstraintBasedForecastRequest): MaybePromise;
-        }
+    export interface ConstraintBasedAdjustmentCommands {
+        /**
+         * Allows a client to ask the ESA to recompute its Forecast based on power and time constraints.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7
+         */
+        requestConstraintBasedForecast(request: RequestConstraintBasedForecastRequest): MaybePromise;
     }
 
     /**
      * {@link DeviceEnergyManagement} supports these elements if it supports feature
      * "StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustment".
      */
-    export namespace StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentComponent {
-        export interface Commands {
-            /**
-             * Allows a client to request cancellation of a previous adjustment request in a StartTimeAdjustRequest,
-             * ModifyForecastRequest or RequestConstraintBasedForecast command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.8
-             */
-            cancelRequest(): MaybePromise;
-        }
+    export interface StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentCommands {
+        /**
+         * Allows a client to request cancellation of a previous adjustment request in a StartTimeAdjustRequest,
+         * ModifyForecastRequest or RequestConstraintBasedForecast command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.8
+         */
+        cancelRequest(): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<PowerAdjustmentComponent.Attributes>, Partial<PowerForecastReportingOrStateForecastReportingComponent.Attributes>, Partial<PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Attributes> {}
-    export interface Commands extends PowerAdjustmentComponent.Commands, PausableComponent.Commands, StartTimeAdjustmentComponent.Commands, ForecastAdjustmentComponent.Commands, ConstraintBasedAdjustmentComponent.Commands, StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Commands {}
-    export interface Events extends PowerAdjustmentComponent.Events, PausableComponent.Events {}
+    /**
+     * Commands that may appear in {@link DeviceEnergyManagement}.
+     */
+    export interface Commands extends
+        PowerAdjustmentCommands,
+        PausableCommands,
+        StartTimeAdjustmentCommands,
+        ForecastAdjustmentCommands,
+        ConstraintBasedAdjustmentCommands,
+        StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentCommands
+    {}
+
+    /**
+     * {@link DeviceEnergyManagement} supports these elements if it supports feature "PowerAdjustment".
+     */
+    export interface PowerAdjustmentEvents {
+        /**
+         * This event shall be generated when the Power Adjustment session is started.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.1
+         */
+        powerAdjustStart: void;
+
+        /**
+         * This event shall be generated when the Power Adjustment session ends.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
+         */
+        powerAdjustEnd: PowerAdjustEndEvent;
+    }
+
+    /**
+     * {@link DeviceEnergyManagement} supports these elements if it supports feature "Pausable".
+     */
+    export interface PausableEvents {
+        /**
+         * This event shall be generated when the ESA enters the Paused state.
+         *
+         * There is no data for this event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.3
+         */
+        paused: void;
+
+        /**
+         * This event shall be generated when the ESA leaves the Paused state and resumes operation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
+         */
+        resumed: ResumedEvent;
+    }
+
+    /**
+     * Events that may appear in {@link DeviceEnergyManagement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated when the Power Adjustment session is started.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.1
+         */
+        powerAdjustStart: void;
+
+        /**
+         * This event shall be generated when the Power Adjustment session ends.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
+         */
+        powerAdjustEnd: PowerAdjustEndEvent;
+
+        /**
+         * This event shall be generated when the ESA enters the Paused state.
+         *
+         * There is no data for this event.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.3
+         */
+        paused: void;
+
+        /**
+         * This event shall be generated when the ESA leaves the Paused state and resumes operation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
+         */
+        resumed: ResumedEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
+        { flags: {}, attributes: BaseAttributes },
 
         {
             flags: { powerAdjustment: true },
-            attributes: PowerAdjustmentComponent.Attributes,
-            commands: PowerAdjustmentComponent.Commands,
-            events: PowerAdjustmentComponent.Events
+            attributes: PowerAdjustmentAttributes,
+            commands: PowerAdjustmentCommands,
+            events: PowerAdjustmentEvents
         },
 
         {
             flags: { powerForecastReporting: true },
-            attributes: PowerForecastReportingOrStateForecastReportingComponent.Attributes
+            attributes: PowerForecastReportingOrStateForecastReportingAttributes
         },
         {
             flags: { stateForecastReporting: true },
-            attributes: PowerForecastReportingOrStateForecastReportingComponent.Attributes
+            attributes: PowerForecastReportingOrStateForecastReportingAttributes
         },
         {
             flags: { powerAdjustment: true },
-            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Attributes
+            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentAttributes
         },
         {
             flags: { startTimeAdjustment: true },
-            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Attributes
+            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentAttributes
         },
         {
             flags: { pausable: true },
-            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Attributes
+            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentAttributes
         },
         {
             flags: { forecastAdjustment: true },
-            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Attributes
+            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentAttributes
         },
         {
             flags: { constraintBasedAdjustment: true },
-            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Attributes
+            attributes: PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentAttributes
         },
-        { flags: { pausable: true }, commands: PausableComponent.Commands, events: PausableComponent.Events },
-        { flags: { startTimeAdjustment: true }, commands: StartTimeAdjustmentComponent.Commands },
-        { flags: { forecastAdjustment: true }, commands: ForecastAdjustmentComponent.Commands },
-        { flags: { constraintBasedAdjustment: true }, commands: ConstraintBasedAdjustmentComponent.Commands },
+        { flags: { pausable: true }, commands: PausableCommands, events: PausableEvents },
+        { flags: { startTimeAdjustment: true }, commands: StartTimeAdjustmentCommands },
+        { flags: { forecastAdjustment: true }, commands: ForecastAdjustmentCommands },
+        { flags: { constraintBasedAdjustment: true }, commands: ConstraintBasedAdjustmentCommands },
         {
             flags: { startTimeAdjustment: true },
-            commands: StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Commands
+            commands: StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentCommands
         },
         {
             flags: { forecastAdjustment: true },
-            commands: StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Commands
+            commands: StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentCommands
         },
         {
             flags: { constraintBasedAdjustment: true },
-            commands: StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.Commands
+            commands: StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentCommands
         }
     ];
 
@@ -739,72 +1006,6 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
-     * Allows a client to request an adjustment in the power consumption of an ESA for a specified duration.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
-     */
-    export interface PowerAdjustRequest {
-        /**
-         * This field shall indicate the power that the ESA shall use during the adjustment period.
-         *
-         * This value shall be between the MinPower and MaxPower fields of the PowerAdjustStruct in the
-         * PowerAdjustmentCapability attribute.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.1
-         */
-        power: number | bigint;
-
-        /**
-         * This field shall indicate the duration that the ESA shall maintain the requested power for.
-         *
-         * This value shall be between the MinDuration and MaxDuration fields of the PowerAdjustStruct in the
-         * PowerAdjustmentCapability attribute.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.2
-         */
-        duration: number;
-
-        /**
-         * This field shall indicate the cause of the request from the EMS.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.3
-         */
-        cause: AdjustmentCause;
-    }
-
-    /**
-     * This event shall be generated when the Power Adjustment session ends.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
-     */
-    export interface PowerAdjustEndEvent {
-        /**
-         * This field shall indicate the reason why the power adjustment session ended.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.1
-         */
-        cause: Cause;
-
-        /**
-         * This field shall indicate the number of seconds that the power adjustment session lasted before ending.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.2
-         */
-        duration: number;
-
-        /**
-         * This field shall indicate the approximate energy used by the ESA during the session.
-         *
-         * For example, if the ESA was on and was adjusted to be switched off, then this shall be 0 mWh. If this was a
-         * battery inverter that was requested to discharge it would have a negative EnergyUse value. If this was a
-         * normal load that was turned on, then it will have positive value.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.3
-         */
-        energyUse: number | bigint;
-    }
-
-    /**
      * This indicates a list of 'slots' describing the overall timing of the ESA’s planned energy and power use, with
      * different power and energy demands per slot. For example, slots might be used to describe the distinct stages of
      * a washing machine cycle.
@@ -922,6 +1123,40 @@ export declare namespace DeviceEnergyManagement {
     }
 
     /**
+     * Allows a client to request an adjustment in the power consumption of an ESA for a specified duration.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
+     */
+    export interface PowerAdjustRequest {
+        /**
+         * This field shall indicate the power that the ESA shall use during the adjustment period.
+         *
+         * This value shall be between the MinPower and MaxPower fields of the PowerAdjustStruct in the
+         * PowerAdjustmentCapability attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.1
+         */
+        power: number | bigint;
+
+        /**
+         * This field shall indicate the duration that the ESA shall maintain the requested power for.
+         *
+         * This value shall be between the MinDuration and MaxDuration fields of the PowerAdjustStruct in the
+         * PowerAdjustmentCapability attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.2
+         */
+        duration: number;
+
+        /**
+         * This field shall indicate the cause of the request from the EMS.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.3
+         */
+        cause: AdjustmentCause;
+    }
+
+    /**
      * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4
@@ -942,20 +1177,6 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4.2
          */
         cause: AdjustmentCause;
-    }
-
-    /**
-     * This event shall be generated when the ESA leaves the Paused state and resumes operation.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
-     */
-    export interface ResumedEvent {
-        /**
-         * This field shall indicate the reason why the pause ended.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4.1
-         */
-        cause: Cause;
     }
 
     /**
@@ -1047,6 +1268,52 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7.2
          */
         cause: AdjustmentCause;
+    }
+
+    /**
+     * This event shall be generated when the Power Adjustment session ends.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
+     */
+    export interface PowerAdjustEndEvent {
+        /**
+         * This field shall indicate the reason why the power adjustment session ended.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.1
+         */
+        cause: Cause;
+
+        /**
+         * This field shall indicate the number of seconds that the power adjustment session lasted before ending.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.2
+         */
+        duration: number;
+
+        /**
+         * This field shall indicate the approximate energy used by the ESA during the session.
+         *
+         * For example, if the ESA was on and was adjusted to be switched off, then this shall be 0 mWh. If this was a
+         * battery inverter that was requested to discharge it would have a negative EnergyUse value. If this was a
+         * normal load that was turned on, then it will have positive value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.3
+         */
+        energyUse: number | bigint;
+    }
+
+    /**
+     * This event shall be generated when the ESA leaves the Paused state and resumes operation.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
+     */
+    export interface ResumedEvent {
+        /**
+         * This field shall indicate the reason why the pause ended.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4.1
+         */
+        cause: Cause;
     }
 
     /**
@@ -1592,27 +1859,48 @@ export declare namespace DeviceEnergyManagement {
         loadControl?: number;
     }
 
-    export const id: ClusterId;
-    export const name: "DeviceEnergyManagement";
-    export const revision: 4;
-    export const schema: typeof DeviceEnergyManagementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link DeviceEnergyManagement}.
+     */
     export const Cluster: typeof DeviceEnergyManagement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `DeviceEnergyManagement` instead of
-     * `DeviceEnergyManagement.Complete`)
+     * @deprecated Use {@link DeviceEnergyManagement}.
      */
     export const Complete: typeof DeviceEnergyManagement;
 
     export const Typing: DeviceEnergyManagement;
 }
 
+/**
+ * @deprecated Use {@link DeviceEnergyManagement}.
+ */
 export declare const DeviceEnergyManagementCluster: typeof DeviceEnergyManagement;
-export interface DeviceEnergyManagement extends ClusterTyping { Attributes: DeviceEnergyManagement.Attributes; Commands: DeviceEnergyManagement.Commands; Events: DeviceEnergyManagement.Events; Features: DeviceEnergyManagement.Features; Components: DeviceEnergyManagement.Components }
+
+export interface DeviceEnergyManagement extends ClusterTyping {
+    Attributes: DeviceEnergyManagement.Attributes;
+    Commands: DeviceEnergyManagement.Commands;
+    Events: DeviceEnergyManagement.Events;
+    Features: DeviceEnergyManagement.Features;
+    Components: DeviceEnergyManagement.Components;
+}

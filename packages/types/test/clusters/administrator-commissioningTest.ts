@@ -13,16 +13,17 @@ describe("Administrator Commissioning Cluster", () => {
         expect(AdministratorCommissioning.revision).equal(1);
     });
 
-    it("base attributes don't include basic commissioning commands", () => {
-        // The Base namespace interface only has openCommissioningWindow
-        type BaseCommands = AdministratorCommissioning.Base.Commands;
-        type HasOpen = BaseCommands extends { openCommissioningWindow: unknown } ? true : false;
+    it("base commands include openCommissioningWindow", () => {
+        type HasOpen = AdministratorCommissioning.BaseCommands extends { openCommissioningWindow: unknown }
+            ? true
+            : false;
         true satisfies HasOpen;
     });
 
-    it("BasicComponent has openBasicCommissioningWindow", () => {
-        type BasicCommands = AdministratorCommissioning.BasicComponent.Commands;
-        type HasBasic = BasicCommands extends { openBasicCommissioningWindow: unknown } ? true : false;
+    it("BasicCommands has openBasicCommissioningWindow", () => {
+        type HasBasic = AdministratorCommissioning.BasicCommands extends { openBasicCommissioningWindow: unknown }
+            ? true
+            : false;
         true satisfies HasBasic;
     });
 
@@ -30,8 +31,8 @@ describe("Administrator Commissioning Cluster", () => {
         type Components = AdministratorCommissioning.Components;
         type BasicEntry = Components[1];
 
-        // Type-level check that the component has the right flags
-        ({}) as BasicEntry satisfies { flags: { basic: true } };
+        // Type-level check that the component has the right flags and commands
+        ({}) as BasicEntry satisfies { flags: { basic: true }; commands: AdministratorCommissioning.BasicCommands };
     });
 
     it("runtime commands include all commands", () => {

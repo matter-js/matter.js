@@ -6,41 +6,87 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { VendorId } from "../datatype/VendorId.js";
 import type { ModeBase } from "./mode-base.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { MicrowaveOvenMode as MicrowaveOvenModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the MicrowaveOvenMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for microwave oven devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 8.12
  */
 export declare namespace MicrowaveOvenMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x005e;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "MicrowaveOvenMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the MicrowaveOvenMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link MicrowaveOvenMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags
-             * field.
-             *
-             * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode’s
-             * ModeTags.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field.
+         *
+         * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode’s
+         * ModeTags.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
-             */
-            readonly currentMode: number;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes }];
+    /**
+     * Attributes that may appear in {@link MicrowaveOvenMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field.
+         *
+         * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode’s
+         * ModeTags.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
+         */
+        currentMode: number;
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes }];
     export type Features = "OnOff";
 
     /**
@@ -216,22 +262,36 @@ export declare namespace MicrowaveOvenMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "MicrowaveOvenMode";
-    export const revision: 2;
-    export const schema: typeof MicrowaveOvenModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link MicrowaveOvenMode}.
+     */
     export const Cluster: typeof MicrowaveOvenMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `MicrowaveOvenMode` instead of `MicrowaveOvenMode.Complete`)
+     * @deprecated Use {@link MicrowaveOvenMode}.
      */
     export const Complete: typeof MicrowaveOvenMode;
 
     export const Typing: MicrowaveOvenMode;
 }
 
+/**
+ * @deprecated Use {@link MicrowaveOvenMode}.
+ */
 export declare const MicrowaveOvenModeCluster: typeof MicrowaveOvenMode;
-export interface MicrowaveOvenMode extends ClusterTyping { Attributes: MicrowaveOvenMode.Attributes; Features: MicrowaveOvenMode.Features; Components: MicrowaveOvenMode.Components }
+
+export interface MicrowaveOvenMode extends ClusterTyping {
+    Attributes: MicrowaveOvenMode.Attributes;
+    Features: MicrowaveOvenMode.Features;
+    Components: MicrowaveOvenMode.Components;
+}
