@@ -88,8 +88,8 @@ const logger = Logger.get("CommissioningClient");
  */
 export class CommissioningClient extends Behavior {
     declare internal: CommissioningClient.Internal;
-    declare state: CommissioningClient.State;
-    declare events: CommissioningClient.Events;
+    declare readonly state: CommissioningClient.State;
+    declare readonly events: CommissioningClient.Events;
 
     static override readonly early = true;
 

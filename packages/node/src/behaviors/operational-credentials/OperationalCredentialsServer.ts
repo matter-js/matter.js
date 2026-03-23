@@ -79,7 +79,7 @@ const OperationalCredentialsBase = OperationalCredentialsBehavior.for(
  */
 export class OperationalCredentialsServer extends OperationalCredentialsBase {
     declare internal: OperationalCredentialsServer.Internal;
-    declare state: OperationalCredentialsServer.State;
+    declare readonly state: OperationalCredentialsServer.State;
 
     override initialize(): MaybePromise {
         // maximum number of fabrics. Also, FabricBuilder uses 254 as max!

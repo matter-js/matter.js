@@ -106,7 +106,7 @@ const WC_PERCENT100THS_COEFFICIENT = 100;
  */
 export class WindowCoveringBaseServer extends WindowCoveringBase {
     declare protected internal: WindowCoveringBaseServer.Internal;
-    declare state: WindowCoveringBaseServer.State;
+    declare readonly state: WindowCoveringBaseServer.State;
 
     override initialize(): MaybePromise {
         // Initialize Internal state from the Mode attribute and keep in sync

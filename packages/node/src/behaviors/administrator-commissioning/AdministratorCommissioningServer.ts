@@ -55,7 +55,7 @@ const logger = Logger.get("AdministratorCommissioningServer");
  */
 export class AdministratorCommissioningServer extends AdministratorCommissioningBase {
     declare internal: AdministratorCommissioningServer.Internal;
-    declare state: AdministratorCommissioningServer.State;
+    declare readonly state: AdministratorCommissioningServer.State;
 
     static override lockOnInvoke = false;
 

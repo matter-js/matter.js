@@ -46,7 +46,7 @@ export abstract class RemoteServer extends Behavior {
     static interfaceType: RemoteInterface.Type;
 
     declare internal: RemoteServer.Internal;
-    declare state: RemoteServer.State;
+    declare readonly state: RemoteServer.State;
 
     override async initialize() {
         if (this.state.key === undefined) {

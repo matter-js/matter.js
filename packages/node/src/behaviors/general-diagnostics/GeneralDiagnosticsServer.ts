@@ -62,7 +62,7 @@ const schema = Base.schema.extend(
  */
 export class GeneralDiagnosticsServer extends Base {
     declare protected internal: GeneralDiagnosticsServer.Internal;
-    declare state: GeneralDiagnosticsServer.State;
+    declare readonly state: GeneralDiagnosticsServer.State;
     static override readonly schema = schema;
 
     override initialize() {

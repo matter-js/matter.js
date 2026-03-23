@@ -57,8 +57,8 @@ const LevelControlBase = LevelControlBehavior.with(LevelControl.Feature.OnOff, L
  */
 export class LevelControlBaseServer extends LevelControlBase {
     declare protected internal: LevelControlBaseServer.Internal;
-    declare state: LevelControlBaseServer.State;
-    declare events: LevelControlBaseServer.Events;
+    declare readonly state: LevelControlBaseServer.State;
+    declare readonly events: LevelControlBaseServer.Events;
 
     /** Returns the minimum level, including feature specific fallback value handling. */
     get minLevel() {
