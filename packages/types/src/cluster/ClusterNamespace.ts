@@ -401,7 +401,7 @@ export namespace ClusterNamespace {
     /**
      * Convert a feature name tuple to a feature flags object with explicit true/false for all features.
      *
-     * Like main's `ClusterComposer.FeaturesAsFlags`, unselected features are explicitly `false` (not absent),
+     * Unselected features are explicitly `false` (not absent),
      * so that `S extends C["flags"]` matches components with `{ offOnly: false }` when offOnly is not selected.
      */
     export type FeaturesAsFlags<N extends ClusterTyping, F extends readonly string[]> = N extends {

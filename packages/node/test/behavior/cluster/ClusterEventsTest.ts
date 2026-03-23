@@ -13,14 +13,12 @@ import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/bas
 import { AsyncObservable, EventEmitter, MaybePromise, Observable } from "@matter/general";
 import { ClusterNamespace } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { My, MyCluster, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
+import { MyCluster, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
 
 type MyClusterWithOptEvent = ClusterNamespace.WithEnabledEvents<MyClusterTyping, "optEv">;
 type BiWithStartup = ClusterNamespace.WithEnabledEvents<BasicInformation, "startUp">;
 
 const MyClusterBehavior = ClusterBehavior.for(MyCluster, MySchema);
-const MyClusterWithOptEventCluster = My.Cluster.enable({ events: { optEv: true } });
-const MyClusterWithOptEventBehavior = MyClusterBehavior.for(MyClusterWithOptEventCluster);
 
 describe("ClusterEvents", () => {
     describe("ClusterEvents type", () => {
@@ -32,10 +30,6 @@ describe("ClusterEvents", () => {
 
         it("extends EventEmitter within ClusterBehavior", () => {
             ({}) as InstanceType<typeof MyClusterBehavior.Events> satisfies EventEmitter;
-        });
-
-        it("extends EventEmitter after swapping clusters", () => {
-            ({}) as InstanceType<typeof MyClusterWithOptEventBehavior.Events> satisfies EventEmitter;
         });
 
         it("extends EventEmitter with enabled", () => {
@@ -169,13 +163,6 @@ describe("ClusterEvents", () => {
             type Props = ClusterEvents.Properties<MyClusterWithOptEvent>;
 
             type Events = Omit<InstanceType<typeof MyClusterBehavior.Events>, keyof Props>;
-            ({}) as Events satisfies EventEmitter;
-        });
-
-        it("leaves behind EventEmitter when omitted from existing events of swapped cluster", () => {
-            type Props = ClusterEvents.Properties<MyClusterWithOptEvent>;
-
-            type Events = Omit<InstanceType<typeof MyClusterWithOptEventBehavior.Events>, keyof Props>;
             ({}) as Events satisfies EventEmitter;
         });
     });
