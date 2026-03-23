@@ -11,7 +11,6 @@ import { Attribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { Label } from "./label.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { FixedLabel as FixedLabelModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -86,6 +85,5 @@ export namespace FixedLabel {
 
 export type FixedLabelCluster = FixedLabel.Cluster;
 export const FixedLabelCluster = FixedLabel.Cluster;
-ClusterRegistry.register(FixedLabel.Complete);
 ClusterNamespace.define(FixedLabel);
 export interface FixedLabel extends ClusterTyping { Attributes: FixedLabel.Attributes & { Components: FixedLabel.Attributes.Components } }

@@ -18,7 +18,6 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ApplicationLauncher as ApplicationLauncherModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -707,6 +706,5 @@ export namespace ApplicationLauncher {
 
 export type ApplicationLauncherCluster = ApplicationLauncher.Cluster;
 export const ApplicationLauncherCluster = ApplicationLauncher.Cluster;
-ClusterRegistry.register(ApplicationLauncher.Complete);
 ClusterNamespace.define(ApplicationLauncher);
 export interface ApplicationLauncher extends ClusterTyping { Attributes: ApplicationLauncher.Attributes & { Components: ApplicationLauncher.Attributes.Components }; Commands: ApplicationLauncher.Commands & { Components: ApplicationLauncher.Commands.Components }; Features: ApplicationLauncher.Features }

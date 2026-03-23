@@ -15,7 +15,6 @@ import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvUInt16, TlvUInt64, TlvUInt8 } from "../tlv/TlvNumber.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -406,6 +405,5 @@ export namespace ThreadNetworkDirectory {
 
 export type ThreadNetworkDirectoryCluster = ThreadNetworkDirectory.Cluster;
 export const ThreadNetworkDirectoryCluster = ThreadNetworkDirectory.Cluster;
-ClusterRegistry.register(ThreadNetworkDirectory.Complete);
 ClusterNamespace.define(ThreadNetworkDirectory);
 export interface ThreadNetworkDirectory extends ClusterTyping { Attributes: ThreadNetworkDirectory.Attributes & { Components: ThreadNetworkDirectory.Attributes.Components }; Commands: ThreadNetworkDirectory.Commands & { Components: ThreadNetworkDirectory.Commands.Components } }

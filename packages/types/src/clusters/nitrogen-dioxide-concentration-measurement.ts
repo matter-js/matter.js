@@ -9,7 +9,6 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { NitrogenDioxideConcentrationMeasurement as NitrogenDioxideConcentrationMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -177,6 +176,5 @@ export namespace NitrogenDioxideConcentrationMeasurement {
 
 export type NitrogenDioxideConcentrationMeasurementCluster = NitrogenDioxideConcentrationMeasurement.Cluster;
 export const NitrogenDioxideConcentrationMeasurementCluster = NitrogenDioxideConcentrationMeasurement.Cluster;
-ClusterRegistry.register(NitrogenDioxideConcentrationMeasurement.Complete);
 ClusterNamespace.define(NitrogenDioxideConcentrationMeasurement);
 export interface NitrogenDioxideConcentrationMeasurement extends ClusterTyping { Attributes: NitrogenDioxideConcentrationMeasurement.Attributes & { Components: NitrogenDioxideConcentrationMeasurement.Attributes.Components }; Features: NitrogenDioxideConcentrationMeasurement.Features }

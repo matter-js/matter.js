@@ -13,7 +13,6 @@ import { AccessLevel, TimeFormatLocalization as TimeFormatLocalizationModel } fr
 import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -309,6 +308,5 @@ export namespace TimeFormatLocalization {
 
 export type TimeFormatLocalizationCluster = TimeFormatLocalization.Cluster;
 export const TimeFormatLocalizationCluster = TimeFormatLocalization.Cluster;
-ClusterRegistry.register(TimeFormatLocalization.Complete);
 ClusterNamespace.define(TimeFormatLocalization);
 export interface TimeFormatLocalization extends ClusterTyping { Attributes: TimeFormatLocalization.Attributes & { Components: TimeFormatLocalization.Attributes.Components }; Features: TimeFormatLocalization.Features }

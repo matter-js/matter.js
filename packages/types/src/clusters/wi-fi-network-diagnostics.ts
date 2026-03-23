@@ -16,7 +16,6 @@ import { TlvByteString } from "../tlv/TlvString.js";
 import { Priority } from "../globals/Priority.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { WiFiNetworkDiagnostics as WiFiNetworkDiagnosticsModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -746,6 +745,5 @@ export namespace WiFiNetworkDiagnostics {
 
 export type WiFiNetworkDiagnosticsCluster = WiFiNetworkDiagnostics.Cluster;
 export const WiFiNetworkDiagnosticsCluster = WiFiNetworkDiagnostics.Cluster;
-ClusterRegistry.register(WiFiNetworkDiagnostics.Complete);
 ClusterNamespace.define(WiFiNetworkDiagnostics);
 export interface WiFiNetworkDiagnostics extends ClusterTyping { Attributes: WiFiNetworkDiagnostics.Attributes & { Components: WiFiNetworkDiagnostics.Attributes.Components }; Commands: WiFiNetworkDiagnostics.Commands & { Components: WiFiNetworkDiagnostics.Commands.Components }; Events: WiFiNetworkDiagnostics.Events & { Components: WiFiNetworkDiagnostics.Events.Components }; Features: WiFiNetworkDiagnostics.Features }

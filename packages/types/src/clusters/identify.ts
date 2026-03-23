@@ -12,7 +12,6 @@ import { TlvUInt16, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { AccessLevel, Identify as IdentifyModel } from "@matter/model";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -350,6 +349,5 @@ export namespace Identify {
 
 export type IdentifyCluster = Identify.Cluster;
 export const IdentifyCluster = Identify.Cluster;
-ClusterRegistry.register(Identify.Complete);
 ClusterNamespace.define(Identify);
 export interface Identify extends ClusterTyping { Attributes: Identify.Attributes & { Components: Identify.Attributes.Components }; Commands: Identify.Commands & { Components: Identify.Commands.Components } }

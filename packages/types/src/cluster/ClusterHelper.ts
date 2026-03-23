@@ -3,144 +3,20 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Diagnostic, Logger } from "@matter/general";
-import { AttributeId } from "../datatype/AttributeId.js";
+import { Diagnostic } from "@matter/general";
+import { AttributeModel, ClusterModel, CommandModel, EventModel, Matter } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
-import { CommandId } from "../datatype/CommandId.js";
 import { EndpointNumber } from "../datatype/EndpointNumber.js";
-import { EventId } from "../datatype/EventId.js";
 import { NodeId } from "../datatype/NodeId.js";
 import { TlvAttributePath, TlvCommandPath, TlvEventPath } from "../protocol/index.js";
 import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { Attribute, Cluster, Command, Event } from "./Cluster.js";
-import { ClusterRegistry } from "./ClusterRegistry.js";
-
-const logger = Logger.get("ClusterHelper");
-
-interface CachedAttributeInfo {
-    attribute: Attribute<any, any>;
-    name: string;
-}
-interface CachedEventInfo {
-    event: Event<any, any>;
-    name: string;
-}
-interface CachedCommandInfo {
-    command: Command<any, any, any>;
-    name: string;
-}
-const clusterAttributeCache = new Map<ClusterId, Map<AttributeId, CachedAttributeInfo>>();
-const clusterEventCache = new Map<ClusterId, Map<EventId, CachedEventInfo>>();
-const clusterCommandCache = new Map<ClusterId, Map<CommandId, CachedCommandInfo>>();
-
-export const UnknownCluster = (clusterId: ClusterId) =>
-    Cluster({
-        id: clusterId,
-        name: `Unknown cluster ${toHex(clusterId)}`,
-        revision: 0,
-        unknown: true,
-    });
-
-export function getClusterNameById(clusterId: ClusterId): string {
-    return ClusterRegistry.getName(clusterId) ?? `Unknown cluster ${Diagnostic.hex(clusterId)}`;
-}
-
-const unknownClusters = new Map<ClusterId, Cluster<any, any, any, any, any>>();
-
-export function getClusterById(clusterId: ClusterId): Cluster<any, any, any, any, any> {
-    let cluster = ClusterRegistry.get(clusterId);
-    if (cluster !== undefined) {
-        return cluster;
-    }
-
-    cluster = unknownClusters.get(clusterId);
-    if (cluster !== undefined) {
-        return cluster;
-    }
-
-    logger.info(`Unknown cluster ${toHex(clusterId)} requested: UnknownCluster instance added.`);
-    cluster = UnknownCluster(clusterId);
-    unknownClusters.set(clusterId, cluster);
-    return cluster;
-}
-
-export function getClusterAttributeById(
-    clusterDef: Cluster<any, any, any, any, any>,
-    attributeId: AttributeId,
-): CachedAttributeInfo | undefined {
-    if (!clusterAttributeCache.has(clusterDef.id)) {
-        const attributeMap = new Map<AttributeId, CachedAttributeInfo>();
-
-        const { attributes } = clusterDef;
-
-        // Add accessors
-        for (const attributeName in attributes) {
-            const attribute = attributes[attributeName];
-            attributeMap.set(attribute.id, { attribute, name: attributeName });
-        }
-
-        clusterAttributeCache.set(clusterDef.id, attributeMap);
-        return attributeMap.get(attributeId);
-    }
-    const attributeMap = clusterAttributeCache.get(clusterDef.id);
-    if (attributeMap === undefined) {
-        return undefined;
-    }
-    return attributeMap.get(attributeId);
-}
-
-export function getClusterEventById(
-    clusterDef: Cluster<any, any, any, any, any>,
-    eventId: EventId,
-): CachedEventInfo | undefined {
-    if (!clusterEventCache.has(clusterDef.id)) {
-        const eventMap = new Map<EventId, CachedEventInfo>();
-
-        const { events } = clusterDef;
-
-        // Add accessors
-        for (const eventName in events) {
-            const event = events[eventName];
-            eventMap.set(event.id, { event, name: eventName });
-        }
-
-        clusterEventCache.set(clusterDef.id, eventMap);
-        return eventMap.get(eventId);
-    }
-    const eventMap = clusterEventCache.get(clusterDef.id);
-    if (eventMap === undefined) {
-        return undefined;
-    }
-    return eventMap.get(eventId);
-}
-
-export function getClusterCommandById(
-    clusterDef: Cluster<any, any, any, any, any>,
-    commandId: CommandId,
-): CachedCommandInfo | undefined {
-    if (!clusterCommandCache.has(clusterDef.id)) {
-        const commandMap = new Map<CommandId, CachedCommandInfo>();
-
-        const { commands } = clusterDef;
-
-        // Add accessors
-        for (const commandName in commands) {
-            const command = commands[commandName];
-            commandMap.set(command.requestId, { command, name: commandName });
-        }
-
-        clusterCommandCache.set(clusterDef.id, commandMap);
-        return commandMap.get(commandId);
-    }
-    const commandMap = clusterCommandCache.get(clusterDef.id);
-    if (commandMap === undefined) {
-        return undefined;
-    }
-    return commandMap.get(commandId);
-}
 
 function toHex(value: number | bigint | undefined) {
     return value === undefined ? "*" : `0x${value.toString(16)}`;
+}
+
+export function getClusterNameById(clusterId: ClusterId): string {
+    return Matter.clusters(clusterId)?.name ?? `Unknown cluster ${Diagnostic.hex(clusterId)}`;
 }
 
 function resolveEndpointClusterName(
@@ -158,11 +34,23 @@ function resolveEndpointClusterName(
     if (clusterId === undefined) {
         return `${elementName}/*`;
     }
-    const name = ClusterRegistry.getName(clusterId);
+    const name = Matter.clusters(clusterId)?.name;
     if (name === undefined) {
         return `${elementName}/unknown(${toHex(clusterId)})`;
     }
     return `${elementName}/${name}(${toHex(clusterId)})`;
+}
+
+function resolveElementName(cluster: ClusterModel | undefined, tag: string, elementId: number): string | undefined {
+    if (cluster === undefined) {
+        return undefined;
+    }
+    for (const child of cluster.children) {
+        if (child.tag === tag && child.id === elementId) {
+            return child.name;
+        }
+    }
+    return undefined;
 }
 
 export function resolveAttributeName({
@@ -175,12 +63,12 @@ export function resolveAttributeName({
     if (endpointId === undefined || clusterId === undefined || attributeId === undefined) {
         return `${endpointClusterName}/${toHex(attributeId)}`;
     }
-    const cluster = getClusterById(clusterId);
-    const attribute = getClusterAttributeById(cluster, attributeId);
-    if (attribute === undefined) {
+    const cluster = Matter.clusters(clusterId);
+    const name = resolveElementName(cluster, AttributeModel.Tag, attributeId);
+    if (name === undefined) {
         return `${endpointClusterName}/unknown(${toHex(attributeId)})`;
     }
-    return `${endpointClusterName}/${attribute.name}(${toHex(attributeId)})`;
+    return `${endpointClusterName}/${name}(${toHex(attributeId)})`;
 }
 
 export function resolveEventName({
@@ -195,11 +83,12 @@ export function resolveEventName({
     if (endpointId === undefined || clusterId === undefined || eventId === undefined) {
         return `${isUrgentStr}${endpointClusterName}/${toHex(eventId)}`;
     }
-    const event = getClusterEventById(getClusterById(clusterId), eventId);
-    if (event === undefined) {
+    const cluster = Matter.clusters(clusterId);
+    const name = resolveElementName(cluster, EventModel.Tag, eventId);
+    if (name === undefined) {
         return `${isUrgentStr}${endpointClusterName}/unknown(${toHex(eventId)})`;
     }
-    return `${isUrgentStr}${endpointClusterName}/${event.name}(${toHex(eventId)})`;
+    return `${isUrgentStr}${endpointClusterName}/${name}(${toHex(eventId)})`;
 }
 
 export function resolveCommandName({ endpointId, clusterId, commandId }: TypeFromSchema<typeof TlvCommandPath>) {
@@ -207,9 +96,10 @@ export function resolveCommandName({ endpointId, clusterId, commandId }: TypeFro
     if (endpointId === undefined || clusterId === undefined || commandId === undefined) {
         return `${endpointClusterName}/${toHex(commandId)}`;
     }
-    const command = getClusterCommandById(getClusterById(clusterId), commandId);
-    if (command === undefined) {
+    const cluster = Matter.clusters(clusterId);
+    const name = resolveElementName(cluster, CommandModel.Tag, commandId);
+    if (name === undefined) {
         return `${endpointClusterName}/unknown(${toHex(commandId)})`;
     }
-    return `${endpointClusterName}/${command.name}(${toHex(commandId)})`;
+    return `${endpointClusterName}/${name}(${toHex(commandId)})`;
 }

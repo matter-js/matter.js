@@ -15,7 +15,6 @@ import { AccessLevel, WiFiNetworkManagement as WiFiNetworkManagementModel } from
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -259,6 +258,5 @@ export namespace WiFiNetworkManagement {
 
 export type WiFiNetworkManagementCluster = WiFiNetworkManagement.Cluster;
 export const WiFiNetworkManagementCluster = WiFiNetworkManagement.Cluster;
-ClusterRegistry.register(WiFiNetworkManagement.Complete);
 ClusterNamespace.define(WiFiNetworkManagement);
 export interface WiFiNetworkManagement extends ClusterTyping { Attributes: WiFiNetworkManagement.Attributes & { Components: WiFiNetworkManagement.Attributes.Components }; Commands: WiFiNetworkManagement.Commands & { Components: WiFiNetworkManagement.Commands.Components } }

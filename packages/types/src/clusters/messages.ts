@@ -17,7 +17,6 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { Messages as MessagesModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -1012,6 +1011,5 @@ export namespace Messages {
 
 export type MessagesCluster = Messages.Cluster;
 export const MessagesCluster = Messages.Cluster;
-ClusterRegistry.register(Messages.Complete);
 ClusterNamespace.define(Messages);
 export interface Messages extends ClusterTyping { Attributes: Messages.Attributes & { Components: Messages.Attributes.Components }; Commands: Messages.Commands & { Components: Messages.Commands.Components }; Events: Messages.Events & { Components: Messages.Events.Components }; Features: Messages.Features }

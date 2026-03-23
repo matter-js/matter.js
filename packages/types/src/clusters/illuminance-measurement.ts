@@ -11,7 +11,6 @@ import { Attribute, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvUInt16, TlvUInt8 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { IlluminanceMeasurement as IlluminanceMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -186,6 +185,5 @@ export namespace IlluminanceMeasurement {
 
 export type IlluminanceMeasurementCluster = IlluminanceMeasurement.Cluster;
 export const IlluminanceMeasurementCluster = IlluminanceMeasurement.Cluster;
-ClusterRegistry.register(IlluminanceMeasurement.Complete);
 ClusterNamespace.define(IlluminanceMeasurement);
 export interface IlluminanceMeasurement extends ClusterTyping { Attributes: IlluminanceMeasurement.Attributes & { Components: IlluminanceMeasurement.Attributes.Components } }

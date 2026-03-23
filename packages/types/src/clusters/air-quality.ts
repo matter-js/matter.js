@@ -11,7 +11,6 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { Attribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { AirQuality as AirQualityModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -193,6 +192,5 @@ export namespace AirQuality {
 
 export type AirQualityCluster = AirQuality.Cluster;
 export const AirQualityCluster = AirQuality.Cluster;
-ClusterRegistry.register(AirQuality.Complete);
 ClusterNamespace.define(AirQuality);
 export interface AirQuality extends ClusterTyping { Attributes: AirQuality.Attributes & { Components: AirQuality.Attributes.Components }; Features: AirQuality.Features }

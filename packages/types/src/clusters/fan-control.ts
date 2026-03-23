@@ -14,7 +14,6 @@ import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { FanControl as FanControlModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -936,6 +935,5 @@ export namespace FanControl {
 
 export type FanControlCluster = FanControl.Cluster;
 export const FanControlCluster = FanControl.Cluster;
-ClusterRegistry.register(FanControl.Complete);
 ClusterNamespace.define(FanControl);
 export interface FanControl extends ClusterTyping { Attributes: FanControl.Attributes & { Components: FanControl.Attributes.Components }; Commands: FanControl.Commands & { Components: FanControl.Commands.Components }; Features: FanControl.Features }

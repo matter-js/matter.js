@@ -9,7 +9,6 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ResourceMonitoring } from "./resource-monitoring.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ActivatedCarbonFilterMonitoring as ActivatedCarbonFilterMonitoringModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -149,6 +148,5 @@ export namespace ActivatedCarbonFilterMonitoring {
 
 export type ActivatedCarbonFilterMonitoringCluster = ActivatedCarbonFilterMonitoring.Cluster;
 export const ActivatedCarbonFilterMonitoringCluster = ActivatedCarbonFilterMonitoring.Cluster;
-ClusterRegistry.register(ActivatedCarbonFilterMonitoring.Complete);
 ClusterNamespace.define(ActivatedCarbonFilterMonitoring);
 export interface ActivatedCarbonFilterMonitoring extends ClusterTyping { Attributes: ActivatedCarbonFilterMonitoring.Attributes & { Components: ActivatedCarbonFilterMonitoring.Attributes.Components }; Commands: ActivatedCarbonFilterMonitoring.Commands & { Components: ActivatedCarbonFilterMonitoring.Commands.Components }; Features: ActivatedCarbonFilterMonitoring.Features }

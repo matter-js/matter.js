@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { OvenMode as OvenModeModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -472,6 +471,5 @@ export namespace OvenMode {
 
 export type OvenModeCluster = OvenMode.Cluster;
 export const OvenModeCluster = OvenMode.Cluster;
-ClusterRegistry.register(OvenMode.Complete);
 ClusterNamespace.define(OvenMode);
 export interface OvenMode extends ClusterTyping { Attributes: OvenMode.Attributes & { Components: OvenMode.Attributes.Components }; Commands: OvenMode.Commands & { Components: OvenMode.Commands.Components }; Features: OvenMode.Features }

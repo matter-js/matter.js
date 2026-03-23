@@ -28,7 +28,6 @@ import { Priority } from "../globals/Priority.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -1107,6 +1106,5 @@ export namespace BasicInformation {
 
 export type BasicInformationCluster = BasicInformation.Cluster;
 export const BasicInformationCluster = BasicInformation.Cluster;
-ClusterRegistry.register(BasicInformation.Complete);
 ClusterNamespace.define(BasicInformation);
 export interface BasicInformation extends ClusterTyping { Attributes: BasicInformation.Attributes & { Components: BasicInformation.Attributes.Components }; Events: BasicInformation.Events & { Components: BasicInformation.Events.Components } }

@@ -17,7 +17,6 @@ import { OperationalState as OperationalStateNamespace } from "./operational-sta
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { RvcOperationalState as RvcOperationalStateModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -734,6 +733,5 @@ export namespace RvcOperationalState {
 
 export type RvcOperationalStateCluster = RvcOperationalState.Cluster;
 export const RvcOperationalStateCluster = RvcOperationalState.Cluster;
-ClusterRegistry.register(RvcOperationalState.Complete);
 ClusterNamespace.define(RvcOperationalState);
 export interface RvcOperationalState extends ClusterTyping { Attributes: RvcOperationalState.Attributes & { Components: RvcOperationalState.Attributes.Components }; Commands: RvcOperationalState.Commands & { Components: RvcOperationalState.Commands.Components }; Events: RvcOperationalState.Events & { Components: RvcOperationalState.Events.Components } }

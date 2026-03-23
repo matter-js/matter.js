@@ -16,7 +16,6 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -402,6 +401,5 @@ export namespace MediaInput {
 
 export type MediaInputCluster = MediaInput.Cluster;
 export const MediaInputCluster = MediaInput.Cluster;
-ClusterRegistry.register(MediaInput.Complete);
 ClusterNamespace.define(MediaInput);
 export interface MediaInput extends ClusterTyping { Attributes: MediaInput.Attributes & { Components: MediaInput.Attributes.Components }; Commands: MediaInput.Commands & { Components: MediaInput.Commands.Components }; Features: MediaInput.Features }

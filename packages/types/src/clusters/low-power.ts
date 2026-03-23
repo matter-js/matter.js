@@ -10,7 +10,6 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { Command, TlvNoResponse } from "../cluster/Cluster.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { LowPower as LowPowerModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -88,6 +87,5 @@ export namespace LowPower {
 
 export type LowPowerCluster = LowPower.Cluster;
 export const LowPowerCluster = LowPower.Cluster;
-ClusterRegistry.register(LowPower.Complete);
 ClusterNamespace.define(LowPower);
 export interface LowPower extends ClusterTyping { Commands: LowPower.Commands & { Components: LowPower.Commands.Components } }

@@ -15,7 +15,6 @@ import {
 } from "@matter/main/model";
 import {
     Attribute,
-    ClusterRegistry,
     Command,
     Event,
     MutableCluster,
@@ -93,7 +92,6 @@ export namespace MyFancyOwnFunctionality {
 
 export type MyFancyOwnFunctionalityCluster = MyFancyOwnFunctionality.Cluster;
 export const MyFancyOwnFunctionalityCluster = MyFancyOwnFunctionality.Cluster;
-ClusterRegistry.register(MyFancyOwnFunctionality.Complete);
 
 /**
  * matter.js Model Schema for the cluster, need to match with the Tlv Schema above.

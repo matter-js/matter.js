@@ -762,7 +762,7 @@ describe("AttributeDataDecoder", () => {
                             endpointId: 0,
                             clusterId: 40,
                             attributeId: 65530,
-                            attributeName: "Unknown (0xfffa)",
+                            attributeName: "eventList",
                             nodeId: undefined,
                         },
                         version: 2020087125,

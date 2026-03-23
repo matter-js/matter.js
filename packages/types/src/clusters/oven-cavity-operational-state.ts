@@ -17,7 +17,6 @@ import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { OvenCavityOperationalState as OvenCavityOperationalStateModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -383,6 +382,5 @@ export namespace OvenCavityOperationalState {
 
 export type OvenCavityOperationalStateCluster = OvenCavityOperationalState.Cluster;
 export const OvenCavityOperationalStateCluster = OvenCavityOperationalState.Cluster;
-ClusterRegistry.register(OvenCavityOperationalState.Complete);
 ClusterNamespace.define(OvenCavityOperationalState);
 export interface OvenCavityOperationalState extends ClusterTyping { Attributes: OvenCavityOperationalState.Attributes & { Components: OvenCavityOperationalState.Attributes.Components }; Commands: OvenCavityOperationalState.Commands & { Components: OvenCavityOperationalState.Commands.Components }; Events: OvenCavityOperationalState.Events & { Components: OvenCavityOperationalState.Events.Components } }

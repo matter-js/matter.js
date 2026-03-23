@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { WaterHeaterMode as WaterHeaterModeModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -442,6 +441,5 @@ export namespace WaterHeaterMode {
 
 export type WaterHeaterModeCluster = WaterHeaterMode.Cluster;
 export const WaterHeaterModeCluster = WaterHeaterMode.Cluster;
-ClusterRegistry.register(WaterHeaterMode.Complete);
 ClusterNamespace.define(WaterHeaterMode);
 export interface WaterHeaterMode extends ClusterTyping { Attributes: WaterHeaterMode.Attributes & { Components: WaterHeaterMode.Attributes.Components }; Commands: WaterHeaterMode.Commands & { Components: WaterHeaterMode.Commands.Components }; Features: WaterHeaterMode.Features }

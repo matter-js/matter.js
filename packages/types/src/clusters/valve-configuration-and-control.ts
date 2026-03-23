@@ -26,7 +26,6 @@ import { Priority } from "../globals/Priority.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status } from "../globals/Status.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ValveConfigurationAndControl as ValveConfigurationAndControlModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -850,6 +849,5 @@ export namespace ValveConfigurationAndControl {
 
 export type ValveConfigurationAndControlCluster = ValveConfigurationAndControl.Cluster;
 export const ValveConfigurationAndControlCluster = ValveConfigurationAndControl.Cluster;
-ClusterRegistry.register(ValveConfigurationAndControl.Complete);
 ClusterNamespace.define(ValveConfigurationAndControl);
 export interface ValveConfigurationAndControl extends ClusterTyping { Attributes: ValveConfigurationAndControl.Attributes & { Components: ValveConfigurationAndControl.Attributes.Components }; Commands: ValveConfigurationAndControl.Commands & { Components: ValveConfigurationAndControl.Commands.Components }; Events: ValveConfigurationAndControl.Events & { Components: ValveConfigurationAndControl.Events.Components }; Features: ValveConfigurationAndControl.Features }

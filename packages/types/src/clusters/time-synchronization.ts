@@ -24,7 +24,6 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status } from "../globals/Status.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -1730,6 +1729,5 @@ export namespace TimeSynchronization {
 
 export type TimeSynchronizationCluster = TimeSynchronization.Cluster;
 export const TimeSynchronizationCluster = TimeSynchronization.Cluster;
-ClusterRegistry.register(TimeSynchronization.Complete);
 ClusterNamespace.define(TimeSynchronization);
 export interface TimeSynchronization extends ClusterTyping { Attributes: TimeSynchronization.Attributes & { Components: TimeSynchronization.Attributes.Components }; Commands: TimeSynchronization.Commands & { Components: TimeSynchronization.Commands.Components }; Events: TimeSynchronization.Events & { Components: TimeSynchronization.Events.Components }; Features: TimeSynchronization.Features }

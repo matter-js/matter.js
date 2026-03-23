@@ -19,7 +19,6 @@ import { Status as GlobalStatus } from "../globals/Status.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ContentLauncher as ContentLauncherModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -1369,6 +1368,5 @@ export namespace ContentLauncher {
 
 export type ContentLauncherCluster = ContentLauncher.Cluster;
 export const ContentLauncherCluster = ContentLauncher.Cluster;
-ClusterRegistry.register(ContentLauncher.Complete);
 ClusterNamespace.define(ContentLauncher);
 export interface ContentLauncher extends ClusterTyping { Attributes: ContentLauncher.Attributes & { Components: ContentLauncher.Attributes.Components }; Commands: ContentLauncher.Commands & { Components: ContentLauncher.Commands.Components }; Features: ContentLauncher.Features }

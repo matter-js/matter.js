@@ -14,7 +14,6 @@ import { TlvString } from "../tlv/TlvString.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { TemperatureControl as TemperatureControlModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -438,6 +437,5 @@ export namespace TemperatureControl {
 
 export type TemperatureControlCluster = TemperatureControl.Cluster;
 export const TemperatureControlCluster = TemperatureControl.Cluster;
-ClusterRegistry.register(TemperatureControl.Complete);
 ClusterNamespace.define(TemperatureControl);
 export interface TemperatureControl extends ClusterTyping { Attributes: TemperatureControl.Attributes & { Components: TemperatureControl.Attributes.Components }; Commands: TemperatureControl.Commands & { Components: TemperatureControl.Commands.Components }; Features: TemperatureControl.Features }

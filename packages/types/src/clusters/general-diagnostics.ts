@@ -19,7 +19,6 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -1376,6 +1375,5 @@ export namespace GeneralDiagnostics {
 
 export type GeneralDiagnosticsCluster = GeneralDiagnostics.Cluster;
 export const GeneralDiagnosticsCluster = GeneralDiagnostics.Cluster;
-ClusterRegistry.register(GeneralDiagnostics.Complete);
 ClusterNamespace.define(GeneralDiagnostics);
 export interface GeneralDiagnostics extends ClusterTyping { Attributes: GeneralDiagnostics.Attributes & { Components: GeneralDiagnostics.Attributes.Components }; Commands: GeneralDiagnostics.Commands & { Components: GeneralDiagnostics.Commands.Components }; Events: GeneralDiagnostics.Events & { Components: GeneralDiagnostics.Events.Components }; Features: GeneralDiagnostics.Features }

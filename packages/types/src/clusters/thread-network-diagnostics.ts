@@ -19,7 +19,6 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -2344,6 +2343,5 @@ export namespace ThreadNetworkDiagnostics {
 
 export type ThreadNetworkDiagnosticsCluster = ThreadNetworkDiagnostics.Cluster;
 export const ThreadNetworkDiagnosticsCluster = ThreadNetworkDiagnostics.Cluster;
-ClusterRegistry.register(ThreadNetworkDiagnostics.Complete);
 ClusterNamespace.define(ThreadNetworkDiagnostics);
 export interface ThreadNetworkDiagnostics extends ClusterTyping { Attributes: ThreadNetworkDiagnostics.Attributes & { Components: ThreadNetworkDiagnostics.Attributes.Components }; Commands: ThreadNetworkDiagnostics.Commands & { Components: ThreadNetworkDiagnostics.Commands.Components }; Events: ThreadNetworkDiagnostics.Events & { Components: ThreadNetworkDiagnostics.Events.Components }; Features: ThreadNetworkDiagnostics.Features }

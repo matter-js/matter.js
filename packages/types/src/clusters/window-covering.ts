@@ -24,7 +24,6 @@ import { BitFlag, BitFieldEnum } from "../schema/BitmapSchema.js";
 import { AccessLevel, WindowCovering as WindowCoveringModel } from "@matter/model";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -2128,6 +2127,5 @@ export namespace WindowCovering {
 
 export type WindowCoveringCluster = WindowCovering.Cluster;
 export const WindowCoveringCluster = WindowCovering.Cluster;
-ClusterRegistry.register(WindowCovering.Complete);
 ClusterNamespace.define(WindowCovering);
 export interface WindowCovering extends ClusterTyping { Attributes: WindowCovering.Attributes & { Components: WindowCovering.Attributes.Components }; Commands: WindowCovering.Commands & { Components: WindowCovering.Commands.Components }; Features: WindowCovering.Features }

@@ -12,7 +12,6 @@ import { TlvArray } from "../tlv/TlvArray.js";
 import { Label } from "./label.js";
 import { AccessLevel, UserLabel as UserLabelModel } from "@matter/model";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -81,6 +80,5 @@ export namespace UserLabel {
 
 export type UserLabelCluster = UserLabel.Cluster;
 export const UserLabelCluster = UserLabel.Cluster;
-ClusterRegistry.register(UserLabel.Complete);
 ClusterNamespace.define(UserLabel);
 export interface UserLabel extends ClusterTyping { Attributes: UserLabel.Attributes & { Components: UserLabel.Attributes.Components } }

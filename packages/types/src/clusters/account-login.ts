@@ -14,7 +14,6 @@ import { AccessLevel, AccountLogin as AccountLoginModel } from "@matter/model";
 import { TlvNodeId, NodeId } from "../datatype/NodeId.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -607,6 +606,5 @@ export namespace AccountLogin {
 
 export type AccountLoginCluster = AccountLogin.Cluster;
 export const AccountLoginCluster = AccountLogin.Cluster;
-ClusterRegistry.register(AccountLogin.Complete);
 ClusterNamespace.define(AccountLogin);
 export interface AccountLogin extends ClusterTyping { Commands: AccountLogin.Commands & { Components: AccountLogin.Commands.Components }; Events: AccountLogin.Events & { Components: AccountLogin.Events.Components } }
