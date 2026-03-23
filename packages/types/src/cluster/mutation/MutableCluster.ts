@@ -5,7 +5,6 @@
  */
 
 import { ClusterId } from "../../datatype/ClusterId.js";
-import { ConditionalFeatureList } from "../Cluster.js";
 import { ClusterType } from "../ClusterType.js";
 import { ClusterComposer } from "./ClusterComposer.js";
 import { ClusterTypeModifier } from "./ClusterTypeModifier.js";
@@ -125,21 +124,4 @@ export namespace MutableCluster {
         } as ExtensibleOnly<T>;
     }
 
-    /**
-     * Create a conditional version of an unconditional element definition.
-     */
-    export function AsConditional<
-        const ClusterT extends ClusterType,
-        const E extends ClusterType.Attribute | ClusterType.Command | ClusterType.Event,
-        const OI extends ConditionalFeatureList<ClusterT["features"]>,
-        const MI extends ConditionalFeatureList<ClusterT["features"]>,
-    >(element: E, { optionalIf, mandatoryIf }: { optionalIf?: OI; mandatoryIf?: MI }) {
-        return {
-            ...element,
-            optional: true,
-            isConditional: true,
-            optionalIf: optionalIf ?? [],
-            mandatoryIf: mandatoryIf ?? [],
-        } as const;
-    }
 }

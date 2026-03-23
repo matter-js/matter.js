@@ -4,20 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, Diagnostic, ImplementationError, InternalError, Logger, MaybePromise } from "@matter/general";
+import { capitalize, ImplementationError, InternalError, Logger, MaybePromise } from "@matter/general";
 import { AccessLevel } from "@matter/model";
 import { Fabric } from "@matter/protocol";
-import {
-    AttributeId,
-    BitSchema,
-    ClusterId,
-    ClusterType,
-    CommandId,
-    ConditionalFeatureList,
-    EventId,
-    TlvNoResponse,
-    TypeFromPartialBitSchema,
-} from "@matter/types";
+import { AttributeId, ClusterId, ClusterType, CommandId, EventId, TlvNoResponse } from "@matter/types";
 import { Endpoint } from "../../device/Endpoint.js";
 import { createAttributeServer } from "./AttributeServer.js";
 import { ClusterDatasource } from "./ClusterDatasource.js";
@@ -34,18 +24,6 @@ import { CommandServer } from "./CommandServer.js";
 import { createEventServer } from "./EventServer.js";
 
 const logger = Logger.get("ClusterServer");
-
-function isConditionMatching<F extends BitSchema, SF extends TypeFromPartialBitSchema<F>>(
-    featureSets: ConditionalFeatureList<F>,
-    supportedFeatures: SF,
-): boolean {
-    for (const features of featureSets) {
-        if (Object.keys(features).every(feature => !!features[feature] === !!supportedFeatures[feature])) {
-            return true;
-        }
-    }
-    return false;
-}
 
 /**
  * A collection of servers for a cluster's attributes, commands and events.
@@ -230,50 +208,6 @@ export function ClusterServer<const T extends ClusterType, const H extends Clust
     for (const attributeName in attributeDef) {
         const capitalizedAttributeName = capitalize(attributeName);
 
-        // logger.info(`check this for REQUIRED Attributes ${Diagnostic.json(attributeName)}`)
-        if (attributeDef[attributeName].isConditional) {
-            const { mandatoryIf, optionalIf } = attributeDef[attributeName];
-            let conditionHasMatched = false;
-            if (mandatoryIf !== undefined && mandatoryIf.length > 0) {
-                // Check if mandatoryIf is relevant for current feature combination and the attribute initial value is set
-                const conditionMatched = isConditionMatching(mandatoryIf, supportedFeatures);
-                if (conditionMatched && (attributesInitialValues as any)[attributeName] === undefined) {
-                    logger.warn(
-                        `InitialAttributeValue for "${
-                            clusterDef.name
-                        }/${attributeName}" is REQUIRED by supportedFeatures: ${Diagnostic.json(
-                            supportedFeatures,
-                        )} but is not set!`,
-                    );
-                }
-                conditionHasMatched = conditionHasMatched || conditionMatched;
-            }
-            // TODO Remove optional info/checks
-            if (!conditionHasMatched && optionalIf !== undefined && optionalIf.length > 0) {
-                const conditionMatched = isConditionMatching(optionalIf, supportedFeatures);
-                if (conditionMatched && (attributesInitialValues as any)[attributeName] === undefined) {
-                    logger.debug(
-                        `InitialAttributeValue for "${
-                            clusterDef.name
-                        }/${attributeName}" is optional by supportedFeatures: ${Diagnostic.json(
-                            supportedFeatures,
-                        )} and is not set!`,
-                    );
-                }
-                conditionHasMatched = conditionHasMatched || conditionMatched;
-            }
-
-            if (!conditionHasMatched && (attributesInitialValues as any)[attributeName] !== undefined) {
-                logger.warn(
-                    `InitialAttributeValue for "${
-                        clusterDef.name
-                    }/${attributeName}" is provided but it's neither optional or mandatory for supportedFeatures: ${Diagnostic.json(
-                        supportedFeatures,
-                    )} but is set!`,
-                );
-            }
-        }
-
         const { id, persistent, fabricScoped, scene, fixed } = attributeDef[attributeName];
         if ((attributesInitialValues as any)[attributeName] !== undefined) {
             // Get the handlers for this attribute if present
@@ -369,44 +303,6 @@ export function ClusterServer<const T extends ClusterType, const H extends Clust
     for (const name in commandDef) {
         const handler = (handlers as any)[name];
 
-        if (commandDef[name].isConditional) {
-            const { mandatoryIf, optionalIf } = commandDef[name];
-            let conditionHasMatched = false;
-            if (mandatoryIf !== undefined && mandatoryIf.length > 0) {
-                const conditionMatched = isConditionMatching(mandatoryIf, supportedFeatures);
-                if (conditionMatched && handler === undefined) {
-                    logger.warn(
-                        `Command "${clusterDef.name}/${name}" is REQUIRED by supportedFeatures: ${Diagnostic.json(
-                            supportedFeatures,
-                        )} but is not set!`,
-                    );
-                }
-                conditionHasMatched = conditionHasMatched || conditionMatched;
-            }
-            // TODO Remove optional info/checks
-            if (!conditionHasMatched && optionalIf !== undefined && optionalIf.length > 0) {
-                const conditionMatched = isConditionMatching(optionalIf, supportedFeatures);
-                if (conditionMatched && handler === undefined) {
-                    logger.debug(
-                        `Command "${clusterDef.name}/${name}" is optional by supportedFeatures: ${Diagnostic.json(
-                            supportedFeatures,
-                        )} and is not set!`,
-                    );
-                }
-                conditionHasMatched = conditionHasMatched || conditionMatched;
-            }
-
-            if (!conditionHasMatched && handler !== undefined) {
-                logger.warn(
-                    `Command "${
-                        clusterDef.name
-                    }/${name}" is provided but it's neither optional nor mandatory for supportedFeatures: ${Diagnostic.json(
-                        supportedFeatures,
-                    )} but is set!`,
-                );
-            }
-        }
-
         if (handler === undefined) continue;
         const { requestId, requestSchema, responseId, responseSchema, timed, invokeAcl } = commandDef[name];
         (commands as any)[name] = new CommandServer(
@@ -452,44 +348,6 @@ export function ClusterServer<const T extends ClusterType, const H extends Clust
                 `Event ${eventName} should be supported by cluster ${name} (${clusterId}) but not present and ignored.`,
             );
             continue;
-        }
-
-        if (eventDef[eventName].isConditional) {
-            const { mandatoryIf, optionalIf } = eventDef[eventName];
-            let conditionHasMatched = false;
-            if (mandatoryIf !== undefined) {
-                const conditionMatched = isConditionMatching(mandatoryIf, supportedFeatures);
-                if (conditionMatched && (supportedEvents as any)[eventName] === undefined) {
-                    logger.warn(
-                        `Event "${clusterDef.name}/${eventName}" is REQUIRED by supportedFeatures: ${Diagnostic.json(
-                            supportedFeatures,
-                        )} but is not set!`,
-                    );
-                }
-                conditionHasMatched = conditionHasMatched || conditionMatched;
-            }
-            // TODO Remove optional info/checks
-            if (!conditionHasMatched && optionalIf !== undefined && optionalIf.length > 0) {
-                const conditionMatched = isConditionMatching(optionalIf, supportedFeatures);
-                if (conditionMatched && (supportedEvents as any)[eventName] === undefined) {
-                    logger.debug(
-                        `Event "${clusterDef.name}/${eventName}" is optional by supportedFeatures: ${Diagnostic.json(
-                            supportedFeatures,
-                        )} and is not set!`,
-                    );
-                }
-                conditionHasMatched = conditionHasMatched || conditionMatched;
-            }
-
-            if (!conditionHasMatched && (supportedEvents as any)[eventName] !== undefined) {
-                logger.warn(
-                    `Event "${
-                        clusterDef.name
-                    }/${eventName}" is provided but it's neither optional or mandatory for supportedFeatures: ${Diagnostic.json(
-                        supportedFeatures,
-                    )} but is set!`,
-                );
-            }
         }
 
         if ((supportedEvents as any)[eventName] === true) {

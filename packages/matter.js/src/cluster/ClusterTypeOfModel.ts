@@ -66,9 +66,6 @@ export function ClusterTypeOfModel(model: ClusterModel): ClusterType {
             timed: access.timed ?? false,
             readAcl: mapPrivilege(access.readPriv, AccessLevel.View),
             default: DefaultValue(model.scope, attr, true),
-            isConditional: false,
-            mandatoryIf: [],
-            optionalIf: [],
             unknown: false,
         };
 
@@ -98,9 +95,6 @@ export function ClusterTypeOfModel(model: ClusterModel): ClusterType {
             responseSchema: responseModel ? TlvOfModel(responseModel) : TlvVoid,
             invokeAcl: mapPrivilege(access.writePriv, AccessLevel.Operate),
             timed: access.timed ?? false,
-            isConditional: false,
-            mandatoryIf: [],
-            optionalIf: [],
         };
     }
 
@@ -119,9 +113,6 @@ export function ClusterTypeOfModel(model: ClusterModel): ClusterType {
             priority: PRIORITY_MAP[evt.priority ?? EventElement.Priority.Debug] ?? Priority.Debug,
             optional: !evt.mandatory,
             readAcl: mapPrivilege(access.readPriv, AccessLevel.View),
-            isConditional: false,
-            mandatoryIf: [],
-            optionalIf: [],
             unknown: false,
         };
     }
