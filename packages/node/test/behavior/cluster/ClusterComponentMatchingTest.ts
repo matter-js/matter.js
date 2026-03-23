@@ -254,10 +254,11 @@ describe("ClusterComponentMatching", () => {
             ({}) as S satisfies { attr1: string };
         });
 
-        it("makes feature attributes optional without features", () => {
+        it("makes feature attributes absent without features", () => {
             type S = ClusterState.Type<StateTestTyping>;
-            // attr2 should be optional (featureA not selected)
-            undefined satisfies S["attr2"];
+            // attr2 should be absent (featureA not selected) — not optional, absent
+            type Match<A, B> = A extends B ? true : false;
+            ({}) as Match<S, { attr2: number }> satisfies false;
         });
 
         it("makes feature attributes mandatory when feature selected", () => {
@@ -287,11 +288,11 @@ describe("ClusterComponentMatching", () => {
             ({}) as E satisfies { attr1$Changing: ClusterEvents.ChangingObservable<string> };
         });
 
-        it("makes feature attribute events optional without features", () => {
+        it("makes feature attribute events absent without features", () => {
             type E = ClusterEvents.Properties<EventTestTyping>;
-            // attr2$Changed should be optional (featureA not selected by default)
-            type HasAttr2 = E extends { attr2$Changed: any } ? true : false;
-            ({}) as HasAttr2 satisfies false;
+            // attr2$Changed should be absent (featureA not selected) — not optional, absent
+            type Match<A, B> = A extends B ? true : false;
+            ({}) as Match<E, { attr2$Changed: any }> satisfies false;
         });
 
         it("makes feature attribute events mandatory when feature selected", () => {

@@ -51,42 +51,35 @@ export namespace ClusterState {
         : [];
 
     /**
-     * N-driven attribute properties: mandatory vs optional from Components + value types from Attributes.
+     * Attribute properties from applicable components.
      *
-     * Uses RequiredKeys/OptionalKeys on component Attributes interfaces — readonly and ? modifiers in the
-     * component interfaces encode writability and optionality directly.
+     * Non-applicable component attributes are **absent** (not optional).  Optionality (`?`) and writability
+     * (`readonly`) come directly from the component interfaces — no key classification needed.
+     *
+     * The outer conditional causes TypeScript to defer resolution for generic N, which is required for
+     * overload compatibility in {@link ClusterBehavior.for}.
      */
-    type AttributeProperties<N extends ClusterTyping> = N extends { Attributes: infer A }
-        ? {
-              [K in (MandatoryAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> | EnabledAttrKeys<N>) &
-                  keyof A]: Exclude<A[K], undefined>;
-          } & {
-              [K in Exclude<
-                  OptionalAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>,
-                  EnabledAttrKeys<N>
-              > &
-                  keyof A]?: Exclude<A[K], undefined>;
-          }
+    type AttributeProperties<N extends ClusterTyping> = N extends { Components: ClusterNamespace.Component[] }
+        ? WritableApplicableAttrs<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>
         : {};
 
     /**
-     * Collect mandatory attribute keys from applicable components.
+     * Intersect writable attribute interfaces from applicable components.
+     *
+     * Like {@link ClusterNamespace.ApplicableAttrs} but strips `readonly` per-component before intersecting.
+     * This ensures that when `enable()` injects a synthetic component with a required key, the intersection
+     * correctly makes that key required (homomorphic mapped types over intersections lose this otherwise).
      */
-    type MandatoryAttrKeys<CA extends ClusterNamespace.Component[], S> = CA extends [
+    type WritableApplicableAttrs<CA extends ClusterNamespace.Component[], S> = CA extends [
         infer C extends ClusterNamespace.Component,
         ...infer R extends ClusterNamespace.Component[],
     ]
-        ?
-              | (S extends C["flags"]
-                    ? C extends { attributes: infer A }
-                        ? ClusterNamespace.RequiredKeys<A>
-                        : never
-                    : never)
-              | MandatoryAttrKeys<R, S>
-        : never;
+        ? (S extends C["flags"] ? (C extends { attributes: infer A } ? { -readonly [K in keyof A]: A[K] } : {}) : {}) &
+              WritableApplicableAttrs<R, S>
+        : {};
 
     /**
-     * All attribute keys across all components.
+     * All attribute keys across all components (used by Complete types).
      */
     type AllAttrKeys<CA extends ClusterNamespace.Component[]> = CA extends [
         infer C extends ClusterNamespace.Component,
@@ -94,19 +87,6 @@ export namespace ClusterState {
     ]
         ? (C extends { attributes: infer A } ? keyof A & string : never) | AllAttrKeys<R>
         : never;
-
-    /**
-     * Optional = all keys minus mandatory.
-     */
-    type OptionalAttrKeys<CA extends ClusterNamespace.Component[], S> = Exclude<
-        AllAttrKeys<CA>,
-        MandatoryAttrKeys<CA, S>
-    >;
-
-    /**
-     * Extract keys marked as enabled on the namespace (e.g. via `enable()` or `alter()`).
-     */
-    type EnabledAttrKeys<N> = N extends { Attributes: { Enabled: infer K extends string } } ? K : never;
 
     /**
      * Instance type for "complete" state — all components included.

@@ -22,7 +22,6 @@ const SwitchServerBase = SwitchBehavior.with(
     Switch.Feature.MomentarySwitchRelease,
     Switch.Feature.MomentarySwitchLongPress,
     Switch.Feature.MomentarySwitchMultiPress,
-    Switch.Feature.ActionSwitch,
 );
 
 // Enhance Schema to define conformance for some of the additional state attributes

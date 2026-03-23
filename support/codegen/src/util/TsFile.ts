@@ -615,6 +615,7 @@ export class TsFile extends Block {
     #imports = new Map<string, Array<string>>();
     #header!: Block;
     #packageRoot: string;
+    fileExtension = ".ts";
 
     constructor(
         public name: string,
@@ -684,7 +685,7 @@ export class TsFile extends Block {
     }
 
     save() {
-        const filename = `${this.name}.ts`;
+        const filename = `${this.name}${this.fileExtension}`;
 
         if (this.editable) {
             try {
@@ -701,11 +702,12 @@ export class TsFile extends Block {
 
         if (this.#imports.size) {
             const importBlock = this.#header.section();
+            const importKw = this.fileExtension === ".d.ts" ? "import type" : "import";
             this.#imports.forEach((symbols, name) => {
                 if (symbols[0]?.startsWith("*")) {
-                    importBlock.atom(`import ${symbols[0]} from "${name}"`);
+                    importBlock.atom(`${importKw} ${symbols[0]} from "${name}"`);
                 } else if (symbols.length) {
-                    const imp = importBlock.expressions("import {", `} from "${name}"`);
+                    const imp = importBlock.expressions(`${importKw} {`, `} from "${name}"`);
                     imp.shouldGroup = true;
                     symbols.forEach(s => imp.atom(s));
                 } else {

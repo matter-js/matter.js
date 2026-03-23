@@ -37,9 +37,10 @@ export class ClusterFile extends ScopeFile {
 
     constructor(cluster: ClusterModel) {
         super({ scope: cluster });
+        this.fileExtension = ".d.ts";
         this.clusterName = `${cluster.name}Cluster`;
         this.typesName = cluster.name;
-        this.ns = this.statements(`export namespace ${this.typesName} {`, "}");
+        this.ns = this.statements(`export declare namespace ${this.typesName} {`, "}");
         this.ns.document(`Definitions for the ${cluster.name} cluster.`);
         this.interfaces = this.ns.section();
         this.featureEnum = this.ns.section();

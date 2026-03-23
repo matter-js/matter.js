@@ -177,50 +177,48 @@ export namespace My {
 
     export type Features = "Awesome";
 
-    export interface Attributes {
-        reqAttr: string;
-        optAttr: boolean;
-        condAttr: number;
-        condOptAttr1: number;
-        condOptAttr2: number;
-        optList: Uint8Array[];
-        awesomeSauce: number;
+    export namespace BaseComponent {
+        export interface Attributes {
+            reqAttr: string;
+            optAttr?: boolean;
+            condAttr?: number;
+            condOptAttr1?: number;
+            condOptAttr2?: number;
+            optList?: Uint8Array[];
+        }
+        export interface Events {
+            reqEv: string;
+            optEv?: string;
+        }
     }
+
+    export namespace AwesomeFeatureComponent {
+        export interface Attributes {
+            awesomeSauce: number;
+        }
+        export interface Events {
+            becameAwesome: number;
+        }
+    }
+
+    export interface Attributes extends BaseComponent.Attributes, Partial<AwesomeFeatureComponent.Attributes> {}
 
     export interface Commands extends MyClusterBaseInterface, MyClusterAwesomeInterface {}
 
-    export interface Events {
-        reqEv: string;
-        optEv: string;
-        becameAwesome: number;
-    }
+    export interface Events extends BaseComponent.Events, AwesomeFeatureComponent.Events {}
 
     export type Components = [
         {
             flags: {};
-            attributes: {
-                reqAttr: string;
-                optAttr?: boolean;
-                condAttr?: number;
-                condOptAttr1?: number;
-                condOptAttr2?: number;
-                optList?: Uint8Array[];
-            };
+            attributes: BaseComponent.Attributes;
             commands: MyClusterBaseInterface;
-            events: {
-                reqEv: string;
-                optEv?: string;
-            };
+            events: BaseComponent.Events;
         },
         {
             flags: { awesome: true };
-            attributes: {
-                awesomeSauce: number;
-            };
+            attributes: AwesomeFeatureComponent.Attributes;
             commands: MyClusterAwesomeInterface;
-            events: {
-                becameAwesome: number;
-            };
+            events: AwesomeFeatureComponent.Events;
         },
     ];
 }

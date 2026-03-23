@@ -1,0 +1,218 @@
+/**
+ * @license
+ * Copyright 2022-2026 Matter.js Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+/*** THIS FILE IS GENERATED, DO NOT EDIT ***/
+
+import type { EndpointNumber } from "../datatype/EndpointNumber.js";
+import type { FabricIndex } from "../datatype/FabricIndex.js";
+import type { Locationdesc } from "../globals/Locationdesc.js";
+import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { EcosystemInformation as EcosystemInformationModel } from "@matter/model";
+import type { ClusterId } from "../datatype/ClusterId.js";
+
+/**
+ * Definitions for the EcosystemInformation cluster.
+ */
+export declare namespace EcosystemInformation {
+    /**
+     * {@link EcosystemInformation} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time
+             * this will contain a single entry, but may grow with more complex device compositions (e.g. another
+             * bridge.) An empty list indicates that the information is not available.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
+             */
+            readonly deviceDirectory: EcosystemDevice[];
+
+            /**
+             * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory
+             * entries, and shall NOT contain locations which are dynamically generated and removed by an ecosystem.
+             * (E.g. a location that is generated and removed based on the user being home is not permitted. However, an
+             * initially generated location name that does not quickly change is acceptable.) An empty list indicates
+             * that the information is not available.
+             *
+             * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
+             */
+            readonly locationDirectory: EcosystemLocation[];
+        }
+    }
+
+    export interface Attributes extends Base.Attributes {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 9.17.4.2
+     */
+    export interface EcosystemDevice {
+        /**
+         * This field shall indicate the device’s name, which is provided externally if the user consents. (For example,
+         * provided by the user in an ecosystem specific interface.)
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.1
+         */
+        deviceName?: string;
+
+        /**
+         * This field shall indicate the timestamp of when the DeviceName was last modified.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.2
+         */
+        deviceNameLastEdit?: number | bigint;
+
+        /**
+         * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on this Bridge.
+         *
+         * This field shall be present and set to a valid endpoint if the device is accessible through the bridge.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.3
+         */
+        bridgedEndpoint?: EndpointNumber;
+
+        /**
+         * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on the original device
+         * represented by this bridge’s Bridged Node. If this bridge is receiving the device from another bridge, then
+         * the OriginalEndpoint field value would be the same on both bridges. This field shall be present and set to a
+         * valid endpoint on the original device if that device is a Matter device.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.4
+         */
+        originalEndpoint?: EndpointNumber;
+
+        /**
+         * This field shall indicate all of the DeviceTypes within the DeviceTypeList in the Descriptor Cluster
+         * associated with this EcosystemDeviceStruct entry.
+         *
+         * This field shall contain a list of valid device type ids.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.5
+         */
+        deviceTypes: DeviceType[];
+
+        /**
+         * This field shall specify the EcosystemLocationStruct entries in the LocationDirectory attribute associated
+         * with this EcosystemDeviceStruct.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.6
+         */
+        uniqueLocationIDs: string[];
+
+        /**
+         * This field shall indicate the timestamp of when the UniqueLocationIDs was last modified.
+         *
+         * > [!NOTE]
+         *
+         * > If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of the
+         *   updates will be missed. This is considered an acceptable limitation to reduce the complexity of the design.
+         *   Since this is meant to be provided from user input, it is unlikely these signals would be happening at one
+         *   time.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.7
+         */
+        uniqueLocationIDsLastEdit: number | bigint;
+
+        fabricIndex: FabricIndex;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 9.17.4.3
+     */
+    export interface EcosystemLocation {
+        /**
+         * This field shall indicate a unique identifier for a specific Ecosystem Information Cluster server instance
+         * representing the location independent of its LocationDescriptor field.
+         *
+         * UniqueLocationID can be used by the client to determine if the change is a relocation of the device or just a
+         * renaming of the location.
+         *
+         * No guarantees are given for consistency of the ID between server instances. The same location may be
+         * represented by different IDs on different Ecosystem Information Cluster server instances, so only the history
+         * from a single server instance should be considered when evaluating a change.
+         *
+         * UniqueLocationID shall be changed when the LocationDescriptor changes from one existing location to another
+         * location as a result of an external interaction. (For example, the user changes the location assignment.)
+         *
+         * UniqueLocationID shall NOT be changed when the LocationDescriptor changes name, but still represents the same
+         * location. (For example, the user renames a room.) UniqueLocationID shall be changed when LocationDescriptor
+         * changes as a result of another Ecosystem Information Cluster server instance changing and the
+         * UniqueLocationID on the remote server instance also changes.
+         *
+         * UniqueLocationID shall NOT be changed when LocationDescriptor changes as a result of another Ecosystem
+         * Information Cluster server instance changing and the UniqueLocationID on the remote server instance does not
+         * change.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.3.1
+         */
+        uniqueLocationId: string;
+
+        /**
+         * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is provided
+         * externally if the user consents. (For example, provided by the user in an ecosystem specific interface.)
+         *
+         * "Location" in this context is typically used by the user’s grouping into rooms, areas or other logical
+         * groupings of how devices are used. So a device might be part of multiple such "Locations"s.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.3.2
+         */
+        locationDescriptor: Locationdesc;
+
+        /**
+         * This field shall indicate the timestamp of when the LocationDescriptor was last modified.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.3.3
+         */
+        locationDescriptorLastEdit: number | bigint;
+
+        fabricIndex: FabricIndex;
+    }
+
+    /**
+     * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
+     * Model specification for more information.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.17.4.1
+     */
+    export interface DeviceType {
+        /**
+         * This shall indicate the device type definition.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.1.1
+         */
+        deviceType: DeviceTypeId;
+
+        /**
+         * This is the implemented revision of the device type definition.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.17.4.1.2
+         */
+        revision: number;
+    }
+
+    export const id: ClusterId;
+    export const name: "EcosystemInformation";
+    export const revision: 1;
+    export const schema: typeof EcosystemInformationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export const attributes: AttributeObjects;
+    export const Cluster: typeof EcosystemInformation;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `EcosystemInformation` instead of
+     * `EcosystemInformation.Complete`)
+     */
+    export const Complete: typeof EcosystemInformation;
+
+    export const Typing: EcosystemInformation;
+}
+
+export declare const EcosystemInformationCluster: typeof EcosystemInformation;
+export interface EcosystemInformation extends ClusterTyping { Attributes: EcosystemInformation.Attributes; Components: EcosystemInformation.Components }
