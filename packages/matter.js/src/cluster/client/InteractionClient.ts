@@ -74,9 +74,9 @@ const REQUEST_ALL = [{}];
 const DEFAULT_TIMED_REQUEST_TIMEOUT = Seconds(10);
 const DEFAULT_MINIMUM_RESPONSE_TIMEOUT_WITH_FAILSAFE = Seconds(30);
 
-const AclClusterId = AccessControl.Complete.id;
-const AclAttributeId = AccessControl.Complete.attributes.acl.id;
-const AclExtensionAttributeId = AccessControl.Complete.attributes.extension.id;
+const AclClusterId = AccessControl.id;
+const AclAttributeId = AccessControl.attributes.acl.id;
+const AclExtensionAttributeId = AccessControl.attributes.extension.id;
 
 /**
  * Types of discovery that may be performed when connecting operationally.
