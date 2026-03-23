@@ -5,14 +5,163 @@
  */
 
 import type { OptionalKeys as OptionalKeysType, RequiredKeys as RequiredKeysType } from "@matter/general";
-import { camelize } from "@matter/general";
+import { camelize, capitalize, decamelize } from "@matter/general";
 import type { AttributeModel, CommandModel, EventModel } from "@matter/model";
-import { ClusterModel, ClusterModifier, GLOBAL_IDS } from "@matter/model";
+import { ClusterModel, ClusterModifier, GeneratorScope, GLOBAL_IDS, Metatype, ValueModel } from "@matter/model";
+import { StatusResponseError } from "../common/StatusResponseError.js";
 import type { AttributeId } from "../datatype/AttributeId.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 import type { CommandId } from "../datatype/CommandId.js";
 import type { EventId } from "../datatype/EventId.js";
+import { Status } from "../globals/Status.js";
 import type { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
+
+const cache = new WeakMap<ClusterModel, object>();
+
+/**
+ * Create or retrieve the runtime namespace object for a cluster model.
+ *
+ * The result is cached per model instance via a {@link WeakMap}, so repeated calls with the same model return the
+ * identical object.  The object carries all runtime properties: `id`, `name`, `revision`, `schema`, enum values,
+ * feature enum, error classes, plus lazy getters for `attributes`, `commands`, `events`, `features`, `Cluster`,
+ * and `Complete`.
+ */
+export function ClusterNamespace(model: ClusterModel): object {
+    let ns = cache.get(model);
+    if (ns !== undefined) {
+        return ns;
+    }
+
+    ns = Object.create(null) as Record<string, unknown>;
+    cache.set(model, ns);
+
+    const props = ns as Record<string, unknown>;
+
+    // Core identity
+    if (model.id !== undefined) {
+        props.id = ClusterId(model.id);
+    }
+    props.name = model.name;
+    props.revision = model.revision;
+    props.schema = model;
+
+    // Install lazy getters for element maps, self-references, enums, error classes, and Feature
+    installLazyProperties(ns, model);
+
+    return ns;
+}
+
+/**
+ * Install all lazy getters on a namespace object.
+ */
+function installLazyProperties(ns: object, model: ClusterModel) {
+    const lazy = (name: string, factory: () => unknown) => {
+        Object.defineProperty(ns, name, {
+            get() {
+                const value = factory();
+                Object.defineProperty(ns, name, { value, enumerable: true, configurable: true });
+                return value;
+            },
+            enumerable: true,
+            configurable: true,
+        });
+    };
+
+    // Element maps
+    lazy("attributes", () => ClusterNamespace.attributes(model));
+    lazy("commands", () => ClusterNamespace.commands(model));
+    lazy("events", () => ClusterNamespace.events(model));
+    lazy("features", () => ClusterNamespace.features(model));
+
+    // Self-references
+    if (!Object.hasOwn(ns, "Cluster")) {
+        lazy("Cluster", () => ns);
+    }
+    lazy("Complete", () => ns);
+
+    // Feature enum (identity-mapped string → string)
+    if (model.features.length) {
+        lazy("Feature", () => {
+            const result: Record<string, string> = {};
+            for (const f of model.features) {
+                const name = camelize(f.title ?? f.name, true);
+                result[name] = name;
+            }
+            return Object.freeze(result);
+        });
+    }
+
+    // Enum values and error classes from all enum types in the cluster
+    installEnumGetters(model, lazy);
+}
+
+/**
+ * Use {@link GeneratorScope} to discover all named types in the cluster, then install lazy getters for enums and
+ * error classes.  This ensures the factory uses identical naming to what codegen emits in `.d.ts` files.
+ */
+function installEnumGetters(model: ClusterModel, lazy: (name: string, factory: () => unknown) => void) {
+    const scope = GeneratorScope(model);
+
+    for (const [definer, name, location] of scope.namedModels()) {
+        if (!location.isLocal || !(definer instanceof ValueModel)) {
+            continue;
+        }
+
+        if (definer.effectiveMetatype !== Metatype.enum || !definer.children.length) {
+            continue;
+        }
+
+        lazy(name, () => {
+            const values: Record<string, number> = {};
+            for (const child of definer.children) {
+                if (typeof child.id === "number") {
+                    values[child.name] = child.id;
+                }
+            }
+            return Object.freeze(values);
+        });
+
+        // Error classes for cluster status code enums
+        if (definer.name === "StatusEnum" || definer.name === "StatusCodeEnum") {
+            for (const field of definer.children) {
+                if (field.name === "Success") {
+                    continue;
+                }
+
+                let errName = field.name;
+                if (!errName.endsWith("Error")) {
+                    errName = `${errName}Error`;
+                }
+
+                lazy(errName, () => {
+                    let message = field.description;
+                    if (message === undefined) {
+                        message = capitalize(decamelize(field.name, " "));
+                    }
+                    if (message.endsWith(".")) {
+                        message = message.slice(0, message.length - 1);
+                    }
+
+                    const clusterCode = typeof field.id === "number" ? field.id : undefined;
+                    const defaultMessage = message;
+
+                    // Computed property pattern so V8 infers the correct class name
+                    return {
+                        [errName]: class extends StatusResponseError {
+                            constructor(
+                                message = defaultMessage,
+                                code: Status = Status.Failure,
+                                clusterCode2 = clusterCode,
+                            ) {
+                                super(message, code, clusterCode2);
+                            }
+                        },
+                    }[errName];
+                });
+            }
+        }
+    }
+}
 
 /**
  * Describes the shape of generated namespace objects for standard Matter clusters (`typeof OnOff`).
@@ -95,11 +244,11 @@ export namespace ClusterNamespace {
     export type Events<E> = { [K in keyof E]: Event };
     export type Features<F extends string> = { [K in F]: Feature };
 
-    export type AttributeObjects<A> = { [K in keyof A]: Attribute<A[K]> };
+    export type AttributeObjects<A> = { [K in keyof A]-?: Attribute<Exclude<A[K], undefined>> };
     export type CommandObjects<C> = {
         [K in keyof C]: C[K] extends (...args: unknown[]) => unknown ? Command<C[K]> : Command;
     };
-    export type EventObjects<E> = { [K in keyof E]: Event<E[K]> };
+    export type EventObjects<E> = { [K in keyof E]-?: Event<Exclude<E[K], undefined>> };
 
     /**
      * Set supported feature flags on a namespace, replacing any previous selection.
@@ -128,10 +277,39 @@ export namespace ClusterNamespace {
         : Record<string, boolean>;
 
     /**
-     * Augment a namespace with attribute keys forced mandatory (e.g. via `enable()` or `alter()`).
+     * Intersect attribute interfaces from components whose feature flags match `S`.
+     *
+     * The resulting type carries the component interfaces' own optionality modifiers (`?` for optional attributes,
+     * required for mandatory) so no separate key classification is needed.
      */
-    export type WithEnabledAttributes<N extends ClusterTyping, K extends string> = N & {
-        Attributes: { Enabled: K };
+    export type ApplicableAttrs<CA extends Component[], S> = CA extends [
+        infer C extends Component,
+        ...infer R extends Component[],
+    ]
+        ? (S extends C["flags"] ? (C extends { attributes: infer A } ? A : {}) : {}) & ApplicableAttrs<R, S>
+        : {};
+
+    /**
+     * Intersect event interfaces from components whose feature flags match `S`.
+     */
+    export type ApplicableEvents<CA extends Component[], S> = CA extends [
+        infer C extends Component,
+        ...infer R extends Component[],
+    ]
+        ? (S extends C["flags"] ? (C extends { events: infer E } ? E : {}) : {}) & ApplicableEvents<R, S>
+        : {};
+
+    /**
+     * Augment a namespace with attribute keys forced mandatory (e.g. via `enable()` or `alter()`).
+     *
+     * Injects a synthetic base component (`flags: {}`) with the enabled keys as required.  Since base components
+     * always match, `MandatoryAttrKeys` naturally picks up these keys.
+     */
+    export type WithEnabledAttributes<N extends ClusterTyping, K extends string> = Omit<N, "Components"> & {
+        Components: [
+            ...(N extends { Components: infer C extends Component[] } ? C : []),
+            { flags: {}; attributes: { [P in K & keyof AttrsOf<N>]-?: Exclude<AttrsOf<N>[P], undefined> } },
+        ];
     };
 
     /**
@@ -148,8 +326,15 @@ export namespace ClusterNamespace {
 
     /**
      * Augment a namespace with event keys forced mandatory (e.g. via `enable()`).
+     *
+     * Injects a synthetic base component (`flags: {}`) with the enabled keys as required.
      */
-    export type WithEnabledEvents<N extends ClusterTyping, K extends string> = N & { Events: { Enabled: K } };
+    export type WithEnabledEvents<N extends ClusterTyping, K extends string> = Omit<N, "Components"> & {
+        Components: [
+            ...(N extends { Components: infer C extends Component[] } ? C : []),
+            { flags: {}; events: { [P in K & keyof EventsOf<N>]-?: Exclude<EventsOf<N>[P], undefined> } },
+        ];
+    };
 
     /**
      * Extract event key names from ElementFlags (used by `enable()`).
@@ -166,23 +351,29 @@ export namespace ClusterNamespace {
         : never;
 
     /**
-     * Extract attribute key names from a namespace, excluding synthetic keys.
+     * Extract the Attributes interface from a namespace.
      */
-    export type AttrKeysOf<N extends ClusterTyping> = N extends { Attributes: infer A }
-        ? Exclude<keyof A & string, "Enabled">
-        : never;
+    type AttrsOf<N> = N extends { Attributes: infer A } ? A : {};
 
     /**
-     * Extract command key names from a namespace, excluding synthetic keys.
+     * Extract the Events interface from a namespace.
+     */
+    type EventsOf<N> = N extends { Events: infer E } ? E : {};
+
+    /**
+     * Extract attribute key names from a namespace.
+     */
+    export type AttrKeysOf<N extends ClusterTyping> = N extends { Attributes: infer A } ? keyof A & string : never;
+
+    /**
+     * Extract command key names from a namespace.
      */
     export type CommandKeysOf<N extends ClusterTyping> = N extends { Commands: infer C } ? keyof C & string : never;
 
     /**
-     * Extract event key names from a namespace, excluding synthetic keys.
+     * Extract event key names from a namespace.
      */
-    export type EventKeysOf<N extends ClusterTyping> = N extends { Events: infer E }
-        ? Exclude<keyof E & string, "Enabled">
-        : never;
+    export type EventKeysOf<N extends ClusterTyping> = N extends { Events: infer E } ? keyof E & string : never;
 
     /**
      * Produce a typing with all feature flags set to true.  Used by `complete` to make all component attributes
@@ -243,27 +434,7 @@ export namespace ClusterNamespace {
             Object.defineProperty(ns, "schema", { value: model, enumerable: true, configurable: true });
         }
 
-        const lazy = (name: string, factory: () => unknown) => {
-            Object.defineProperty(ns, name, {
-                get() {
-                    const value = factory();
-                    Object.defineProperty(ns, name, { value, enumerable: true, configurable: true });
-                    return value;
-                },
-                enumerable: true,
-                configurable: true,
-            });
-        };
-
-        lazy("attributes", () => attributes(model));
-        lazy("commands", () => commands(model));
-        lazy("events", () => events(model));
-        lazy("features", () => features(model));
-
-        if (!Object.hasOwn(ns, "Cluster")) {
-            lazy("Cluster", () => ns);
-        }
-        lazy("Complete", () => ns);
+        installLazyProperties(ns, model);
     }
 
     /**

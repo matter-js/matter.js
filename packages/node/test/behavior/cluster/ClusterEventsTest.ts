@@ -146,10 +146,10 @@ describe("ClusterEvents", () => {
     describe("Properties", () => {
         it("specifies correct properties with enabled", () => {
             type Props = ClusterEvents.Properties<MyClusterWithOptEvent>;
+            // Non-applicable component events (awesomeSauce, becameAwesome) are absent
             ({}) as keyof Props satisfies
                 | "reqEv"
                 | "optEv"
-                | "becameAwesome"
                 | "reqAttr$Changing"
                 | "reqAttr$Changed"
                 | "optAttr$Changing"
@@ -161,9 +161,7 @@ describe("ClusterEvents", () => {
                 | "condOptAttr2$Changing"
                 | "condOptAttr2$Changed"
                 | "optList$Changing"
-                | "optList$Changed"
-                | "awesomeSauce$Changing"
-                | "awesomeSauce$Changed";
+                | "optList$Changed";
             "" as "reqEv" | "optEv" | "reqAttr$Changed" | "optAttr$Changed" satisfies keyof Props;
         });
 

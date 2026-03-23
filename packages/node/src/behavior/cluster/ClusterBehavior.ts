@@ -491,8 +491,10 @@ export namespace ClusterBehavior {
     export interface Complete<
         B extends Behavior.Type = Behavior.Type,
         NS extends ClusterNamespace = ClusterNamespace.Concrete,
-    > extends Omit<Type<B, NS["Typing"], NS>, "new"> {
+    > extends Omit<Type<B, NS["Typing"], NS>, "new" | "Events" | "State"> {
         new (agent: Agent, backing: BehaviorBacking): CompleteInstance<B, NS["Typing"]>;
+        readonly Events: ClusterEvents.CompleteType<NS["Typing"], B>;
+        readonly State: new () => ClusterState.Complete<NS["Typing"], B>;
     }
 
     /**

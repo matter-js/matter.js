@@ -5,21 +5,16 @@
  */
 
 import { Logger } from "#general";
-import {
-    AttributeModel,
-    ClusterVariance,
-    CommandModel,
-    EventModel,
-} from "#model";
+import { AttributeModel, ClusterVariance, CommandModel, EventModel } from "#model";
 import { ComponentGenerator } from "../endpoints/ComponentGenerator.js";
-import { ClusterFile } from "./ClusterFile.js";
 import { camelize, serialize } from "../util/string.js";
+import { ClusterFile } from "./ClusterFile.js";
 
 const logger = Logger.get("generate-cluster");
 
 export function generateCluster(file: ClusterFile) {
     const cluster = file.cluster;
-    logger.info(`${cluster.name} → ${file.name}.ts`);
+    logger.info(`${cluster.name} → ${file.name}.d.ts`);
 
     generateComponents(file);
 }
@@ -65,56 +60,50 @@ function generateComponents(file: ClusterFile) {
     generateFeatureEnum(file);
     const hasFeatures = cluster.features.length > 0;
 
-    // Generate declare consts inside the namespace (type-only, no runtime code)
+    // Ambient declarations inside the declare namespace
     const name = cluster.name;
     file.addImport("!types/cluster/ClusterNamespace.js", "ClusterNamespace");
     file.addImport("!types/cluster/ClusterNamespace.js", "ClusterTyping");
     file.addImport("@matter/model", `${name} as ${name}Model`);
 
-    // Real constants for id and revision
     if (cluster.id !== undefined) {
         file.addImport("!types/datatype/ClusterId.js", "ClusterId");
-        file.ns.atom(`export const id = ClusterId(0x${cluster.id.toString(16)})`);
+        file.ns.atom(`export const id: ClusterId`);
     }
-    file.ns.atom(`export const name = ${serialize(name)} as const`);
-    file.ns.atom(`export const revision = ${cluster.revision}`);
-    file.ns.atom(`export const schema = ${name}Model`);
+    file.ns.atom(`export const name: ${serialize(name)}`);
+    file.ns.atom(`export const revision: ${cluster.revision}`);
+    file.ns.atom(`export const schema: typeof ${name}Model`);
 
     if (hasAttrs) {
         file.ns.atom(`export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}`);
-        file.ns.atom(`export declare const attributes: AttributeObjects`);
+        file.ns.atom(`export const attributes: AttributeObjects`);
     }
     if (hasCommands) {
         file.ns.atom(`export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}`);
-        file.ns.atom(`export declare const commands: CommandObjects`);
+        file.ns.atom(`export const commands: CommandObjects`);
     }
     if (hasEvents) {
         file.ns.atom(`export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}`);
-        file.ns.atom(`export declare const events: EventObjects`);
+        file.ns.atom(`export const events: EventObjects`);
     }
     if (hasFeatures) {
-        file.ns.atom(`export declare const features: ClusterNamespace.Features<Features>`);
+        file.ns.atom(`export const features: ClusterNamespace.Features<Features>`);
     }
 
-    // Generate Cluster self-alias (for concrete clusters with an id)
+    // Cluster self-reference (runtime value provided by ClusterNamespace factory)
     if (cluster.id !== undefined) {
-        file.ns.atom(`export type Cluster = typeof ${name}`);
-        file.ns.atom(`export declare const Cluster: Cluster`);
+        file.ns.atom(`export const Cluster: typeof ${name}`);
     }
 
-    // Generate Complete self-alias
+    // Deprecated Complete self-reference
     generateComplete(file);
 
     // Bridge the interface type onto the namespace value so typeof OnOff carries Typing
-    file.ns.atom(`export declare const Typing: ${name}`);
+    file.ns.atom(`export const Typing: ${name}`);
 
-    // Install lazy getters after the namespace (computed on first access)
-    file.atom(`ClusterNamespace.define(${name})`);
-
-    // Generate FooCluster external alias (for concrete clusters with an id)
+    // FooCluster external alias (for concrete clusters with an id)
     if (cluster.id !== undefined) {
-        file.atom(`export type ${file.clusterName} = ${name}.Cluster`);
-        file.atom(`export const ${file.clusterName} = ${name}.Cluster`);
+        file.atom(`export declare const ${file.clusterName}: typeof ${name}`);
     }
 
     // Merge an interface with the namespace so it can be used as a type (e.g. in for(OnOff))
@@ -162,14 +151,13 @@ function generateFeatureEnum(file: ClusterFile) {
 }
 
 /**
- * Generate the deprecated `Complete` type alias that points back to the namespace itself.  The runtime value is
+ * Generate the deprecated `Complete` const that is a self-reference to the namespace.  The runtime value is
  * provided by the `lazy("Complete", () => ns)` call in {@link ClusterNamespace.define}.
  */
 function generateComplete(file: ClusterFile) {
     const name = file.cluster.name;
-    const definition = file.ns.atom(`export type Complete = typeof ${name}`);
+    const definition = file.ns.atom(`export const Complete: typeof ${name}`);
     definition.document(
         `@deprecated Use the cluster namespace directly (e.g. \`${name}\` instead of \`${name}.Complete\`)`,
     );
-    file.ns.atom(`export declare const Complete: Complete`);
 }

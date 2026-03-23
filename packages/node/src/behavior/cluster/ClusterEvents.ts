@@ -30,6 +30,13 @@ export namespace ClusterEvents {
         new (endpoint?: Endpoint, behavior?: Behavior.Type): ClusterEvents<N, B>;
     }
 
+    /**
+     * Constructor type for Complete events — all events from all components, all mandatory.
+     */
+    export interface CompleteType<N extends ClusterTyping = ClusterTyping, B extends Behavior.Type = Behavior.Type> {
+        new (endpoint?: Endpoint, behavior?: Behavior.Type): Complete<N, B>;
+    }
+
     export interface PromiseHandler {
         (promise: Promise<unknown>): void;
     }
@@ -38,10 +45,8 @@ export namespace ClusterEvents {
      * All event-related property keys contributed by a namespace (for Omit patterns).
      */
     export type EventPropertyKeysOf<N extends ClusterTyping> =
-        | (N extends { Attributes: infer A }
-              ? `${Exclude<keyof A & string, "Enabled">}$Changing` | `${Exclude<keyof A & string, "Enabled">}$Changed`
-              : never)
-        | (N extends { Events: infer E } ? Exclude<keyof E & string, "Enabled"> : never);
+        | (N extends { Attributes: infer A } ? `${keyof A & string}$Changing` | `${keyof A & string}$Changed` : never)
+        | (N extends { Events: infer E } ? keyof E & string : never);
 
     /**
      * Properties the cluster contributes to Events.
@@ -94,61 +99,60 @@ export namespace ClusterEvents {
         : never;
 
     /**
-     * All attribute keys across all components.
+     * Attribute keys from applicable components only.  Non-applicable components are excluded,
+     * making their attributes absent rather than optional.
      */
-    type AllAttrKeys<CA extends ClusterNamespace.Component[]> = CA extends [
+    type ApplicableAttrKeys<CA extends ClusterNamespace.Component[], S> = CA extends [
         infer C extends ClusterNamespace.Component,
         ...infer R extends ClusterNamespace.Component[],
     ]
-        ? (C extends { attributes: infer A } ? keyof A & string : never) | AllAttrKeys<R>
+        ?
+              | (S extends C["flags"] ? (C extends { attributes: infer A } ? keyof A & string : never) : never)
+              | ApplicableAttrKeys<R, S>
         : never;
 
     /**
-     * Optional = all keys minus mandatory.
+     * Optional = applicable keys minus mandatory.
      */
     type OptionalAttrKeys<CA extends ClusterNamespace.Component[], S> = Exclude<
-        AllAttrKeys<CA>,
+        ApplicableAttrKeys<CA, S>,
         MandatoryAttrKeys<CA, S>
     >;
 
     /**
-     * Extract keys marked as enabled on the namespace (e.g. via `enable()` or `alter()`).
-     */
-    type EnabledAttrKeys<N> = N extends { Attributes: { Enabled: infer K extends string } } ? K : never;
-
-    /**
-     * Produce changing observables from namespace.
+     * Produce changing observables from applicable attributes.
+     *
+     * Non-applicable attributes are absent.  Required/optional comes from the component interface modifiers.
      */
     type ChangingObservables<N extends ClusterTyping> = N extends { Attributes: infer A }
         ? {
-              [K in (MandatoryAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> | EnabledAttrKeys<N>) &
+              [K in MandatoryAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> &
                   keyof A as `${K & string}$Changing`]: ChangingObservable<Exclude<A[K], undefined>>;
           } & {
-              [K in Exclude<
-                  OptionalAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>,
-                  EnabledAttrKeys<N>
-              > &
+              [K in OptionalAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> &
                   keyof A as `${K & string}$Changing`]?: ChangingObservable<Exclude<A[K], undefined>>;
           }
         : {};
 
     /**
-     * Produce changed observables from namespace.
+     * Produce changed observables from applicable attributes.
      */
     type ChangedObservables<N extends ClusterTyping> = N extends { Attributes: infer A }
         ? {
-              [K in (MandatoryAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> | EnabledAttrKeys<N>) &
+              [K in MandatoryAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> &
                   keyof A as `${K & string}$Changed`]: ChangedObservable<Exclude<A[K], undefined>>;
           } & {
-              [K in Exclude<
-                  OptionalAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>,
-                  EnabledAttrKeys<N>
-              > &
+              [K in OptionalAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> &
                   keyof A as `${K & string}$Changed`]?: ChangedObservable<Exclude<A[K], undefined>>;
           }
         : {};
 
     // --- Namespace-based event observable types ---
+
+    /**
+     * Wrap payload type as event observable.
+     */
+    type EventObservable<T> = OnlineEvent<[payload: T, context: ActionContext], EventModel>;
 
     /**
      * Collect mandatory event keys from applicable components.
@@ -167,7 +171,52 @@ export namespace ClusterEvents {
         : never;
 
     /**
-     * All event keys across all components.
+     * Event keys from applicable components only.
+     */
+    type ApplicableEventKeys<CA extends ClusterNamespace.Component[], S> = CA extends [
+        infer C extends ClusterNamespace.Component,
+        ...infer R extends ClusterNamespace.Component[],
+    ]
+        ?
+              | (S extends C["flags"] ? (C extends { events: infer E } ? keyof E & string : never) : never)
+              | ApplicableEventKeys<R, S>
+        : never;
+
+    /**
+     * Optional = applicable keys minus mandatory.
+     */
+    type OptionalEventKeys<CA extends ClusterNamespace.Component[], S> = Exclude<
+        ApplicableEventKeys<CA, S>,
+        MandatoryEventKeys<CA, S>
+    >;
+
+    /**
+     * Produce event observables from applicable events.
+     *
+     * Non-applicable events are absent.  Required/optional comes from the component interface modifiers.
+     */
+    type EventObservables<N extends ClusterTyping> = N extends { Events: infer E }
+        ? {
+              [K in MandatoryEventKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> &
+                  keyof E]: EventObservable<Exclude<E[K], undefined>>;
+          } & {
+              [K in OptionalEventKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> &
+                  keyof E]?: EventObservable<Exclude<E[K], undefined>>;
+          }
+        : {};
+
+    /**
+     * All attribute keys across all components (used by Complete types).
+     */
+    type AllAttrKeys<CA extends ClusterNamespace.Component[]> = CA extends [
+        infer C extends ClusterNamespace.Component,
+        ...infer R extends ClusterNamespace.Component[],
+    ]
+        ? (C extends { attributes: infer A } ? keyof A & string : never) | AllAttrKeys<R>
+        : never;
+
+    /**
+     * All event keys across all components (used by Complete types).
      */
     type AllEventKeys<CA extends ClusterNamespace.Component[]> = CA extends [
         infer C extends ClusterNamespace.Component,
@@ -175,41 +224,6 @@ export namespace ClusterEvents {
     ]
         ? (C extends { events: infer E } ? keyof E & string : never) | AllEventKeys<R>
         : never;
-
-    /**
-     * Optional = all keys minus mandatory.
-     */
-    type OptionalEventKeys<CA extends ClusterNamespace.Component[], S> = Exclude<
-        AllEventKeys<CA>,
-        MandatoryEventKeys<CA, S>
-    >;
-
-    /**
-     * Wrap payload type as event observable.
-     */
-    type EventObservable<T> = OnlineEvent<[payload: T, context: ActionContext], EventModel>;
-
-    /**
-     * Extract keys marked as enabled on the namespace (e.g. via `enable()` or `alter()`).
-     */
-    type EnabledKeys<N> = N extends { Events: { Enabled: infer K extends string } } ? K : never;
-
-    /**
-     * Produce event observables from namespace.  Events are mandatory if they match active feature flags in
-     * Components OR if they were marked enabled on the namespace (e.g. via `enable()` or `alter()`).
-     */
-    type EventObservables<N extends ClusterTyping> = N extends { Events: infer E }
-        ? {
-              [K in (MandatoryEventKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> | EnabledKeys<N>) &
-                  keyof E]: EventObservable<Exclude<E[K], undefined>>;
-          } & {
-              [K in Exclude<
-                  OptionalEventKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>,
-                  EnabledKeys<N>
-              > &
-                  keyof E]?: EventObservable<Exclude<E[K], undefined>>;
-          }
-        : {};
 
     /**
      * "Complete" event type — all events from all components, all mandatory.

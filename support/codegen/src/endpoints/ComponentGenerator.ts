@@ -156,7 +156,9 @@ export class ComponentGenerator {
             this.#generateFlatAttributesInterface();
         }
         if (result.hasCommands) {
-            this.#generateFlatExtendsInterface("Commands", comp => comp.commands.length > 0);
+            this.#generateFlatInterface("Commands", comp =>
+                comp.commands.length > 0 ? `${comp.name}.Commands` : undefined,
+            );
         }
         if (result.hasEvents) {
             this.#generateFlatEventsInterface();
@@ -270,112 +272,52 @@ export class ComponentGenerator {
     }
 
     /**
-     * Generate a flat Attributes interface with all properties listed directly.
+     * Generate a flat Attributes interface that extends all component Attributes interfaces.
      *
-     * We can't use `extends` because the same attribute may appear in multiple components with
-     * different optionality (mandatory in one, optional in another), which causes TS2320 conflicts.
-     * Instead, we list all properties directly with `readonly` where appropriate, all required.
+     * Base component (condition `{}`) extends directly; feature components extend via `Partial` since their
+     * attributes are only present when the feature is enabled.
      */
     #generateFlatAttributesInterface() {
-        const allAttrs = new Map<string, AttributeModel>();
-        for (const comp of this.#components) {
-            for (const attr of [...comp.mandatoryAttrs, ...comp.optionalAttrs]) {
-                const key = camelize(attr.name);
-                if (!allAttrs.has(key)) {
-                    allAttrs.set(key, attr);
-                }
+        this.#generateFlatInterface("Attributes", comp => {
+            const hasAttrs = comp.mandatoryAttrs.length > 0 || comp.optionalAttrs.length > 0;
+            if (!hasAttrs) {
+                return undefined;
             }
-        }
-
-        if (!allAttrs.size) {
-            return;
-        }
-
-        this.file.interfaces.undefine("Attributes");
-        const intf = this.file.interfaces.statements("export interface Attributes {", "}");
-        intf.shouldDelimit = false;
-
-        const hasOptional = this.#components.some(c => c.optionalAttrs.length > 0);
-        const hasFeatures = this.file.cluster.features.length > 0;
-        const clusterName = this.file.cluster.name;
-        const description = `Attributes that may appear in {@link ${clusterName}}.`;
-        let details: string | undefined;
-        if (hasOptional) {
-            details = `Optional properties represent attributes that devices are not required to support.`;
-        }
-        if (hasFeatures) {
-            details =
-                (details ?? "") +
-                ` Device support for attributes may ${hasOptional ? "also " : ""}be affected by a device's supported {@link Features}.`;
-            details = details.trimStart();
-        }
-        intf.document({ description, details });
-
-        for (const [key, attr] of allAttrs) {
-            const readonlyPrefix = !attr.writable ? "readonly " : "";
-            intf.atom(`${readonlyPrefix}${key}: ${this.#attrType(attr)}`).document(attr);
-        }
+            const isBase = Object.keys(comp.condition).length === 0;
+            return isBase ? `${comp.name}.Attributes` : `Partial<${comp.name}.Attributes>`;
+        });
     }
 
     /**
-     * Generate a flat Events interface with all properties listed directly.
+     * Generate a flat Events interface that extends all component Events interfaces.
      *
-     * Same rationale as Attributes — same event may be mandatory in one component and optional in another.
+     * All components extend directly (no `Partial`) — events and commands are unconditionally
+     * implemented at runtime.
      */
     #generateFlatEventsInterface() {
-        const allEvents = new Map<string, EventModel>();
-        for (const comp of this.#components) {
-            for (const evt of [...comp.mandatoryEvents, ...comp.optionalEvents]) {
-                const key = camelize(evt.name);
-                if (!allEvents.has(key)) {
-                    allEvents.set(key, evt);
-                }
-            }
-        }
-
-        if (!allEvents.size) {
-            return;
-        }
-
-        this.file.interfaces.undefine("Events");
-        const intf = this.file.interfaces.statements("export interface Events {", "}");
-        intf.shouldDelimit = false;
-
-        const hasOptional = this.#components.some(c => c.optionalEvents.length > 0);
-        const hasFeatures = this.file.cluster.features.length > 0;
-        const clusterName = this.file.cluster.name;
-        const description = `Events that may appear in {@link ${clusterName}}.`;
-        let details: string | undefined;
-        if (hasOptional) {
-            details = `Devices may not support all of these events.`;
-        }
-        if (hasFeatures) {
-            details =
-                (details ?? "") +
-                ` Device support for events may ${hasOptional ? "also " : ""}be affected by a device's supported {@link Features}.`;
-            details = details.trimStart();
-        }
-        intf.document({ description, details });
-
-        for (const [key, evt] of allEvents) {
-            intf.atom(`${key}: ${this.#eventPayloadType(evt)}`).document(evt);
-        }
+        this.#generateFlatInterface("Events", comp => {
+            const hasEvents = comp.mandatoryEvents.length > 0 || comp.optionalEvents.length > 0;
+            return hasEvents ? `${comp.name}.Events` : undefined;
+        });
     }
 
     /**
      * Generate a flat interface that extends all component interfaces of the given kind.
-     *
-     * Used for Commands where there's no optionality conflict.
      */
-    #generateFlatExtendsInterface(kind: "Commands", filter: (comp: ComponentInfo) => boolean) {
-        const components = this.#components.filter(filter);
-        if (!components.length) {
+    #generateFlatInterface(kind: string, extendsFor: (comp: ComponentInfo) => string | undefined) {
+        const clauses = [] as string[];
+        for (const comp of this.#components) {
+            const clause = extendsFor(comp);
+            if (clause !== undefined) {
+                clauses.push(clause);
+            }
+        }
+        if (!clauses.length) {
             return;
         }
 
         this.file.interfaces.undefine(kind);
-        const extendsClause = components.map(c => `${c.name}.${kind}`).join(", ");
-        this.file.interfaces.atom(`export interface ${kind} extends ${extendsClause} {}`);
+        this.file.interfaces.atom(`export interface ${kind} extends ${clauses.join(", ")} {}`);
     }
 
     /**
@@ -591,31 +533,44 @@ export class ComponentGenerator {
             }
 
             this.file.addImport("!types/common/StatusResponseError.js", "StatusResponseError");
-            const error = block.statements(`export class ${errName} extends StatusResponseError {`, "}");
-            const constructor = error.expressions(
-                "constructor(",
-                // Ugh, manual formatting necessary here because we use args for children
-                ") {\n            super(message, code, clusterCode);\n        }",
-            );
-            constructor.shouldDelimit = false;
-
-            let { description: message } = field;
-            if (message === undefined) {
-                message = capitalize(decamelize(field.name, " "));
-            }
-            if (message.endsWith(".")) {
-                message = message.slice(0, message.length - 1);
-            }
-            constructor.atom(`message = ${serialize(message)}`);
-
             const globalStatus = this.#importGlobalStatus();
-            constructor.atom(`code = ${globalStatus}.Failure`);
 
-            const ref = `${enumName}.${field.name}`;
-            constructor.atom(`clusterCode = ${ref}`);
+            if (this.file.fileExtension === ".d.ts") {
+                // Ambient class declaration — constructor signature only, no body
+                const error = block.statements(`export class ${errName} extends StatusResponseError {`, "}");
+                const constructor = error.expressions("constructor(", ")");
+                constructor.shouldDelimit = false;
+                constructor.atom(`message?: string`);
+                constructor.atom(`code?: ${globalStatus}`);
+                constructor.atom(`clusterCode?: number`);
 
-            const description = `Thrown for cluster status code {@link ${ref}}.`;
-            error.document({ description, xref: field.effectiveXref });
+                const ref = `${enumName}.${field.name}`;
+                const description = `Thrown for cluster status code {@link ${ref}}.`;
+                error.document({ description, xref: field.effectiveXref });
+            } else {
+                const error = block.statements(`export class ${errName} extends StatusResponseError {`, "}");
+                const constructor = error.expressions(
+                    "constructor(",
+                    ") {\n            super(message, code, clusterCode);\n        }",
+                );
+                constructor.shouldDelimit = false;
+
+                let { description: message } = field;
+                if (message === undefined) {
+                    message = capitalize(decamelize(field.name, " "));
+                }
+                if (message.endsWith(".")) {
+                    message = message.slice(0, message.length - 1);
+                }
+                constructor.atom(`message = ${serialize(message)}`);
+                constructor.atom(`code = ${globalStatus}.Failure`);
+
+                const ref = `${enumName}.${field.name}`;
+                constructor.atom(`clusterCode = ${ref}`);
+
+                const description = `Thrown for cluster status code {@link ${ref}}.`;
+                error.document({ description, xref: field.effectiveXref });
+            }
         }
     }
 
