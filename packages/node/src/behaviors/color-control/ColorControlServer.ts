@@ -133,8 +133,8 @@ const MAX_CURRENT_LEVEL = 0xfe;
  */
 export class ColorControlBaseServer extends ColorControlBase {
     declare protected internal: ColorControlBaseServer.Internal;
-    declare state: ColorControlBaseServer.State;
-    declare events: ColorControlBaseServer.Events;
+    declare readonly state: ColorControlBaseServer.State;
+    declare readonly events: ColorControlBaseServer.Events;
 
     /*
      * The following block contains some convenience methods to allow to easily work with the CIE color space values

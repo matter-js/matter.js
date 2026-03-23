@@ -296,6 +296,16 @@ export namespace ClusterBehavior {
         B extends Behavior.Type = Behavior.Type,
         N extends ClusterTyping = ClusterInterface.InterfaceOf<B>,
         NS extends ClusterNamespace = ClusterNamespace.Concrete,
+        // I and ID are redundant — they duplicate information already derivable from B.  They exist because tsc < 6
+        // deeply expands B's structure when it encounters indexed access (B["Internal"]) or infer...extends
+        // (B extends { id: infer S extends ... }) during declaration emit.  This transitively triggers contravariant
+        // checking on N, breaking `.with().alter()` chains with TS2684.  Pre-computing as separate parameters avoids
+        // the expansion.  tsgo handles this correctly; tsc 6 has not been tested.  Once tsc < 6 is no longer
+        // supported, these parameters can be inlined back into the property types.
+        I = B["Internal"], // inline: B["Internal"]
+        ID extends Uncapitalize<string> = B extends { readonly id: infer S extends Uncapitalize<string> } // inline: B extends { readonly id: infer S extends Uncapitalize<string> } ? S : Uncapitalize<string>
+            ? S
+            : Uncapitalize<string>,
     > {
         new (agent: Agent, backing: BehaviorBacking): Instance<B, N>;
 
@@ -304,7 +314,7 @@ export namespace ClusterBehavior {
         /**
          * The behavior ID for ClusterBehaviors is the name of the cluster.
          */
-        readonly id: B extends { readonly id: infer S extends Uncapitalize<string> } ? S : Uncapitalize<string>;
+        readonly id: ID;
 
         /**
          * The cluster namespace for this behavior.
@@ -318,7 +328,7 @@ export namespace ClusterBehavior {
 
         readonly Events: ClusterEvents.Type<N, B>;
         readonly State: new () => ClusterState.Type<N, B>;
-        readonly Internal: B["Internal"];
+        readonly Internal: I;
         readonly Interface: N;
 
         readonly schema: Schema.Cluster;
@@ -468,17 +478,17 @@ export namespace ClusterBehavior {
                 /**
                  * State values for the behavior.
                  */
-                state: ClusterState<N, B>;
+                readonly state: ClusterState<N, B>;
 
                 /**
                  * Observables for cluster events and attribute changes.
                  */
-                events: ClusterEvents<N, B>;
+                readonly events: ClusterEvents<N, B>;
 
                 /**
                  * Supported features as a flag object.
                  */
-                features: ClusterNamespace.FeaturesOf<N>;
+                readonly features: ClusterNamespace.FeaturesOf<N>;
 
                 [Symbol.asyncDispose](): MaybePromise<void>;
             };
@@ -514,9 +524,9 @@ export namespace ClusterBehavior {
         ClusterInterface.AllMethodsOf<N> &
         ExtensionInterfaceOf<B> & {
             cluster: ClusterNamespace.Concrete;
-            state: ClusterState.Complete<N, B>;
-            events: ClusterEvents.Complete<N, B>;
-            features: ClusterNamespace.FeaturesOf<N>;
+            readonly state: ClusterState.Complete<N, B>;
+            readonly events: ClusterEvents.Complete<N, B>;
+            readonly features: ClusterNamespace.FeaturesOf<N>;
             [Symbol.asyncDispose](): MaybePromise<void>;
         };
 

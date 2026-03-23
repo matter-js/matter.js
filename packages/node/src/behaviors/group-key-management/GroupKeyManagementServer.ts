@@ -50,7 +50,7 @@ const schema = GroupKeyManagementBehavior.schema.extend(
  * This is the default server implementation of {@link GroupKeyManagementBehavior}.
  */
 export class GroupKeyManagementServer extends GroupKeyManagementBehavior {
-    declare state: GroupKeyManagementServer.State;
+    declare readonly state: GroupKeyManagementServer.State;
     static override readonly schema = schema;
 
     override initialize() {

@@ -143,8 +143,8 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
  */
 export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestorBehavior {
     declare protected internal: OtaSoftwareUpdateRequestorServer.Internal;
-    declare state: OtaSoftwareUpdateRequestorServer.State;
-    declare events: OtaSoftwareUpdateRequestorServer.Events;
+    declare readonly state: OtaSoftwareUpdateRequestorServer.State;
+    declare readonly events: OtaSoftwareUpdateRequestorServer.Events;
 
     // Enhance the Schema to store the flag that we expect an upgrade to happen
     static override readonly schema = schema;

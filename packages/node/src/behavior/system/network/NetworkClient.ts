@@ -18,8 +18,8 @@ import { NetworkBehavior } from "./NetworkBehavior.js";
 
 export class NetworkClient extends NetworkBehavior {
     declare internal: NetworkClient.Internal;
-    declare state: NetworkClient.State;
-    declare events: NetworkClient.Events;
+    declare readonly state: NetworkClient.State;
+    declare readonly events: NetworkClient.Events;
 
     override initialize() {
         if (this.#node.isGroup) {

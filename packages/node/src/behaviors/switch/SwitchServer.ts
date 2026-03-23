@@ -72,8 +72,8 @@ const schema = SwitchServerBase.schema.extend({
  */
 export class SwitchBaseServer extends SwitchServerBase {
     declare protected internal: SwitchBaseServer.Internal;
-    declare state: SwitchBaseServer.State;
-    declare events: SwitchBaseServer.Events;
+    declare readonly state: SwitchBaseServer.State;
+    declare readonly events: SwitchBaseServer.Events;
     static override readonly schema = schema;
 
     override initialize(): MaybePromise {

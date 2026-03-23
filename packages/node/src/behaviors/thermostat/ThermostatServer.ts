@@ -93,8 +93,8 @@ const schema = ThermostatBehaviorLogicBase.schema.extend({
  */
 export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
     declare protected internal: ThermostatBaseServer.Internal;
-    declare state: ThermostatBaseServer.State;
-    declare events: ThermostatBaseServer.Events;
+    declare readonly state: ThermostatBaseServer.State;
+    declare readonly events: ThermostatBaseServer.Events;
     static override readonly schema = schema;
 
     override async initialize() {

@@ -159,7 +159,7 @@ const ScenesManagementBase = ScenesManagementBehavior.for(ScenesManagement, Scen
  * to implement. If they do not implement the scene is not applied for that cluster.
  */
 export class ScenesManagementServer extends ScenesManagementBase {
-    declare state: ScenesManagementServer.State;
+    declare readonly state: ScenesManagementServer.State;
     declare protected internal: ScenesManagementServer.Internal;
 
     override initialize() {
