@@ -42,16 +42,25 @@ export const UnknownCluster = (clusterId: ClusterId) =>
     });
 
 export function getClusterNameById(clusterId: ClusterId): string {
-    return ClusterRegistry.get(clusterId)?.name ?? `Unknown cluster ${Diagnostic.hex(clusterId)}`;
+    return ClusterRegistry.getName(clusterId) ?? `Unknown cluster ${Diagnostic.hex(clusterId)}`;
 }
+
+const unknownClusters = new Map<ClusterId, Cluster<any, any, any, any, any>>();
 
 export function getClusterById(clusterId: ClusterId): Cluster<any, any, any, any, any> {
     let cluster = ClusterRegistry.get(clusterId);
-    if (cluster === undefined) {
-        logger.info(`Unknown cluster ${toHex(clusterId)} requested: UnknownCluster instance added.`);
-        cluster = UnknownCluster(clusterId);
-        ClusterRegistry.register(cluster);
+    if (cluster !== undefined) {
+        return cluster;
     }
+
+    cluster = unknownClusters.get(clusterId);
+    if (cluster !== undefined) {
+        return cluster;
+    }
+
+    logger.info(`Unknown cluster ${toHex(clusterId)} requested: UnknownCluster instance added.`);
+    cluster = UnknownCluster(clusterId);
+    unknownClusters.set(clusterId, cluster);
     return cluster;
 }
 
@@ -149,11 +158,11 @@ function resolveEndpointClusterName(
     if (clusterId === undefined) {
         return `${elementName}/*`;
     }
-    const cluster = getClusterById(clusterId);
-    if (cluster.unknown) {
+    const name = ClusterRegistry.getName(clusterId);
+    if (name === undefined) {
         return `${elementName}/unknown(${toHex(clusterId)})`;
     }
-    return `${elementName}/${cluster.name}(${toHex(clusterId)})`;
+    return `${elementName}/${name}(${toHex(clusterId)})`;
 }
 
 export function resolveAttributeName({
