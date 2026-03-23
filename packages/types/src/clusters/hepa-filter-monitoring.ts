@@ -6,9 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ResourceMonitoring } from "./resource-monitoring.js";
-import { Identity, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { HepaFilterMonitoring as HepaFilterMonitoringModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -160,30 +159,34 @@ export namespace HepaFilterMonitoring {
     ];
     export type Features = "Condition" | "Warning" | "ReplacementProductList";
 
-    export const Base = { ...ResourceMonitoring.Base, id: 0x71, name: "HepaFilterMonitoring" } as const;
-
     /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster(Base);
-
-    /**
-     * This alias specializes the semantics of {@link ResourceMonitoring.Base}.
+     * These are optional features supported by HepaFilterMonitoringCluster.
      *
-     * HepaFilterMonitoringCluster supports optional features that you can enable with the
-     * HepaFilterMonitoringCluster.with() factory method.
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.4
      */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
+    export enum Feature {
+        /**
+         * Condition (CON)
+         *
+         * Supports monitoring the condition of the resource in percentage
+         */
+        Condition = "Condition",
 
-    export const Cluster: Cluster = ClusterInstance;
+        /**
+         * Warning (WRN)
+         *
+         * Supports warning indication
+         */
+        Warning = "Warning",
 
-    /**
-     * @deprecated Use the cluster namespace directly (e.g. `HepaFilterMonitoring` instead of
-     * `HepaFilterMonitoring.Complete`)
-     */
-    export type Complete = typeof HepaFilterMonitoring;
+        /**
+         * ReplacementProductList (REP)
+         *
+         * Supports specifying the list of replacement products
+         */
+        ReplacementProductList = "ReplacementProductList"
+    }
 
-    export declare const Complete: Complete;
     export const id = ClusterId(0x71);
     export const name = "HepaFilterMonitoring" as const;
     export const revision = 1;
@@ -193,10 +196,20 @@ export namespace HepaFilterMonitoring {
     export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
     export declare const commands: CommandObjects;
     export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof HepaFilterMonitoring;
+    export declare const Cluster: Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `HepaFilterMonitoring` instead of
+     * `HepaFilterMonitoring.Complete`)
+     */
+    export type Complete = typeof HepaFilterMonitoring;
+
+    export declare const Complete: Complete;
     export declare const Typing: HepaFilterMonitoring;
 }
 
+ClusterNamespace.define(HepaFilterMonitoring);
 export type HepaFilterMonitoringCluster = HepaFilterMonitoring.Cluster;
 export const HepaFilterMonitoringCluster = HepaFilterMonitoring.Cluster;
-ClusterNamespace.define(HepaFilterMonitoring);
 export interface HepaFilterMonitoring extends ClusterTyping { Attributes: HepaFilterMonitoring.Attributes; Commands: HepaFilterMonitoring.Commands; Features: HepaFilterMonitoring.Features; Components: HepaFilterMonitoring.Components }

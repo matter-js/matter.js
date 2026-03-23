@@ -16,7 +16,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ServerNode } from "#node/ServerNode.js";
 import { AsyncObservable, cropValueRange, Identity, Logger, MaybePromise, Millis } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { LevelControlBehavior } from "./LevelControlBehavior.js";
@@ -284,7 +284,7 @@ export class LevelControlBaseServer extends LevelControlBase {
         level: number,
         transitionTime: number | null,
         withOnOff: boolean,
-        options: TypeFromPartialBitSchema<typeof LevelControl.Options> = {},
+        options: LevelControl.Options = {},
     ): MaybePromise {
         const effectiveTransitionTime = transitionTime ?? this.state.onOffTransitionTime ?? null;
 
@@ -346,7 +346,7 @@ export class LevelControlBaseServer extends LevelControlBase {
         moveMode: LevelControl.MoveMode,
         rate: number | null,
         withOnOff: boolean,
-        options: TypeFromPartialBitSchema<typeof LevelControl.Options> = {},
+        options: LevelControl.Options = {},
     ): MaybePromise {
         let targetLevel;
         if (moveMode === LevelControl.MoveMode.Up) {
@@ -411,7 +411,7 @@ export class LevelControlBaseServer extends LevelControlBase {
         stepSize: number,
         transitionTime: number | null,
         withOnOff: boolean,
-        options: TypeFromPartialBitSchema<typeof LevelControl.Options> = {},
+        options: LevelControl.Options = {},
     ): MaybePromise {
         const direction = stepMode === LevelControl.StepMode.Up ? 1 : -1;
 
@@ -440,7 +440,7 @@ export class LevelControlBaseServer extends LevelControlBase {
     /**
      * Default stop logic. This aborts any level transition currently underway and sets the remaining time to 0.
      */
-    protected stopLogic(_options: TypeFromPartialBitSchema<typeof LevelControl.Options> = {}): MaybePromise {
+    protected stopLogic(_options: LevelControl.Options = {}): MaybePromise {
         this.internal.transitions?.stop();
     }
 
@@ -456,7 +456,7 @@ export class LevelControlBaseServer extends LevelControlBase {
         targetLevel?: number,
         changePerS?: number | null | ((currentLevel: number) => number),
         withOnOff = false,
-        options: TypeFromPartialBitSchema<typeof LevelControl.Options> = {},
+        options: LevelControl.Options = {},
     ): MaybePromise {
         return MaybePromise.then(this.couple(withOnOff, options, targetLevel), () => {
             if (typeof changePerS === "function") {
@@ -480,11 +480,7 @@ export class LevelControlBaseServer extends LevelControlBase {
      *
      * This handles of on/off state in the On/Off cluster and color temperature in the Color Control cluster.
      */
-    couple(
-        withOnOff: boolean,
-        options: TypeFromPartialBitSchema<typeof LevelControl.Options> = {},
-        targetLevel?: number,
-    ): MaybePromise {
+    couple(withOnOff: boolean, options: LevelControl.Options = {}, targetLevel?: number): MaybePromise {
         let result: MaybePromise = undefined;
 
         // Couple with On/Off state
@@ -575,9 +571,9 @@ export class LevelControlBaseServer extends LevelControlBase {
     }
 
     #calculateEffectiveOptions(
-        optionsMask: TypeFromPartialBitSchema<typeof LevelControl.Options>,
-        optionsOverride: TypeFromPartialBitSchema<typeof LevelControl.Options>,
-    ): TypeFromPartialBitSchema<typeof LevelControl.Options> {
+        optionsMask: LevelControl.Options,
+        optionsOverride: LevelControl.Options,
+    ): LevelControl.Options {
         const options = this.state.options ?? {};
         return {
             executeIfOff: optionsMask.executeIfOff ? optionsOverride.executeIfOff : options.executeIfOff,
@@ -589,7 +585,7 @@ export class LevelControlBaseServer extends LevelControlBase {
         };
     }
 
-    #optionsAllowExecution(options: TypeFromPartialBitSchema<typeof LevelControl.Options>) {
+    #optionsAllowExecution(options: LevelControl.Options) {
         return (
             options.executeIfOff ||
             !this.features.onOff ||
@@ -698,29 +694,29 @@ export namespace LevelControlBaseServer {
             targetLevel?: number,
             changePerS?: number | null | ((currentLevel: number) => number),
             withOnOff?: boolean,
-            options?: TypeFromPartialBitSchema<typeof LevelControl.Options>,
+            options?: LevelControl.Options,
         ): MaybePromise;
         moveToLevelLogic(
             level: number,
             transitionTime: number | null,
             withOnOff: boolean,
-            options: TypeFromPartialBitSchema<typeof LevelControl.Options>,
+            options: LevelControl.Options,
         ): MaybePromise;
         moveLogic(
             moveMode: LevelControl.MoveMode,
             rate: number | null,
             withOnOff: boolean,
-            options: TypeFromPartialBitSchema<typeof LevelControl.Options>,
+            options: LevelControl.Options,
         ): MaybePromise;
         stepLogic(
             stepMode: LevelControl.StepMode,
             stepSize: number,
             transitionTime: number | null,
             withOnOff: boolean,
-            options: TypeFromPartialBitSchema<typeof LevelControl.Options>,
+            options: LevelControl.Options,
         ): MaybePromise;
-        stopLogic(options: TypeFromPartialBitSchema<typeof LevelControl.Options>): MaybePromise;
-        couple(withOnOff: boolean, options: TypeFromPartialBitSchema<typeof LevelControl.Options>): MaybePromise;
+        stopLogic(options: LevelControl.Options): MaybePromise;
+        couple(withOnOff: boolean, options: LevelControl.Options): MaybePromise;
         handleOnOffChange(onOff: boolean): MaybePromise;
         createTransitions<B extends Behavior>(config: Transitions.Configuration<B>): Transitions<B>;
     };

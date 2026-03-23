@@ -23,7 +23,7 @@ import {
     Millis,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ColorControlBehavior } from "./ColorControlBehavior.js";
@@ -1721,19 +1721,16 @@ export class ColorControlBaseServer extends ColorControlBase {
     }
 
     #calculateEffectiveOptions(
-        optionsMask: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-        optionsOverride: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-    ): TypeFromPartialBitSchema<typeof ColorControl.Options> {
+        optionsMask: ColorControl.Options,
+        optionsOverride: ColorControl.Options,
+    ): ColorControl.Options {
         const options = this.state.options ?? {};
         return {
             executeIfOff: optionsMask.executeIfOff ? optionsOverride.executeIfOff : options.executeIfOff,
         };
     }
 
-    #optionsAllowExecution(
-        optionsMask: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-        optionsOverride: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-    ) {
+    #optionsAllowExecution(optionsMask: ColorControl.Options, optionsOverride: ColorControl.Options) {
         const options = this.#calculateEffectiveOptions(optionsMask, optionsOverride);
         return options.executeIfOff || !this.agent.has(OnOffServer) || this.agent.get(OnOffServer).state.onOff;
     }

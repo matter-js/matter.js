@@ -5,7 +5,7 @@
  */
 
 import { Diagnostic, ImplementationError, isDeepEqual, Logger, MaybePromise, Worker } from "@matter/general";
-import { StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { WindowCoveringBehavior } from "./WindowCoveringBehavior.js";
 
@@ -159,7 +159,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
     /**
      * Sync the mode attribute with the configStatus attribute and the internal state.
      */
-    #handleModeChanging(mode: TypeFromPartialBitSchema<typeof WindowCovering.Mode>) {
+    #handleModeChanging(mode: WindowCovering.Mode) {
         // According to chip implementation maintenance mode has priority over calibration mode
         if (mode.maintenanceMode && mode.calibrationMode) {
             mode.calibrationMode = false;
@@ -199,7 +199,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
 
     /** Update the global operational status based on the lift or tilt status. */
     #handleOperationalStatusChanging(
-        operationalStatus: TypeFromPartialBitSchema<typeof WindowCovering.OperationalStatus>,
+        operationalStatus: WindowCovering.OperationalStatus,
     ) {
         // Global tracks lift if moving otherwise it follows tilt
         const globalStatus =

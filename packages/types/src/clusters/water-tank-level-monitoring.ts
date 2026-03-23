@@ -6,9 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ResourceMonitoring } from "./resource-monitoring.js";
-import { Identity, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { WaterTankLevelMonitoring as WaterTankLevelMonitoringModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -160,30 +159,34 @@ export namespace WaterTankLevelMonitoring {
     ];
     export type Features = "Condition" | "Warning" | "ReplacementProductList";
 
-    export const Base = { ...ResourceMonitoring.Base, id: 0x79, name: "WaterTankLevelMonitoring" } as const;
-
     /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster(Base);
-
-    /**
-     * This alias specializes the semantics of {@link ResourceMonitoring.Base}.
+     * These are optional features supported by WaterTankLevelMonitoringCluster.
      *
-     * WaterTankLevelMonitoringCluster supports optional features that you can enable with the
-     * WaterTankLevelMonitoringCluster.with() factory method.
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.4
      */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
+    export enum Feature {
+        /**
+         * Condition (CON)
+         *
+         * Supports monitoring the condition of the resource in percentage
+         */
+        Condition = "Condition",
 
-    export const Cluster: Cluster = ClusterInstance;
+        /**
+         * Warning (WRN)
+         *
+         * Supports warning indication
+         */
+        Warning = "Warning",
 
-    /**
-     * @deprecated Use the cluster namespace directly (e.g. `WaterTankLevelMonitoring` instead of
-     * `WaterTankLevelMonitoring.Complete`)
-     */
-    export type Complete = typeof WaterTankLevelMonitoring;
+        /**
+         * ReplacementProductList (REP)
+         *
+         * Supports specifying the list of replacement products
+         */
+        ReplacementProductList = "ReplacementProductList"
+    }
 
-    export declare const Complete: Complete;
     export const id = ClusterId(0x79);
     export const name = "WaterTankLevelMonitoring" as const;
     export const revision = 1;
@@ -193,10 +196,20 @@ export namespace WaterTankLevelMonitoring {
     export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
     export declare const commands: CommandObjects;
     export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof WaterTankLevelMonitoring;
+    export declare const Cluster: Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `WaterTankLevelMonitoring` instead of
+     * `WaterTankLevelMonitoring.Complete`)
+     */
+    export type Complete = typeof WaterTankLevelMonitoring;
+
+    export declare const Complete: Complete;
     export declare const Typing: WaterTankLevelMonitoring;
 }
 
+ClusterNamespace.define(WaterTankLevelMonitoring);
 export type WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring.Cluster;
 export const WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring.Cluster;
-ClusterNamespace.define(WaterTankLevelMonitoring);
 export interface WaterTankLevelMonitoring extends ClusterTyping { Attributes: WaterTankLevelMonitoring.Attributes; Commands: WaterTankLevelMonitoring.Commands; Features: WaterTankLevelMonitoring.Features; Components: WaterTankLevelMonitoring.Components }

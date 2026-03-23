@@ -33,11 +33,6 @@ export class ClusterFile extends ScopeFile {
      */
     components: Block;
 
-    /**
-     * Section for ClusterType definitions (TLV schemas, MutableCluster.Component consts).
-     */
-    types: Block;
-
     ns: Block;
 
     constructor(cluster: ClusterModel) {
@@ -49,7 +44,6 @@ export class ClusterFile extends ScopeFile {
         this.interfaces = this.ns.section();
         this.featureEnum = this.ns.section();
         this.components = this.ns.section();
-        this.types = this.ns.section();
     }
 
     get cluster() {
