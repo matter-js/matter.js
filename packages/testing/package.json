@@ -61,7 +61,7 @@
         "@types/dockerode": "^4.0.0",
         "@types/chai": "^4.3.20",
         "@types/chai-as-promised": "^7.1.8",
-        "@types/debug": "^4.1.12",
+        "@types/debug": "^4.1.13",
         "@types/mocha": "^10.0.10",
         "@types/docker-modem": "^3.0.6",
         "@types/node": "^25.3.5",
