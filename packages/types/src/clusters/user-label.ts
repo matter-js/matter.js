@@ -20,6 +20,21 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace UserLabel {
     /**
+     * {@link UserLabel} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * An implementation shall support at least 4 list entries per node for all User Label cluster instances on
+             * the node.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.9.4.1
+             */
+            labelList: Label.LabelStruct[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link UserLabel}.
      */
     export interface Attributes {
@@ -32,9 +47,7 @@ export namespace UserLabel {
         labelList: Label.LabelStruct[];
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "labelList" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link Cluster}
@@ -81,4 +94,4 @@ export namespace UserLabel {
 export type UserLabelCluster = UserLabel.Cluster;
 export const UserLabelCluster = UserLabel.Cluster;
 ClusterNamespace.define(UserLabel);
-export interface UserLabel extends ClusterTyping { Attributes: UserLabel.Attributes & { Components: UserLabel.Attributes.Components } }
+export interface UserLabel extends ClusterTyping { Attributes: UserLabel.Attributes; Components: UserLabel.Components }

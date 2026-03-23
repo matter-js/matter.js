@@ -21,6 +21,33 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace UnitLocalization {
     /**
+     * {@link UnitLocalization} supports these elements if it supports feature "TemperatureUnit".
+     */
+    export namespace TemperatureUnitComponent {
+        export interface Attributes {
+            /**
+             * Indicates the unit for the Node to use only when conveying temperature in communication to the user, for
+             * example such as via a user interface on the device. If provided, this value shall take priority over any
+             * unit implied through the ActiveLocale Attribute.
+             *
+             * An attempt to write to this attribute with a value not included in the SupportedTemperatureUnits
+             * attribute list shall result in a CONSTRAINT_ERROR.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.5.6.1
+             */
+            temperatureUnit: TempUnit;
+
+            /**
+             * Indicates a list of units supported by the Node to be used when writing the TemperatureUnit attribute of
+             * this cluster. Each entry in the list shall be unique.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.5.6.2
+             */
+            readonly supportedTemperatureUnits: TempUnit[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link UnitLocalization}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -44,14 +71,10 @@ export namespace UnitLocalization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.5.6.2
          */
-        supportedTemperatureUnits: TempUnit[];
+        readonly supportedTemperatureUnits: TempUnit[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: { temperatureUnit: true }, mandatory: "temperatureUnit" | "supportedTemperatureUnits" }
-        ];
-    }
+    export type Components = [{ flags: { temperatureUnit: true }, attributes: TemperatureUnitComponent.Attributes }];
     export type Features = "TemperatureUnit";
 
     /**
@@ -211,4 +234,4 @@ export namespace UnitLocalization {
 export type UnitLocalizationCluster = UnitLocalization.Cluster;
 export const UnitLocalizationCluster = UnitLocalization.Cluster;
 ClusterNamespace.define(UnitLocalization);
-export interface UnitLocalization extends ClusterTyping { Attributes: UnitLocalization.Attributes & { Components: UnitLocalization.Attributes.Components }; Features: UnitLocalization.Features }
+export interface UnitLocalization extends ClusterTyping { Attributes: UnitLocalization.Attributes; Features: UnitLocalization.Features; Components: UnitLocalization.Components }

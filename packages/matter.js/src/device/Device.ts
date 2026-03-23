@@ -7,12 +7,17 @@
 import { AtLeastOne, HandlerFunction, ImplementationError, NamedHandler, NotImplementedError } from "@matter/general";
 import { RootNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
-import { ClusterClientObj } from "@matter/protocol";
-import { Cluster, ClusterType, EndpointNumber } from "@matter/types";
+import { ClusterClientObj, TypedClusterClientObj } from "@matter/protocol";
+import { Cluster, ClusterNamespace, ClusterType, EndpointNumber } from "@matter/types";
 import { Binding } from "@matter/types/clusters/binding";
 import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
-import { ClusterServerHandlers, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
+import {
+    ClusterServerHandlers,
+    ClusterServerObj,
+    TypedClusterServerObj,
+    isClusterServer,
+} from "../cluster/server/ClusterServerTypes.js";
 import { DeviceClasses, DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
 import { isClusterClient } from "./TypeHelpers.js";
@@ -124,8 +129,14 @@ export class RootEndpoint extends Endpoint {
      *
      * @param cluster ClusterServer to get or undefined if not existing
      */
-    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined {
-        return this.getClusterServer(cluster);
+    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
+    getRootClusterServer<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterServerObj<N["Typing"]> | undefined;
+    getRootClusterServer(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterServerObj | TypedClusterServerObj | undefined {
+        return this.getClusterServer(cluster as ClusterType);
     }
 
     /**
@@ -142,8 +153,14 @@ export class RootEndpoint extends Endpoint {
      *
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined {
-        return this.getClusterClient(cluster);
+    getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
+    getRootClusterClient<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterClientObj<N["Typing"]> | undefined;
+    getRootClusterClient(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterClientObj | TypedClusterClientObj | undefined {
+        return this.getClusterClient(cluster as ClusterType);
     }
 }
 
@@ -226,29 +243,45 @@ export class Device extends Endpoint {
         throw new ImplementationError("createOptionalClusterClient needs to be implemented by derived classes");
     }
 
-    override getClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined {
-        const clusterServer = super.getClusterServer(cluster);
+    override getClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
+    override getClusterServer<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterServerObj<N["Typing"]> | undefined;
+    override getClusterServer(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterServerObj | TypedClusterServerObj | undefined {
+        const clusterServer = super.getClusterServer(cluster as ClusterType);
         if (clusterServer !== undefined) {
             return clusterServer;
         }
-        for (const deviceType of this.deviceTypes) {
-            if (deviceType.optionalServerClusters.includes(cluster.id)) {
-                const clusterServer = this.createOptionalClusterServer(cluster);
-                this.addClusterServer(clusterServer);
-                return clusterServer;
+        if ("supportedFeatures" in cluster) {
+            for (const deviceType of this.deviceTypes) {
+                if (deviceType.optionalServerClusters.includes(cluster.id)) {
+                    const clusterServer = this.createOptionalClusterServer(cluster);
+                    this.addClusterServer(clusterServer);
+                    return clusterServer;
+                }
             }
         }
     }
 
-    override getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined {
-        const clusterClient = super.getClusterClient(cluster);
+    override getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
+    override getClusterClient<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterClientObj<N["Typing"]> | undefined;
+    override getClusterClient(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterClientObj | TypedClusterClientObj | undefined {
+        const clusterClient = super.getClusterClient(cluster as ClusterType);
         if (clusterClient !== undefined) {
             return clusterClient;
         }
-        for (const deviceType of this.deviceTypes) {
-            if (deviceType.optionalClientClusters.includes(cluster.id)) {
-                const clusterClient = this.createOptionalClusterClient(cluster);
-                this.addClusterClient(clusterClient);
+        if ("supportedFeatures" in cluster) {
+            for (const deviceType of this.deviceTypes) {
+                if (deviceType.optionalClientClusters.includes(cluster.id)) {
+                    const clusterClient = this.createOptionalClusterClient(cluster);
+                    this.addClusterClient(clusterClient);
+                }
             }
         }
     }

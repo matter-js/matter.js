@@ -20,6 +20,35 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace LocalizationConfiguration {
     /**
+     * {@link LocalizationConfiguration} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * The ActiveLocale attribute shall represent the locale that the Node is currently configured to use when
+             * conveying information. The ActiveLocale attribute shall be a Language Tag as defined by BCP47. The
+             * ActiveLocale attribute shall have a default value assigned by the Vendor and shall be a value contained
+             * within the SupportedLocales attribute.
+             *
+             * An attempt to write a value to ActiveLocale that is not present in SupportedLocales shall result in a
+             * CONSTRAINT_ERROR error.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.3.4.1
+             */
+            activeLocale: string;
+
+            /**
+             * The SupportedLocales attribute shall represent a list of locale strings that are valid values for the
+             * ActiveLocale attribute. The list shall NOT contain any duplicate entries. The ordering of items within
+             * the list SHOULD NOT express any meaning.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.3.4.2
+             */
+            readonly supportedLocales: string[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link LocalizationConfiguration}.
      */
     export interface Attributes {
@@ -43,12 +72,10 @@ export namespace LocalizationConfiguration {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.3.4.2
          */
-        supportedLocales: string[];
+        readonly supportedLocales: string[];
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "activeLocale" | "supportedLocales" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link Cluster}
@@ -114,4 +141,4 @@ export namespace LocalizationConfiguration {
 export type LocalizationConfigurationCluster = LocalizationConfiguration.Cluster;
 export const LocalizationConfigurationCluster = LocalizationConfiguration.Cluster;
 ClusterNamespace.define(LocalizationConfiguration);
-export interface LocalizationConfiguration extends ClusterTyping { Attributes: LocalizationConfiguration.Attributes & { Components: LocalizationConfiguration.Attributes.Components } }
+export interface LocalizationConfiguration extends ClusterTyping { Attributes: LocalizationConfiguration.Attributes; Components: LocalizationConfiguration.Components }

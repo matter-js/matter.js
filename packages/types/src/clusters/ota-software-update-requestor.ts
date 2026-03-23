@@ -29,6 +29,102 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace OtaSoftwareUpdateRequestor {
     /**
+     * {@link OtaSoftwareUpdateRequestor} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This field is a list of ProviderLocation whose entries shall be set by Administrators, either during
+             * Commissioning or at a later time, to set the ProviderLocation for the default OTA Provider Node to use
+             * for software updates on a given Fabric.
+             *
+             * There shall NOT be more than one entry per Fabric. On a list update that would introduce more than one
+             * entry per fabric, the write shall fail with CONSTRAINT_ERROR status code.
+             *
+             * Provider Locations obtained using the AnnounceOTAProvider command shall NOT overwrite values set in the
+             * DefaultOTAProviders attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.1
+             */
+            defaultOtaProviders: ProviderLocation[];
+
+            /**
+             * This field shall be set to True if the OTA Requestor is currently able to be updated. Otherwise, it shall
+             * be set to False in case of any condition preventing update being possible, such as insufficient capacity
+             * of an internal battery. This field is merely informational for diagnostics purposes and shall NOT affect
+             * the responses provided by an OTA Provider to an OTA Requestor.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.2
+             */
+            readonly updatePossible: boolean;
+
+            /**
+             * This field shall reflect the current state of the OTA Requestor with regards to obtaining software
+             * updates. See Section 11.20.7.4.2, “UpdateStateEnum Type” for possible values.
+             *
+             * This field SHOULD be updated in a timely manner whenever OTA Requestor internal state updates.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.3
+             */
+            readonly updateState: UpdateState;
+
+            /**
+             * This field shall reflect the percentage value of progress, relative to the current UpdateState, if
+             * applicable to the state.
+             *
+             * The value of this field shall be null if a progress indication does not apply to the current state.
+             *
+             * A value of 0 shall indicate that the beginning has occurred. A value of 100 shall indicate completion.
+             *
+             * This field may be updated infrequently. Some care SHOULD be taken by Nodes to avoid over-reporting
+             * progress when this attribute is part of a subscription.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.4
+             */
+            readonly updateStateProgress: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * This command may be invoked by Administrators to announce the presence of a particular OTA Provider.
+             *
+             * This command shall be scoped to the accessing fabric.
+             *
+             * If the accessing fabric index is 0, this command shall fail with an UNSUPPORTED_ACCESS status code.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.6.1
+             */
+            announceOtaProvider(request: AnnounceOtaProviderRequest): MaybePromise;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when a change of the UpdateState attribute occurs due to an OTA Requestor
+             * moving through the states necessary to query for updates.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.1
+             */
+            stateTransition: StateTransitionEvent;
+
+            /**
+             * This event shall be generated whenever a new version starts executing after being applied due to a
+             * software update. This event SHOULD be generated even if a software update was done using means outside of
+             * this cluster.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.2
+             */
+            versionApplied: VersionAppliedEvent;
+
+            /**
+             * This event shall be generated whenever an error occurs during OTA Requestor download operation.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.3
+             */
+            downloadError: DownloadErrorEvent;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link OtaSoftwareUpdateRequestor}.
      */
     export interface Attributes {
@@ -55,7 +151,7 @@ export namespace OtaSoftwareUpdateRequestor {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.2
          */
-        updatePossible: boolean;
+        readonly updatePossible: boolean;
 
         /**
          * This field shall reflect the current state of the OTA Requestor with regards to obtaining software updates.
@@ -65,7 +161,7 @@ export namespace OtaSoftwareUpdateRequestor {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.3
          */
-        updateState: UpdateState;
+        readonly updateState: UpdateState;
 
         /**
          * This field shall reflect the percentage value of progress, relative to the current UpdateState, if applicable
@@ -80,35 +176,10 @@ export namespace OtaSoftwareUpdateRequestor {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.5.4
          */
-        updateStateProgress: number | null;
+        readonly updateStateProgress: number | null;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "defaultOtaProviders" | "updatePossible" | "updateState" | "updateStateProgress" }
-        ];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link OtaSoftwareUpdateRequestor} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command may be invoked by Administrators to announce the presence of a particular OTA Provider.
-             *
-             * This command shall be scoped to the accessing fabric.
-             *
-             * If the accessing fabric index is 0, this command shall fail with an UNSUPPORTED_ACCESS status code.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.20.7.6.1
-             */
-            announceOtaProvider(request: AnnounceOtaProviderRequest): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
+    export interface Commands extends Base.Commands {}
 
     /**
      * Events that may appear in {@link OtaSoftwareUpdateRequestor}.
@@ -139,9 +210,7 @@ export namespace OtaSoftwareUpdateRequestor {
         downloadError: DownloadErrorEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, mandatory: "stateTransition" | "versionApplied" | "downloadError" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events }];
 
     /**
      * This structure encodes a fabric-scoped location of an OTA provider on a given fabric.
@@ -901,4 +970,4 @@ export namespace OtaSoftwareUpdateRequestor {
 export type OtaSoftwareUpdateRequestorCluster = OtaSoftwareUpdateRequestor.Cluster;
 export const OtaSoftwareUpdateRequestorCluster = OtaSoftwareUpdateRequestor.Cluster;
 ClusterNamespace.define(OtaSoftwareUpdateRequestor);
-export interface OtaSoftwareUpdateRequestor extends ClusterTyping { Attributes: OtaSoftwareUpdateRequestor.Attributes & { Components: OtaSoftwareUpdateRequestor.Attributes.Components }; Commands: OtaSoftwareUpdateRequestor.Commands & { Components: OtaSoftwareUpdateRequestor.Commands.Components }; Events: OtaSoftwareUpdateRequestor.Events & { Components: OtaSoftwareUpdateRequestor.Events.Components } }
+export interface OtaSoftwareUpdateRequestor extends ClusterTyping { Attributes: OtaSoftwareUpdateRequestor.Attributes; Commands: OtaSoftwareUpdateRequestor.Commands; Events: OtaSoftwareUpdateRequestor.Events; Components: OtaSoftwareUpdateRequestor.Components }

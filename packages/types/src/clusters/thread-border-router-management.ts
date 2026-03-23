@@ -25,80 +25,67 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ThreadBorderRouterManagement {
     /**
-     * Attributes that may appear in {@link ThreadBorderRouterManagement}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link ThreadBorderRouterManagement} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * Indicates a user-friendly name identifying the device model or product of the Border Router in MeshCOP
-         * (DNS-SD service name) as defined in the Thread specification, and has the following recommended format:
-         * <VendorName> <ProductName>._meshcop._udp. An example name would be ACME Border Router (74be)._meshcop._udp.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.1
-         */
-        borderRouterName: string;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates a user-friendly name identifying the device model or product of the Border Router in MeshCOP
+             * (DNS-SD service name) as defined in the Thread specification, and has the following recommended format:
+             * <VendorName> <ProductName>._meshcop._udp. An example name would be ACME Border Router
+             * (74be)._meshcop._udp.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.1
+             */
+            readonly borderRouterName: string;
 
-        /**
-         * Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is manufacturer-specific,
-         * and it is created and managed by the border router’s implementation.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.2
-         */
-        borderAgentId: Bytes;
+            /**
+             * Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is
+             * manufacturer-specific, and it is created and managed by the border router’s implementation.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.2
+             */
+            readonly borderAgentId: Bytes;
 
-        /**
-         * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
-         *
-         * The format shall match the value mapping defined in the "Version TLV" section of the Thread specification.
-         * For example, Thread 1.3.0 would have ThreadVersion set to 4.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.3
-         */
-        threadVersion: number;
+            /**
+             * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
+             *
+             * The format shall match the value mapping defined in the "Version TLV" section of the Thread
+             * specification. For example, Thread 1.3.0 would have ThreadVersion set to 4.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.3
+             */
+            readonly threadVersion: number;
 
-        /**
-         * Indicates whether the associated IEEE 802.15.4 Thread interface is enabled or disabled.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.4
-         */
-        interfaceEnabled: boolean;
+            /**
+             * Indicates whether the associated IEEE 802.15.4 Thread interface is enabled or disabled.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.4
+             */
+            readonly interfaceEnabled: boolean;
 
-        /**
-         * Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp value
-         * extracted from the Active Dataset value configured by the Thread Node to which the border router is
-         * connected. This attribute shall be updated when a new Active dataset is configured on the Thread network to
-         * which the border router is connected.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.5
-         */
-        activeDatasetTimestamp: number | bigint | null;
+            /**
+             * Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp value
+             * extracted from the Active Dataset value configured by the Thread Node to which the border router is
+             * connected. This attribute shall be updated when a new Active dataset is configured on the Thread network
+             * to which the border router is connected.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.5
+             */
+            readonly activeDatasetTimestamp: number | bigint | null;
 
-        /**
-         * Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the timestamp value
-         * extracted from the Pending Dataset value configured by the Thread Node to which the border router is
-         * connected. This attribute shall be updated when a new Pending dataset is configured on the Thread network to
-         * which the border router is connected.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.6
-         */
-        pendingDatasetTimestamp: number | bigint | null;
-    }
+            /**
+             * Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the timestamp
+             * value extracted from the Pending Dataset value configured by the Thread Node to which the border router
+             * is connected. This attribute shall be updated when a new Pending dataset is configured on the Thread
+             * network to which the border router is connected.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.6
+             */
+            readonly pendingDatasetTimestamp: number | bigint | null;
+        }
 
-    export namespace Attributes {
-        export type Components = [{
-            flags: {},
-            mandatory: "borderRouterName" | "borderAgentId" | "threadVersion" | "interfaceEnabled" | "activeDatasetTimestamp" | "pendingDatasetTimestamp"
-        }];
-    }
-
-    export interface Commands extends Commands.Base, Commands.PanChange {}
-
-    export namespace Commands {
-        /**
-         * {@link ThreadBorderRouterManagement} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command shall be used to request the active operational dataset of the Thread network to which the
              * border router is connected.
@@ -139,11 +126,13 @@ export namespace ThreadBorderRouterManagement {
              */
             setActiveDatasetRequest(request: SetActiveDatasetRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ThreadBorderRouterManagement} supports these commands if it supports feature "PanChange".
-         */
-        export interface PanChange {
+    /**
+     * {@link ThreadBorderRouterManagement} supports these elements if it supports feature "PanChange".
+     */
+    export namespace PanChangeComponent {
+        export interface Commands {
             /**
              * This command shall be used to set or update the pending Dataset of the Thread network to which the Border
              * Router is connected, if the Border Router supports PAN Change.
@@ -166,10 +155,74 @@ export namespace ThreadBorderRouterManagement {
              */
             setPendingDatasetRequest(request: SetPendingDatasetRequest): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }, { flags: { panChange: true }, methods: PanChange }];
     }
 
+    /**
+     * Attributes that may appear in {@link ThreadBorderRouterManagement}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates a user-friendly name identifying the device model or product of the Border Router in MeshCOP
+         * (DNS-SD service name) as defined in the Thread specification, and has the following recommended format:
+         * <VendorName> <ProductName>._meshcop._udp. An example name would be ACME Border Router (74be)._meshcop._udp.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.1
+         */
+        readonly borderRouterName: string;
+
+        /**
+         * Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is manufacturer-specific,
+         * and it is created and managed by the border router’s implementation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.2
+         */
+        readonly borderAgentId: Bytes;
+
+        /**
+         * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
+         *
+         * The format shall match the value mapping defined in the "Version TLV" section of the Thread specification.
+         * For example, Thread 1.3.0 would have ThreadVersion set to 4.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.3
+         */
+        readonly threadVersion: number;
+
+        /**
+         * Indicates whether the associated IEEE 802.15.4 Thread interface is enabled or disabled.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.4
+         */
+        readonly interfaceEnabled: boolean;
+
+        /**
+         * Null if the Thread Border Router has no dataset configured, otherwise it shall be the timestamp value
+         * extracted from the Active Dataset value configured by the Thread Node to which the border router is
+         * connected. This attribute shall be updated when a new Active dataset is configured on the Thread network to
+         * which the border router is connected.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.5
+         */
+        readonly activeDatasetTimestamp: number | bigint | null;
+
+        /**
+         * Null if the Thread Border Router has no Pending dataset configured, otherwise it shall be the timestamp value
+         * extracted from the Pending Dataset value configured by the Thread Node to which the border router is
+         * connected. This attribute shall be updated when a new Pending dataset is configured on the Thread network to
+         * which the border router is connected.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 10.3.5.6
+         */
+        readonly pendingDatasetTimestamp: number | bigint | null;
+    }
+
+    export interface Commands extends Base.Commands, PanChangeComponent.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { panChange: true }, commands: PanChangeComponent.Commands }
+    ];
     export type Features = "PanChange";
 
     /**
@@ -555,4 +608,4 @@ export namespace ThreadBorderRouterManagement {
 export type ThreadBorderRouterManagementCluster = ThreadBorderRouterManagement.Cluster;
 export const ThreadBorderRouterManagementCluster = ThreadBorderRouterManagement.Cluster;
 ClusterNamespace.define(ThreadBorderRouterManagement);
-export interface ThreadBorderRouterManagement extends ClusterTyping { Attributes: ThreadBorderRouterManagement.Attributes & { Components: ThreadBorderRouterManagement.Attributes.Components }; Commands: ThreadBorderRouterManagement.Commands & { Components: ThreadBorderRouterManagement.Commands.Components }; Features: ThreadBorderRouterManagement.Features }
+export interface ThreadBorderRouterManagement extends ClusterTyping { Attributes: ThreadBorderRouterManagement.Attributes; Commands: ThreadBorderRouterManagement.Commands; Features: ThreadBorderRouterManagement.Features; Components: ThreadBorderRouterManagement.Components }

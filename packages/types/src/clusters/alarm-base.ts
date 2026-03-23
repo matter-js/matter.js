@@ -21,6 +21,83 @@ import { AlarmBase as AlarmBaseModel } from "@matter/model";
  */
 export namespace AlarmBase {
     /**
+     * {@link AlarmBase} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates a bitmap where each bit set in the Mask attribute corresponds to an alarm that shall be
+             * enabled.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.1
+             */
+            readonly mask: number;
+
+            /**
+             * Indicates a bitmap where each bit shall represent the state of an alarm. The value of true means the
+             * alarm is active, otherwise the alarm is inactive.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.3
+             */
+            readonly state: number;
+
+            /**
+             * Indicates a bitmap where each bit shall represent whether or not an alarm is supported. The value of true
+             * means the alarm is supported, otherwise the alarm is not supported.
+             *
+             * If an alarm is not supported, the corresponding bit in Mask, Latch, and State shall be false.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.4
+             */
+            readonly supported: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command allows a client to request that an alarm be enabled or suppressed at the server.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2
+             */
+            modifyEnabledAlarms(request: ModifyEnabledAlarmsRequest): MaybePromise;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when one or more alarms change state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1
+             */
+            notify: NotifyEvent;
+        }
+    }
+
+    /**
+     * {@link AlarmBase} supports these elements if it supports feature "Reset".
+     */
+    export namespace ResetComponent {
+        export interface Attributes {
+            /**
+             * Indicates a bitmap where each bit set in the Latch attribute shall indicate that the corresponding alarm
+             * will be latched when set, and will not reset to inactive when the underlying condition which caused the
+             * alarm is no longer present, and so requires an explicit reset using the Reset command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.2
+             */
+            readonly latch: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command resets active and latched alarms (if possible). Any generated Notify event shall contain
+             * fields that represent the state of the server after the command has been processed.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
+             */
+            reset(request: ResetRequest): MaybePromise;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link AlarmBase}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -31,7 +108,7 @@ export namespace AlarmBase {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.1
          */
-        mask: number;
+        readonly mask: number;
 
         /**
          * Indicates a bitmap where each bit shall represent the state of an alarm. The value of true means the alarm is
@@ -39,7 +116,7 @@ export namespace AlarmBase {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.3
          */
-        state: number;
+        readonly state: number;
 
         /**
          * Indicates a bitmap where each bit shall represent whether or not an alarm is supported. The value of true
@@ -49,7 +126,7 @@ export namespace AlarmBase {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.4
          */
-        supported: number;
+        readonly supported: number;
 
         /**
          * Indicates a bitmap where each bit set in the Latch attribute shall indicate that the corresponding alarm will
@@ -58,46 +135,10 @@ export namespace AlarmBase {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.6.2
          */
-        latch: number;
+        readonly latch: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "mask" | "state" | "supported" },
-            { flags: { reset: true }, mandatory: "latch" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base, Commands.Reset {}
-
-    export namespace Commands {
-        /**
-         * {@link AlarmBase} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command allows a client to request that an alarm be enabled or suppressed at the server.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2
-             */
-            modifyEnabledAlarms(request: ModifyEnabledAlarmsRequest): MaybePromise;
-        }
-
-        /**
-         * {@link AlarmBase} supports these commands if it supports feature "Reset".
-         */
-        export interface Reset {
-            /**
-             * This command resets active and latched alarms (if possible). Any generated Notify event shall contain
-             * fields that represent the state of the server after the command has been processed.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
-             */
-            reset(request: ResetRequest): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }, { flags: { reset: true }, methods: Reset }];
-    }
+    export interface Commands extends Base.Commands, ResetComponent.Commands {}
 
     /**
      * Events that may appear in {@link AlarmBase}.
@@ -113,9 +154,10 @@ export namespace AlarmBase {
         notify: NotifyEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, mandatory: "notify" }];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events },
+        { flags: { reset: true }, attributes: ResetComponent.Attributes, commands: ResetComponent.Commands }
+    ];
     export type Features = "Reset";
 
     /**
@@ -439,4 +481,4 @@ export namespace AlarmBase {
 }
 
 ClusterNamespace.define(AlarmBase);
-export interface AlarmBase extends ClusterTyping { Attributes: AlarmBase.Attributes & { Components: AlarmBase.Attributes.Components }; Commands: AlarmBase.Commands & { Components: AlarmBase.Commands.Components }; Events: AlarmBase.Events & { Components: AlarmBase.Events.Components }; Features: AlarmBase.Features }
+export interface AlarmBase extends ClusterTyping { Attributes: AlarmBase.Attributes; Commands: AlarmBase.Commands; Events: AlarmBase.Events; Features: AlarmBase.Features; Components: AlarmBase.Components }

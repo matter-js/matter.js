@@ -25,6 +25,52 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace TargetNavigator {
     /**
+     * {@link TargetNavigator} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates a list of targets that can be navigated to within the experience presented to the user by the
+             * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier
+             * in the TargetInfoStruct object.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
+             */
+            readonly targetList: TargetInfo[];
+
+            /**
+             * Indicates the Identifier for the target which is currently in foreground on the corresponding Endpoint
+             * (Video Player or Content App), or 0xFF to indicate that no target is in the foreground.
+             *
+             * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the
+             * TargetInfoStruct objects in the TargetList attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
+             */
+            readonly currentTarget?: number;
+        }
+
+        export interface Commands {
+            /**
+             * Upon receipt, this shall navigation the UX to the target identified.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
+             */
+            navigateTarget(request: NavigateTargetRequest): MaybePromise<NavigateTargetResponse>;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when there is a change in either the active target or the list of available
+             * targets or both.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
+             */
+            targetUpdated?: TargetUpdatedEvent;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link TargetNavigator}.
      *
      * Optional properties represent attributes that devices are not required to support.
@@ -37,7 +83,7 @@ export namespace TargetNavigator {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
          */
-        targetList: TargetInfo[];
+        readonly targetList: TargetInfo[];
 
         /**
          * Indicates the Identifier for the target which is currently in foreground on the corresponding Endpoint (Video
@@ -48,29 +94,10 @@ export namespace TargetNavigator {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
          */
-        currentTarget: number;
+        readonly currentTarget: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "targetList", optional: "currentTarget" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link TargetNavigator} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * Upon receipt, this shall navigation the UX to the target identified.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
-             */
-            navigateTarget(request: NavigateTargetRequest): MaybePromise<NavigateTargetResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
+    export interface Commands extends Base.Commands {}
 
     /**
      * Events that may appear in {@link TargetNavigator}.
@@ -87,9 +114,7 @@ export namespace TargetNavigator {
         targetUpdated: TargetUpdatedEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, optional: "targetUpdated" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events }];
 
     /**
      * This indicates an object describing the navigable target.
@@ -376,4 +401,4 @@ export namespace TargetNavigator {
 export type TargetNavigatorCluster = TargetNavigator.Cluster;
 export const TargetNavigatorCluster = TargetNavigator.Cluster;
 ClusterNamespace.define(TargetNavigator);
-export interface TargetNavigator extends ClusterTyping { Attributes: TargetNavigator.Attributes & { Components: TargetNavigator.Attributes.Components }; Commands: TargetNavigator.Commands & { Components: TargetNavigator.Commands.Components }; Events: TargetNavigator.Events & { Components: TargetNavigator.Events.Components } }
+export interface TargetNavigator extends ClusterTyping { Attributes: TargetNavigator.Attributes; Commands: TargetNavigator.Commands; Events: TargetNavigator.Events; Components: TargetNavigator.Components }

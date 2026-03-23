@@ -10,28 +10,26 @@ import { MyClusterTyping } from "./cluster-behavior-test-util.js";
 
 type FeaturesInterface = {
     SupportedFeatures: { foo: true };
-    Commands: {
-        Components: [
-            {
-                flags: {};
-                methods: {
-                    unconditionalMethod(value: string): boolean;
-                };
-            },
-            {
-                flags: { foo: true };
-                methods: {
-                    fooMethod(value: number): number;
-                };
-            },
-            {
-                flags: { bar: true };
-                methods: {
-                    barMethod(value: boolean): string;
-                };
-            },
-        ];
-    };
+    Components: [
+        {
+            flags: {};
+            commands: {
+                unconditionalMethod(value: string): boolean;
+            };
+        },
+        {
+            flags: { foo: true };
+            commands: {
+                fooMethod(value: number): number;
+            };
+        },
+        {
+            flags: { bar: true };
+            commands: {
+                barMethod(value: boolean): string;
+            };
+        },
+    ];
 };
 
 describe("ClusterInterface", () => {

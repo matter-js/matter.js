@@ -20,6 +20,49 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace TemperatureMeasurement {
     /**
+     * {@link TemperatureMeasurement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the measured temperature.
+             *
+             * The null value indicates that the temperature is unknown.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.1
+             */
+            readonly measuredValue: number | null;
+
+            /**
+             * Indicates the minimum value of MeasuredValue that is capable of being measured. See Measured Value for
+             * more details.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.2
+             */
+            readonly minMeasuredValue: number | null;
+
+            /**
+             * This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See
+             * Measured Value for more details.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.3
+             */
+            readonly maxMeasuredValue: number | null;
+
+            /**
+             * See Measured Value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.4
+             */
+            readonly tolerance?: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link TemperatureMeasurement}.
      *
      * Optional properties represent attributes that devices are not required to support.
@@ -32,7 +75,7 @@ export namespace TemperatureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.1
          */
-        measuredValue: number | null;
+        readonly measuredValue: number | null;
 
         /**
          * Indicates the minimum value of MeasuredValue that is capable of being measured. See Measured Value for more
@@ -42,7 +85,7 @@ export namespace TemperatureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.2
          */
-        minMeasuredValue: number | null;
+        readonly minMeasuredValue: number | null;
 
         /**
          * This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See Measured
@@ -52,21 +95,17 @@ export namespace TemperatureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.3
          */
-        maxMeasuredValue: number | null;
+        readonly maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.4
          */
-        tolerance: number;
+        readonly tolerance: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue", optional: "tolerance" }
-        ];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link Cluster}
@@ -137,4 +176,4 @@ export namespace TemperatureMeasurement {
 export type TemperatureMeasurementCluster = TemperatureMeasurement.Cluster;
 export const TemperatureMeasurementCluster = TemperatureMeasurement.Cluster;
 ClusterNamespace.define(TemperatureMeasurement);
-export interface TemperatureMeasurement extends ClusterTyping { Attributes: TemperatureMeasurement.Attributes & { Components: TemperatureMeasurement.Attributes.Components } }
+export interface TemperatureMeasurement extends ClusterTyping { Attributes: TemperatureMeasurement.Attributes; Components: TemperatureMeasurement.Components }

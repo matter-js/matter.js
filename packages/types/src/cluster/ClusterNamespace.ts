@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { OptionalKeys as OptionalKeysType, RequiredKeys as RequiredKeysType } from "@matter/general";
 import { camelize } from "@matter/general";
 import type { AttributeModel, CommandModel, EventModel } from "@matter/model";
 import { ClusterModel, ClusterModifier, GLOBAL_IDS } from "@matter/model";
@@ -37,14 +38,13 @@ export interface ClusterNamespace {
 export namespace ClusterNamespace {
     export interface Component<F extends BitSchema = {}> {
         flags: TypeFromPartialBitSchema<F>;
-        methods: {};
+        attributes?: {};
+        commands?: {};
+        events?: {};
     }
 
-    export interface ElementComponent<F extends BitSchema = {}> {
-        flags: TypeFromPartialBitSchema<F>;
-        mandatory?: string;
-        optional?: string;
-    }
+    export type RequiredKeys<T> = RequiredKeysType<T>;
+    export type OptionalKeys<T> = OptionalKeysType<T>;
 
     export interface Attribute<T = unknown> {
         id: AttributeId;
@@ -169,21 +169,19 @@ export namespace ClusterNamespace {
      * Extract attribute key names from a namespace, excluding synthetic keys.
      */
     export type AttrKeysOf<N extends ClusterTyping> = N extends { Attributes: infer A }
-        ? Exclude<keyof A & string, "Components" | "Enabled">
+        ? Exclude<keyof A & string, "Enabled">
         : never;
 
     /**
      * Extract command key names from a namespace, excluding synthetic keys.
      */
-    export type CommandKeysOf<N extends ClusterTyping> = N extends { Commands: infer C }
-        ? Exclude<keyof C & string, "Components">
-        : never;
+    export type CommandKeysOf<N extends ClusterTyping> = N extends { Commands: infer C } ? keyof C & string : never;
 
     /**
      * Extract event key names from a namespace, excluding synthetic keys.
      */
     export type EventKeysOf<N extends ClusterTyping> = N extends { Events: infer E }
-        ? Exclude<keyof E & string, "Components" | "Enabled">
+        ? Exclude<keyof E & string, "Enabled">
         : never;
 
     /**
@@ -350,6 +348,7 @@ export interface ClusterTyping {
     Commands?: {};
     Events?: {};
     Features?: {};
+    Components?: {};
     SupportedFeatures?: {};
     readonly schema?: ClusterModel;
 }

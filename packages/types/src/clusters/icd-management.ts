@@ -34,6 +34,237 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace IcdManagement {
     /**
+     * {@link IcdManagement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the maximum interval in seconds the server can stay in idle mode. The IdleModeDuration shall
+             * NOT be smaller than the ActiveModeDuration.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
+             */
+            readonly idleModeDuration: number;
+
+            /**
+             * Indicates the minimum interval in milliseconds the server typically will stay in active mode after
+             * initial transition out of idle mode. The ActiveModeDuration does not include the ActiveModeThreshold.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
+             */
+            readonly activeModeDuration: number;
+
+            /**
+             * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
+             * activity when in active mode.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
+             */
+            readonly activeModeThreshold: number;
+
+            /**
+             * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
+             * conformance is in indicated in the "dependency" column in UserActiveModeTriggerHint table. The
+             * UserActiveModeTriggerInstruction attribute may give additional information on how to transition the
+             * device to Active Mode. If the attribute is present, the value shall be encoded as a valid UTF-8 string
+             * with a maximum length of 128 bytes. If the UserActiveModeTriggerHint has the ActuateSensorSeconds,
+             * ActuateSensorTimes, ResetButtonSeconds, ResetButtonTimes, SetupButtonSeconds or SetupButtonTimes set, the
+             * string shall consist solely of an encoding of N as a decimal unsigned integer using the ASCII digits 0-9,
+             * and without leading zeros.
+             *
+             * For example, given UserActiveModeTriggerHint="1024", ResetButtonSeconds is set which indicates "Press
+             * Reset Button for N seconds". Therefore, a value of UserActiveModeTriggerInstruction="6" would indicate
+             * that N is 6 in that context.
+             *
+             * When CustomInstruction is set by the UserActiveModeTriggerHint attribute, indicating presence of a custom
+             * string, the ICD SHOULD perform localization (translation to user’s preferred language, as indicated in
+             * the Device’s currently configured locale). The Custom Instruction option SHOULD NOT be used by an ICD
+             * that does not have knowledge of the user’s language preference.
+             *
+             * When the UserActiveModeTriggerHint key indicates a light to blink (ActuateSensorLightsBlink,
+             * ResetButtonLightsBlink or SetupButtonLightsBlink), information on color of light may be made available
+             * via the UserActiveModeTriggerInstruction attribute. When using such color indication in the
+             * UserActiveModeTriggerInstruction attribute, the string shall consist of exactly 6 hexadecimal digits
+             * using the ASCII characters 0-F and encoding the RGB color value as used in HTML encodings.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
+             */
+            readonly userActiveModeTriggerInstruction?: string;
+        }
+
+        export interface Commands {
+            /**
+             * This command allows a client to request that the server stays in active mode for at least a given time
+             * duration (in milliseconds) from when this command is received.
+             *
+             * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by
+             * the client to request the server to stay active and responsive for this period to allow a sequence of
+             * message exchanges during that period. The client may slightly overestimate the duration it wants the ICD
+             * to be active for, in order to account for network delays.
+             *
+             * ### Effect on Receipt
+             *
+             * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
+             * it can remain active as the greater of the following two values:
+             *
+             *   - StayActiveDuration: Specified in the received command by the client.
+             *
+             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
+             *     and its internal resources and power budget.
+             *
+             * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
+             *
+             * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
+             * account both the requested duration and the server’s capabilities.
+             *
+             * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
+             * client.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+             */
+            stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
+        }
+    }
+
+    /**
+     * {@link IcdManagement} supports these elements if it supports feature "CheckInProtocolSupport".
+     */
+    export namespace CheckInProtocolSupportComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall contain all clients registered to receive notification if their subscription is
+             * lost. The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each
+             * fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in the
+             * Operational Credentials cluster.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
+             */
+            readonly registeredClients: MonitoringRegistration[];
+
+            /**
+             * This attribute returns the value of the ICD Counter.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
+             */
+            readonly icdCounter: number;
+
+            /**
+             * Indicates the maximum number of entries that the server is able to store for each fabric in the
+             * RegisteredClients attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
+             */
+            readonly clientsSupportedPerFabric: number;
+
+            /**
+             * Indicates the maximum time in seconds between two Check-In messages when back-off is active. The
+             * MaximumCheckInBackoff shall NOT be smaller than the IdleModeDuration.
+             *
+             * If the MaximumCheckInBackoff is equal to the IdleModeDuration, it means the ICD does not back-off.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
+             */
+            readonly maximumCheckInBackoff: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command allows a client to register itself with the ICD to be notified when the device is available
+             * for communication.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
+             */
+            registerClient(request: RegisterClientRequest): MaybePromise<RegisterClientResponse>;
+
+            /**
+             * This command allows a client to unregister itself with the ICD. Example: a client that is leaving the
+             * network (e.g. running on a phone which is leaving the home) can (and should) remove its subscriptions and
+             * send this UnregisterClient command before leaving to prevent the burden on the ICD of an absent client.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
+             */
+            unregisterClient(request: UnregisterClientRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link IcdManagement} supports these elements if it supports feature "UserActiveModeTrigger".
+     */
+    export namespace UserActiveModeTriggerComponent {
+        export interface Attributes {
+            /**
+             * Indicates which user action(s) will trigger the ICD to switch to Active mode. If the attribute indicates
+             * support for a trigger that is dependent on the UserActiveModeTriggerInstruction in the
+             * UserActiveModeTriggerHint table, the UserActiveModeTriggerInstruction attribute shall be implemented and
+             * shall provide the required information, unless specified otherwise in the requirement column of the
+             * UserActiveModeTriggerHint table.
+             *
+             * ActuateSensorLightsBlink, ResetButtonLightsBlink and SetupButtonLightsBlink (i.e. bits 7, 9 and 14) have
+             * a dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute to be
+             * present.
+             *
+             * An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the bitmap at
+             * the same time. However, a device shall NOT set more than one bit which has a dependency on the
+             * UserActiveModeTriggerInstruction attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
+             */
+            readonly userActiveModeTriggerHint: UserActiveModeTrigger;
+        }
+    }
+
+    /**
+     * {@link IcdManagement} supports these elements if it supports feature "LongIdleTimeSupport".
+     */
+    export namespace LongIdleTimeSupportComponent {
+        export interface Attributes {
+            /**
+             * Indicates the operating mode of the ICD as specified in the OperatingModeEnum.
+             *
+             *   - If the ICD is operating as a LIT ICD, OperatingMode shall be LIT.
+             *
+             *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
+             */
+            readonly operatingMode: OperatingMode;
+        }
+
+        export interface Commands {
+            /**
+             * This command allows a client to request that the server stays in active mode for at least a given time
+             * duration (in milliseconds) from when this command is received.
+             *
+             * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by
+             * the client to request the server to stay active and responsive for this period to allow a sequence of
+             * message exchanges during that period. The client may slightly overestimate the duration it wants the ICD
+             * to be active for, in order to account for network delays.
+             *
+             * ### Effect on Receipt
+             *
+             * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
+             * it can remain active as the greater of the following two values:
+             *
+             *   - StayActiveDuration: Specified in the received command by the client.
+             *
+             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
+             *     and its internal resources and power budget.
+             *
+             * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
+             *
+             * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
+             * account both the requested duration and the server’s capabilities.
+             *
+             * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
+             * client.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+             */
+            stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link IcdManagement}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -46,7 +277,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
          */
-        idleModeDuration: number;
+        readonly idleModeDuration: number;
 
         /**
          * Indicates the minimum interval in milliseconds the server typically will stay in active mode after initial
@@ -54,7 +285,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
          */
-        activeModeDuration: number;
+        readonly activeModeDuration: number;
 
         /**
          * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
@@ -62,7 +293,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
          */
-        activeModeThreshold: number;
+        readonly activeModeThreshold: number;
 
         /**
          * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
@@ -91,7 +322,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
          */
-        userActiveModeTriggerInstruction: string;
+        readonly userActiveModeTriggerInstruction: string;
 
         /**
          * This attribute shall contain all clients registered to receive notification if their subscription is lost.
@@ -101,14 +332,14 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
          */
-        registeredClients: MonitoringRegistration[];
+        readonly registeredClients: MonitoringRegistration[];
 
         /**
          * This attribute returns the value of the ICD Counter.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
          */
-        icdCounter: number;
+        readonly icdCounter: number;
 
         /**
          * Indicates the maximum number of entries that the server is able to store for each fabric in the
@@ -116,7 +347,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
          */
-        clientsSupportedPerFabric: number;
+        readonly clientsSupportedPerFabric: number;
 
         /**
          * Indicates the maximum time in seconds between two Check-In messages when back-off is active. The
@@ -126,7 +357,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
          */
-        maximumCheckInBackoff: number;
+        readonly maximumCheckInBackoff: number;
 
         /**
          * Indicates which user action(s) will trigger the ICD to switch to Active mode. If the attribute indicates
@@ -144,7 +375,7 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
          */
-        userActiveModeTriggerHint: UserActiveModeTrigger;
+        readonly userActiveModeTriggerHint: UserActiveModeTrigger;
 
         /**
          * Indicates the operating mode of the ICD as specified in the OperatingModeEnum.
@@ -155,128 +386,25 @@ export namespace IcdManagement {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
          */
-        operatingMode: OperatingMode;
+        readonly operatingMode: OperatingMode;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "idleModeDuration" | "activeModeDuration" | "activeModeThreshold",
-                optional: "userActiveModeTriggerInstruction"
-            },
-            {
-                flags: { checkInProtocolSupport: true },
-                mandatory: "registeredClients" | "icdCounter" | "clientsSupportedPerFabric" | "maximumCheckInBackoff"
-            },
-            { flags: { userActiveModeTrigger: true }, mandatory: "userActiveModeTriggerHint" },
-            { flags: { longIdleTimeSupport: true }, mandatory: "operatingMode" }
-        ];
-    }
+    export interface Commands extends Base.Commands, CheckInProtocolSupportComponent.Commands, LongIdleTimeSupportComponent.Commands {}
 
-    export interface Commands extends Commands.Base, Commands.CheckInProtocolSupport, Commands.LongIdleTimeSupport {}
-
-    export namespace Commands {
-        /**
-         * {@link IcdManagement} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command allows a client to request that the server stays in active mode for at least a given time
-             * duration (in milliseconds) from when this command is received.
-             *
-             * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by
-             * the client to request the server to stay active and responsive for this period to allow a sequence of
-             * message exchanges during that period. The client may slightly overestimate the duration it wants the ICD
-             * to be active for, in order to account for network delays.
-             *
-             * ### Effect on Receipt
-             *
-             * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
-             * it can remain active as the greater of the following two values:
-             *
-             *   - StayActiveDuration: Specified in the received command by the client.
-             *
-             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
-             *     and its internal resources and power budget.
-             *
-             * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
-             *
-             * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
-             * account both the requested duration and the server’s capabilities.
-             *
-             * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
-             * client.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
-             */
-            stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        {
+            flags: { checkInProtocolSupport: true },
+            attributes: CheckInProtocolSupportComponent.Attributes,
+            commands: CheckInProtocolSupportComponent.Commands
+        },
+        { flags: { userActiveModeTrigger: true }, attributes: UserActiveModeTriggerComponent.Attributes },
+        {
+            flags: { longIdleTimeSupport: true },
+            attributes: LongIdleTimeSupportComponent.Attributes,
+            commands: LongIdleTimeSupportComponent.Commands
         }
-
-        /**
-         * {@link IcdManagement} supports these commands if it supports feature "CheckInProtocolSupport".
-         */
-        export interface CheckInProtocolSupport {
-            /**
-             * This command allows a client to register itself with the ICD to be notified when the device is available
-             * for communication.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
-             */
-            registerClient(request: RegisterClientRequest): MaybePromise<RegisterClientResponse>;
-
-            /**
-             * This command allows a client to unregister itself with the ICD. Example: a client that is leaving the
-             * network (e.g. running on a phone which is leaving the home) can (and should) remove its subscriptions and
-             * send this UnregisterClient command before leaving to prevent the burden on the ICD of an absent client.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
-             */
-            unregisterClient(request: UnregisterClientRequest): MaybePromise;
-        }
-
-        /**
-         * {@link IcdManagement} supports these commands if it supports feature "LongIdleTimeSupport".
-         */
-        export interface LongIdleTimeSupport {
-            /**
-             * This command allows a client to request that the server stays in active mode for at least a given time
-             * duration (in milliseconds) from when this command is received.
-             *
-             * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by
-             * the client to request the server to stay active and responsive for this period to allow a sequence of
-             * message exchanges during that period. The client may slightly overestimate the duration it wants the ICD
-             * to be active for, in order to account for network delays.
-             *
-             * ### Effect on Receipt
-             *
-             * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
-             * it can remain active as the greater of the following two values:
-             *
-             *   - StayActiveDuration: Specified in the received command by the client.
-             *
-             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
-             *     and its internal resources and power budget.
-             *
-             * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
-             *
-             * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
-             * account both the requested duration and the server’s capabilities.
-             *
-             * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
-             * client.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
-             */
-            stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
-        }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { checkInProtocolSupport: true }, methods: CheckInProtocolSupport },
-            { flags: { longIdleTimeSupport: true }, methods: LongIdleTimeSupport }
-        ];
-    }
+    ];
 
     export type Features = "CheckInProtocolSupport" | "UserActiveModeTrigger" | "LongIdleTimeSupport" | "DynamicSitLitSupport";
 
@@ -1542,4 +1670,4 @@ export namespace IcdManagement {
 export type IcdManagementCluster = IcdManagement.Cluster;
 export const IcdManagementCluster = IcdManagement.Cluster;
 ClusterNamespace.define(IcdManagement);
-export interface IcdManagement extends ClusterTyping { Attributes: IcdManagement.Attributes & { Components: IcdManagement.Attributes.Components }; Commands: IcdManagement.Commands & { Components: IcdManagement.Commands.Components }; Features: IcdManagement.Features }
+export interface IcdManagement extends ClusterTyping { Attributes: IcdManagement.Attributes; Commands: IcdManagement.Commands; Features: IcdManagement.Features; Components: IcdManagement.Components }

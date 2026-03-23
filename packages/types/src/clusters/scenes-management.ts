@@ -40,41 +40,33 @@ import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js"
  */
 export namespace ScenesManagement {
     /**
-     * Attributes that may appear in {@link ScenesManagement}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link ScenesManagement} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all fabrics;
-         * note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The minimum size of
-         * this table, (i.e., the minimum number of scenes to support across all fabrics per endpoint) shall be 16,
-         * unless a device type in which this cluster is used, defines a larger value in the device type definition.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
-         */
-        sceneTableSize: number;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all
+             * fabrics; note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The
+             * minimum size of this table, (i.e., the minimum number of scenes to support across all fabrics per
+             * endpoint) shall be 16, unless a device type in which this cluster is used, defines a larger value in the
+             * device type definition.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
+             */
+            readonly sceneTableSize: number;
 
-        /**
-         * Indicates a list of fabric scoped information about scenes on this endpoint.
-         *
-         * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
-         */
-        fabricSceneInfo: SceneInfo[];
-    }
+            /**
+             * Indicates a list of fabric scoped information about scenes on this endpoint.
+             *
+             * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the
+             * device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
+             */
+            readonly fabricSceneInfo: SceneInfo[];
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "sceneTableSize" | "fabricSceneInfo" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link ScenesManagement} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * It is not mandatory for an extension field set to be included in the command for every cluster on that
              * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case
@@ -125,10 +117,36 @@ export namespace ScenesManagement {
              */
             copyScene(request: CopySceneRequest): MaybePromise<CopySceneResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
 
+    /**
+     * Attributes that may appear in {@link ScenesManagement}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all fabrics;
+         * note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The minimum size of
+         * this table, (i.e., the minimum number of scenes to support across all fabrics per endpoint) shall be 16,
+         * unless a device type in which this cluster is used, defines a larger value in the device type definition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
+         */
+        readonly sceneTableSize: number;
+
+        /**
+         * Indicates a list of fabric scoped information about scenes on this endpoint.
+         *
+         * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
+         */
+        readonly fabricSceneInfo: SceneInfo[];
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "SceneNames";
 
     /**
@@ -1510,4 +1528,4 @@ export namespace ScenesManagement {
 export type ScenesManagementCluster = ScenesManagement.Cluster;
 export const ScenesManagementCluster = ScenesManagement.Cluster;
 ClusterNamespace.define(ScenesManagement);
-export interface ScenesManagement extends ClusterTyping { Attributes: ScenesManagement.Attributes & { Components: ScenesManagement.Attributes.Components }; Commands: ScenesManagement.Commands & { Components: ScenesManagement.Commands.Components }; Features: ScenesManagement.Features }
+export interface ScenesManagement extends ClusterTyping { Attributes: ScenesManagement.Attributes; Commands: ScenesManagement.Commands; Features: ScenesManagement.Features; Components: ScenesManagement.Components }

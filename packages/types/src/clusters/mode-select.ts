@@ -33,6 +33,102 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ModeSelect {
     /**
+     * {@link ModeSelect} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute describes the purpose of the server, in readable text.
+             *
+             * For example, a coffee machine may have a Mode Select cluster for the amount of milk to add, and another
+             * Mode Select cluster for the amount of sugar to add. In this case, the first instance can have the
+             * description Milk and the second instance can have the description Sugar. This allows the user to tell the
+             * purpose of each of the instances.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.1
+             */
+            readonly description: string;
+
+            /**
+             * This attribute, when not null, shall indicate a single standard namespace for any standard semantic tag
+             * value supported in this or any other cluster instance with the same value of this attribute. A null value
+             * indicates no standard namespace, and therefore, no standard semantic tags are provided in this cluster
+             * instance. Each standard namespace and corresponding values and value meanings shall be defined in another
+             * document.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.2
+             */
+            readonly standardNamespace: Namespace | null;
+
+            /**
+             * This attribute is the list of supported modes that may be selected for the CurrentMode attribute. Each
+             * item in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each
+             * entry in this list shall have a unique value for the Mode field.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.3
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * This attribute represents the current mode of the server.
+             *
+             * The value of this field must match the Mode field of one of the entries in the SupportedModes attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.4
+             */
+            readonly currentMode: number;
+
+            /**
+             * The StartUpMode attribute value indicates the desired startup mode for the server when it is supplied
+             * with power.
+             *
+             * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
+             * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute
+             * (see Section 1.9.6.6.1, “OnMode with Power Up”).
+             *
+             * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode
+             * attribute shall return to its value prior to the restart.
+             *
+             * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
+             *
+             * If this attribute is not implemented, or is set to the null value, it shall have no effect.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.5
+             */
+            startUpMode?: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * On receipt of this command, if the NewMode field indicates a valid mode transition within the supported
+             * list, the server shall set the CurrentMode attribute to the NewMode value, otherwise, the server shall
+             * respond with an INVALID_COMMAND status response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.7.1
+             */
+            changeToMode(request: ChangeToModeRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link ModeSelect} supports these elements if it supports feature "OnOff".
+     */
+    export namespace OnOffComponent {
+        export interface Attributes {
+            /**
+             * Indicates the value of CurrentMode that depends on the state of the On/Off cluster on the same endpoint.
+             * If this attribute is not present or is set to null, it shall NOT have an effect, otherwise the
+             * CurrentMode attribute shall depend on the OnOff attribute of the On/Off cluster
+             *
+             * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.6
+             */
+            onMode: number | null;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link ModeSelect}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -49,7 +145,7 @@ export namespace ModeSelect {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.1
          */
-        description: string;
+        readonly description: string;
 
         /**
          * This attribute, when not null, shall indicate a single standard namespace for any standard semantic tag value
@@ -59,7 +155,7 @@ export namespace ModeSelect {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.2
          */
-        standardNamespace: Namespace | null;
+        readonly standardNamespace: Namespace | null;
 
         /**
          * This attribute is the list of supported modes that may be selected for the CurrentMode attribute. Each item
@@ -68,7 +164,7 @@ export namespace ModeSelect {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.3
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * This attribute represents the current mode of the server.
@@ -77,7 +173,7 @@ export namespace ModeSelect {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.4
          */
-        currentMode: number;
+        readonly currentMode: number;
 
         /**
          * The StartUpMode attribute value indicates the desired startup mode for the server when it is supplied with
@@ -110,37 +206,11 @@ export namespace ModeSelect {
         onMode: number | null;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "description" | "standardNamespace" | "supportedModes" | "currentMode",
-                optional: "startUpMode"
-            },
-            { flags: { onOff: true }, mandatory: "onMode" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link ModeSelect} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * On receipt of this command, if the NewMode field indicates a valid mode transition within the supported
-             * list, the server shall set the CurrentMode attribute to the NewMode value, otherwise, the server shall
-             * respond with an INVALID_COMMAND status response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.9.7.1
-             */
-            changeToMode(request: ChangeToModeRequest): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { onOff: true }, attributes: OnOffComponent.Attributes }
+    ];
     export type Features = "OnOff";
 
     /**
@@ -501,4 +571,4 @@ export namespace ModeSelect {
 export type ModeSelectCluster = ModeSelect.Cluster;
 export const ModeSelectCluster = ModeSelect.Cluster;
 ClusterNamespace.define(ModeSelect);
-export interface ModeSelect extends ClusterTyping { Attributes: ModeSelect.Attributes & { Components: ModeSelect.Attributes.Components }; Commands: ModeSelect.Commands & { Components: ModeSelect.Commands.Components }; Features: ModeSelect.Features }
+export interface ModeSelect extends ClusterTyping { Attributes: ModeSelect.Attributes; Commands: ModeSelect.Commands; Features: ModeSelect.Features; Components: ModeSelect.Components }

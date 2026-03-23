@@ -21,6 +21,102 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace PressureMeasurement {
     /**
+     * {@link PressureMeasurement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the pressure in kPa as follows:
+             *
+             * MeasuredValue = 10 x Pressure [kPa]
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.1
+             */
+            readonly measuredValue: number | null;
+
+            /**
+             * Indicates the minimum value of MeasuredValue that can be measured. See Measured Value for more details.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.2
+             */
+            readonly minMeasuredValue: number | null;
+
+            /**
+             * Indicates the maximum value of MeasuredValue that can be measured. See Measured Value for more details.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.3
+             */
+            readonly maxMeasuredValue: number | null;
+
+            /**
+             * See Measured Value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.4
+             */
+            readonly tolerance?: number;
+        }
+    }
+
+    /**
+     * {@link PressureMeasurement} supports these elements if it supports feature "Extended".
+     */
+    export namespace ExtendedComponent {
+        export interface Attributes {
+            /**
+             * Indicates the pressure in Pascals as follows:
+             *
+             * ScaledValue = 10Scale x Pressure [Pa]
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.5
+             */
+            readonly scaledValue: number | null;
+
+            /**
+             * Indicates the minimum value of ScaledValue that can be measured.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.6
+             */
+            readonly minScaledValue: number | null;
+
+            /**
+             * Indicates the maximum value of ScaledValue that can be measured.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.7
+             */
+            readonly maxScaledValue: number | null;
+
+            /**
+             * Indicates the base 10 exponent used to obtain ScaledValue (see ScaledValue).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.9
+             */
+            readonly scale: number;
+
+            /**
+             * Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is
+             * located in the range
+             *
+             * (ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.8
+             */
+            readonly scaledTolerance?: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link PressureMeasurement}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -36,7 +132,7 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.1
          */
-        measuredValue: number | null;
+        readonly measuredValue: number | null;
 
         /**
          * Indicates the minimum value of MeasuredValue that can be measured. See Measured Value for more details.
@@ -45,7 +141,7 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.2
          */
-        minMeasuredValue: number | null;
+        readonly minMeasuredValue: number | null;
 
         /**
          * Indicates the maximum value of MeasuredValue that can be measured. See Measured Value for more details.
@@ -54,14 +150,14 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.3
          */
-        maxMeasuredValue: number | null;
+        readonly maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.4
          */
-        tolerance: number;
+        readonly tolerance: number;
 
         /**
          * Indicates the pressure in Pascals as follows:
@@ -72,7 +168,7 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.5
          */
-        scaledValue: number | null;
+        readonly scaledValue: number | null;
 
         /**
          * Indicates the minimum value of ScaledValue that can be measured.
@@ -81,7 +177,7 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.6
          */
-        minScaledValue: number | null;
+        readonly minScaledValue: number | null;
 
         /**
          * Indicates the maximum value of ScaledValue that can be measured.
@@ -90,14 +186,14 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.7
          */
-        maxScaledValue: number | null;
+        readonly maxScaledValue: number | null;
 
         /**
          * Indicates the base 10 exponent used to obtain ScaledValue (see ScaledValue).
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.9
          */
-        scale: number;
+        readonly scale: number;
 
         /**
          * Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is located
@@ -107,20 +203,13 @@ export namespace PressureMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.8
          */
-        scaledTolerance: number;
+        readonly scaledTolerance: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue", optional: "tolerance" },
-            {
-                flags: { extended: true },
-                mandatory: "scaledValue" | "minScaledValue" | "maxScaledValue" | "scale",
-                optional: "scaledTolerance"
-            }
-        ];
-    }
-
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes },
+        { flags: { extended: true }, attributes: ExtendedComponent.Attributes }
+    ];
     export type Features = "Extended";
 
     /**
@@ -319,4 +408,4 @@ export namespace PressureMeasurement {
 export type PressureMeasurementCluster = PressureMeasurement.Cluster;
 export const PressureMeasurementCluster = PressureMeasurement.Cluster;
 ClusterNamespace.define(PressureMeasurement);
-export interface PressureMeasurement extends ClusterTyping { Attributes: PressureMeasurement.Attributes & { Components: PressureMeasurement.Attributes.Components }; Features: PressureMeasurement.Features }
+export interface PressureMeasurement extends ClusterTyping { Attributes: PressureMeasurement.Attributes; Features: PressureMeasurement.Features; Components: PressureMeasurement.Components }

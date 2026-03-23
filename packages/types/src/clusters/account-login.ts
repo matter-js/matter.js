@@ -21,13 +21,11 @@ import { ClusterId } from "../datatype/ClusterId.js";
  * Definitions for the AccountLogin cluster.
  */
 export namespace AccountLogin {
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link AccountLogin} always supports these commands.
-         */
-        export interface Base {
+    /**
+     * {@link AccountLogin} always supports these elements.
+     */
+    export namespace Base {
+        export interface Commands {
             /**
              * The purpose of this command is to determine if the active user account of the given Content App matches
              * the active user account of a given Commissionee, and when it does, return a Setup PIN which can be used
@@ -129,8 +127,19 @@ export namespace AccountLogin {
             logout(request: LogoutRequest): MaybePromise;
         }
 
-        export type Components = [{ flags: {}, methods: Base }];
+        export interface Events {
+            /**
+             * This event can be used by the Content App to indicate that the current user has logged out. In response
+             * to this event, the Fabric Admin shall remove access to this Content App by the specified Node. If no Node
+             * is provided, then the Fabric Admin shall remove access to all non-Admin Nodes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1
+             */
+            loggedOut?: LoggedOutEvent;
+        }
     }
+
+    export interface Commands extends Base.Commands {}
 
     /**
      * Events that may appear in {@link AccountLogin}.
@@ -148,9 +157,7 @@ export namespace AccountLogin {
         loggedOut: LoggedOutEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, optional: "loggedOut" }];
-    }
+    export type Components = [{ flags: {}, commands: Base.Commands, events: Base.Events }];
 
     /**
      * The purpose of this command is to determine if the active user account of the given Content App matches the
@@ -607,4 +614,4 @@ export namespace AccountLogin {
 export type AccountLoginCluster = AccountLogin.Cluster;
 export const AccountLoginCluster = AccountLogin.Cluster;
 ClusterNamespace.define(AccountLogin);
-export interface AccountLogin extends ClusterTyping { Commands: AccountLogin.Commands & { Components: AccountLogin.Commands.Components }; Events: AccountLogin.Events & { Components: AccountLogin.Events.Components } }
+export interface AccountLogin extends ClusterTyping { Commands: AccountLogin.Commands; Events: AccountLogin.Events; Components: AccountLogin.Components }

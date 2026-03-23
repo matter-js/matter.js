@@ -25,13 +25,11 @@ import { ClusterId } from "../datatype/ClusterId.js";
  * Definitions for the OtaSoftwareUpdateProvider cluster.
  */
 export namespace OtaSoftwareUpdateProvider {
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link OtaSoftwareUpdateProvider} always supports these commands.
-         */
-        export interface Base {
+    /**
+     * {@link OtaSoftwareUpdateProvider} always supports these elements.
+     */
+    export namespace Base {
+        export interface Commands {
             /**
              * Upon receipt, this command shall trigger an attempt to find an updated Software Image by the OTA Provider
              * to match the OTA Requestor’s constraints provided in the payload fields.
@@ -50,9 +48,10 @@ export namespace OtaSoftwareUpdateProvider {
              */
             notifyUpdateApplied(request: NotifyUpdateAppliedRequest): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, commands: Base.Commands }];
 
     /**
      * Note that only HTTP over TLS (HTTPS) is supported (see RFC 7230). Using HTTP without TLS shall NOT be supported,
@@ -1095,4 +1094,4 @@ export namespace OtaSoftwareUpdateProvider {
 export type OtaSoftwareUpdateProviderCluster = OtaSoftwareUpdateProvider.Cluster;
 export const OtaSoftwareUpdateProviderCluster = OtaSoftwareUpdateProvider.Cluster;
 ClusterNamespace.define(OtaSoftwareUpdateProvider);
-export interface OtaSoftwareUpdateProvider extends ClusterTyping { Commands: OtaSoftwareUpdateProvider.Commands & { Components: OtaSoftwareUpdateProvider.Commands.Components } }
+export interface OtaSoftwareUpdateProvider extends ClusterTyping { Commands: OtaSoftwareUpdateProvider.Commands; Components: OtaSoftwareUpdateProvider.Components }

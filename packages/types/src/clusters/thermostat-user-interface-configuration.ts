@@ -22,6 +22,40 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ThermostatUserInterfaceConfiguration {
     /**
+     * {@link ThermostatUserInterfaceConfiguration} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the units of the temperature displayed on the thermostat screen.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
+             */
+            temperatureDisplayMode: TemperatureDisplayMode;
+
+            /**
+             * Indicates the level of functionality that is available to the user via the keypad.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
+             */
+            keypadLockout: KeypadLockout;
+
+            /**
+             * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from
+             * a user to prevent local user programming of the weekly schedule. The schedule programming may still be
+             * performed via a remote interface, and the thermostat may operate in schedule programming mode.
+             *
+             * This attribute is designed to prevent local tampering with or disabling of schedules that may have been
+             * programmed by users or service providers via a more capable remote interface. The programming schedule
+             * shall continue to run even though it is not visible to the user locally at the thermostat.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
+             */
+            scheduleProgrammingVisibility?: ScheduleProgrammingVisibility;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link ThermostatUserInterfaceConfiguration}.
      *
      * Optional properties represent attributes that devices are not required to support.
@@ -55,9 +89,7 @@ export namespace ThermostatUserInterfaceConfiguration {
         scheduleProgrammingVisibility: ScheduleProgrammingVisibility;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "temperatureDisplayMode" | "keypadLockout", optional: "scheduleProgrammingVisibility" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.5.5.1
@@ -190,4 +222,4 @@ export namespace ThermostatUserInterfaceConfiguration {
 export type ThermostatUserInterfaceConfigurationCluster = ThermostatUserInterfaceConfiguration.Cluster;
 export const ThermostatUserInterfaceConfigurationCluster = ThermostatUserInterfaceConfiguration.Cluster;
 ClusterNamespace.define(ThermostatUserInterfaceConfiguration);
-export interface ThermostatUserInterfaceConfiguration extends ClusterTyping { Attributes: ThermostatUserInterfaceConfiguration.Attributes & { Components: ThermostatUserInterfaceConfiguration.Attributes.Components } }
+export interface ThermostatUserInterfaceConfiguration extends ClusterTyping { Attributes: ThermostatUserInterfaceConfiguration.Attributes; Components: ThermostatUserInterfaceConfiguration.Components }

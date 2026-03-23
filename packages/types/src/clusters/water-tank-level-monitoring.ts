@@ -18,6 +18,86 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace WaterTankLevelMonitoring {
     /**
+     * {@link WaterTankLevelMonitoring} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the
+             * current requirement to change the resource.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
+             */
+            readonly changeIndication: ResourceMonitoring.ChangeIndication;
+
+            /**
+             * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
+             * installed. A value of false shall indicate that a resource is not installed.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
+             */
+            readonly inPlaceIndicator?: boolean;
+
+            /**
+             * This attribute may indicates the time at which the resource has been changed, if supported by the server.
+             * The attribute shall be null if it was never set or is unknown.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5
+             */
+            lastChangedTime?: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * Upon receipt, the device shall reset the Condition and ChangeIndicator attributes, indicating full
+             * resource availability and readiness for use, as initially configured. Invocation of this command may
+             * cause the LastChangedTime to be updated automatically based on the clock of the server, if the server
+             * supports setting the attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
+             */
+            resetCondition(): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link WaterTankLevelMonitoring} supports these elements if it supports feature "Condition".
+     */
+    export namespace ConditionComponent {
+        export interface Attributes {
+            /**
+             * Indicates the current condition of the resource in percent.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
+             */
+            readonly condition: number;
+
+            /**
+             * Indicates the direction of change for the condition of the resource over time, which helps to determine
+             * whether a higher or lower condition value is considered optimal.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
+             */
+            readonly degradationDirection: ResourceMonitoring.DegradationDirection;
+        }
+    }
+
+    /**
+     * {@link WaterTankLevelMonitoring} supports these elements if it supports feature "ReplacementProductList".
+     */
+    export namespace ReplacementProductListComponent {
+        export interface Attributes {
+            /**
+             * Indicates the list of supported products that may be used as replacements for the current resource. Each
+             * item in this list represents a unique ReplacementProductStruct.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
+             */
+            readonly replacementProductList: ResourceMonitoring.ReplacementProduct[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link WaterTankLevelMonitoring}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -30,7 +110,7 @@ export namespace WaterTankLevelMonitoring {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
          */
-        changeIndication: ResourceMonitoring.ChangeIndication;
+        readonly changeIndication: ResourceMonitoring.ChangeIndication;
 
         /**
          * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
@@ -38,7 +118,7 @@ export namespace WaterTankLevelMonitoring {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
          */
-        inPlaceIndicator: boolean;
+        readonly inPlaceIndicator: boolean;
 
         /**
          * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
@@ -53,7 +133,7 @@ export namespace WaterTankLevelMonitoring {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
          */
-        condition: number;
+        readonly condition: number;
 
         /**
          * Indicates the direction of change for the condition of the resource over time, which helps to determine
@@ -61,7 +141,7 @@ export namespace WaterTankLevelMonitoring {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
          */
-        degradationDirection: ResourceMonitoring.DegradationDirection;
+        readonly degradationDirection: ResourceMonitoring.DegradationDirection;
 
         /**
          * Indicates the list of supported products that may be used as replacements for the current resource. Each item
@@ -69,38 +149,15 @@ export namespace WaterTankLevelMonitoring {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
          */
-        replacementProductList: ResourceMonitoring.ReplacementProduct[];
+        readonly replacementProductList: ResourceMonitoring.ReplacementProduct[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "changeIndication", optional: "inPlaceIndicator" | "lastChangedTime" },
-            { flags: { condition: true }, mandatory: "condition" | "degradationDirection" },
-            { flags: { replacementProductList: true }, mandatory: "replacementProductList" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link WaterTankLevelMonitoring} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * Upon receipt, the device shall reset the Condition and ChangeIndicator attributes, indicating full
-             * resource availability and readiness for use, as initially configured. Invocation of this command may
-             * cause the LastChangedTime to be updated automatically based on the clock of the server, if the server
-             * supports setting the attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
-             */
-            resetCondition(): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { condition: true }, attributes: ConditionComponent.Attributes },
+        { flags: { replacementProductList: true }, attributes: ReplacementProductListComponent.Attributes }
+    ];
     export type Features = "Condition" | "Warning" | "ReplacementProductList";
 
     export const Base = { ...ResourceMonitoring.Base, id: 0x79, name: "WaterTankLevelMonitoring" } as const;
@@ -149,4 +206,4 @@ export namespace WaterTankLevelMonitoring {
 export type WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring.Cluster;
 export const WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring.Cluster;
 ClusterNamespace.define(WaterTankLevelMonitoring);
-export interface WaterTankLevelMonitoring extends ClusterTyping { Attributes: WaterTankLevelMonitoring.Attributes & { Components: WaterTankLevelMonitoring.Attributes.Components }; Commands: WaterTankLevelMonitoring.Commands & { Components: WaterTankLevelMonitoring.Commands.Components }; Features: WaterTankLevelMonitoring.Features }
+export interface WaterTankLevelMonitoring extends ClusterTyping { Attributes: WaterTankLevelMonitoring.Attributes; Commands: WaterTankLevelMonitoring.Commands; Features: WaterTankLevelMonitoring.Features; Components: WaterTankLevelMonitoring.Components }

@@ -37,6 +37,1050 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace Thermostat {
     /**
+     * {@link Thermostat} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the current Calculated Local Temperature, when available.
+             *
+             *   - If the LTNE feature is not supported:
+             *
+             *     - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report
+             *       null.
+             *
+             *     - If the LocalTemperatureCalibration is valid, the attribute shall report that value.
+             *
+             *   - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
+             *     LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.2
+             */
+            readonly localTemperature: number | null;
+
+            /**
+             * Indicates the overall operating environment of the thermostat, and thus the possible system modes that
+             * the thermostat can operate in.
+             *
+             * If an attempt is made to write to this attribute, the server shall silently ignore the write and the
+             * value of this attribute shall remain unchanged. This behavior is in place for backwards compatibility
+             * with existing thermostats.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.23
+             */
+            controlSequenceOfOperation: ControlSequenceOfOperation;
+
+            /**
+             * Indicates the current operating mode of the thermostat. Its value shall be limited by the
+             * ControlSequenceOfOperation attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.24
+             */
+            systemMode: SystemMode;
+
+            /**
+             * Indicates the outdoor temperature, as measured locally or remotely (over the network).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.3
+             */
+            readonly outdoorTemperature?: number | null;
+
+            /**
+             * Indicates the HVAC system type controlled by the thermostat. If the thermostat uses physical DIP switches
+             * to set these parameters, this information shall be available read-only from the DIP switches. If these
+             * parameters are set via software, there shall be read/write access in order to provide remote programming
+             * capability.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.11
+             * @deprecated
+             */
+            hvacSystemTypeConfiguration?: HvacSystemType;
+
+            /**
+             * Indicates when the local temperature, outdoor temperature and occupancy are being sensed by remote
+             * networked sensors, rather than internal sensors.
+             *
+             * If the LTNE feature is present in the server, the LocalTemperature RemoteSensing bit value shall always
+             * report a value of 0.
+             *
+             * If the LocalTemperature RemoteSensing bit is written with a value of 1 when the LTNE feature is present,
+             * the write shall fail and the server shall report a CONSTRAINT_ERROR.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.22
+             */
+            remoteSensing?: RemoteSensing;
+
+            /**
+             * Indicates the temperature hold status on the thermostat. If hold status is on, the thermostat SHOULD
+             * maintain the temperature setpoint for the current mode until a system mode change. If hold status is off,
+             * the thermostat SHOULD follow the setpoint transitions specified by its internal scheduling program. If
+             * the thermostat supports setpoint hold for a specific duration, it SHOULD also implement the
+             * TemperatureSetpointHoldDuration attribute.
+             *
+             * If the server supports a setpoint hold for a specific duration, it SHOULD also implement the
+             * SetpointHoldExpiryTimestamp attribute.
+             *
+             * If this attribute is updated to SetpointHoldOn and the TemperatureSetpointHoldDuration has a non-null
+             * value and the SetpointHoldExpiryTimestamp is supported, the server shall update the
+             * SetpointHoldExpiryTimestamp with a value of current UTC timestamp, in seconds, plus the value in
+             * TemperatureSetpointHoldDuration multiplied by 60.
+             *
+             * If this attribute is updated to SetpointHoldOff and the SetpointHoldExpiryTimestamp is supported, the
+             * server shall set the SetpointHoldExpiryTimestamp to null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.29
+             */
+            temperatureSetpointHold?: TemperatureSetpointHold;
+
+            /**
+             * Indicates the period in minutes for which a setpoint hold is active. Thermostats that support hold for a
+             * specified duration SHOULD implement this attribute. The null value indicates the field is unused. All
+             * other values are reserved.
+             *
+             * If this attribute is updated to a non-null value and the TemperatureSetpointHold is set to SetpointHoldOn
+             * and the SetpointHoldExpiryTimestamp is supported, the server shall update SetpointHoldExpiryTimestamp
+             * with a value of current UTC timestamp, in seconds, plus the new value of this attribute multiplied by 60.
+             *
+             * If this attribute is set to null and the SetpointHoldExpiryTimestamp is supported, the server shall set
+             * the SetpointHoldExpiryTimestamp to null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.30
+             */
+            temperatureSetpointHoldDuration?: number | null;
+
+            /**
+             * Indicates the operational state of the thermostat’s programming. The thermostat shall modify its
+             * programming operation when this attribute is modified by a client and update this attribute when its
+             * programming operation is modified locally by a user. The thermostat may support more than one active
+             * ProgrammingOperationModeBitmap. For example, the thermostat may operate simultaneously in Schedule
+             * Programming Mode and Recovery Mode.
+             *
+             * Thermostats which contain a schedule may use this attribute to control how that schedule is used, even if
+             * they do not support the ScheduleConfiguration feature.
+             *
+             * When ScheduleActive is not set, the setpoint is altered only by manual up/down changes at the thermostat
+             * or remotely, not by internal schedule programming.
+             *
+             * > [!NOTE]
+             *
+             * > Modifying the ScheduleActive bit does not clear or delete previous weekly schedule programming
+             *   configurations.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.31
+             */
+            thermostatProgrammingOperationMode?: ProgrammingOperationMode;
+
+            /**
+             * Indicates the current relay state of the heat, cool, and fan relays.
+             *
+             * Unimplemented outputs shall be treated as if they were Off.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.32
+             */
+            readonly thermostatRunningState?: RelayState;
+
+            /**
+             * Indicates the source of the current active OccupiedCoolingSetpoint or OccupiedHeatingSetpoint (i.e., who
+             * or what determined the current setpoint).
+             *
+             * This attribute enables service providers to determine whether changes to setpoints were initiated due to
+             * occupant comfort, scheduled programming or some other source (e.g., electric utility or other service
+             * provider). Because automation services may initiate frequent setpoint changes, this attribute clearly
+             * differentiates the source of setpoint changes made at the thermostat.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.33
+             */
+            readonly setpointChangeSource?: SetpointChangeSource;
+
+            /**
+             * Indicates the delta between the current active OccupiedCoolingSetpoint or OccupiedHeatingSetpoint and the
+             * previous active setpoint. This attribute is meant to accompany the SetpointChangeSource attribute;
+             * devices implementing SetpointChangeAmount SHOULD also implement SetpointChangeSource.
+             *
+             * The null value indicates that the previous setpoint was unknown.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.34
+             */
+            readonly setpointChangeAmount?: number | null;
+
+            /**
+             * Indicates the time in UTC at which the SetpointChangeAmount attribute change was recorded.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.35
+             */
+            readonly setpointChangeSourceTimestamp?: number;
+
+            /**
+             * Indicates the delta between the Calculated Local Temperature and the OccupiedHeatingSetpoint or
+             * UnoccupiedHeatingSetpoint attributes at which the Thermostat server will operate in emergency heat mode.
+             *
+             * If the difference between the Calculated Local Temperature and OccupiedCoolingSetpoint or
+             * UnoccupiedCoolingSetpoint is greater than or equal to the EmergencyHeatDelta and the Thermostat server’s
+             * SystemMode attribute is in a heating-related mode, then the Thermostat server shall immediately switch to
+             * the SystemMode attribute value that provides the highest stage of heating (e.g., emergency heat) and
+             * continue operating in that running state until the OccupiedHeatingSetpoint value is reached. For example:
+             *
+             *   - Calculated Local Temperature = 10.0°C
+             *
+             *   - OccupiedHeatingSetpoint = 16.0°C
+             *
+             *   - EmergencyHeatDelta = 2.0°C
+             *
+             * ⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
+             *
+             * ⇒ 16°C - 10°C ≥? 2°C
+             *
+             * ⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode
+             *
+             * The purpose of this attribute is to provide Thermostat clients the ability to configure rapid heating
+             * when a setpoint is of a specified amount greater than the measured temperature. This allows the heated
+             * space to be quickly heated to the desired level set by the user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.42
+             */
+            emergencyHeatDelta?: number;
+
+            /**
+             * Indicates the type of Mini Split ACTypeEnum of Mini Split AC is defined depending on how Cooling and
+             * Heating condition is achieved by Mini Split AC.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.43
+             */
+            acType?: AcType;
+
+            /**
+             * Indicates capacity of Mini Split AC in terms of the format defined by the ACCapacityFormat attribute
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.44
+             */
+            acCapacity?: number;
+
+            /**
+             * Indicates type of refrigerant used within the Mini Split AC.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.45
+             */
+            acRefrigerantType?: AcRefrigerantType;
+
+            /**
+             * Indicates the type of compressor used within the Mini Split AC.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.46
+             */
+            acCompressorType?: AcCompressorType;
+
+            /**
+             * Indicates the type of errors encountered within the Mini Split AC.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.47
+             */
+            acErrorCode?: AcErrorCode;
+
+            /**
+             * Indicates the position of Louver on the AC.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.48
+             */
+            acLouverPosition?: AcLouverPosition;
+
+            /**
+             * Indicates the temperature of the AC coil, as measured locally or remotely (over the network).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.49
+             */
+            readonly acCoilTemperature?: number | null;
+
+            /**
+             * Indicates the format for the ACCapacity attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.50
+             */
+            acCapacityFormat?: AcCapacityFormat;
+
+            /**
+             * If there is a known time when the TemperatureSetpointHold shall be cleared, this attribute shall contain
+             * the timestamp in UTC indicating when that will happen. If there is no such known time, this attribute
+             * shall be null.
+             *
+             * If the TemperatureSetpointHold is set to SetpointHoldOn and the TemperatureSetpointHoldDuration is set to
+             * null, this attribute shall be set to null indicating there is a hold on the Thermostat without a
+             * duration.
+             *
+             * If the TemperatureSetpointHold is set to SetpointHoldOff, this attribute shall be set to null indicating
+             * there is no hold on the Thermostat.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.61
+             */
+            readonly setpointHoldExpiryTimestamp?: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
+             */
+            setpointRaiseLower(request: SetpointRaiseLowerRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "Occupancy".
+     */
+    export namespace OccupancyComponent {
+        export interface Attributes {
+            /**
+             * Indicates whether the heated/cooled space is occupied or not, as measured locally or remotely (over the
+             * network).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.4
+             */
+            readonly occupancy: Occupancy;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "Heating".
+     */
+    export namespace HeatingComponent {
+        export interface Attributes {
+            /**
+             * Indicates the heating mode setpoint when the room is occupied.
+             *
+             * Refer to Setpoint Limits for constraints.
+             *
+             * If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less than
+             * MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * If this attribute is set to a value that is greater than (OccupiedCoolingSetpoint - MinSetpointDeadBand),
+             * the value of OccupiedCoolingSetpoint shall be adjusted to (OccupiedHeatingSetpoint +
+             * MinSetpointDeadBand).
+             *
+             * If the occupancy status of the room is unknown, this attribute shall be used as the heating mode
+             * setpoint.
+             *
+             * If a client changes the value of this attribute, the server supports the PRES feature, and the server
+             * either does not support the OCC feature or the Occupied bit is set on the Occupancy attribute, the value
+             * of the ActivePresetHandle attribute shall be set to null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.14
+             */
+            occupiedHeatingSetpoint: number;
+
+            /**
+             * Indicates the absolute minimum level that the heating setpoint may be set to. This is a limitation
+             * imposed by the manufacturer.
+             *
+             * Refer to Setpoint Limits for constraints
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.5
+             */
+            readonly absMinHeatSetpointLimit?: number;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
+             */
+            readonly absMaxHeatSetpointLimit?: number;
+
+            /**
+             * Indicates the level of heating demanded by the PI loop in percent. This value is 0 when the thermostat is
+             * in “off” or “cooling” mode.
+             *
+             * This attribute is reported regularly and may be used to control a heating device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.10
+             */
+            readonly piHeatingDemand?: number;
+
+            /**
+             * Indicates the minimum level that the heating setpoint may be set to.
+             *
+             * This attribute, and the following three attributes, allow the user to define setpoint limits more
+             * constrictive than the manufacturer imposed ones. Limiting users (e.g., in a commercial building) to such
+             * setpoint limits can help conserve power.
+             *
+             * Refer to Setpoint Limits for constraints. If an attempt is made to set this attribute to a value which
+             * conflicts with setpoint values then those setpoints shall be adjusted by the minimum amount to permit
+             * this attribute to be set to the desired value. If an attempt is made to set this attribute to a value
+             * which is not consistent with the constraints and cannot be resolved by modifying setpoints then a
+             * response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.17
+             */
+            minHeatSetpointLimit?: number;
+
+            /**
+             * Indicates the maximum level that the heating setpoint may be set to.
+             *
+             * Refer to Setpoint Limits for constraints. If an attempt is made to set this attribute to a value which
+             * conflicts with setpoint values then those setpoints shall be adjusted by the minimum amount to permit
+             * this attribute to be set to the desired value. If an attempt is made to set this attribute to a value
+             * which is not consistent with the constraints and cannot be resolved by modifying setpoints then a
+             * response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.18
+             */
+            maxHeatSetpointLimit?: number;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "Cooling".
+     */
+    export namespace CoolingComponent {
+        export interface Attributes {
+            /**
+             * Indicates the cooling mode setpoint when the room is occupied.
+             *
+             * Refer to Setpoint Limits for constraints.
+             *
+             * If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less than
+             * MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * If this attribute is set to a value that is less than (OccupiedHeatingSetpoint + MinSetpointDeadBand),
+             * the value of OccupiedHeatingSetpoint shall be adjusted to (OccupiedCoolingSetpoint -
+             * MinSetpointDeadBand).
+             *
+             * If the occupancy status of the room is unknown, this attribute shall be used as the cooling mode
+             * setpoint.
+             *
+             * If a client changes the value of this attribute, the server supports the PRES feature, and the server
+             * either does not support the OCC feature or the Occupied bit is set on the Occupancy attribute, the value
+             * of the ActivePresetHandle attribute shall be set to null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.13
+             */
+            occupiedCoolingSetpoint: number;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
+             */
+            readonly absMinCoolSetpointLimit?: number;
+
+            /**
+             * Indicates the absolute maximum level that the cooling setpoint may be set to. This is a limitation
+             * imposed by the manufacturer.
+             *
+             * Refer to Setpoint Limits for constraints
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.8
+             */
+            readonly absMaxCoolSetpointLimit?: number;
+
+            /**
+             * Indicates the level of cooling demanded by the PI (proportional integral) control loop in use by the
+             * thermostat (if any), in percent. This value is 0 when the thermostat is in “off” or “heating” mode.
+             *
+             * This attribute is reported regularly and may be used to control a cooling device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.9
+             */
+            readonly piCoolingDemand?: number;
+
+            /**
+             * Indicates the minimum level that the cooling setpoint may be set to.
+             *
+             * Refer to Setpoint Limits for constraints. If an attempt is made to set this attribute to a value which
+             * conflicts with setpoint values then those setpoints shall be adjusted by the minimum amount to permit
+             * this attribute to be set to the desired value. If an attempt is made to set this attribute to a value
+             * which is not consistent with the constraints and cannot be resolved by modifying setpoints then a
+             * response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.19
+             */
+            minCoolSetpointLimit?: number;
+
+            /**
+             * Indicates the maximum level that the cooling setpoint may be set to.
+             *
+             * Refer to Setpoint Limits for constraints. If an attempt is made to set this attribute to a value which
+             * conflicts with setpoint values then those setpoints shall be adjusted by the minimum amount to permit
+             * this attribute to be set to the desired value. If an attempt is made to set this attribute to a value
+             * which is not consistent with the constraints and cannot be resolved by modifying setpoints then a
+             * response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.20
+             */
+            maxCoolSetpointLimit?: number;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "NotLocalTemperatureNotExposed".
+     */
+    export namespace NotLocalTemperatureNotExposedComponent {
+        export interface Attributes {
+            /**
+             * Indicates the offset the Thermostat server shall make to the measured temperature (locally or remotely)
+             * to adjust the Calculated Local Temperature prior to using, displaying or reporting it.
+             *
+             * The purpose of this attribute is to adjust the calibration of the Thermostat server per the user’s
+             * preferences (e.g., to match if there are multiple servers displaying different values for the same HVAC
+             * area) or compensate for variability amongst temperature sensors.
+             *
+             * If a Thermostat client attempts to write LocalTemperatureCalibration attribute to an unsupported value
+             * (e.g., out of the range supported by the Thermostat server), the Thermostat server shall respond with a
+             * status of SUCCESS and set the value of LocalTemperatureCalibration to the upper or lower limit reached.
+             *
+             * > [!NOTE]
+             *
+             * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
+             *   range of -2.5°C to 2.5°C.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.12
+             */
+            localTemperatureCalibration?: number;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "CoolingAndOccupancy".
+     */
+    export namespace CoolingAndOccupancyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the cooling mode setpoint when the room is unoccupied.
+             *
+             * Refer to Setpoint Limits for constraints.
+             *
+             * If an attempt is made to set this attribute to a value greater than MaxCoolSetpointLimit or less than
+             * MinCoolSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * If this attribute is set to a value that is less than (UnoccupiedHeatingSetpoint + MinSetpointDeadBand),
+             * the value of UnoccupiedHeatingSetpoint shall be adjusted to (UnoccupiedCoolingSetpoint -
+             * MinSetpointDeadBand).
+             *
+             * If the occupancy status of the room is unknown, this attribute shall NOT be used.
+             *
+             * If a client changes the value of this attribute, the server supports the PRES and OCC features, and the
+             * Occupied bit is not set on the Occupancy attribute, the value of the ActivePresetHandle attribute shall
+             * be set to null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.15
+             */
+            unoccupiedCoolingSetpoint: number;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "HeatingAndOccupancy".
+     */
+    export namespace HeatingAndOccupancyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the heating mode setpoint when the room is unoccupied.
+             *
+             * Refer to Setpoint Limits for constraints.
+             *
+             * If an attempt is made to set this attribute to a value greater than MaxHeatSetpointLimit or less than
+             * MinHeatSetpointLimit, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * If this attribute is set to a value that is greater than (UnoccupiedCoolingSetpoint -
+             * MinSetpointDeadBand), the value of UnoccupiedCoolingSetpoint shall be adjusted to
+             * (UnoccupiedHeatingSetpoint + MinSetpointDeadBand).
+             *
+             * If the occupancy status of the room is unknown, this attribute shall NOT be used.
+             *
+             * If a client changes the value of this attribute, the server supports the PRES and OCC features, and the
+             * Occupied bit is not set on the Occupancy attribute, the value of the ActivePresetHandle attribute shall
+             * be set to null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.16
+             */
+            unoccupiedHeatingSetpoint: number;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "AutoMode".
+     */
+    export namespace AutoModeComponent {
+        export interface Attributes {
+            /**
+             * On devices which support the AUTO feature, this attribute shall indicate the minimum difference between
+             * the Heat Setpoint and the Cool Setpoint.
+             *
+             * Refer to Setpoint Limits for constraints.
+             *
+             * > [!NOTE]
+             *
+             * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
+             *   range of 0°C to 2.5°C.
+             *
+             * > [!NOTE]
+             *
+             * > For backwards compatibility, this attribute is optionally writeable. However any writes to this
+             *   attribute shall be silently ignored.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.21
+             */
+            minSetpointDeadBand: number;
+
+            /**
+             * Indicates the running mode of the thermostat. This attribute uses the same values as SystemModeEnum but
+             * can only be Off, Cool or Heat. This attribute is intended to provide additional information when the
+             * thermostat’s system mode is in auto mode.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.25
+             */
+            readonly thermostatRunningMode?: ThermostatRunningMode;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "ScheduleConfiguration".
+     */
+    export namespace ScheduleConfigurationComponent {
+        export interface Attributes {
+            /**
+             * Indicates the day of the week that this thermostat considers to be the start of week for weekly setpoint
+             * scheduling.
+             *
+             * This attribute may be able to be used as the base to determine if the device supports weekly scheduling
+             * by reading the attribute. Successful response means that the weekly scheduling is supported.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.26
+             */
+            readonly startOfWeek: StartOfWeek;
+
+            /**
+             * Indicates how many weekly schedule transitions the thermostat is capable of handling.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.27
+             */
+            readonly numberOfWeeklyTransitions: number;
+
+            /**
+             * Indicates how many daily schedule transitions the thermostat is capable of handling.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.28
+             */
+            readonly numberOfDailyTransitions: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to update the thermostat weekly setpoint schedule from a management system. If the
+             * thermostat already has a weekly setpoint schedule programmed, then it SHOULD replace each daily setpoint
+             * set as it receives the updates from the management system. For example, if the thermostat has 4 setpoints
+             * for every day of the week and is sent a SetWeeklySchedule command with one setpoint for Saturday then the
+             * thermostat SHOULD remove all 4 setpoints for Saturday and replace those with the updated setpoint but
+             * leave all other days unchanged. If the schedule is larger than what fits in one frame or contains more
+             * than 10 transitions, the schedule shall then be sent using multiple SetWeeklySchedule Commands.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.2
+             */
+            setWeeklySchedule(request: SetWeeklyScheduleRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
+             */
+            getWeeklySchedule(request: GetWeeklyScheduleRequest): MaybePromise<GetWeeklyScheduleResponse>;
+
+            /**
+             * This command is used to clear the weekly schedule. The Clear weekly schedule has no payload.
+             *
+             * Upon receipt, all transitions currently stored shall be cleared and a default response of SUCCESS shall
+             * be sent in response. There are no error responses to this command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.5
+             */
+            clearWeeklySchedule(): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "Setback".
+     */
+    export namespace SetbackComponent {
+        export interface Attributes {
+            /**
+             * Indicates the amount that the Thermostat server will allow the Calculated Local Temperature to float
+             * above the OccupiedCoolingSetpoint (i.e., OccupiedCoolingSetpoint + OccupiedSetback) or below the
+             * OccupiedHeatingSetpoint setpoint (i.e., OccupiedHeatingSetpoint – OccupiedSetback) before initiating a
+             * state change to bring the temperature back to the user’s desired setpoint. This attribute is sometimes
+             * also referred to as the “span.”
+             *
+             * The purpose of this attribute is to allow remote configuration of the span between the desired setpoint
+             * and the measured temperature to help prevent over-cycling and reduce energy bills, though this may result
+             * in lower comfort on the part of some users.
+             *
+             * The null value indicates the attribute is unused.
+             *
+             * If the Thermostat client attempts to write OccupiedSetback to a value greater than OccupiedSetbackMax,
+             * the Thermostat server shall set its OccupiedSetback value to OccupiedSetbackMax and shall send a Write
+             * Attribute Response command with a Status Code field enumeration of SUCCESS response.
+             *
+             * If the Thermostat client attempts to write OccupiedSetback to a value less than OccupiedSetbackMin, the
+             * Thermostat server shall set its OccupiedSetback value to OccupiedSetbackMin and shall send a Write
+             * Attribute Response command with a Status Code field enumeration of SUCCESS response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.36
+             */
+            occupiedSetback: number | null;
+
+            /**
+             * Indicates the minimum value that the Thermostat server will allow the OccupiedSetback attribute to be
+             * configured by a user.
+             *
+             * The null value indicates the attribute is unused.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.37
+             */
+            readonly occupiedSetbackMin: number | null;
+
+            /**
+             * Indicates the maximum value that the Thermostat server will allow the OccupiedSetback attribute to be
+             * configured by a user.
+             *
+             * The null value indicates the attribute is unused.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.38
+             */
+            readonly occupiedSetbackMax: number | null;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "SetbackAndOccupancy".
+     */
+    export namespace SetbackAndOccupancyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the amount that the Thermostat server will allow the Calculated Local Temperature to float
+             * above the UnoccupiedCoolingSetpoint (i.e., UnoccupiedCoolingSetpoint + UnoccupiedSetback) or below the
+             * UnoccupiedHeatingSetpoint setpoint (i.e., UnoccupiedHeatingSetpoint - UnoccupiedSetback) before
+             * initiating a state change to bring the temperature back to the user’s desired setpoint. This attribute is
+             * sometimes also referred to as the “span.”
+             *
+             * The purpose of this attribute is to allow remote configuration of the span between the desired setpoint
+             * and the measured temperature to help prevent over-cycling and reduce energy bills, though this may result
+             * in lower comfort on the part of some users.
+             *
+             * The null value indicates the attribute is unused.
+             *
+             * If the Thermostat client attempts to write UnoccupiedSetback to a value greater than
+             * UnoccupiedSetbackMax, the Thermostat server shall set its UnoccupiedSetback value to UnoccupiedSetbackMax
+             * and shall send a Write Attribute Response command with a Status Code field enumeration of SUCCESS
+             * response.
+             *
+             * If the Thermostat client attempts to write UnoccupiedSetback to a value less than UnoccupiedSetbackMin,
+             * the Thermostat server shall set its UnoccupiedSetback value to UnoccupiedSetbackMin and shall send a
+             * Write Attribute Response command with a Status Code field enumeration of SUCCESS response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.39
+             */
+            unoccupiedSetback: number | null;
+
+            /**
+             * Indicates the minimum value that the Thermostat server will allow the UnoccupiedSetback attribute to be
+             * configured by a user.
+             *
+             * The null value indicates the attribute is unused.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.40
+             */
+            readonly unoccupiedSetbackMin: number | null;
+
+            /**
+             * Indicates the maximum value that the Thermostat server will allow the UnoccupiedSetback attribute to be
+             * configured by a user.
+             *
+             * The null value indicates the attribute is unused.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.41
+             */
+            readonly unoccupiedSetbackMax: number | null;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "Presets".
+     */
+    export namespace PresetsComponent {
+        export interface Attributes {
+            /**
+             * Indicates the supported PresetScenarioEnum values, limits on how many presets can be created for each
+             * PresetScenarioEnum, and whether or not a thermostat can transition automatically to a given scenario.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.51
+             */
+            readonly presetTypes: PresetType[];
+
+            /**
+             * Indicates the maximum number of entries supported by the Presets attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.53
+             */
+            readonly numberOfPresets: number;
+
+            /**
+             * Indicates the PresetHandle of the active preset. If this attribute is null, then there is no active
+             * preset.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.57
+             */
+            readonly activePresetHandle: Bytes | null;
+
+            /**
+             * This attribute shall contain the current list of configured presets.
+             *
+             * On receipt of a write request:
+             *
+             *   1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and the
+             *      device shall create a new unique value for the PresetHandle field.
+             *
+             *     a. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *   2. If the PresetHandle field is not null, the PresetStruct shall be treated as a modification of an
+             *      existing preset.
+             *
+             *     a. If the value of the PresetHandle field does not match any of the existing presets, a response with
+             *        the status code NOT_FOUND shall be returned.
+             *
+             *     b. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, a
+             *        response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *     c. If the BuiltIn field is true, and the PresetStruct in the current value with a matching
+             *        PresetHandle field has a BuiltIn field set to false, a response with the status code
+             *        CONSTRAINT_ERROR shall be returned.
+             *
+             *     d. If the BuiltIn field is false, and the PresetStruct in the current value with a matching
+             *        PresetHandle field has a BuiltIn field set to true, a response with the status code
+             *        CONSTRAINT_ERROR shall be returned.
+             *
+             *   3. If the specified PresetScenarioEnum value does not exist in PresetTypes, a response with the status
+             *      code CONSTRAINT_ERROR shall be returned.
+             *
+             *   4. If the Name is set, but the associated PresetTypeStruct does not have the SupportsNames bit set, a
+             *      response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *   5. If appending the received PresetStruct to the pending list of Presets would cause the total number
+             *      of pending presets to exceed the value of the NumberOfPresets attribute, a response with the status
+             *      code RESOURCE_EXHAUSTED shall be returned.
+             *
+             *   6. If appending the received PresetStruct to the pending list of Presets would cause the total number
+             *      of pending presets whose PresetScenario field matches the appended preset’s PresetScenario field to
+             *      exceed the value of the NumberOfPresets field on the PresetTypeStruct whose PresetScenario matches
+             *      the appended preset’s PresetScenario field, a response with the status code RESOURCE_EXHAUSTED shall
+             *      be returned.
+             *
+             *   7. Otherwise, the write shall be pended until receipt of a commit request, and the status code SUCCESS
+             *      shall be returned.
+             *
+             *     a. If the BuiltIn field is null:
+             *
+             *       i. If there is a PresetStruct in the current value with a matching PresetHandle field, the BuiltIn
+             *          field on the pending PresetStruct shall be set to the value of the BuiltIn on the matching
+             *          PresetStruct.
+             *
+             *       ii. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false.
+             *
+             * On an attempt to commit, the status of this attribute shall be determined as follows:
+             *
+             *   1. For all existing presets:
+             *
+             *     a. If, after applying all pending changes, the updated value of the Presets attribute would not
+             *        contain a PresetStruct with a matching PresetHandle field, indicating the removal of the
+             *        PresetStruct, the server shall check for invalid removal of the PresetStruct:
+             *
+             *       i. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be
+             *          CONSTRAINT_ERROR.
+             *
+             *       ii. If the MSCH feature is supported and the removed PresetHandle would be referenced by any
+             *           PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of the
+             *           Schedules attribute, the attribute status shall be INVALID_IN_STATE.
+             *
+             *       iii. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the
+             *            attribute status shall be INVALID_IN_STATE.
+             *
+             *   2. Otherwise, the attribute status shall be SUCCESS.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.59
+             */
+            presets: Preset[];
+        }
+
+        export interface Commands {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+             */
+            setActivePresetRequest(request: SetActivePresetRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "MatterScheduleConfiguration".
+     */
+    export namespace MatterScheduleConfigurationComponent {
+        export interface Attributes {
+            /**
+             * Indicates the supported SystemMode values for Schedules, limits on how many schedules can be created for
+             * each SystemMode value, and whether or not a given SystemMode value supports transitions to Presets,
+             * target setpoints, or both.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.52
+             */
+            readonly scheduleTypes: ScheduleType[];
+
+            /**
+             * Indicates the maximum number of entries supported by the Schedules attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.54
+             */
+            readonly numberOfSchedules: number;
+
+            /**
+             * Indicates the maximum number of transitions per Schedules attribute entry.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.55
+             */
+            readonly numberOfScheduleTransitions: number;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
+             */
+            readonly numberOfScheduleTransitionPerDay: number | null;
+
+            /**
+             * Indicates the ScheduleHandle of the active schedule. A null value in this attribute indicates that there
+             * is no active schedule.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.58
+             */
+            readonly activeScheduleHandle: Bytes | null;
+
+            /**
+             * This attribute shall contain a list of ScheduleStructs.
+             *
+             * On receipt of a write request:
+             *
+             *   1. For all schedules in the write request:
+             *
+             *     a. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added schedule, and
+             *        the device shall create a new unique value for the ScheduleHandle field.
+             *
+             *       i. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be
+             *          returned.
+             *
+             *     b. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a
+             *        modification of an existing schedule.
+             *
+             *       i. If the value of the ScheduleHandle field does not match any of the existing schedules, a
+             *          response with the status code NOT_FOUND shall be returned.
+             *
+             *       ii. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching
+             *           ScheduleHandle field has a BuiltIn field set to false, a response with the status code
+             *           CONSTRAINT_ERROR shall be returned.
+             *
+             *       iii. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching
+             *            ScheduleHandle field has a BuiltIn field set to true, a response with the status code
+             *            CONSTRAINT_ERROR shall be returned.
+             *
+             *     c. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code
+             *        CONSTRAINT_ERROR shall be returned.
+             *
+             *     d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the
+             *        status code RESOURCE_EXHAUSTED shall be returned.
+             *
+             *     e. If the value of the NumberOfScheduleTransitionsPerDay attribute is not null, and the number of
+             *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay value, a
+             *        response with the status code RESOURCE_EXHAUSTED shall be returned.
+             *
+             *     f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
+             *        SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *     g. If the PresetHandle field is present, but after applying all pending changes, the Presets
+             *        attribute would not contain a PresetStruct whose PresetHandle field matches the value of the
+             *        PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *     h. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit set,
+             *        a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *       i. For all transitions in all schedules in the write request:
+             *
+             *       i. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the
+             *          SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit set, a
+             *          response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *     j. If the PresetHandle field is present, but after applying all pending changes, the Presets
+             *        attribute would not contain a PresetStruct whose PresetHandle field matches the value of the
+             *        PresetHandle field, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *       i. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the
+             *          SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set,
+             *          a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *       ii. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct matching
+             *           the value of the SystemMode field on the encompassing ScheduleStruct does not have the
+             *           SupportsOff bit set, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *     k. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
+             *        SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
+             *        response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *     l. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
+             *        SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
+             *        response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             *   2. If appending the received ScheduleStruct to the pending list of Schedules would cause the total
+             *      number of pending schedules to exceed the value of the NumberOfSchedules attribute, a response with
+             *      the status code RESOURCE_EXHAUSTED shall be returned.
+             *
+             *   3. If appending the received ScheduleStruct to the pending list of Schedules would cause the total
+             *      number of pending schedules whose SystemMode field matches the appended schedule’s SystemMode field
+             *      to exceed the value of the NumberOfSchedules field on the ScheduleTypeStruct whose SystemMode field
+             *      matches the appended schedule’s SystemMode field, a response with the status code RESOURCE_EXHAUSTED
+             *      shall be returned.
+             *
+             *   4. Otherwise, the write shall be pended until receipt of a commit request, and the attribute status
+             *      shall be SUCCESS.
+             *
+             *     a. If the BuiltIn field is null:
+             *
+             *       i. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the
+             *          BuiltIn field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the
+             *          matching ScheduleStruct.
+             *
+             *       ii. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false.
+             *
+             * On an attempt to commit, the status of this attribute shall be determined as follows:
+             *
+             *   1. For all existing schedules:
+             *
+             *     a. If, after applying all pending changes, the updated value of the Schedules attribute would not
+             *        contain a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of the
+             *        ScheduleStruct, the server shall check for invalid removal of the ScheduleStruct:
+             *
+             *       i. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be
+             *          CONSTRAINT_ERROR.
+             *
+             *       ii. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, the
+             *           attribute status shall be INVALID_IN_STATE.
+             *
+             *   2. Otherwise, the attribute status shall be SUCCESS.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.60
+             */
+            schedules: Schedule[];
+        }
+
+        export interface Commands {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+             */
+            setActiveScheduleRequest(request: SetActiveScheduleRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link Thermostat} supports these elements if it supports feature "PresetsOrMatterScheduleConfiguration".
+     */
+    export namespace PresetsOrMatterScheduleConfigurationComponent {
+        export interface Commands {
+            atomicRequest(request: AtomicRequest): MaybePromise<AtomicResponse>;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link Thermostat}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -58,7 +1102,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.2
          */
-        localTemperature: number | null;
+        readonly localTemperature: number | null;
 
         /**
          * Indicates the overall operating environment of the thermostat, and thus the possible system modes that the
@@ -85,7 +1129,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.3
          */
-        outdoorTemperature: number | null;
+        readonly outdoorTemperature: number | null;
 
         /**
          * Indicates the HVAC system type controlled by the thermostat. If the thermostat uses physical DIP switches to
@@ -179,7 +1223,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.32
          */
-        thermostatRunningState: RelayState;
+        readonly thermostatRunningState: RelayState;
 
         /**
          * Indicates the source of the current active OccupiedCoolingSetpoint or OccupiedHeatingSetpoint (i.e., who or
@@ -192,7 +1236,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.33
          */
-        setpointChangeSource: SetpointChangeSource;
+        readonly setpointChangeSource: SetpointChangeSource;
 
         /**
          * Indicates the delta between the current active OccupiedCoolingSetpoint or OccupiedHeatingSetpoint and the
@@ -203,14 +1247,14 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.34
          */
-        setpointChangeAmount: number | null;
+        readonly setpointChangeAmount: number | null;
 
         /**
          * Indicates the time in UTC at which the SetpointChangeAmount attribute change was recorded.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.35
          */
-        setpointChangeSourceTimestamp: number;
+        readonly setpointChangeSourceTimestamp: number;
 
         /**
          * Indicates the delta between the Calculated Local Temperature and the OccupiedHeatingSetpoint or
@@ -290,7 +1334,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.49
          */
-        acCoilTemperature: number | null;
+        readonly acCoilTemperature: number | null;
 
         /**
          * Indicates the format for the ACCapacity attribute.
@@ -312,7 +1356,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.61
          */
-        setpointHoldExpiryTimestamp: number | null;
+        readonly setpointHoldExpiryTimestamp: number | null;
 
         /**
          * Indicates whether the heated/cooled space is occupied or not, as measured locally or remotely (over the
@@ -320,7 +1364,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.4
          */
-        occupancy: Occupancy;
+        readonly occupancy: Occupancy;
 
         /**
          * Indicates the heating mode setpoint when the room is occupied.
@@ -351,12 +1395,12 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.5
          */
-        absMinHeatSetpointLimit: number;
+        readonly absMinHeatSetpointLimit: number;
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
          */
-        absMaxHeatSetpointLimit: number;
+        readonly absMaxHeatSetpointLimit: number;
 
         /**
          * Indicates the level of heating demanded by the PI loop in percent. This value is 0 when the thermostat is in
@@ -366,7 +1410,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.10
          */
-        piHeatingDemand: number;
+        readonly piHeatingDemand: number;
 
         /**
          * Indicates the minimum level that the heating setpoint may be set to.
@@ -422,7 +1466,7 @@ export namespace Thermostat {
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
          */
-        absMinCoolSetpointLimit: number;
+        readonly absMinCoolSetpointLimit: number;
 
         /**
          * Indicates the absolute maximum level that the cooling setpoint may be set to. This is a limitation imposed by
@@ -432,7 +1476,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.8
          */
-        absMaxCoolSetpointLimit: number;
+        readonly absMaxCoolSetpointLimit: number;
 
         /**
          * Indicates the level of cooling demanded by the PI (proportional integral) control loop in use by the
@@ -442,7 +1486,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.9
          */
-        piCoolingDemand: number;
+        readonly piCoolingDemand: number;
 
         /**
          * Indicates the minimum level that the cooling setpoint may be set to.
@@ -561,7 +1605,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.25
          */
-        thermostatRunningMode: ThermostatRunningMode;
+        readonly thermostatRunningMode: ThermostatRunningMode;
 
         /**
          * Indicates the day of the week that this thermostat considers to be the start of week for weekly setpoint
@@ -572,21 +1616,21 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.26
          */
-        startOfWeek: StartOfWeek;
+        readonly startOfWeek: StartOfWeek;
 
         /**
          * Indicates how many weekly schedule transitions the thermostat is capable of handling.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.27
          */
-        numberOfWeeklyTransitions: number;
+        readonly numberOfWeeklyTransitions: number;
 
         /**
          * Indicates how many daily schedule transitions the thermostat is capable of handling.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.28
          */
-        numberOfDailyTransitions: number;
+        readonly numberOfDailyTransitions: number;
 
         /**
          * Indicates the amount that the Thermostat server will allow the Calculated Local Temperature to float above
@@ -621,7 +1665,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.37
          */
-        occupiedSetbackMin: number | null;
+        readonly occupiedSetbackMin: number | null;
 
         /**
          * Indicates the maximum value that the Thermostat server will allow the OccupiedSetback attribute to be
@@ -631,7 +1675,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.38
          */
-        occupiedSetbackMax: number | null;
+        readonly occupiedSetbackMax: number | null;
 
         /**
          * Indicates the amount that the Thermostat server will allow the Calculated Local Temperature to float above
@@ -666,7 +1710,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.40
          */
-        unoccupiedSetbackMin: number | null;
+        readonly unoccupiedSetbackMin: number | null;
 
         /**
          * Indicates the maximum value that the Thermostat server will allow the UnoccupiedSetback attribute to be
@@ -676,7 +1720,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.41
          */
-        unoccupiedSetbackMax: number | null;
+        readonly unoccupiedSetbackMax: number | null;
 
         /**
          * Indicates the supported PresetScenarioEnum values, limits on how many presets can be created for each
@@ -684,21 +1728,21 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.51
          */
-        presetTypes: PresetType[];
+        readonly presetTypes: PresetType[];
 
         /**
          * Indicates the maximum number of entries supported by the Presets attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.53
          */
-        numberOfPresets: number;
+        readonly numberOfPresets: number;
 
         /**
          * Indicates the PresetHandle of the active preset. If this attribute is null, then there is no active preset.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.57
          */
-        activePresetHandle: Bytes | null;
+        readonly activePresetHandle: Bytes | null;
 
         /**
          * This attribute shall contain the current list of configured presets.
@@ -784,26 +1828,26 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.52
          */
-        scheduleTypes: ScheduleType[];
+        readonly scheduleTypes: ScheduleType[];
 
         /**
          * Indicates the maximum number of entries supported by the Schedules attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.54
          */
-        numberOfSchedules: number;
+        readonly numberOfSchedules: number;
 
         /**
          * Indicates the maximum number of transitions per Schedules attribute entry.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.55
          */
-        numberOfScheduleTransitions: number;
+        readonly numberOfScheduleTransitions: number;
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
          */
-        numberOfScheduleTransitionPerDay: number | null;
+        readonly numberOfScheduleTransitionPerDay: number | null;
 
         /**
          * Indicates the ScheduleHandle of the active schedule. A null value in this attribute indicates that there is
@@ -811,7 +1855,7 @@ export namespace Thermostat {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.58
          */
-        activeScheduleHandle: Bytes | null;
+        readonly activeScheduleHandle: Bytes | null;
 
         /**
          * This attribute shall contain a list of ScheduleStructs.
@@ -927,130 +1971,36 @@ export namespace Thermostat {
         schedules: Schedule[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "localTemperature" | "controlSequenceOfOperation" | "systemMode",
-                optional: "outdoorTemperature" | "hvacSystemTypeConfiguration" | "remoteSensing" | "temperatureSetpointHold" | "temperatureSetpointHoldDuration" | "thermostatProgrammingOperationMode" | "thermostatRunningState" | "setpointChangeSource" | "setpointChangeAmount" | "setpointChangeSourceTimestamp" | "emergencyHeatDelta" | "acType" | "acCapacity" | "acRefrigerantType" | "acCompressorType" | "acErrorCode" | "acLouverPosition" | "acCoilTemperature" | "acCapacityFormat" | "setpointHoldExpiryTimestamp"
-            },
-            { flags: { occupancy: true }, mandatory: "occupancy" },
-            {
-                flags: { heating: true },
-                mandatory: "occupiedHeatingSetpoint",
-                optional: "absMinHeatSetpointLimit" | "absMaxHeatSetpointLimit" | "piHeatingDemand" | "minHeatSetpointLimit" | "maxHeatSetpointLimit"
-            },
-            {
-                flags: { cooling: true },
-                mandatory: "occupiedCoolingSetpoint",
-                optional: "absMinCoolSetpointLimit" | "absMaxCoolSetpointLimit" | "piCoolingDemand" | "minCoolSetpointLimit" | "maxCoolSetpointLimit"
-            },
-            { flags: { localTemperatureNotExposed: false }, optional: "localTemperatureCalibration" },
-            { flags: { cooling: true, occupancy: true }, mandatory: "unoccupiedCoolingSetpoint" },
-            { flags: { heating: true, occupancy: true }, mandatory: "unoccupiedHeatingSetpoint" },
-            { flags: { autoMode: true }, mandatory: "minSetpointDeadBand", optional: "thermostatRunningMode" },
-            {
-                flags: { scheduleConfiguration: true },
-                mandatory: "startOfWeek" | "numberOfWeeklyTransitions" | "numberOfDailyTransitions"
-            },
-            { flags: { setback: true }, mandatory: "occupiedSetback" | "occupiedSetbackMin" | "occupiedSetbackMax" },
-            {
-                flags: { setback: true, occupancy: true },
-                mandatory: "unoccupiedSetback" | "unoccupiedSetbackMin" | "unoccupiedSetbackMax"
-            },
-            {
-                flags: { presets: true },
-                mandatory: "presetTypes" | "numberOfPresets" | "activePresetHandle" | "presets"
-            },
-            {
-                flags: { matterScheduleConfiguration: true },
-                mandatory: "scheduleTypes" | "numberOfSchedules" | "numberOfScheduleTransitions" | "numberOfScheduleTransitionPerDay" | "activeScheduleHandle" | "schedules"
-            }
-        ];
-    }
+    export interface Commands extends Base.Commands, ScheduleConfigurationComponent.Commands, PresetsComponent.Commands, MatterScheduleConfigurationComponent.Commands, PresetsOrMatterScheduleConfigurationComponent.Commands {}
 
-    export interface Commands extends Commands.Base, Commands.ScheduleConfiguration, Commands.Presets, Commands.MatterScheduleConfiguration, Commands.PresetsOrMatterScheduleConfiguration {}
-
-    export namespace Commands {
-        /**
-         * {@link Thermostat} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
-             */
-            setpointRaiseLower(request: SetpointRaiseLowerRequest): MaybePromise;
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { occupancy: true }, attributes: OccupancyComponent.Attributes },
+        { flags: { heating: true }, attributes: HeatingComponent.Attributes },
+        { flags: { cooling: true }, attributes: CoolingComponent.Attributes },
+        { flags: { localTemperatureNotExposed: false }, attributes: NotLocalTemperatureNotExposedComponent.Attributes },
+        { flags: { cooling: true, occupancy: true }, attributes: CoolingAndOccupancyComponent.Attributes },
+        { flags: { heating: true, occupancy: true }, attributes: HeatingAndOccupancyComponent.Attributes },
+        { flags: { autoMode: true }, attributes: AutoModeComponent.Attributes },
+        {
+            flags: { scheduleConfiguration: true },
+            attributes: ScheduleConfigurationComponent.Attributes,
+            commands: ScheduleConfigurationComponent.Commands
+        },
+        { flags: { setback: true }, attributes: SetbackComponent.Attributes },
+        { flags: { setback: true, occupancy: true }, attributes: SetbackAndOccupancyComponent.Attributes },
+        { flags: { presets: true }, attributes: PresetsComponent.Attributes, commands: PresetsComponent.Commands },
+        {
+            flags: { matterScheduleConfiguration: true },
+            attributes: MatterScheduleConfigurationComponent.Attributes,
+            commands: MatterScheduleConfigurationComponent.Commands
+        },
+        { flags: { presets: true }, commands: PresetsOrMatterScheduleConfigurationComponent.Commands },
+        {
+            flags: { matterScheduleConfiguration: true },
+            commands: PresetsOrMatterScheduleConfigurationComponent.Commands
         }
-
-        /**
-         * {@link Thermostat} supports these commands if it supports feature "ScheduleConfiguration".
-         */
-        export interface ScheduleConfiguration {
-            /**
-             * This command is used to update the thermostat weekly setpoint schedule from a management system. If the
-             * thermostat already has a weekly setpoint schedule programmed, then it SHOULD replace each daily setpoint
-             * set as it receives the updates from the management system. For example, if the thermostat has 4 setpoints
-             * for every day of the week and is sent a SetWeeklySchedule command with one setpoint for Saturday then the
-             * thermostat SHOULD remove all 4 setpoints for Saturday and replace those with the updated setpoint but
-             * leave all other days unchanged. If the schedule is larger than what fits in one frame or contains more
-             * than 10 transitions, the schedule shall then be sent using multiple SetWeeklySchedule Commands.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.2
-             */
-            setWeeklySchedule(request: SetWeeklyScheduleRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
-             */
-            getWeeklySchedule(request: GetWeeklyScheduleRequest): MaybePromise<GetWeeklyScheduleResponse>;
-
-            /**
-             * This command is used to clear the weekly schedule. The Clear weekly schedule has no payload.
-             *
-             * Upon receipt, all transitions currently stored shall be cleared and a default response of SUCCESS shall
-             * be sent in response. There are no error responses to this command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.5
-             */
-            clearWeeklySchedule(): MaybePromise;
-        }
-
-        /**
-         * {@link Thermostat} supports these commands if it supports feature "Presets".
-         */
-        export interface Presets {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
-             */
-            setActivePresetRequest(request: SetActivePresetRequest): MaybePromise;
-        }
-
-        /**
-         * {@link Thermostat} supports these commands if it supports feature "MatterScheduleConfiguration".
-         */
-        export interface MatterScheduleConfiguration {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
-             */
-            setActiveScheduleRequest(request: SetActiveScheduleRequest): MaybePromise;
-        }
-
-        /**
-         * {@link Thermostat} supports these commands if it supports feature "PresetsOrMatterScheduleConfiguration".
-         */
-        export interface PresetsOrMatterScheduleConfiguration {
-            atomicRequest(request: AtomicRequest): MaybePromise<AtomicResponse>;
-        }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { scheduleConfiguration: true }, methods: ScheduleConfiguration },
-            { flags: { presets: true }, methods: Presets },
-            { flags: { matterScheduleConfiguration: true }, methods: MatterScheduleConfiguration },
-            { flags: { presets: true }, methods: PresetsOrMatterScheduleConfiguration },
-            { flags: { matterScheduleConfiguration: true }, methods: PresetsOrMatterScheduleConfiguration }
-        ];
-    }
+    ];
 
     export type Features = "Heating" | "Cooling" | "Occupancy" | "ScheduleConfiguration" | "Setback" | "AutoMode" | "LocalTemperatureNotExposed" | "MatterScheduleConfiguration" | "Presets";
 
@@ -4578,4 +5528,4 @@ export namespace Thermostat {
 export type ThermostatCluster = Thermostat.Cluster;
 export const ThermostatCluster = Thermostat.Cluster;
 ClusterNamespace.define(Thermostat);
-export interface Thermostat extends ClusterTyping { Attributes: Thermostat.Attributes & { Components: Thermostat.Attributes.Components }; Commands: Thermostat.Commands & { Components: Thermostat.Commands.Components }; Features: Thermostat.Features }
+export interface Thermostat extends ClusterTyping { Attributes: Thermostat.Attributes; Commands: Thermostat.Commands; Features: Thermostat.Features; Components: Thermostat.Components }

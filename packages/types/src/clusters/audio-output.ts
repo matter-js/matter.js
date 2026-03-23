@@ -23,36 +23,26 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace AudioOutput {
     /**
-     * Attributes that may appear in {@link AudioOutput}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link AudioOutput} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute provides the list of outputs supported by the device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
-         */
-        outputList: OutputInfo[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute provides the list of outputs supported by the device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
+             */
+            readonly outputList: OutputInfo[];
 
-        /**
-         * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
-         */
-        currentOutput: number;
-    }
+            /**
+             * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
+             */
+            readonly currentOutput: number;
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "outputList" | "currentOutput" }];
-    }
-    export interface Commands extends Commands.Base, Commands.NameUpdates {}
-
-    export namespace Commands {
-        /**
-         * {@link AudioOutput} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * Upon receipt, this shall change the output on the device to the output at a specific index in the Output
              * List.
@@ -64,11 +54,13 @@ export namespace AudioOutput {
              */
             selectOutput(request: SelectOutputRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link AudioOutput} supports these commands if it supports feature "NameUpdates".
-         */
-        export interface NameUpdates {
+    /**
+     * {@link AudioOutput} supports these elements if it supports feature "NameUpdates".
+     */
+    export namespace NameUpdatesComponent {
+        export interface Commands {
             /**
              * Upon receipt, this shall rename the output at a specific index in the Output List.
              *
@@ -79,13 +71,34 @@ export namespace AudioOutput {
              */
             renameOutput(request: RenameOutputRequest): MaybePromise;
         }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { nameUpdates: true }, methods: NameUpdates }
-        ];
     }
 
+    /**
+     * Attributes that may appear in {@link AudioOutput}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute provides the list of outputs supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.1
+         */
+        readonly outputList: OutputInfo[];
+
+        /**
+         * This attribute contains the value of the index field of the currently selected OutputInfoStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.5.6.2
+         */
+        readonly currentOutput: number;
+    }
+
+    export interface Commands extends Base.Commands, NameUpdatesComponent.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { nameUpdates: true }, commands: NameUpdatesComponent.Commands }
+    ];
     export type Features = "NameUpdates";
 
     /**
@@ -367,4 +380,4 @@ export namespace AudioOutput {
 export type AudioOutputCluster = AudioOutput.Cluster;
 export const AudioOutputCluster = AudioOutput.Cluster;
 ClusterNamespace.define(AudioOutput);
-export interface AudioOutput extends ClusterTyping { Attributes: AudioOutput.Attributes & { Components: AudioOutput.Attributes.Components }; Commands: AudioOutput.Commands & { Components: AudioOutput.Commands.Components }; Features: AudioOutput.Features }
+export interface AudioOutput extends ClusterTyping { Attributes: AudioOutput.Attributes; Commands: AudioOutput.Commands; Features: AudioOutput.Features; Components: AudioOutput.Components }

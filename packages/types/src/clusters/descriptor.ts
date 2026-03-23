@@ -26,6 +26,96 @@ import { Descriptor as DescriptorModel } from "@matter/model";
  */
 export namespace Descriptor {
     /**
+     * {@link Descriptor} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This is a list of device types and corresponding revisions declaring endpoint conformance (see Section
+             * 9.5.5.1, “DeviceTypeStruct Type”). At least one device type entry shall be present.
+             *
+             * An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that is in
+             * common for more than one device type in the DeviceTypeList shall be supported as a shared cluster
+             * instance on the endpoint.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.5.6.1
+             */
+            readonly deviceTypeList: DeviceType[];
+
+            /**
+             * This attribute shall list each cluster ID for the server clusters present on the endpoint instance.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.5.6.2
+             */
+            readonly serverList: ClusterId[];
+
+            /**
+             * This attribute shall list each cluster ID for the client clusters present on the endpoint instance.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.5.6.3
+             */
+            readonly clientList: ClusterId[];
+
+            /**
+             * This attribute indicates composition of the device type instance. Device type instance composition shall
+             * include the endpoints in this list.
+             *
+             * See Endpoint Composition for more information about which endpoints to include in this list.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.5.6.4
+             */
+            readonly partsList: EndpointNumber[];
+
+            /**
+             * Indicates an identifier which allows to uniquely identify the functionality exposed on an endpoint, and
+             * therefore shall be unique within the device. It is constructed in a manufacturer specific manner.
+             *
+             *   - If a globally unique identifier is used, the same rules as defined for the UniqueID attribute in the
+             *     Basic Information cluster apply.
+             *
+             *   - If the identifier is only unique in the scope of the device, and cannot be used to track the device,
+             *     then it may remain unchanged at factory reset.
+             *
+             * The value does not need to be human readable, since it is intended for machine to machine (M2M)
+             * communication.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.5.6.6
+             */
+            readonly endpointUniqueId?: string;
+        }
+    }
+
+    /**
+     * {@link Descriptor} supports these elements if it supports feature "TagList".
+     */
+    export namespace TagListComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall be used to disambiguate sibling endpoints in certain situations, as defined in the
+             * Disambiguation section in the System Model specification. An example of such a situation might be a
+             * device with two buttons, with this attribute being used to indicate which of the two endpoints
+             * corresponds to the button on the left side.
+             *
+             * It may also be used to provide information about an endpoint (e.g. the relative location of a Temperature
+             * sensor in a Temperature Controlled Cabinet).
+             *
+             *   - A client SHOULD use these tags to convey disambiguation information and other relevant information to
+             *     the user (e.g. showing it in a user interface), as appropriate.
+             *
+             *   - A client SHOULD use these tags in its logic to make decisions, as appropriate.
+             *
+             * For example, a client may identify which endpoint maps to a certain function, orientation or labeling.
+             *
+             * A client may use the Label field of each SemanticTagStruct, if present in each structure, to indicate
+             * characteristics of an endpoint, or to augment what is provided in the TagID field of the same structure.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.5.6.5
+             */
+            readonly tagList: Semtag[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link Descriptor}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -42,21 +132,21 @@ export namespace Descriptor {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.5.6.1
          */
-        deviceTypeList: DeviceType[];
+        readonly deviceTypeList: DeviceType[];
 
         /**
          * This attribute shall list each cluster ID for the server clusters present on the endpoint instance.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.5.6.2
          */
-        serverList: ClusterId[];
+        readonly serverList: ClusterId[];
 
         /**
          * This attribute shall list each cluster ID for the client clusters present on the endpoint instance.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.5.6.3
          */
-        clientList: ClusterId[];
+        readonly clientList: ClusterId[];
 
         /**
          * This attribute indicates composition of the device type instance. Device type instance composition shall
@@ -66,7 +156,7 @@ export namespace Descriptor {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.5.6.4
          */
-        partsList: EndpointNumber[];
+        readonly partsList: EndpointNumber[];
 
         /**
          * Indicates an identifier which allows to uniquely identify the functionality exposed on an endpoint, and
@@ -83,7 +173,7 @@ export namespace Descriptor {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.5.6.6
          */
-        endpointUniqueId: string;
+        readonly endpointUniqueId: string;
 
         /**
          * This attribute shall be used to disambiguate sibling endpoints in certain situations, as defined in the
@@ -106,20 +196,13 @@ export namespace Descriptor {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.5.6.5
          */
-        tagList: Semtag[];
+        readonly tagList: Semtag[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "deviceTypeList" | "serverList" | "clientList" | "partsList",
-                optional: "endpointUniqueId"
-            },
-            { flags: { tagList: true }, mandatory: "tagList" }
-        ];
-    }
-
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes },
+        { flags: { tagList: true }, attributes: TagListComponent.Attributes }
+    ];
     export type Features = "TagList";
 
     /**
@@ -369,4 +452,4 @@ export namespace Descriptor {
 export type DescriptorCluster = Descriptor.Cluster;
 export const DescriptorCluster = Descriptor.Cluster;
 ClusterNamespace.define(Descriptor);
-export interface Descriptor extends ClusterTyping { Attributes: Descriptor.Attributes & { Components: Descriptor.Attributes.Components }; Features: Descriptor.Features }
+export interface Descriptor extends ClusterTyping { Attributes: Descriptor.Attributes; Features: Descriptor.Features; Components: Descriptor.Components }

@@ -27,6 +27,37 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace RefrigeratorAndTemperatureControlledCabinetMode {
     /**
+     * {@link RefrigeratorAndTemperatureControlledCabinetMode} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * At least one entry in the SupportedModes attribute shall include the Auto mode tag in the ModeTags field
+             * list.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.7.6.1
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 8.7.6
+             */
+            readonly currentMode: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to change device modes.
+             *
+             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+             */
+            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link RefrigeratorAndTemperatureControlledCabinetMode}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -38,37 +69,16 @@ export namespace RefrigeratorAndTemperatureControlledCabinetMode {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.7.6.1
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 8.7.6
          */
-        currentMode: number;
+        readonly currentMode: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "supportedModes" | "currentMode" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link RefrigeratorAndTemperatureControlledCabinetMode} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "OnOff";
 
     /**
@@ -424,4 +434,4 @@ export namespace RefrigeratorAndTemperatureControlledCabinetMode {
 export type RefrigeratorAndTemperatureControlledCabinetModeCluster = RefrigeratorAndTemperatureControlledCabinetMode.Cluster;
 export const RefrigeratorAndTemperatureControlledCabinetModeCluster = RefrigeratorAndTemperatureControlledCabinetMode.Cluster;
 ClusterNamespace.define(RefrigeratorAndTemperatureControlledCabinetMode);
-export interface RefrigeratorAndTemperatureControlledCabinetMode extends ClusterTyping { Attributes: RefrigeratorAndTemperatureControlledCabinetMode.Attributes & { Components: RefrigeratorAndTemperatureControlledCabinetMode.Attributes.Components }; Commands: RefrigeratorAndTemperatureControlledCabinetMode.Commands & { Components: RefrigeratorAndTemperatureControlledCabinetMode.Commands.Components }; Features: RefrigeratorAndTemperatureControlledCabinetMode.Features }
+export interface RefrigeratorAndTemperatureControlledCabinetMode extends ClusterTyping { Attributes: RefrigeratorAndTemperatureControlledCabinetMode.Attributes; Commands: RefrigeratorAndTemperatureControlledCabinetMode.Commands; Features: RefrigeratorAndTemperatureControlledCabinetMode.Features; Components: RefrigeratorAndTemperatureControlledCabinetMode.Components }

@@ -23,6 +23,104 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace EnergyPreference {
     /**
+     * {@link EnergyPreference} supports these elements if it supports feature "EnergyBalance".
+     */
+    export namespace EnergyBalanceComponent {
+        export interface Attributes {
+            /**
+             * Indicates a list of BalanceStructs, each representing a step along a linear scale of relative priorities.
+             * A Step field with a value of zero shall indicate that the device SHOULD entirely favor the priority
+             * specified by the first element in EnergyPriorities; whereas a Step field with a value of 100 shall
+             * indicate that the device SHOULD entirely favor the priority specified by the second element in
+             * EnergyPriorities. The midpoint value of 50 shall indicate an even split between the two priorities.
+             *
+             * This shall contain at least two BalanceStructs.
+             *
+             * Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct in
+             * the list.
+             *
+             * The first BalanceStruct shall have a Step value of zero, and the last BalanceStruct shall have a Step
+             * value of 100.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.1
+             */
+            readonly energyBalances: Balance[];
+
+            /**
+             * Indicates the current preference of the user for balancing different priorities during device use. The
+             * value of this attribute is the index, 0-based, into the EnergyBalances attribute for the currently
+             * selected balance.
+             *
+             * If an attempt is made to set this attribute to an index outside the maximum index for EnergyBalances, a
+             * response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * If the value of EnergyBalances changes after an update, the device shall migrate the value of the
+             * CurrentEnergyBalance attribute to the index which the manufacturer specifies most closely matches the
+             * previous value, while preserving extreme preferences as follows:
+             *
+             *   1. If the previous value of CurrentEnergyBalance was zero, indicating a total preference for the
+             *      priority specified by the first element in EnergyPriorities, the new value of CurrentEnergyBalance
+             *      shall also be zero.
+             *
+             *   2. If the previous value of CurrentEnergyBalance was the index of the last BalanceStruct in the
+             *      previous value of EnergyBalances, indicating a total preference for the priority specified by the
+             *      last element in EnergyPriorities, the new value of CurrentEnergyBalance shall be the index of the
+             *      last element in the updated value of EnergyBalances.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.2
+             */
+            currentEnergyBalance: number;
+
+            /**
+             * Indicates two extremes for interpreting the values in the EnergyBalances attribute. These two priorities
+             * shall be in opposition to each other; e.g. Comfort vs. Efficiency or Speed vs. WaterConsumption.
+             *
+             * If the value of EnergyPriorities changes after an update to represent a new balance between priorities,
+             * the value of the CurrentEnergyBalance attribute shall be set to its default.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.3
+             */
+            readonly energyPriorities: EnergyPriority[];
+        }
+    }
+
+    /**
+     * {@link EnergyPreference} supports these elements if it supports feature "LowPowerModeSensitivity".
+     */
+    export namespace LowPowerModeSensitivityComponent {
+        export interface Attributes {
+            /**
+             * Indicates a list of BalanceStructs, each representing a condition or set of conditions for the device to
+             * enter a low power mode.
+             *
+             * This shall contain at least two BalanceStructs.
+             *
+             * Each BalanceStruct shall have a Step field larger than the Step field on the previous BalanceStruct in
+             * the list.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.4
+             */
+            readonly lowPowerModeSensitivities: Balance[];
+
+            /**
+             * Indicates the current preference of the user for determining when the device should enter a low power
+             * mode. The value of this attribute is the index, 0-based, into the LowPowerModeSensitivities attribute for
+             * the currently selected preference.
+             *
+             * If an attempt is made to set this attribute to an index outside the maximum index for
+             * LowPowerModeSensitivities, a response with the status code CONSTRAINT_ERROR shall be returned.
+             *
+             * If the value of LowPowerModeSensitivities changes after an update, the device shall migrate the value of
+             * the LowPowerModeSensitivity attribute to the index which the manufacturer specifies most closely matches
+             * the previous value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.5
+             */
+            currentLowPowerModeSensitivity: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link EnergyPreference}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -45,7 +143,7 @@ export namespace EnergyPreference {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.1
          */
-        energyBalances: Balance[];
+        readonly energyBalances: Balance[];
 
         /**
          * Indicates the current preference of the user for balancing different priorities during device use. The value
@@ -81,7 +179,7 @@ export namespace EnergyPreference {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.3
          */
-        energyPriorities: EnergyPriority[];
+        readonly energyPriorities: EnergyPriority[];
 
         /**
          * Indicates a list of BalanceStructs, each representing a condition or set of conditions for the device to
@@ -94,7 +192,7 @@ export namespace EnergyPreference {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.7.6.4
          */
-        lowPowerModeSensitivities: Balance[];
+        readonly lowPowerModeSensitivities: Balance[];
 
         /**
          * Indicates the current preference of the user for determining when the device should enter a low power mode.
@@ -113,19 +211,10 @@ export namespace EnergyPreference {
         currentLowPowerModeSensitivity: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: { energyBalance: true },
-                mandatory: "energyBalances" | "currentEnergyBalance" | "energyPriorities"
-            },
-            {
-                flags: { lowPowerModeSensitivity: true },
-                mandatory: "lowPowerModeSensitivities" | "currentLowPowerModeSensitivity"
-            }
-        ];
-    }
-
+    export type Components = [
+        { flags: { energyBalance: true }, attributes: EnergyBalanceComponent.Attributes },
+        { flags: { lowPowerModeSensitivity: true }, attributes: LowPowerModeSensitivityComponent.Attributes }
+    ];
     export type Features = "EnergyBalance" | "LowPowerModeSensitivity";
 
     /**
@@ -452,4 +541,4 @@ export namespace EnergyPreference {
 export type EnergyPreferenceCluster = EnergyPreference.Cluster;
 export const EnergyPreferenceCluster = EnergyPreference.Cluster;
 ClusterNamespace.define(EnergyPreference);
-export interface EnergyPreference extends ClusterTyping { Attributes: EnergyPreference.Attributes & { Components: EnergyPreference.Attributes.Components }; Features: EnergyPreference.Features }
+export interface EnergyPreference extends ClusterTyping { Attributes: EnergyPreference.Attributes; Features: EnergyPreference.Features; Components: EnergyPreference.Components }

@@ -30,6 +30,147 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace MicrowaveOvenControl {
     /**
+     * {@link MicrowaveOvenControl} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the total cook time associated with the operation of the device.
+             *
+             * This attribute shall remain unchanged during the operation of the oven unless the value is changed via a
+             * command or out-of-band action.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.1
+             */
+            readonly cookTime: number;
+
+            /**
+             * Indicates the maximum value to which the CookTime attribute can be set.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.2
+             */
+            readonly maxCookTime: number;
+
+            /**
+             * Indicates the rating, in Watts, of the microwave power of the oven.
+             *
+             * Supporting this attribute can assist clients in suggesting cooking settings for various foods and
+             * beverages.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.9
+             */
+            readonly wattRating?: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to set the cooking parameters associated with the operation of the device. This
+             * command supports the following fields:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.2
+             */
+            setCookingParameters(request: SetCookingParametersRequest): MaybePromise;
+
+            /**
+             * This command is used to add more time to the CookTime attribute of the server.
+             *
+             * This command supports these fields:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.3
+             */
+            addMoreTime(request: AddMoreTimeRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link MicrowaveOvenControl} supports these elements if it supports feature "PowerAsNumber".
+     */
+    export namespace PowerAsNumberComponent {
+        export interface Attributes {
+            /**
+             * Indicates the power level associated with the operation of the device.
+             *
+             * If the MinPower, MaxPower, and PowerStep attributes are not supported:
+             *
+             *   - The minimum value of this attribute shall be 10,
+             *
+             *   - The maximum value of this attribute shall be 100,
+             *
+             *   - The value shall be in even multiples of 10,
+             *
+             *   - The default value shall be 100.
+             *
+             * If the MinPower, MaxPower, and PowerStep attributes are supported:
+             *
+             *   - The value of this attribute shall be between MinPower and MaxPower inclusive.
+             *
+             *   - The value of this attribute shall be such that (PowerSetting - MinPower) % PowerStep == 0
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.3
+             */
+            readonly powerSetting: number;
+        }
+    }
+
+    /**
+     * {@link MicrowaveOvenControl} supports these elements if it supports feature "PowerNumberLimits".
+     */
+    export namespace PowerNumberLimitsComponent {
+        export interface Attributes {
+            /**
+             * Indicates the minimum value to which the PowerSetting attribute that can be set on the server.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.4
+             */
+            readonly minPower: number;
+
+            /**
+             * Indicates the maximum value to which the PowerSetting attribute that can be set on the server.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.5
+             */
+            readonly maxPower: number;
+
+            /**
+             * Indicates the increment of power that can be set on the server.
+             *
+             * The value of this attribute shall be between 1 and MaxPower inclusive.
+             *
+             * The value of this attribute shall be such that (MaxPower - MinPower) % PowerStep == 0
+             *
+             * For example, if MinPower is 1, MaxPower is 10, and PowerSetting can be set to any integer between
+             * MinPower and MaxPower, PowerStep would be set to 1.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.6
+             */
+            readonly powerStep: number;
+        }
+    }
+
+    /**
+     * {@link MicrowaveOvenControl} supports these elements if it supports feature "PowerInWatts".
+     */
+    export namespace PowerInWattsComponent {
+        export interface Attributes {
+            /**
+             * Indicates the list of power levels (in W) supported by the server.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.7
+             */
+            readonly supportedWatts: number[];
+
+            /**
+             * Indicates the index into the list of SupportedWatts of the currently selected power setting.
+             *
+             * The index shall be a valid index into the SupportedWatts list.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.8
+             */
+            readonly selectedWattIndex: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link MicrowaveOvenControl}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -44,14 +185,14 @@ export namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.1
          */
-        cookTime: number;
+        readonly cookTime: number;
 
         /**
          * Indicates the maximum value to which the CookTime attribute can be set.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.2
          */
-        maxCookTime: number;
+        readonly maxCookTime: number;
 
         /**
          * Indicates the rating, in Watts, of the microwave power of the oven.
@@ -60,7 +201,7 @@ export namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.9
          */
-        wattRating: number;
+        readonly wattRating: number;
 
         /**
          * Indicates the power level associated with the operation of the device.
@@ -83,21 +224,21 @@ export namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.3
          */
-        powerSetting: number;
+        readonly powerSetting: number;
 
         /**
          * Indicates the minimum value to which the PowerSetting attribute that can be set on the server.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.4
          */
-        minPower: number;
+        readonly minPower: number;
 
         /**
          * Indicates the maximum value to which the PowerSetting attribute that can be set on the server.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.5
          */
-        maxPower: number;
+        readonly maxPower: number;
 
         /**
          * Indicates the increment of power that can be set on the server.
@@ -111,14 +252,14 @@ export namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.6
          */
-        powerStep: number;
+        readonly powerStep: number;
 
         /**
          * Indicates the list of power levels (in W) supported by the server.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.7
          */
-        supportedWatts: number[];
+        readonly supportedWatts: number[];
 
         /**
          * Indicates the index into the list of SupportedWatts of the currently selected power setting.
@@ -127,45 +268,17 @@ export namespace MicrowaveOvenControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.13.5.8
          */
-        selectedWattIndex: number;
+        readonly selectedWattIndex: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "cookTime" | "maxCookTime", optional: "wattRating" },
-            { flags: { powerAsNumber: true }, mandatory: "powerSetting" },
-            { flags: { powerNumberLimits: true }, mandatory: "minPower" | "maxPower" | "powerStep" },
-            { flags: { powerInWatts: true }, mandatory: "supportedWatts" | "selectedWattIndex" }
-        ];
-    }
+    export interface Commands extends Base.Commands {}
 
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link MicrowaveOvenControl} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to set the cooking parameters associated with the operation of the device. This
-             * command supports the following fields:
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.2
-             */
-            setCookingParameters(request: SetCookingParametersRequest): MaybePromise;
-
-            /**
-             * This command is used to add more time to the CookTime attribute of the server.
-             *
-             * This command supports these fields:
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.13.6.3
-             */
-            addMoreTime(request: AddMoreTimeRequest): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { powerAsNumber: true }, attributes: PowerAsNumberComponent.Attributes },
+        { flags: { powerNumberLimits: true }, attributes: PowerNumberLimitsComponent.Attributes },
+        { flags: { powerInWatts: true }, attributes: PowerInWattsComponent.Attributes }
+    ];
 
     export type Features = "PowerAsNumber" | "PowerInWatts" | "PowerNumberLimits";
 
@@ -611,4 +724,4 @@ export namespace MicrowaveOvenControl {
 export type MicrowaveOvenControlCluster = MicrowaveOvenControl.Cluster;
 export const MicrowaveOvenControlCluster = MicrowaveOvenControl.Cluster;
 ClusterNamespace.define(MicrowaveOvenControl);
-export interface MicrowaveOvenControl extends ClusterTyping { Attributes: MicrowaveOvenControl.Attributes & { Components: MicrowaveOvenControl.Attributes.Components }; Commands: MicrowaveOvenControl.Commands & { Components: MicrowaveOvenControl.Commands.Components }; Features: MicrowaveOvenControl.Features }
+export interface MicrowaveOvenControl extends ClusterTyping { Attributes: MicrowaveOvenControl.Attributes; Commands: MicrowaveOvenControl.Commands; Features: MicrowaveOvenControl.Features; Components: MicrowaveOvenControl.Components }

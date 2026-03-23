@@ -30,6 +30,256 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace LevelControl {
     /**
+     * {@link LevelControl} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the current level of this device. The meaning of 'level' is device dependent.
+             *
+             * Changes to this attribute shall only be marked as reportable in the following cases:
+             *
+             *   - At most once per second, or
+             *
+             *   - At the end of the movement/transition, or
+             *
+             *   - When it changes from null to any other value and vice versa.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.2
+             */
+            readonly currentLevel: number | null;
+
+            /**
+             * Indicates the value that the CurrentLevel attribute is set to when the OnOff attribute of an On/Off
+             * cluster on the same endpoint is set to TRUE, as a result of processing an On/Off cluster command. If the
+             * OnLevel attribute is not implemented, or is set to the null value, it has no effect. For more details see
+             * Effect of On/Off Commands on the CurrentLevel attribute.
+             *
+             * OnLevel represents a mandatory field that was previously not present or optional. Implementers should be
+             * aware that older devices may not implement it.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.11
+             */
+            onLevel: number | null;
+
+            /**
+             * Indicates the selected options of the device.
+             *
+             * The Options attribute is a bitmap that determines the default behavior of some cluster commands. Each
+             * command that is dependent on the Options attribute shall first construct a temporary Options bitmap that
+             * is in effect during the command processing. The temporary Options bitmap has the same format and meaning
+             * as the Options attribute, but includes any bits that may be overridden by command fields.
+             *
+             * This attribute is meant to be changed only during commissioning.
+             *
+             * Command execution shall NOT continue beyond the Options processing if all of these criteria are true:
+             *
+             *   - The command is one of the ‘without On/Off’ commands: Move, Move to Level, Step, or Stop.
+             *
+             *   - The On/Off cluster exists on the same endpoint as this cluster.
+             *
+             *   - The OnOff attribute of the On/Off cluster, on this endpoint, is FALSE.
+             *
+             *   - The value of the ExecuteIfOff bit is 0.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.9
+             */
+            options: Options;
+
+            readonly minLevel?: number;
+
+            /**
+             * Indicates the maximum value of CurrentLevel that is capable of being assigned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.5
+             */
+            readonly maxLevel?: number;
+
+            /**
+             * Indicates the time taken to move to or from the target level when On or Off commands are received by an
+             * On/Off cluster on the same endpoint. It is specified in 1/10ths of a second.
+             *
+             * The actual time taken SHOULD be as close to OnOffTransitionTime as the device is able. Please note that
+             * if the device is not able to move at a variable rate, the OnOffTransitionTime attribute SHOULD NOT be
+             * implemented.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.10
+             */
+            onOffTransitionTime?: number;
+
+            /**
+             * Indicates the time taken to move the current level from the minimum level to the maximum level when an On
+             * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a second. If
+             * this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be used
+             * instead.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.12
+             */
+            onTransitionTime?: number | null;
+
+            /**
+             * Indicates the time taken to move the current level from the maximum level to the minimum level when an
+             * Off command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a
+             * second. If this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be
+             * used instead.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.13
+             */
+            offTransitionTime?: number | null;
+
+            /**
+             * Indicates the movement rate, in units per second, when a Move command is received with a null value Rate
+             * parameter.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.14
+             */
+            defaultMoveRate?: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
+             */
+            moveToLevel(request: MoveToLevelRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
+             */
+            move(request: MoveRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
+             */
+            step(request: StepRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
+             */
+            stop(request: StopRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+             */
+            moveToLevelWithOnOff(request: MoveToLevelRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+             */
+            moveWithOnOff(request: MoveRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+             */
+            stepWithOnOff(request: StepRequest): MaybePromise;
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+             */
+            stopWithOnOff(request: StopRequest): MaybePromise;
+        }
+    }
+
+    /**
+     * {@link LevelControl} supports these elements if it supports feature "Lighting".
+     */
+    export namespace LightingComponent {
+        export interface Attributes {
+            /**
+             * Indicates the time remaining until the current command is complete - it is specified in 1/10ths of a
+             * second.
+             *
+             * Changes to this attribute shall only be marked as reportable in the following cases:
+             *
+             *   - When it changes from 0 to any value higher than 10, or
+             *
+             *   - When it changes, with a delta larger than 10, caused by the invoke of a command, or
+             *
+             *   - When it changes to 0.
+             *
+             * For commands with a transition time or changes to the transition time less than 1 second, changes to this
+             * attribute shall NOT be reported.
+             *
+             * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
+             * reporting of this attribute in order to keep track of the remaining duration.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.3
+             */
+            readonly remainingTime: number;
+
+            /**
+             * Indicates the desired startup level for a device when it is supplied with power and this level shall be
+             * reflected in the CurrentLevel attribute. The values of the StartUpCurrentLevel attribute are listed
+             * below:
+             *
+             * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentLevel
+             * attribute shall return to its value prior to the restart.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
+             */
+            startUpCurrentLevel: number | null;
+        }
+    }
+
+    /**
+     * {@link LevelControl} supports these elements if it supports feature "NotLighting".
+     */
+    export namespace NotLightingComponent {
+        export interface Attributes {
+            /**
+             * Indicates the minimum value of CurrentLevel that is capable of being assigned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+             */
+            readonly minLevel?: number;
+        }
+    }
+
+    /**
+     * {@link LevelControl} supports these elements if it supports feature "Frequency".
+     */
+    export namespace FrequencyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the frequency at which the device is at CurrentLevel. A CurrentFrequency of 0 is unknown.
+             *
+             * Changes to this attribute shall only be marked as reportable in the following cases:
+             *
+             *   - At most once per second, or
+             *
+             *   - At the start of the movement/transition, or
+             *
+             *   - At the end of the movement/transition.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.6
+             */
+            readonly currentFrequency: number;
+
+            /**
+             * Indicates the minimum value of CurrentFrequency that is capable of being assigned. MinFrequency shall be
+             * less than or equal to MaxFrequency. A value of 0 indicates undefined.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.7
+             */
+            readonly minFrequency: number;
+
+            /**
+             * Indicates the maximum value of CurrentFrequency that is capable of being assigned. MaxFrequency shall be
+             * greater than or equal to MinFrequency. A value of 0 indicates undefined.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.8
+             */
+            readonly maxFrequency: number;
+        }
+
+        export interface Commands {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
+             */
+            moveToClosestFrequency(request: MoveToClosestFrequencyRequest): MaybePromise;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link LevelControl}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -49,7 +299,7 @@ export namespace LevelControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.2
          */
-        currentLevel: number | null;
+        readonly currentLevel: number | null;
 
         /**
          * Indicates the value that the CurrentLevel attribute is set to when the OnOff attribute of an On/Off cluster
@@ -88,19 +338,14 @@ export namespace LevelControl {
          */
         options: Options;
 
-        /**
-         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
-         */
-        minLevel: number;
+        readonly minLevel: number;
 
         /**
          * Indicates the maximum value of CurrentLevel that is capable of being assigned.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.5
          */
-        maxLevel: number;
+        readonly maxLevel: number;
 
         /**
          * Indicates the time taken to move to or from the target level when On or Off commands are received by an
@@ -159,7 +404,7 @@ export namespace LevelControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.3
          */
-        remainingTime: number;
+        readonly remainingTime: number;
 
         /**
          * Indicates the desired startup level for a device when it is supplied with power and this level shall be
@@ -185,7 +430,7 @@ export namespace LevelControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.6
          */
-        currentFrequency: number;
+        readonly currentFrequency: number;
 
         /**
          * Indicates the minimum value of CurrentFrequency that is capable of being assigned. MinFrequency shall be less
@@ -193,7 +438,7 @@ export namespace LevelControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.7
          */
-        minFrequency: number;
+        readonly minFrequency: number;
 
         /**
          * Indicates the maximum value of CurrentFrequency that is capable of being assigned. MaxFrequency shall be
@@ -201,82 +446,21 @@ export namespace LevelControl {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.8
          */
-        maxFrequency: number;
+        readonly maxFrequency: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "currentLevel" | "onLevel" | "options",
-                optional: "minLevel" | "maxLevel" | "onOffTransitionTime" | "onTransitionTime" | "offTransitionTime" | "defaultMoveRate"
-            },
-            { flags: { lighting: true }, mandatory: "remainingTime" | "startUpCurrentLevel" },
-            { flags: { lighting: false }, optional: "minLevel" },
-            { flags: { frequency: true }, mandatory: "currentFrequency" | "minFrequency" | "maxFrequency" }
-        ];
-    }
+    export interface Commands extends Base.Commands, FrequencyComponent.Commands {}
 
-    export interface Commands extends Commands.Base, Commands.Frequency {}
-
-    export namespace Commands {
-        /**
-         * {@link LevelControl} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
-             */
-            moveToLevel(request: MoveToLevelRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
-             */
-            move(request: MoveRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
-             */
-            step(request: StepRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
-             */
-            stop(request: StopRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
-             */
-            moveToLevelWithOnOff(request: MoveToLevelRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
-             */
-            moveWithOnOff(request: MoveRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
-             */
-            stepWithOnOff(request: StepRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
-             */
-            stopWithOnOff(request: StopRequest): MaybePromise;
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { lighting: true }, attributes: LightingComponent.Attributes },
+        { flags: { lighting: false }, attributes: NotLightingComponent.Attributes },
+        {
+            flags: { frequency: true },
+            attributes: FrequencyComponent.Attributes,
+            commands: FrequencyComponent.Commands
         }
-
-        /**
-         * {@link LevelControl} supports these commands if it supports feature "Frequency".
-         */
-        export interface Frequency {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
-             */
-            moveToClosestFrequency(request: MoveToClosestFrequencyRequest): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }, { flags: { frequency: true }, methods: Frequency }];
-    }
+    ];
 
     export type Features = "OnOff" | "Lighting" | "Frequency";
 
@@ -968,4 +1152,4 @@ export namespace LevelControl {
 export type LevelControlCluster = LevelControl.Cluster;
 export const LevelControlCluster = LevelControl.Cluster;
 ClusterNamespace.define(LevelControl);
-export interface LevelControl extends ClusterTyping { Attributes: LevelControl.Attributes & { Components: LevelControl.Attributes.Components }; Commands: LevelControl.Commands & { Components: LevelControl.Commands.Components }; Features: LevelControl.Features }
+export interface LevelControl extends ClusterTyping { Attributes: LevelControl.Attributes; Commands: LevelControl.Commands; Features: LevelControl.Features; Components: LevelControl.Components }

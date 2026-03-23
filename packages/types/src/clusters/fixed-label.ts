@@ -20,18 +20,28 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace FixedLabel {
     /**
+     * {@link FixedLabel} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * @see {@link MatterSpecification.v142.Core} § 9.8.4
+             */
+            readonly labelList: Label.LabelStruct[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link FixedLabel}.
      */
     export interface Attributes {
         /**
          * @see {@link MatterSpecification.v142.Core} § 9.8.4
          */
-        labelList: Label.LabelStruct[];
+        readonly labelList: Label.LabelStruct[];
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "labelList" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link Cluster}
@@ -86,4 +96,4 @@ export namespace FixedLabel {
 export type FixedLabelCluster = FixedLabel.Cluster;
 export const FixedLabelCluster = FixedLabel.Cluster;
 ClusterNamespace.define(FixedLabel);
-export interface FixedLabel extends ClusterTyping { Attributes: FixedLabel.Attributes & { Components: FixedLabel.Attributes.Components } }
+export interface FixedLabel extends ClusterTyping { Attributes: FixedLabel.Attributes; Components: FixedLabel.Components }

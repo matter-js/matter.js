@@ -21,6 +21,36 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace PowerTopology {
     /**
+     * {@link PowerTopology} supports these elements if it supports feature "SetTopology".
+     */
+    export namespace SetTopologyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the list of endpoints capable of providing power to and/or consuming power from the endpoint
+             * hosting this server.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
+             */
+            readonly availableEndpoints: EndpointNumber[];
+        }
+    }
+
+    /**
+     * {@link PowerTopology} supports these elements if it supports feature "DynamicPowerFlow".
+     */
+    export namespace DynamicPowerFlowComponent {
+        export interface Attributes {
+            /**
+             * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
+             * hosting this server. This list shall be a subset of the value of the AvailableEndpoints attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
+             */
+            readonly activeEndpoints: EndpointNumber[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link PowerTopology}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -32,7 +62,7 @@ export namespace PowerTopology {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
          */
-        availableEndpoints: EndpointNumber[];
+        readonly availableEndpoints: EndpointNumber[];
 
         /**
          * Indicates the current list of endpoints currently providing or consuming power to or from the endpoint
@@ -40,16 +70,13 @@ export namespace PowerTopology {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.8.5.2
          */
-        activeEndpoints: EndpointNumber[];
+        readonly activeEndpoints: EndpointNumber[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: { setTopology: true }, mandatory: "availableEndpoints" },
-            { flags: { dynamicPowerFlow: true }, mandatory: "activeEndpoints" }
-        ];
-    }
-
+    export type Components = [
+        { flags: { setTopology: true }, attributes: SetTopologyComponent.Attributes },
+        { flags: { dynamicPowerFlow: true }, attributes: DynamicPowerFlowComponent.Attributes }
+    ];
     export type Features = "NodeTopology" | "TreeTopology" | "SetTopology" | "DynamicPowerFlow";
 
     /**
@@ -228,4 +255,4 @@ export namespace PowerTopology {
 export type PowerTopologyCluster = PowerTopology.Cluster;
 export const PowerTopologyCluster = PowerTopology.Cluster;
 ClusterNamespace.define(PowerTopology);
-export interface PowerTopology extends ClusterTyping { Attributes: PowerTopology.Attributes & { Components: PowerTopology.Attributes.Components }; Features: PowerTopology.Features }
+export interface PowerTopology extends ClusterTyping { Attributes: PowerTopology.Attributes; Features: PowerTopology.Features; Components: PowerTopology.Components }

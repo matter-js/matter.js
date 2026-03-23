@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { OptionalKeys, RequiredKeys, WritableKeys } from "@matter/general";
 import { Merge } from "@matter/general";
 import { ClusterClientObj, Fabric, Message, Session } from "@matter/protocol";
 import {
@@ -14,6 +15,7 @@ import {
     Cluster,
     ClusterId,
     ClusterType,
+    ClusterTyping,
     Command,
     CommandId,
     Commands,
@@ -288,6 +290,56 @@ export type ClusterServerObj<T extends ClusterType = ClusterType> = ClusterServe
     ServerAttributeSetters<T["attributes"]> &
     ServerAttributeSubscribers<T["attributes"]> &
     ServerEventTriggers<T["events"]>;
+
+// --- ClusterTyping-parameterized accessor types for TypedClusterServerObj ---
+
+type TypedServerAttributeGetters<A> = {
+    [K in RequiredKeys<A> & string as `get${Capitalize<K>}Attribute`]: (fabric?: Fabric) => A[K];
+} & {
+    [K in OptionalKeys<A> as `get${Capitalize<K>}Attribute`]?: (fabric?: Fabric) => A[K];
+};
+
+type TypedServerAttributeSetters<A> = {
+    [K in WritableKeys<A> & string as `set${Capitalize<K>}Attribute`]: (value: A[K], fabric?: Fabric) => void;
+};
+
+type TypedServerAttributeSubscribers<A> = {
+    [K in WritableKeys<A> & string as `subscribe${Capitalize<K>}Attribute`]: (
+        listener: (newValue: A[K], oldValue: A[K]) => void,
+        fabric?: Fabric,
+    ) => void;
+};
+
+type TypedServerEventTriggers<E> = {
+    [K in RequiredKeys<E> & string as `trigger${Capitalize<K>}Event`]: (event: E[K]) => void;
+} & {
+    [K in OptionalKeys<E> as `trigger${Capitalize<K>}Event`]?: (event: E[K]) => void;
+};
+
+/**
+ * {@link ClusterServerObj} parameterized on {@link ClusterTyping} (plain value interfaces).
+ *
+ * Produced by legacy API methods like `getClusterServer()` when called with either a `ClusterType` (via
+ * `TypingOf`) or a `ClusterNamespace.Concrete` (which carries `Typing` directly).
+ */
+export type TypedClusterServerObj<N extends ClusterTyping = ClusterTyping> = {
+    id: ClusterId;
+    readonly name: string;
+    _type: "ClusterServer";
+    datasource?: import("./ClusterDatasource.js").ClusterDatasource;
+    readonly attributes: Record<string, unknown>;
+    readonly commands: Record<string, unknown>;
+    readonly events: Record<string, unknown>;
+    isAttributeSupported: (attributeId: AttributeId) => boolean;
+    isAttributeSupportedByName: (attributeName: string) => boolean;
+    isEventSupported: (eventId: EventId) => boolean;
+    isEventSupportedByName: (eventName: string) => boolean;
+    isCommandSupported: (commandId: CommandId) => boolean;
+    isCommandSupportedByName: (commandName: string) => boolean;
+} & TypedServerAttributeGetters<N["Attributes"]> &
+    TypedServerAttributeSetters<N["Attributes"]> &
+    TypedServerAttributeSubscribers<N["Attributes"]> &
+    TypedServerEventTriggers<N["Events"]>;
 
 /** Strongly typed interface of a cluster server */
 export type ClusterServerObjInternal<T extends ClusterType = ClusterType> = ClusterServerObj<T> & {

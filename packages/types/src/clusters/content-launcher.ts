@@ -28,39 +28,27 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ContentLauncher {
     /**
-     * Attributes that may appear in {@link ContentLauncher}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link ContentLauncher} supports these elements if it supports feature "UrlPlayback".
      */
-    export interface Attributes {
-        /**
-         * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
-         * of entries in the HTTP "Accept" request header.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
-         */
-        acceptHeader: string[];
+    export namespace UrlPlaybackComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall provide a list of content types supported by the Video Player or Content App in the
+             * form of entries in the HTTP "Accept" request header.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+             */
+            readonly acceptHeader: string[];
 
-        /**
-         * This attribute shall provide information about supported streaming protocols.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
-         */
-        supportedStreamingProtocols: SupportedProtocols;
-    }
+            /**
+             * This attribute shall provide information about supported streaming protocols.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+             */
+            readonly supportedStreamingProtocols: SupportedProtocols;
+        }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: { urlPlayback: true }, mandatory: "acceptHeader" | "supportedStreamingProtocols" }
-        ];
-    }
-    export interface Commands extends Commands.UrlPlayback, Commands.ContentSearchComponent {}
-
-    export namespace Commands {
-        /**
-         * {@link ContentLauncher} supports these commands if it supports feature "UrlPlayback".
-         */
-        export interface UrlPlayback {
+        export interface Commands {
             /**
              * Upon receipt, this shall launch content from the specified URL.
              *
@@ -82,11 +70,13 @@ export namespace ContentLauncher {
              */
             launchUrl(request: LaunchUrlRequest): MaybePromise<LauncherResponse>;
         }
+    }
 
-        /**
-         * {@link ContentLauncher} supports these commands if it supports feature "ContentSearch".
-         */
-        export interface ContentSearchComponent {
+    /**
+     * {@link ContentLauncher} supports these elements if it supports feature "ContentSearch".
+     */
+    export namespace ContentSearchComponent {
+        export interface Commands {
             /**
              * Upon receipt, this shall launch the specified content with optional search criteria.
              *
@@ -96,12 +86,40 @@ export namespace ContentLauncher {
              */
             launchContent(request: LaunchContentRequest): MaybePromise<LauncherResponse>;
         }
-
-        export type Components = [
-            { flags: { urlPlayback: true }, methods: UrlPlayback },
-            { flags: { contentSearch: true }, methods: ContentSearchComponent }
-        ];
     }
+
+    /**
+     * Attributes that may appear in {@link ContentLauncher}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
+         * of entries in the HTTP "Accept" request header.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+         */
+        readonly acceptHeader: string[];
+
+        /**
+         * This attribute shall provide information about supported streaming protocols.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+         */
+        readonly supportedStreamingProtocols: SupportedProtocols;
+    }
+
+    export interface Commands extends UrlPlaybackComponent.Commands, ContentSearchComponent.Commands {}
+
+    export type Components = [
+        {
+            flags: { urlPlayback: true },
+            attributes: UrlPlaybackComponent.Attributes,
+            commands: UrlPlaybackComponent.Commands
+        },
+        { flags: { contentSearch: true }, commands: ContentSearchComponent.Commands }
+    ];
 
     export type Features = "ContentSearch" | "UrlPlayback" | "AdvancedSeek" | "TextTracks" | "AudioTracks";
 
@@ -1369,4 +1387,4 @@ export namespace ContentLauncher {
 export type ContentLauncherCluster = ContentLauncher.Cluster;
 export const ContentLauncherCluster = ContentLauncher.Cluster;
 ClusterNamespace.define(ContentLauncher);
-export interface ContentLauncher extends ClusterTyping { Attributes: ContentLauncher.Attributes & { Components: ContentLauncher.Attributes.Components }; Commands: ContentLauncher.Commands & { Components: ContentLauncher.Commands.Components }; Features: ContentLauncher.Features }
+export interface ContentLauncher extends ClusterTyping { Attributes: ContentLauncher.Attributes; Commands: ContentLauncher.Commands; Features: ContentLauncher.Features; Components: ContentLauncher.Components }

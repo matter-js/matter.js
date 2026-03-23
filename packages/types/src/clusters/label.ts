@@ -19,6 +19,20 @@ import { Label as LabelModel } from "@matter/model";
  */
 export namespace Label {
     /**
+     * {@link Label} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This is a list of string tuples. Each entry is a LabelStruct.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.7.5.1
+             */
+            labelList: LabelStruct[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link Label}.
      */
     export interface Attributes {
@@ -30,9 +44,7 @@ export namespace Label {
         labelList: LabelStruct[];
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "labelList" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * This is a string tuple with strings that are user defined.
@@ -114,4 +126,4 @@ export namespace Label {
 }
 
 ClusterNamespace.define(Label);
-export interface Label extends ClusterTyping { Attributes: Label.Attributes & { Components: Label.Attributes.Components } }
+export interface Label extends ClusterTyping { Attributes: Label.Attributes; Components: Label.Components }

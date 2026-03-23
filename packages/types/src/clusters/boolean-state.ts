@@ -21,6 +21,32 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace BooleanState {
     /**
+     * {@link BooleanState} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This represents a boolean state.
+             *
+             * The semantics of this boolean state are defined by the device type using this cluster. For example, in a
+             * Contact Sensor device type, FALSE=open or no contact, TRUE=closed or contact.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.7.4.1
+             */
+            readonly stateValue: boolean;
+        }
+
+        export interface Events {
+            /**
+             * If this event is supported, it shall be generated when the StateValue attribute changes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
+             */
+            stateChange?: StateChangeEvent;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link BooleanState}.
      */
     export interface Attributes {
@@ -32,11 +58,7 @@ export namespace BooleanState {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.7.4.1
          */
-        stateValue: boolean;
-    }
-
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "stateValue" }];
+        readonly stateValue: boolean;
     }
 
     /**
@@ -53,9 +75,7 @@ export namespace BooleanState {
         stateChange: StateChangeEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, optional: "stateChange" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes, events: Base.Events }];
 
     /**
      * If this event is supported, it shall be generated when the StateValue attribute changes.
@@ -138,4 +158,4 @@ export namespace BooleanState {
 export type BooleanStateCluster = BooleanState.Cluster;
 export const BooleanStateCluster = BooleanState.Cluster;
 ClusterNamespace.define(BooleanState);
-export interface BooleanState extends ClusterTyping { Attributes: BooleanState.Attributes & { Components: BooleanState.Attributes.Components }; Events: BooleanState.Events & { Components: BooleanState.Events.Components } }
+export interface BooleanState extends ClusterTyping { Attributes: BooleanState.Attributes; Events: BooleanState.Events; Components: BooleanState.Components }

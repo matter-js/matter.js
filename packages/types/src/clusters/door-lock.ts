@@ -42,493 +42,171 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace DoorLock {
     /**
-     * Attributes that may appear in {@link DoorLock}.
-     *
-     * Optional properties represent attributes that devices are not required to support. Device support for attributes
-     * may also be affected by a device's supported {@link Features}.
+     * {@link DoorLock} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute may be NULL if the lock hardware does not currently know the status of the locking mechanism.
-         * For example, a lock may not know the LockState status after a power cycle until the first lock actuation is
-         * completed.
-         *
-         * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
-         * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
-         * not in a dead latched state.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.1
-         */
-        lockState: LockState | null;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute may be NULL if the lock hardware does not currently know the status of the locking
+             * mechanism. For example, a lock may not know the LockState status after a power cycle until the first lock
+             * actuation is completed.
+             *
+             * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
+             * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended
+             * and not in a dead latched state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.1
+             */
+            readonly lockState: LockState | null;
 
-        /**
-         * Indicates the type of door lock as defined in LockTypeEnum.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.2
-         */
-        lockType: LockType;
+            /**
+             * Indicates the type of door lock as defined in LockTypeEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.2
+             */
+            readonly lockType: LockType;
 
-        /**
-         * Indicates if the lock is currently able to (Enabled) or not able to (Disabled) process remote Lock, Unlock,
-         * or Unlock with Timeout commands.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.3
-         */
-        actuatorEnabled: boolean;
+            /**
+             * Indicates if the lock is currently able to (Enabled) or not able to (Disabled) process remote Lock,
+             * Unlock, or Unlock with Timeout commands.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.3
+             */
+            readonly actuatorEnabled: boolean;
 
-        /**
-         * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.24
-         */
-        operatingMode: OperatingMode;
+            /**
+             * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.24
+             */
+            operatingMode: OperatingMode;
 
-        /**
-         * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by the
-         * lock.
-         *
-         * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
-         * indicate that the mode is not supported.
-         *
-         * Any bit that is not yet defined in OperatingModesBitmap shall be set to 1.
-         *
-         * The values considered valid to read or write in the OperatingMode attribute shall be the enum values from
-         * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in this
-         * attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this specification.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.25
-         */
-        supportedOperatingModes: OperatingModes;
+            /**
+             * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by
+             * the lock.
+             *
+             * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
+             * indicate that the mode is not supported.
+             *
+             * Any bit that is not yet defined in OperatingModesBitmap shall be set to 1.
+             *
+             * The values considered valid to read or write in the OperatingMode attribute shall be the enum values from
+             * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in
+             * this attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this
+             * specification.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.25
+             */
+            readonly supportedOperatingModes: OperatingModes;
 
-        /**
-         * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
-         * ISO-639-1.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.20
-         */
-        language: string;
+            /**
+             * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
+             * ISO-639-1.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.20
+             */
+            language?: string;
 
-        /**
-         * Indicates the settings for the LED support, as defined by LEDSettingEnum.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.21
-         */
-        ledSettings: LedSetting;
+            /**
+             * Indicates the settings for the LED support, as defined by LEDSettingEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.21
+             */
+            ledSettings?: LedSetting;
 
-        /**
-         * Indicates the number of seconds to wait after unlocking a lock before it automatically locks again.
-         * 0=disabled. If set, unlock operations from any source will be timed. For one time unlock with timeout use the
-         * specific command.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.22
-         */
-        autoRelockTime: number;
+            /**
+             * Indicates the number of seconds to wait after unlocking a lock before it automatically locks again.
+             * 0=disabled. If set, unlock operations from any source will be timed. For one time unlock with timeout use
+             * the specific command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.22
+             */
+            autoRelockTime?: number;
 
-        /**
-         * Indicates the sound volume on a door lock as defined by SoundVolumeEnum.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.23
-         */
-        soundVolume: SoundVolume;
+            /**
+             * Indicates the sound volume on a door lock as defined by SoundVolumeEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.23
+             */
+            soundVolume?: SoundVolume;
 
-        /**
-         * Indicates the default configurations as they are physically set on the device (example: hardware dip switch
-         * setting, etc…) and represents the default setting for some of the attributes within this cluster (for
-         * example: LED, Auto Lock, Sound Volume, and Operating Mode attributes).
-         *
-         * This is a read-only attribute and is intended to allow clients to determine what changes may need to be made
-         * without having to query all the included attributes. It may be beneficial for the clients to know what the
-         * device’s original settings were in the event that the device needs to be restored to factory default
-         * settings.
-         *
-         * If the Client device would like to query and modify the door lock server’s operating settings, it SHOULD send
-         * read and write attribute requests to the specific attributes.
-         *
-         * For example, the Sound Volume attribute default value is Silent Mode. However, it is possible that the
-         * current Sound Volume is High Volume. Therefore, if the client wants to query/modify the current Sound Volume
-         * setting on the server, the client SHOULD read/write to the Sound Volume attribute.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.26
-         */
-        defaultConfigurationRegister: ConfigurationRegister;
+            /**
+             * Indicates the default configurations as they are physically set on the device (example: hardware dip
+             * switch setting, etc…) and represents the default setting for some of the attributes within this cluster
+             * (for example: LED, Auto Lock, Sound Volume, and Operating Mode attributes).
+             *
+             * This is a read-only attribute and is intended to allow clients to determine what changes may need to be
+             * made without having to query all the included attributes. It may be beneficial for the clients to know
+             * what the device’s original settings were in the event that the device needs to be restored to factory
+             * default settings.
+             *
+             * If the Client device would like to query and modify the door lock server’s operating settings, it SHOULD
+             * send read and write attribute requests to the specific attributes.
+             *
+             * For example, the Sound Volume attribute default value is Silent Mode. However, it is possible that the
+             * current Sound Volume is High Volume. Therefore, if the client wants to query/modify the current Sound
+             * Volume setting on the server, the client SHOULD read/write to the Sound Volume attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.26
+             */
+            readonly defaultConfigurationRegister?: ConfigurationRegister;
 
-        /**
-         * This attribute shall enable/disable local programming on the door lock of certain features (see
-         * LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled on the
-         * door lock for all features. If it is set to FALSE then local programming is disabled on the door lock for
-         * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
-         * enabled by default.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.27
-         */
-        enableLocalProgramming: boolean;
+            /**
+             * This attribute shall enable/disable local programming on the door lock of certain features (see
+             * LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled on
+             * the door lock for all features. If it is set to FALSE then local programming is disabled on the door lock
+             * for those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming
+             * shall be enabled by default.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.27
+             */
+            enableLocalProgramming?: boolean;
 
-        /**
-         * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.28
-         */
-        enableOneTouchLocking: boolean;
+            /**
+             * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door
+             * lock.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.28
+             */
+            enableOneTouchLocking?: boolean;
 
-        /**
-         * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
-         * locked.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.29
-         */
-        enableInsideStatusLed: boolean;
+            /**
+             * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
+             * locked.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.29
+             */
+            enableInsideStatusLed?: boolean;
 
-        /**
-         * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
-         * When the lock is in privacy mode it cannot be manipulated from the outside.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.30
-         */
-        enablePrivacyModeButton: boolean;
+            /**
+             * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy
+             * mode. When the lock is in privacy mode it cannot be manipulated from the outside.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.30
+             */
+            enablePrivacyModeButton?: boolean;
 
-        /**
-         * Indicates the local programming features that will be disabled when EnableLocalProgramming attribute is set
-         * to False. If a door lock doesn’t support disabling one aspect of local programming it shall return
-         * CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming attribute is set
-         * to True then all local programming features shall be enabled regardless of the bits set to 0 in this
-         * attribute.
-         *
-         * The features that can be disabled from local programming are defined in LocalProgrammingFeaturesBitmap.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.31
-         */
-        localProgrammingFeatures: LocalProgrammingFeatures;
+            /**
+             * Indicates the local programming features that will be disabled when EnableLocalProgramming attribute is
+             * set to False. If a door lock doesn’t support disabling one aspect of local programming it shall return
+             * CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming attribute is
+             * set to True then all local programming features shall be enabled regardless of the bits set to 0 in this
+             * attribute.
+             *
+             * The features that can be disabled from local programming are defined in LocalProgrammingFeaturesBitmap.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.31
+             */
+            localProgrammingFeatures?: LocalProgrammingFeatures;
 
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9
-         * @deprecated
-         */
-        securityLevel: any;
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9
+             * @deprecated
+             */
+            readonly securityLevel?: any;
+        }
 
-        /**
-         * Indicates the current door state as defined in DoorStateEnum.
-         *
-         * Null only if an internal error prevents the retrieval of the current door state.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.4
-         */
-        doorState: DoorState | null;
-
-        /**
-         * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.5
-         */
-        doorOpenEvents: number;
-
-        /**
-         * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.6
-         */
-        doorClosedEvents: number;
-
-        /**
-         * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
-         * from closed to open.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.7
-         */
-        openPeriod: number;
-
-        /**
-         * Indicates the number of total users supported by the lock.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.8
-         */
-        numberOfTotalUsersSupported: number;
-
-        /**
-         * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
-         * this device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.18
-         */
-        credentialRulesSupport: CredentialRules;
-
-        /**
-         * Indicates the number of credentials that could be assigned for each user.
-         *
-         * Depending on the value of NumberOfRFIDUsersSupported and NumberOfPINUsersSupported it may not be possible to
-         * assign that number of credentials for a user.
-         *
-         * For example, if the device supports only PIN and RFID credential types, NumberOfCredentialsSupportedPerUser
-         * is set to 10, NumberOfPINUsersSupported is set to 5 and NumberOfRFIDUsersSupported is set to 3, it will not
-         * be possible to actually assign 10 credentials for a user because maximum number of credentials in the
-         * database is 8.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.19
-         */
-        numberOfCredentialsSupportedPerUser: number;
-
-        /**
-         * Indicates the number of minutes a PIN, RFID, Fingerprint, or other credential associated with a user of type
-         * ExpiringUser shall remain valid after its first use before expiring. When the credential expires the
-         * UserStatus for the corresponding user record shall be set to OccupiedDisabled.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.36
-         */
-        expiringUserTimeout: number;
-
-        /**
-         * Indicates the number of PIN users supported.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.9
-         */
-        numberOfPinUsersSupported: number;
-
-        /**
-         * Indicates the maximum length in bytes of a PIN Code on this device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.14
-         */
-        maxPinCodeLength: number;
-
-        /**
-         * Indicates the minimum length in bytes of a PIN Code on this device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.15
-         */
-        minPinCodeLength: number;
-
-        /**
-         * Indicates the number of RFID users supported.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.10
-         */
-        numberOfRfidUsersSupported: number;
-
-        /**
-         * Indicates the maximum length in bytes of a RFID Code on this device. The value depends on the RFID code range
-         * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 20
-         * (equals 10 Byte ISO 14443A UID) is recommended.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.16
-         */
-        maxRfidCodeLength: number;
-
-        /**
-         * Indicates the minimum length in bytes of a RFID Code on this device. The value depends on the RFID code range
-         * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 8
-         * (equals 4 Byte ISO 14443A UID) is recommended.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.17
-         */
-        minRfidCodeLength: number;
-
-        /**
-         * Indicates the number of configurable week day schedule supported per user.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.11
-         */
-        numberOfWeekDaySchedulesSupportedPerUser: number;
-
-        /**
-         * Indicates the number of configurable year day schedule supported per user.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.12
-         */
-        numberOfYearDaySchedulesSupportedPerUser: number;
-
-        /**
-         * Indicates the number of holiday schedules supported for the entire door lock device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.13
-         */
-        numberOfHolidaySchedulesSupported: number;
-
-        /**
-         * Indicates the number of incorrect Pin codes or RFID presentment attempts a user is allowed to enter before
-         * the lock will enter a lockout state. The value of this attribute is compared to all failing forms of
-         * credential presentation, including Pin codes used in an Unlock Command when RequirePINforRemoteOperation is
-         * set to true. Valid range is 1-255 incorrect attempts. The lockout state will be for the duration of
-         * UserCodeTemporaryDisableTime. If the attribute accepts writes and an attempt to write the value 0 is made,
-         * the device shall respond with CONSTRAINT_ERROR.
-         *
-         * The lock may reset the counter used to track incorrect credential presentations as required by internal
-         * logic, environmental events, or other reasons. The lock shall reset the counter if a valid credential is
-         * presented.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.32
-         */
-        wrongCodeEntryLimit: number;
-
-        /**
-         * Indicates the number of seconds that the lock shuts down following wrong code entry. Valid range is 1-255
-         * seconds. Device can shut down to lock user out for specified amount of time. (Makes it difficult to try and
-         * guess a PIN for the device.) If the attribute accepts writes and an attempt to write the attribute to 0 is
-         * made, the device shall respond with CONSTRAINT_ERROR.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.33
-         */
-        userCodeTemporaryDisableTime: number;
-
-        /**
-         * Indicates the door locks ability to send PINs over the air. If the attribute is True it is ok for the door
-         * lock server to send PINs over the air. This attribute determines the behavior of the server’s TX operation.
-         * If it is false, then it is not ok for the device to send PIN in any messages over the air.
-         *
-         * The PIN field within any door lock cluster message shall keep the first octet unchanged and masks the actual
-         * code by replacing with 0xFF. For example (PIN "1234" ): If the attribute value is True, 0x04 0x31 0x32 0x33
-         * 0x34 shall be used in the PIN field in any door lock cluster message payload. If the attribute value is
-         * False, 0x04 0xFF 0xFF 0xFF 0xFF shall be used.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.34
-         */
-        sendPinOverTheAir: boolean;
-
-        /**
-         * Indicates if the door lock requires an optional PIN. If this attribute is set to True, the door lock server
-         * requires that an optional PINs be included in the payload of remote lock operation events like Lock, Unlock,
-         * Unlock with Timeout and Toggle in order to function.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.35
-         */
-        requirePinForRemoteOperation: boolean;
-
-        /**
-         * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if not
-         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
-         *
-         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
-         * Command”.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.37
-         */
-        aliroReaderVerificationKey: Bytes | null;
-
-        /**
-         * Indicates the reader_group_identifier as defined in [Aliro].
-         *
-         * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42,
-         * “SetAliroReaderConfig Command”.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.38
-         */
-        aliroReaderGroupIdentifier: Bytes | null;
-
-        /**
-         * Indicates the reader_group_sub_identifier as defined in [Aliro].
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.39
-         */
-        aliroReaderGroupSubIdentifier: Bytes;
-
-        /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.40
-         */
-        aliroExpeditedTransactionSupportedProtocolVersions: Bytes[];
-
-        /**
-         * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.44
-         */
-        numberOfAliroCredentialIssuerKeysSupported: number;
-
-        /**
-         * Indicates the maximum number of endpoint key credentials that can be stored on the lock. This limit applies
-         * to the sum of the number of AliroEvictableEndpointKey credentials and the number of
-         * AliroNonEvictableEndpointKey credentials.
-         *
-         * > [!NOTE]
-         *
-         * > The credential indices used for these two credential types are independent of each other, similar to all
-         *   other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add a
-         *   credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported and
-         *   also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials would
-         *   exist on the server.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.45
-         */
-        numberOfAliroEndpointKeysSupported: number;
-
-        /**
-         * Indicates the Group Resolving Key as defined in [Aliro].
-         *
-         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
-         * Command”.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.41
-         */
-        aliroGroupResolvingKey: Bytes | null;
-
-        /**
-         * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [Aliro].
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.42
-         */
-        aliroSupportedBleuwbProtocolVersions: Bytes[];
-
-        /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.43
-         */
-        aliroBleAdvertisingVersion: number;
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "lockState" | "lockType" | "actuatorEnabled" | "operatingMode" | "supportedOperatingModes",
-                optional: "language" | "ledSettings" | "autoRelockTime" | "soundVolume" | "defaultConfigurationRegister" | "enableLocalProgramming" | "enableOneTouchLocking" | "enableInsideStatusLed" | "enablePrivacyModeButton" | "localProgrammingFeatures" | "securityLevel"
-            },
-            {
-                flags: { doorPositionSensor: true },
-                mandatory: "doorState",
-                optional: "doorOpenEvents" | "doorClosedEvents" | "openPeriod"
-            },
-            {
-                flags: { user: true },
-                mandatory: "numberOfTotalUsersSupported" | "credentialRulesSupport" | "numberOfCredentialsSupportedPerUser",
-                optional: "expiringUserTimeout"
-            },
-            {
-                flags: { pinCredential: true },
-                mandatory: "numberOfPinUsersSupported" | "maxPinCodeLength" | "minPinCodeLength"
-            },
-            {
-                flags: { rfidCredential: true },
-                mandatory: "numberOfRfidUsersSupported" | "maxRfidCodeLength" | "minRfidCodeLength"
-            },
-            { flags: { weekDayAccessSchedules: true }, mandatory: "numberOfWeekDaySchedulesSupportedPerUser" },
-            { flags: { yearDayAccessSchedules: true }, mandatory: "numberOfYearDaySchedulesSupportedPerUser" },
-            { flags: { holidaySchedules: true }, mandatory: "numberOfHolidaySchedulesSupported" },
-            { flags: { pinCredential: true }, mandatory: "wrongCodeEntryLimit" | "userCodeTemporaryDisableTime" },
-            { flags: { rfidCredential: true }, mandatory: "wrongCodeEntryLimit" | "userCodeTemporaryDisableTime" },
-            { flags: { pinCredential: true, user: false }, optional: "sendPinOverTheAir" },
-            {
-                flags: { credentialOverTheAirAccess: true, pinCredential: true },
-                mandatory: "requirePinForRemoteOperation"
-            },
-            {
-                flags: { aliroProvisioning: true },
-                mandatory: "aliroReaderVerificationKey" | "aliroReaderGroupIdentifier" | "aliroReaderGroupSubIdentifier" | "aliroExpeditedTransactionSupportedProtocolVersions" | "numberOfAliroCredentialIssuerKeysSupported" | "numberOfAliroEndpointKeysSupported"
-            },
-            {
-                flags: { aliroBleuwb: true },
-                mandatory: "aliroGroupResolvingKey" | "aliroSupportedBleuwbProtocolVersions" | "aliroBleAdvertisingVersion"
-            }
-        ];
-    }
-
-    export interface Commands extends Commands.Base, Commands.User, Commands.WeekDayAccessSchedules, Commands.YearDayAccessSchedules, Commands.HolidaySchedules, Commands.PinCredentialNotUser, Commands.AliroProvisioning, Commands.PinCredentialAndRfidCredentialAndFingerCredentialsNotUser, Commands.RfidCredentialNotUser, Commands.Unbolting {}
-
-    export namespace Commands {
-        /**
-         * {@link DoorLock} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command causes the lock device to lock the door. This command includes an optional code for the
              * lock. The door lock may require a PIN depending on the value of the RequirePINForRemoteOperation
@@ -564,10 +242,149 @@ export namespace DoorLock {
             unlockWithTimeout(request: UnlockWithTimeoutRequest): MaybePromise;
         }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "User".
-         */
-        export interface User {
+        export interface Events {
+            /**
+             * The door lock server provides several alarms which can be sent when there is a critical state on the door
+             * lock. The alarms available for the door lock server are listed in AlarmCodeEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1
+             */
+            doorLockAlarm: DoorLockAlarmEvent;
+
+            /**
+             * The door lock server sends out a LockOperation event when the event is triggered by the various lock
+             * operation sources.
+             *
+             *   - If the door lock server supports the Unbolt Door command, it shall generate a LockOperation event
+             *     with LockOperationType set to Unlock after an Unbolt Door command succeeds.
+             *
+             *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it
+             *     shall generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state
+             *     is reached and a LockOperation event with LockOperationType set to Unlock when the lock successfully
+             *     completes the unlock → hold latch → release latch and return to unlock state operation.
+             *
+             *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the
+             *     door lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and
+             *     a LockOperation event with LockOperationType set to Unlock.
+             *
+             *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
+             *       LockOperationError event with LockOperationType set to Unlock.
+             *
+             *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
+             *
+             *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
+             *       outside.
+             *
+             *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the
+             *       inside.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3
+             */
+            lockOperation: LockOperationEvent;
+
+            /**
+             * The door lock server sends out a LockOperationError event when a lock operation fails for various
+             * reasons.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4
+             */
+            lockOperationError: LockOperationErrorEvent;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "DoorPositionSensor".
+     */
+    export namespace DoorPositionSensorComponent {
+        export interface Attributes {
+            /**
+             * Indicates the current door state as defined in DoorStateEnum.
+             *
+             * Null only if an internal error prevents the retrieval of the current door state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.4
+             */
+            readonly doorState: DoorState | null;
+
+            /**
+             * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.5
+             */
+            doorOpenEvents?: number;
+
+            /**
+             * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.6
+             */
+            doorClosedEvents?: number;
+
+            /**
+             * This attribute shall hold the number of minutes the door has been open since the last time it
+             * transitioned from closed to open.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.7
+             */
+            openPeriod?: number;
+        }
+
+        export interface Events {
+            /**
+             * The door lock server sends out a DoorStateChange event when the door lock door state changes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2
+             */
+            doorStateChange: DoorStateChangeEvent;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "User".
+     */
+    export namespace UserComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of total users supported by the lock.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.8
+             */
+            readonly numberOfTotalUsersSupported: number;
+
+            /**
+             * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
+             * this device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.18
+             */
+            readonly credentialRulesSupport: CredentialRules;
+
+            /**
+             * Indicates the number of credentials that could be assigned for each user.
+             *
+             * Depending on the value of NumberOfRFIDUsersSupported and NumberOfPINUsersSupported it may not be possible
+             * to assign that number of credentials for a user.
+             *
+             * For example, if the device supports only PIN and RFID credential types,
+             * NumberOfCredentialsSupportedPerUser is set to 10, NumberOfPINUsersSupported is set to 5 and
+             * NumberOfRFIDUsersSupported is set to 3, it will not be possible to actually assign 10 credentials for a
+             * user because maximum number of credentials in the database is 8.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.19
+             */
+            readonly numberOfCredentialsSupportedPerUser: number;
+
+            /**
+             * Indicates the number of minutes a PIN, RFID, Fingerprint, or other credential associated with a user of
+             * type ExpiringUser shall remain valid after its first use before expiring. When the credential expires the
+             * UserStatus for the corresponding user record shall be set to OccupiedDisabled.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.36
+             */
+            expiringUserTimeout?: number;
+        }
+
+        export interface Commands {
             /**
              * Set user into the lock.
              *
@@ -815,10 +632,91 @@ export namespace DoorLock {
             clearCredential(request: ClearCredentialRequest): MaybePromise;
         }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "WeekDayAccessSchedules".
-         */
-        export interface WeekDayAccessSchedules {
+        export interface Events {
+            /**
+             * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change
+             * has occurred.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5
+             */
+            lockUserChange: LockUserChangeEvent;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "PinCredential".
+     */
+    export namespace PinCredentialComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of PIN users supported.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.9
+             */
+            readonly numberOfPinUsersSupported: number;
+
+            /**
+             * Indicates the maximum length in bytes of a PIN Code on this device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.14
+             */
+            readonly maxPinCodeLength: number;
+
+            /**
+             * Indicates the minimum length in bytes of a PIN Code on this device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.15
+             */
+            readonly minPinCodeLength: number;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "RfidCredential".
+     */
+    export namespace RfidCredentialComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of RFID users supported.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.10
+             */
+            readonly numberOfRfidUsersSupported: number;
+
+            /**
+             * Indicates the maximum length in bytes of a RFID Code on this device. The value depends on the RFID code
+             * range specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a
+             * value of 20 (equals 10 Byte ISO 14443A UID) is recommended.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.16
+             */
+            readonly maxRfidCodeLength: number;
+
+            /**
+             * Indicates the minimum length in bytes of a RFID Code on this device. The value depends on the RFID code
+             * range specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a
+             * value of 8 (equals 4 Byte ISO 14443A UID) is recommended.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.17
+             */
+            readonly minRfidCodeLength: number;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "WeekDayAccessSchedules".
+     */
+    export namespace WeekDayAccessSchedulesComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of configurable week day schedule supported per user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.11
+             */
+            readonly numberOfWeekDaySchedulesSupportedPerUser: number;
+        }
+
+        export interface Commands {
             /**
              * Set a weekly repeating schedule for a specified user.
              *
@@ -849,11 +747,22 @@ export namespace DoorLock {
              */
             clearWeekDaySchedule(request: ClearWeekDayScheduleRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "YearDayAccessSchedules".
-         */
-        export interface YearDayAccessSchedules {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "YearDayAccessSchedules".
+     */
+    export namespace YearDayAccessSchedulesComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of configurable year day schedule supported per user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.12
+             */
+            readonly numberOfYearDaySchedulesSupportedPerUser: number;
+        }
+
+        export interface Commands {
             /**
              * Set a time-specific schedule ID for a specified user.
              *
@@ -882,11 +791,22 @@ export namespace DoorLock {
              */
             clearYearDaySchedule(request: ClearYearDayScheduleRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "HolidaySchedules".
-         */
-        export interface HolidaySchedules {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "HolidaySchedules".
+     */
+    export namespace HolidaySchedulesComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of holiday schedules supported for the entire door lock device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.13
+             */
+            readonly numberOfHolidaySchedulesSupported: number;
+        }
+
+        export interface Commands {
             /**
              * Set the holiday Schedule by specifying local start time and local end time with respect to any Lock
              * Operating Mode.
@@ -911,11 +831,62 @@ export namespace DoorLock {
              */
             clearHolidaySchedule(request: ClearHolidayScheduleRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "PinCredentialNotUser".
-         */
-        export interface PinCredentialNotUser {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "PinCredentialOrRfidCredential".
+     */
+    export namespace PinCredentialOrRfidCredentialComponent {
+        export interface Attributes {
+            /**
+             * Indicates the number of incorrect Pin codes or RFID presentment attempts a user is allowed to enter
+             * before the lock will enter a lockout state. The value of this attribute is compared to all failing forms
+             * of credential presentation, including Pin codes used in an Unlock Command when
+             * RequirePINforRemoteOperation is set to true. Valid range is 1-255 incorrect attempts. The lockout state
+             * will be for the duration of UserCodeTemporaryDisableTime. If the attribute accepts writes and an attempt
+             * to write the value 0 is made, the device shall respond with CONSTRAINT_ERROR.
+             *
+             * The lock may reset the counter used to track incorrect credential presentations as required by internal
+             * logic, environmental events, or other reasons. The lock shall reset the counter if a valid credential is
+             * presented.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.32
+             */
+            wrongCodeEntryLimit: number;
+
+            /**
+             * Indicates the number of seconds that the lock shuts down following wrong code entry. Valid range is 1-255
+             * seconds. Device can shut down to lock user out for specified amount of time. (Makes it difficult to try
+             * and guess a PIN for the device.) If the attribute accepts writes and an attempt to write the attribute to
+             * 0 is made, the device shall respond with CONSTRAINT_ERROR.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.33
+             */
+            userCodeTemporaryDisableTime: number;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "PinCredentialNotUser".
+     */
+    export namespace PinCredentialNotUserComponent {
+        export interface Attributes {
+            /**
+             * Indicates the door locks ability to send PINs over the air. If the attribute is True it is ok for the
+             * door lock server to send PINs over the air. This attribute determines the behavior of the server’s TX
+             * operation. If it is false, then it is not ok for the device to send PIN in any messages over the air.
+             *
+             * The PIN field within any door lock cluster message shall keep the first octet unchanged and masks the
+             * actual code by replacing with 0xFF. For example (PIN "1234" ): If the attribute value is True, 0x04 0x31
+             * 0x32 0x33 0x34 shall be used in the PIN field in any door lock cluster message payload. If the attribute
+             * value is False, 0x04 0xFF 0xFF 0xFF 0xFF shall be used.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.34
+             */
+            sendPinOverTheAir?: boolean;
+        }
+
+        export interface Commands {
             /**
              * Set a PIN Code into the lock.
              *
@@ -956,11 +927,90 @@ export namespace DoorLock {
              */
             clearAllPinCodes(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "AliroProvisioning".
-         */
-        export interface AliroProvisioning {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "CredentialOverTheAirAccessAndPinCredential".
+     */
+    export namespace CredentialOverTheAirAccessAndPinCredentialComponent {
+        export interface Attributes {
+            /**
+             * Indicates if the door lock requires an optional PIN. If this attribute is set to True, the door lock
+             * server requires that an optional PINs be included in the payload of remote lock operation events like
+             * Lock, Unlock, Unlock with Timeout and Toggle in order to function.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.35
+             */
+            requirePinForRemoteOperation: boolean;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "AliroProvisioning".
+     */
+    export namespace AliroProvisioningComponent {
+        export interface Attributes {
+            /**
+             * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if
+             * not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+             *
+             * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
+             * Command”.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.37
+             */
+            readonly aliroReaderVerificationKey: Bytes | null;
+
+            /**
+             * Indicates the reader_group_identifier as defined in [Aliro].
+             *
+             * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42,
+             * “SetAliroReaderConfig Command”.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.38
+             */
+            readonly aliroReaderGroupIdentifier: Bytes | null;
+
+            /**
+             * Indicates the reader_group_sub_identifier as defined in [Aliro].
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.39
+             */
+            readonly aliroReaderGroupSubIdentifier: Bytes;
+
+            /**
+             * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.40
+             */
+            readonly aliroExpeditedTransactionSupportedProtocolVersions: Bytes[];
+
+            /**
+             * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.44
+             */
+            readonly numberOfAliroCredentialIssuerKeysSupported: number;
+
+            /**
+             * Indicates the maximum number of endpoint key credentials that can be stored on the lock. This limit
+             * applies to the sum of the number of AliroEvictableEndpointKey credentials and the number of
+             * AliroNonEvictableEndpointKey credentials.
+             *
+             * > [!NOTE]
+             *
+             * > The credential indices used for these two credential types are independent of each other, similar to
+             *   all other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could
+             *   add a credential of type AliroEvictableEndpointKey at any index from 1 to
+             *   NumberOfAliroEndpointKeysSupported and also add a credential of type AliroNonEvictableEndpointKey at
+             *   the same index, and both credentials would exist on the server.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.45
+             */
+            readonly numberOfAliroEndpointKeysSupported: number;
+        }
+
+        export interface Commands {
             /**
              * This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.
              *
@@ -983,12 +1033,46 @@ export namespace DoorLock {
              */
             clearAliroReaderConfig(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature
-         * "PinCredentialAndRfidCredentialAndFingerCredentialsNotUser".
-         */
-        export interface PinCredentialAndRfidCredentialAndFingerCredentialsNotUser {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "AliroBleuwb".
+     */
+    export namespace AliroBleuwbComponent {
+        export interface Attributes {
+            /**
+             * Indicates the Group Resolving Key as defined in [Aliro].
+             *
+             * Null if no group resolving key has been configured on the lock. See Section 5.2.10.42,
+             * “SetAliroReaderConfig Command”.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.41
+             */
+            readonly aliroGroupResolvingKey: Bytes | null;
+
+            /**
+             * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as
+             * defined in [Aliro].
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.42
+             */
+            readonly aliroSupportedBleuwbProtocolVersions: Bytes[];
+
+            /**
+             * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.43
+             */
+            readonly aliroBleAdvertisingVersion: number;
+        }
+    }
+
+    /**
+     * {@link DoorLock} supports these elements if it supports feature
+     * "PinCredentialAndRfidCredentialAndFingerCredentialsNotUser".
+     */
+    export namespace PinCredentialAndRfidCredentialAndFingerCredentialsNotUserComponent {
+        export interface Commands {
             /**
              * Set the status of a user ID.
              *
@@ -1024,11 +1108,13 @@ export namespace DoorLock {
              */
             getUserType(request: GetUserTypeRequest): MaybePromise<GetUserTypeResponse>;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "RfidCredentialNotUser".
-         */
-        export interface RfidCredentialNotUser {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "RfidCredentialNotUser".
+     */
+    export namespace RfidCredentialNotUserComponent {
+        export interface Commands {
             /**
              * Set an ID for RFID access into the lock.
              *
@@ -1066,11 +1152,13 @@ export namespace DoorLock {
              */
             clearAllRfidCodes(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link DoorLock} supports these commands if it supports feature "Unbolting".
-         */
-        export interface Unbolting {
+    /**
+     * {@link DoorLock} supports these elements if it supports feature "Unbolting".
+     */
+    export namespace UnboltingComponent {
+        export interface Commands {
             /**
              * This command causes the lock device to unlock the door without pulling the latch. This command includes
              * an optional code for the lock. The door lock may require a code depending on the value of the
@@ -1085,23 +1173,444 @@ export namespace DoorLock {
              */
             unboltDoor(request: UnboltDoorRequest): MaybePromise;
         }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { user: true }, methods: User },
-            { flags: { weekDayAccessSchedules: true }, methods: WeekDayAccessSchedules },
-            { flags: { yearDayAccessSchedules: true }, methods: YearDayAccessSchedules },
-            { flags: { holidaySchedules: true }, methods: HolidaySchedules },
-            { flags: { pinCredential: true, user: false }, methods: PinCredentialNotUser },
-            { flags: { aliroProvisioning: true }, methods: AliroProvisioning },
-            {
-                flags: { pinCredential: true, rfidCredential: true, fingerCredentials: true, user: false },
-                methods: PinCredentialAndRfidCredentialAndFingerCredentialsNotUser
-            },
-            { flags: { rfidCredential: true, user: false }, methods: RfidCredentialNotUser },
-            { flags: { unbolting: true }, methods: Unbolting }
-        ];
     }
+
+    /**
+     * Attributes that may appear in {@link DoorLock}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute may be NULL if the lock hardware does not currently know the status of the locking mechanism.
+         * For example, a lock may not know the LockState status after a power cycle until the first lock actuation is
+         * completed.
+         *
+         * The Not Fully Locked value is used by a lock to indicate that the state of the lock is somewhere between
+         * Locked and Unlocked so it is only partially secured. For example, a deadbolt could be partially extended and
+         * not in a dead latched state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.1
+         */
+        readonly lockState: LockState | null;
+
+        /**
+         * Indicates the type of door lock as defined in LockTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.2
+         */
+        readonly lockType: LockType;
+
+        /**
+         * Indicates if the lock is currently able to (Enabled) or not able to (Disabled) process remote Lock, Unlock,
+         * or Unlock with Timeout commands.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.3
+         */
+        readonly actuatorEnabled: boolean;
+
+        /**
+         * Indicates the current operating mode of the lock as defined in OperatingModeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.24
+         */
+        operatingMode: OperatingMode;
+
+        /**
+         * This attribute shall contain a bitmap with all operating bits of the OperatingMode attribute supported by the
+         * lock.
+         *
+         * A bit position set to zero shall indicate that the mode is supported. A bit position set to one shall
+         * indicate that the mode is not supported.
+         *
+         * Any bit that is not yet defined in OperatingModesBitmap shall be set to 1.
+         *
+         * The values considered valid to read or write in the OperatingMode attribute shall be the enum values from
+         * DoorLockOperatingModeEnum whose equivalent same-named bit from OperatingModesBitmap is set to zero in this
+         * attribute. WARNING: This is the opposite of most other semantically similar bitmaps in this specification.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.25
+         */
+        readonly supportedOperatingModes: OperatingModes;
+
+        /**
+         * Indicates the language for the on-screen or audible user interface using a 2-byte language code from
+         * ISO-639-1.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.20
+         */
+        language: string;
+
+        /**
+         * Indicates the settings for the LED support, as defined by LEDSettingEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.21
+         */
+        ledSettings: LedSetting;
+
+        /**
+         * Indicates the number of seconds to wait after unlocking a lock before it automatically locks again.
+         * 0=disabled. If set, unlock operations from any source will be timed. For one time unlock with timeout use the
+         * specific command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.22
+         */
+        autoRelockTime: number;
+
+        /**
+         * Indicates the sound volume on a door lock as defined by SoundVolumeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.23
+         */
+        soundVolume: SoundVolume;
+
+        /**
+         * Indicates the default configurations as they are physically set on the device (example: hardware dip switch
+         * setting, etc…) and represents the default setting for some of the attributes within this cluster (for
+         * example: LED, Auto Lock, Sound Volume, and Operating Mode attributes).
+         *
+         * This is a read-only attribute and is intended to allow clients to determine what changes may need to be made
+         * without having to query all the included attributes. It may be beneficial for the clients to know what the
+         * device’s original settings were in the event that the device needs to be restored to factory default
+         * settings.
+         *
+         * If the Client device would like to query and modify the door lock server’s operating settings, it SHOULD send
+         * read and write attribute requests to the specific attributes.
+         *
+         * For example, the Sound Volume attribute default value is Silent Mode. However, it is possible that the
+         * current Sound Volume is High Volume. Therefore, if the client wants to query/modify the current Sound Volume
+         * setting on the server, the client SHOULD read/write to the Sound Volume attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.26
+         */
+        readonly defaultConfigurationRegister: ConfigurationRegister;
+
+        /**
+         * This attribute shall enable/disable local programming on the door lock of certain features (see
+         * LocalProgrammingFeatures attribute). If this value is set to TRUE then local programming is enabled on the
+         * door lock for all features. If it is set to FALSE then local programming is disabled on the door lock for
+         * those features whose bit is set to 0 in the LocalProgrammingFeatures attribute. Local programming shall be
+         * enabled by default.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.27
+         */
+        enableLocalProgramming: boolean;
+
+        /**
+         * This attribute shall enable/disable the ability to lock the door lock with a single touch on the door lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.28
+         */
+        enableOneTouchLocking: boolean;
+
+        /**
+         * This attribute shall enable/disable an inside LED that allows the user to see at a glance if the door is
+         * locked.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.29
+         */
+        enableInsideStatusLed: boolean;
+
+        /**
+         * This attribute shall enable/disable a button inside the door that is used to put the lock into privacy mode.
+         * When the lock is in privacy mode it cannot be manipulated from the outside.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.30
+         */
+        enablePrivacyModeButton: boolean;
+
+        /**
+         * Indicates the local programming features that will be disabled when EnableLocalProgramming attribute is set
+         * to False. If a door lock doesn’t support disabling one aspect of local programming it shall return
+         * CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming attribute is set
+         * to True then all local programming features shall be enabled regardless of the bits set to 0 in this
+         * attribute.
+         *
+         * The features that can be disabled from local programming are defined in LocalProgrammingFeaturesBitmap.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.31
+         */
+        localProgrammingFeatures: LocalProgrammingFeatures;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9
+         * @deprecated
+         */
+        readonly securityLevel: any;
+
+        /**
+         * Indicates the current door state as defined in DoorStateEnum.
+         *
+         * Null only if an internal error prevents the retrieval of the current door state.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.4
+         */
+        readonly doorState: DoorState | null;
+
+        /**
+         * This attribute shall hold the number of door open events that have occurred since it was last zeroed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.5
+         */
+        doorOpenEvents: number;
+
+        /**
+         * This attribute shall hold the number of door closed events that have occurred since it was last zeroed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.6
+         */
+        doorClosedEvents: number;
+
+        /**
+         * This attribute shall hold the number of minutes the door has been open since the last time it transitioned
+         * from closed to open.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.7
+         */
+        openPeriod: number;
+
+        /**
+         * Indicates the number of total users supported by the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.8
+         */
+        readonly numberOfTotalUsersSupported: number;
+
+        /**
+         * This attribute shall contain a bitmap with the bits set for the values of CredentialRuleEnum supported on
+         * this device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.18
+         */
+        readonly credentialRulesSupport: CredentialRules;
+
+        /**
+         * Indicates the number of credentials that could be assigned for each user.
+         *
+         * Depending on the value of NumberOfRFIDUsersSupported and NumberOfPINUsersSupported it may not be possible to
+         * assign that number of credentials for a user.
+         *
+         * For example, if the device supports only PIN and RFID credential types, NumberOfCredentialsSupportedPerUser
+         * is set to 10, NumberOfPINUsersSupported is set to 5 and NumberOfRFIDUsersSupported is set to 3, it will not
+         * be possible to actually assign 10 credentials for a user because maximum number of credentials in the
+         * database is 8.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.19
+         */
+        readonly numberOfCredentialsSupportedPerUser: number;
+
+        /**
+         * Indicates the number of minutes a PIN, RFID, Fingerprint, or other credential associated with a user of type
+         * ExpiringUser shall remain valid after its first use before expiring. When the credential expires the
+         * UserStatus for the corresponding user record shall be set to OccupiedDisabled.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.36
+         */
+        expiringUserTimeout: number;
+
+        /**
+         * Indicates the number of PIN users supported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.9
+         */
+        readonly numberOfPinUsersSupported: number;
+
+        /**
+         * Indicates the maximum length in bytes of a PIN Code on this device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.14
+         */
+        readonly maxPinCodeLength: number;
+
+        /**
+         * Indicates the minimum length in bytes of a PIN Code on this device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.15
+         */
+        readonly minPinCodeLength: number;
+
+        /**
+         * Indicates the number of RFID users supported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.10
+         */
+        readonly numberOfRfidUsersSupported: number;
+
+        /**
+         * Indicates the maximum length in bytes of a RFID Code on this device. The value depends on the RFID code range
+         * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 20
+         * (equals 10 Byte ISO 14443A UID) is recommended.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.16
+         */
+        readonly maxRfidCodeLength: number;
+
+        /**
+         * Indicates the minimum length in bytes of a RFID Code on this device. The value depends on the RFID code range
+         * specified by the manufacturer, if media anti-collision identifiers (UID) are used as RFID code, a value of 8
+         * (equals 4 Byte ISO 14443A UID) is recommended.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.17
+         */
+        readonly minRfidCodeLength: number;
+
+        /**
+         * Indicates the number of configurable week day schedule supported per user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.11
+         */
+        readonly numberOfWeekDaySchedulesSupportedPerUser: number;
+
+        /**
+         * Indicates the number of configurable year day schedule supported per user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.12
+         */
+        readonly numberOfYearDaySchedulesSupportedPerUser: number;
+
+        /**
+         * Indicates the number of holiday schedules supported for the entire door lock device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.13
+         */
+        readonly numberOfHolidaySchedulesSupported: number;
+
+        /**
+         * Indicates the number of incorrect Pin codes or RFID presentment attempts a user is allowed to enter before
+         * the lock will enter a lockout state. The value of this attribute is compared to all failing forms of
+         * credential presentation, including Pin codes used in an Unlock Command when RequirePINforRemoteOperation is
+         * set to true. Valid range is 1-255 incorrect attempts. The lockout state will be for the duration of
+         * UserCodeTemporaryDisableTime. If the attribute accepts writes and an attempt to write the value 0 is made,
+         * the device shall respond with CONSTRAINT_ERROR.
+         *
+         * The lock may reset the counter used to track incorrect credential presentations as required by internal
+         * logic, environmental events, or other reasons. The lock shall reset the counter if a valid credential is
+         * presented.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.32
+         */
+        wrongCodeEntryLimit: number;
+
+        /**
+         * Indicates the number of seconds that the lock shuts down following wrong code entry. Valid range is 1-255
+         * seconds. Device can shut down to lock user out for specified amount of time. (Makes it difficult to try and
+         * guess a PIN for the device.) If the attribute accepts writes and an attempt to write the attribute to 0 is
+         * made, the device shall respond with CONSTRAINT_ERROR.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.33
+         */
+        userCodeTemporaryDisableTime: number;
+
+        /**
+         * Indicates the door locks ability to send PINs over the air. If the attribute is True it is ok for the door
+         * lock server to send PINs over the air. This attribute determines the behavior of the server’s TX operation.
+         * If it is false, then it is not ok for the device to send PIN in any messages over the air.
+         *
+         * The PIN field within any door lock cluster message shall keep the first octet unchanged and masks the actual
+         * code by replacing with 0xFF. For example (PIN "1234" ): If the attribute value is True, 0x04 0x31 0x32 0x33
+         * 0x34 shall be used in the PIN field in any door lock cluster message payload. If the attribute value is
+         * False, 0x04 0xFF 0xFF 0xFF 0xFF shall be used.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.34
+         */
+        sendPinOverTheAir: boolean;
+
+        /**
+         * Indicates if the door lock requires an optional PIN. If this attribute is set to True, the door lock server
+         * requires that an optional PINs be included in the payload of remote lock operation events like Lock, Unlock,
+         * Unlock with Timeout and Toggle in order to function.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.35
+         */
+        requirePinForRemoteOperation: boolean;
+
+        /**
+         * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if not
+         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         *
+         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
+         * Command”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.37
+         */
+        readonly aliroReaderVerificationKey: Bytes | null;
+
+        /**
+         * Indicates the reader_group_identifier as defined in [Aliro].
+         *
+         * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42,
+         * “SetAliroReaderConfig Command”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.38
+         */
+        readonly aliroReaderGroupIdentifier: Bytes | null;
+
+        /**
+         * Indicates the reader_group_sub_identifier as defined in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.39
+         */
+        readonly aliroReaderGroupSubIdentifier: Bytes;
+
+        /**
+         * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.40
+         */
+        readonly aliroExpeditedTransactionSupportedProtocolVersions: Bytes[];
+
+        /**
+         * Indicates the maximum number of AliroCredentialIssuerKey credentials that can be stored on the lock.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.44
+         */
+        readonly numberOfAliroCredentialIssuerKeysSupported: number;
+
+        /**
+         * Indicates the maximum number of endpoint key credentials that can be stored on the lock. This limit applies
+         * to the sum of the number of AliroEvictableEndpointKey credentials and the number of
+         * AliroNonEvictableEndpointKey credentials.
+         *
+         * > [!NOTE]
+         *
+         * > The credential indices used for these two credential types are independent of each other, similar to all
+         *   other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add a
+         *   credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported and
+         *   also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials would
+         *   exist on the server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.45
+         */
+        readonly numberOfAliroEndpointKeysSupported: number;
+
+        /**
+         * Indicates the Group Resolving Key as defined in [Aliro].
+         *
+         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.42, “SetAliroReaderConfig
+         * Command”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.41
+         */
+        readonly aliroGroupResolvingKey: Bytes | null;
+
+        /**
+         * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
+         * in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.42
+         */
+        readonly aliroSupportedBleuwbProtocolVersions: Bytes[];
+
+        /**
+         * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 5.2.9.43
+         */
+        readonly aliroBleAdvertisingVersion: number;
+    }
+
+    export interface Commands extends Base.Commands, UserComponent.Commands, WeekDayAccessSchedulesComponent.Commands, YearDayAccessSchedulesComponent.Commands, HolidaySchedulesComponent.Commands, PinCredentialNotUserComponent.Commands, AliroProvisioningComponent.Commands, PinCredentialAndRfidCredentialAndFingerCredentialsNotUserComponent.Commands, RfidCredentialNotUserComponent.Commands, UnboltingComponent.Commands {}
 
     /**
      * Events that may appear in {@link DoorLock}.
@@ -1169,13 +1678,62 @@ export namespace DoorLock {
         lockUserChange: LockUserChangeEvent;
     }
 
-    export namespace Events {
-        export type Components = [
-            { flags: {}, mandatory: "doorLockAlarm" | "lockOperation" | "lockOperationError" },
-            { flags: { doorPositionSensor: true }, mandatory: "doorStateChange" },
-            { flags: { user: true }, mandatory: "lockUserChange" }
-        ];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events },
+        {
+            flags: { doorPositionSensor: true },
+            attributes: DoorPositionSensorComponent.Attributes,
+            events: DoorPositionSensorComponent.Events
+        },
+
+        {
+            flags: { user: true },
+            attributes: UserComponent.Attributes,
+            commands: UserComponent.Commands,
+            events: UserComponent.Events
+        },
+
+        { flags: { pinCredential: true }, attributes: PinCredentialComponent.Attributes },
+        { flags: { rfidCredential: true }, attributes: RfidCredentialComponent.Attributes },
+        {
+            flags: { weekDayAccessSchedules: true },
+            attributes: WeekDayAccessSchedulesComponent.Attributes,
+            commands: WeekDayAccessSchedulesComponent.Commands
+        },
+        {
+            flags: { yearDayAccessSchedules: true },
+            attributes: YearDayAccessSchedulesComponent.Attributes,
+            commands: YearDayAccessSchedulesComponent.Commands
+        },
+        {
+            flags: { holidaySchedules: true },
+            attributes: HolidaySchedulesComponent.Attributes,
+            commands: HolidaySchedulesComponent.Commands
+        },
+        { flags: { pinCredential: true }, attributes: PinCredentialOrRfidCredentialComponent.Attributes },
+        { flags: { rfidCredential: true }, attributes: PinCredentialOrRfidCredentialComponent.Attributes },
+        {
+            flags: { pinCredential: true, user: false },
+            attributes: PinCredentialNotUserComponent.Attributes,
+            commands: PinCredentialNotUserComponent.Commands
+        },
+        {
+            flags: { credentialOverTheAirAccess: true, pinCredential: true },
+            attributes: CredentialOverTheAirAccessAndPinCredentialComponent.Attributes
+        },
+        {
+            flags: { aliroProvisioning: true },
+            attributes: AliroProvisioningComponent.Attributes,
+            commands: AliroProvisioningComponent.Commands
+        },
+        { flags: { aliroBleuwb: true }, attributes: AliroBleuwbComponent.Attributes },
+        {
+            flags: { pinCredential: true, rfidCredential: true, fingerCredentials: true, user: false },
+            commands: PinCredentialAndRfidCredentialAndFingerCredentialsNotUserComponent.Commands
+        },
+        { flags: { rfidCredential: true, user: false }, commands: RfidCredentialNotUserComponent.Commands },
+        { flags: { unbolting: true }, commands: UnboltingComponent.Commands }
+    ];
 
     export type Features = "PinCredential" | "RfidCredential" | "FingerCredentials" | "WeekDayAccessSchedules" | "DoorPositionSensor" | "FaceCredentials" | "CredentialOverTheAirAccess" | "User" | "YearDayAccessSchedules" | "HolidaySchedules" | "Unbolting" | "AliroProvisioning" | "AliroBleuwb";
 
@@ -7852,4 +8410,4 @@ export namespace DoorLock {
 export type DoorLockCluster = DoorLock.Cluster;
 export const DoorLockCluster = DoorLock.Cluster;
 ClusterNamespace.define(DoorLock);
-export interface DoorLock extends ClusterTyping { Attributes: DoorLock.Attributes & { Components: DoorLock.Attributes.Components }; Commands: DoorLock.Commands & { Components: DoorLock.Commands.Components }; Events: DoorLock.Events & { Components: DoorLock.Events.Components }; Features: DoorLock.Features }
+export interface DoorLock extends ClusterTyping { Attributes: DoorLock.Attributes; Commands: DoorLock.Commands; Events: DoorLock.Events; Features: DoorLock.Features; Components: DoorLock.Components }

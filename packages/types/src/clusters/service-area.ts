@@ -25,6 +25,276 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ServiceArea {
     /**
+     * {@link ServiceArea} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’s
+             * list. Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
+             *
+             * Each entry in this list shall have a unique value for the AreaID field.
+             *
+             * If the SupportedMaps attribute is not empty, each entry in this list shall have a unique value for the
+             * combination of the MapID and AreaInfo fields.
+             *
+             * If the SupportedMaps attribute is empty, each entry in this list shall have a unique value for the
+             * AreaInfo field and shall have the MapID field set to null.
+             *
+             * An empty value indicates that the device is currently unable to provide the list of supported areas.
+             *
+             * > [!NOTE]
+             *
+             * > due to the maximum size of this list and to the fact that the entries may include strings (see
+             *   LocationName), care must be taken by implementers to avoid creating a data structure that is overly
+             *   large, which can result in significant latency in accessing this attribute.
+             *
+             * The value of this attribute may change at any time via an out-of-band interaction outside of the server,
+             * such as interactions with a user interface, or due to internal device changes.
+             *
+             * When removing entries in the SupportedAreas attribute list the server shall adjust the values of the
+             * SelectedAreas, CurrentArea, and Progress attributes such that they only reference valid entries in the
+             * updated SupportedAreas attribute list. These changes to the SelectedAreas, CurrentArea, and Progress
+             * attributes may result in the server setting some or all of them to empty (for SelectedAreas and Progress)
+             * or null (for CurrentArea), or updating them with data that matches the constraints from the description
+             * of the respective attributes. These actions are required to ensure having a consistent representation of
+             * the maps and locations available to the clients.
+             *
+             * The SupportedAreas attribute list changes mentioned above SHOULD NOT be allowed while the device is
+             * operating, to reduce the impact on the clients, and the potential confusion for the users.
+             *
+             * A few examples are provided below.
+             *
+             * Valid list of areas:
+             *
+             *   - AreaID=0, LocationName="yellow bedroom", MapID=null
+             *
+             *   - AreaID=1, LocationName="orange bedroom", MapID=null
+             *
+             * Valid list of areas:
+             *
+             *   - AreaID=5, LocationName="hallway", MapID=1
+             *
+             *   - AreaID=3, LocationName="hallway", MapID=2
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.1
+             */
+            readonly supportedAreas: Area[];
+
+            /**
+             * Indicates the set of areas where the device SHOULD attempt to operate.
+             *
+             * The mobile devices may travel without operating across any areas while attempting to reach the areas
+             * indicated by the SelectedAreas attribute. For example, a robotic vacuum cleaner may drive without
+             * cleaning when traveling without operating.
+             *
+             * If this attribute is empty, the device is not constrained to operate in any specific areas.
+             *
+             * If this attribute is not empty:
+             *
+             *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s
+             *     list
+             *
+             *   - each entry in this list shall have a unique value
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.3
+             */
+            readonly selectedAreas: number[];
+
+            /**
+             * If the device is mobile, this attribute shall indicate the area where the device is currently located,
+             * regardless of whether it is operating or not, such as while traveling between areas.
+             *
+             * If the device is not mobile and can operate at multiple areas sequentially, this attribute shall indicate
+             * the area which is currently being serviced, or the area which is currently traversed by the device. For
+             * example, a camera device may use this attribute to indicate which area it currently takes video of
+             * (serviced area) or which area it currently has in view but not taking video of (e.g. an area which is
+             * traversed while panning).
+             *
+             * > [!NOTE]
+             *
+             * > A device may traverse an area regardless of the status of the area (pending, skipped, or completed).
+             *
+             * If a device can simultaneously operate at multiple areas, such as in the case of a sensor that can
+             * monitor multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since it
+             * doesn’t apply. Else this attribute shall be optionally implemented.
+             *
+             * A null value indicates that the device is currently unable to provide this information. For example, the
+             * device is traversing an unknown area, or the SupportedAreas attribute was updated and the area where the
+             * device is located was removed from that list.
+             *
+             * If not null, the value of this attribute shall match the AreaID field of an entry on the SupportedAreas
+             * attribute’s list.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.4
+             */
+            readonly currentArea?: number | null;
+
+            /**
+             * Indicates the estimated Epoch time for completing operating at the area indicated by the CurrentArea
+             * attribute, in seconds.
+             *
+             * A value of 0 means that the operation has completed.
+             *
+             * When this attribute is null, that represents that there is no time currently defined until operation
+             * completion. This may happen, for example, because no operation is in progress or because the completion
+             * time is unknown.
+             *
+             * Null if the CurrentArea attribute is null.
+             *
+             * If the Progress attribute is available, and it contains an entry matching CurrentArea, the server may use
+             * the time estimate provided in the EstimatedTime field of that entry to compute the EstimatedEndTime
+             * attribute.
+             *
+             * The value of this attribute shall only be reported in the following cases:
+             *
+             *   - when it changes to or from 0
+             *
+             *   - when it decreases
+             *
+             *   - when it changes to or from null
+             *
+             *     > [!NOTE]
+             *
+             *     > If the device is capable of pausing its operation, this attribute may be set to null, to indicate
+             *       that completion time is unknown, or increment the value while being in the paused state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.5
+             */
+            readonly estimatedEndTime?: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to select a set of device areas, where the device is to operate.
+             *
+             * On receipt of this command the device shall respond with a SelectAreasResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1
+             */
+            selectAreas(request: SelectAreasRequest): MaybePromise<SelectAreasResponse>;
+
+            /**
+             * This command is used to skip the given area, and to attempt operating at other areas on the
+             * SupportedAreas attribute list.
+             *
+             * On receipt of this command the device shall respond with a SkipAreaResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3
+             */
+            skipArea(request: SkipAreaRequest): MaybePromise<SkipAreaResponse>;
+        }
+    }
+
+    /**
+     * {@link ServiceArea} supports these elements if it supports feature "Maps".
+     */
+    export namespace MapsComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall contain the list of supported maps.
+             *
+             * A map is a full or a partial representation of a home, known to the device. For example:
+             *
+             *   - a single level home may be represented using a single map
+             *
+             *   - a two level home may be represented using two maps, one for each level
+             *
+             *   - a single level home may be represented using two maps, each including a different set of rooms, such
+             *     as "map of living room and kitchen" and "map of bedrooms and hallway"
+             *
+             *   - a single level home may be represented using one map for the indoor areas (living room, bedrooms
+             *     etc.) and one for the outdoor areas (garden, swimming pool etc.)
+             *
+             * Each map includes one or more areas - see the SupportedAreas attribute. In the context of this cluster
+             * specification, a map is effectively a group label for a set of areas, rather than a graphical
+             * representation that the clients can display to the users. The clients that present the list of available
+             * areas for user selection (see the SelectAreas command) may choose to filter the SupportedAreas list based
+             * on the associated map. For example, the clients may allow the user to indicate that the device is to
+             * operate on the first floor, and allow the user to choose only from the areas situated on that level.
+             *
+             * If empty, that indicates that the device is currently unable to provide this information.
+             *
+             * Each entry in this list shall have a unique value for the MapID field.
+             *
+             * Each entry in this list shall have a unique value for the Name field.
+             *
+             * > [!NOTE]
+             *
+             * > due to the maximum size of this list and to the fact that the entries may include strings (see the Name
+             *   field of the MapStruct data type), care must be taken by implementers to avoid creating a data
+             *   structure that is overly large, which can result in significant latency in accessing this attribute.
+             *
+             * The value of this attribute may change at any time via an out-of-band interaction outside of the server,
+             * such as interactions with a user interface.
+             *
+             * When updating the SupportedMaps attribute list by deleting entries, or by setting the attribute to an
+             * empty list, the SupportedAreas attribute shall be updated such that all entries in that list meet the
+             * constraints indicated in the description of the SupportedAreas attribute. This may result in the server
+             * removing entries from the SupportedAreas attribute list. See the SupportedAreas attribute description for
+             * the implications of changing that attribute.
+             *
+             * The SupportedMaps attribute list changes mentioned above SHOULD NOT be allowed while the device is
+             * operating, to reduce the impact on the clients, and the potential confusion for the users.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.2
+             */
+            readonly supportedMaps: Map[];
+        }
+    }
+
+    /**
+     * {@link ServiceArea} supports these elements if it supports feature "ProgressReporting".
+     */
+    export namespace ProgressReportingComponent {
+        export interface Attributes {
+            /**
+             * Indicates the operating status at one or more areas.
+             *
+             * Each entry in this list shall have a unique value for the AreaID field.
+             *
+             * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s
+             * list.
+             *
+             * When this attribute is empty, that represents that no progress information is currently available.
+             *
+             * If the SelectedAreas attribute is empty, indicating the device is not constrained to operate in any
+             * specific areas, the Progress attribute list may change while the device operates, due to the device
+             * adding new entries dynamically, when it determines which ones it can attempt to operate at.
+             *
+             * If the SelectedAreas attribute is not empty, and the device starts operating:
+             *
+             *   - the Progress attribute list shall be updated so each entry of SelectedAreas has a matching Progress
+             *     list entry, based on the AreaID field
+             *
+             *   - the length of the Progress and SelectedAreas list shall be the same
+             *
+             *   - the entries in the Progress list shall be initialized by the server, by having their status set to
+             *     Pending or Operating, and the TotalOperationalTime field set to null
+             *
+             * When the device ends operation unexpectedly, such as due to an error, the server shall update all
+             * Progress list entries with the Status field set to Operating or Pending to Skipped.
+             *
+             * When the device finishes operating, successfully or not, it shall NOT change the Progress attribute,
+             * except in the case of an unexpected end of operation as described above, or due to changes to the
+             * SupportedMaps or SupportedAreas attributes, so the clients can retrieve the progress information at that
+             * time.
+             *
+             * > [!NOTE]
+             *
+             * > if the device implements the Operational Status cluster, or a derivation of it, in case the device
+             *   fails to service any locations in the SelectedAreas list before ending the operation, it SHOULD use the
+             *   Operational Status cluster to indicate that the device was unable to complete the operation (see the
+             *   UnableToCompleteOperation error from that cluster specification). The clients SHOULD then read the
+             *   Progress attribute, and indicate which areas have been successfully serviced (marked as completed).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.6
+             */
+            readonly progress: Progress[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link ServiceArea}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -81,7 +351,7 @@ export namespace ServiceArea {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.1
          */
-        supportedAreas: Area[];
+        readonly supportedAreas: Area[];
 
         /**
          * Indicates the set of areas where the device SHOULD attempt to operate.
@@ -100,7 +370,7 @@ export namespace ServiceArea {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.3
          */
-        selectedAreas: number[];
+        readonly selectedAreas: number[];
 
         /**
          * If the device is mobile, this attribute shall indicate the area where the device is currently located,
@@ -128,7 +398,7 @@ export namespace ServiceArea {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.4
          */
-        currentArea: number | null;
+        readonly currentArea: number | null;
 
         /**
          * Indicates the estimated Epoch time for completing operating at the area indicated by the CurrentArea
@@ -160,7 +430,7 @@ export namespace ServiceArea {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.5
          */
-        estimatedEndTime: number | null;
+        readonly estimatedEndTime: number | null;
 
         /**
          * This attribute shall contain the list of supported maps.
@@ -210,7 +480,7 @@ export namespace ServiceArea {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.2
          */
-        supportedMaps: Map[];
+        readonly supportedMaps: Map[];
 
         /**
          * Indicates the operating status at one or more areas.
@@ -252,47 +522,15 @@ export namespace ServiceArea {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.6.6
          */
-        progress: Progress[];
+        readonly progress: Progress[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "supportedAreas" | "selectedAreas", optional: "currentArea" | "estimatedEndTime" },
-            { flags: { maps: true }, mandatory: "supportedMaps" },
-            { flags: { progressReporting: true }, mandatory: "progress" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link ServiceArea} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to select a set of device areas, where the device is to operate.
-             *
-             * On receipt of this command the device shall respond with a SelectAreasResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1
-             */
-            selectAreas(request: SelectAreasRequest): MaybePromise<SelectAreasResponse>;
-
-            /**
-             * This command is used to skip the given area, and to attempt operating at other areas on the
-             * SupportedAreas attribute list.
-             *
-             * On receipt of this command the device shall respond with a SkipAreaResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3
-             */
-            skipArea(request: SkipAreaRequest): MaybePromise<SkipAreaResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { maps: true }, attributes: MapsComponent.Attributes },
+        { flags: { progressReporting: true }, attributes: ProgressReportingComponent.Attributes }
+    ];
     export type Features = "SelectWhileRunning" | "ProgressReporting" | "Maps";
 
     /**
@@ -1399,4 +1637,4 @@ export namespace ServiceArea {
 export type ServiceAreaCluster = ServiceArea.Cluster;
 export const ServiceAreaCluster = ServiceArea.Cluster;
 ClusterNamespace.define(ServiceArea);
-export interface ServiceArea extends ClusterTyping { Attributes: ServiceArea.Attributes & { Components: ServiceArea.Attributes.Components }; Commands: ServiceArea.Commands & { Components: ServiceArea.Commands.Components }; Features: ServiceArea.Features }
+export interface ServiceArea extends ClusterTyping { Attributes: ServiceArea.Attributes; Commands: ServiceArea.Commands; Features: ServiceArea.Features; Components: ServiceArea.Components }

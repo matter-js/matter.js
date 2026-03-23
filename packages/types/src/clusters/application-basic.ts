@@ -23,6 +23,75 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ApplicationBasic {
     /**
+     * {@link ApplicationBasic} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall specify a human readable (displayable) name of the Content App assigned by the
+             * vendor. For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of
+             * UTF-8 characters.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
+             */
+            readonly applicationName: string;
+
+            /**
+             * This attribute shall specify a Content App which consists of an Application ID using a specified catalog.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.5
+             */
+            readonly application: Application;
+
+            /**
+             * This attribute shall specify the current running status of the application.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.6
+             */
+            readonly status: ApplicationStatus;
+
+            /**
+             * This attribute shall specify a human readable (displayable) version of the Content App assigned by the
+             * vendor. The maximum length of the ApplicationVersion attribute is 32 bytes of UTF-8 characters.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.7
+             */
+            readonly applicationVersion: string;
+
+            /**
+             * This attribute is a list of vendor IDs. Each entry is a vendor-id.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.8
+             */
+            readonly allowedVendorList: VendorId[];
+
+            /**
+             * This attribute shall specify a human readable (displayable) name of the vendor for the Content App.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.1
+             */
+            readonly vendorName?: string;
+
+            /**
+             * This attribute, if present, shall specify the Connectivity Standards Alliance assigned Vendor ID for the
+             * Content App.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.2
+             */
+            readonly vendorId?: VendorId;
+
+            /**
+             * This attribute, if present, shall specify a numeric ID assigned by the vendor to identify a specific
+             * Content App made by them. If the Content App is certified by the Connectivity Standards Alliance, then
+             * this would be the Product ID as specified by the vendor for the certification.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.4
+             */
+            readonly productId?: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link ApplicationBasic}.
      *
      * Optional properties represent attributes that devices are not required to support.
@@ -35,21 +104,21 @@ export namespace ApplicationBasic {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
          */
-        applicationName: string;
+        readonly applicationName: string;
 
         /**
          * This attribute shall specify a Content App which consists of an Application ID using a specified catalog.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.5
          */
-        application: Application;
+        readonly application: Application;
 
         /**
          * This attribute shall specify the current running status of the application.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.6
          */
-        status: ApplicationStatus;
+        readonly status: ApplicationStatus;
 
         /**
          * This attribute shall specify a human readable (displayable) version of the Content App assigned by the
@@ -57,21 +126,21 @@ export namespace ApplicationBasic {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.7
          */
-        applicationVersion: string;
+        readonly applicationVersion: string;
 
         /**
          * This attribute is a list of vendor IDs. Each entry is a vendor-id.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.8
          */
-        allowedVendorList: VendorId[];
+        readonly allowedVendorList: VendorId[];
 
         /**
          * This attribute shall specify a human readable (displayable) name of the vendor for the Content App.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.1
          */
-        vendorName: string;
+        readonly vendorName: string;
 
         /**
          * This attribute, if present, shall specify the Connectivity Standards Alliance assigned Vendor ID for the
@@ -79,7 +148,7 @@ export namespace ApplicationBasic {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.2
          */
-        vendorId: VendorId;
+        readonly vendorId: VendorId;
 
         /**
          * This attribute, if present, shall specify a numeric ID assigned by the vendor to identify a specific Content
@@ -88,16 +157,10 @@ export namespace ApplicationBasic {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.4
          */
-        productId: number;
+        readonly productId: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{
-            flags: {},
-            mandatory: "applicationName" | "application" | "status" | "applicationVersion" | "allowedVendorList",
-            optional: "vendorName" | "vendorId" | "productId"
-        }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * This indicates a global identifier for an Application given a catalog.
@@ -284,4 +347,4 @@ export namespace ApplicationBasic {
 export type ApplicationBasicCluster = ApplicationBasic.Cluster;
 export const ApplicationBasicCluster = ApplicationBasic.Cluster;
 ClusterNamespace.define(ApplicationBasic);
-export interface ApplicationBasic extends ClusterTyping { Attributes: ApplicationBasic.Attributes & { Components: ApplicationBasic.Attributes.Components } }
+export interface ApplicationBasic extends ClusterTyping { Attributes: ApplicationBasic.Attributes; Components: ApplicationBasic.Components }

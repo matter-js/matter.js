@@ -29,103 +29,92 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace OperationalCredentials {
     /**
-     * Attributes that may appear in {@link OperationalCredentials}.
+     * {@link OperationalCredentials} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
-         *
-         * Operational Certificates shall be added through the AddNOC command, and shall be removed through the
-         * RemoveFabric command.
-         *
-         * Upon Factory Data Reset, this attribute shall be set to a default value of an empty list.
-         *
-         * The number of entries in this list shall match the number of entries in the Fabrics attribute.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.18.5.1
-         */
-        nocs: Noc[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
+             *
+             * Operational Certificates shall be added through the AddNOC command, and shall be removed through the
+             * RemoveFabric command.
+             *
+             * Upon Factory Data Reset, this attribute shall be set to a default value of an empty list.
+             *
+             * The number of entries in this list shall match the number of entries in the Fabrics attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.18.5.1
+             */
+            readonly nocs: Noc[];
 
-        /**
-         * Indicates all fabrics to which this Node is commissioned, encoded as a read-only list of
-         * FabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
-         *
-         * The Fabrics attribute is also known as "the fabric table".
-         *
-         * Upon Factory Data Reset, this attribute shall be set to a default value of an empty list.
-         *
-         * The number of entries in this list shall match the number of entries in the NOCs attribute.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.18.5.2
-         */
-        fabrics: FabricDescriptor[];
+            /**
+             * Indicates all fabrics to which this Node is commissioned, encoded as a read-only list of
+             * FabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
+             *
+             * The Fabrics attribute is also known as "the fabric table".
+             *
+             * Upon Factory Data Reset, this attribute shall be set to a default value of an empty list.
+             *
+             * The number of entries in this list shall match the number of entries in the NOCs attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.18.5.2
+             */
+            readonly fabrics: FabricDescriptor[];
 
-        /**
-         * Indicates the number of Fabrics that are supported by the device. This value is fixed for a particular
-         * device.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.18.5.3
-         */
-        supportedFabrics: number;
+            /**
+             * Indicates the number of Fabrics that are supported by the device. This value is fixed for a particular
+             * device.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.18.5.3
+             */
+            readonly supportedFabrics: number;
 
-        /**
-         * Indicates the number of Fabrics to which the device is currently commissioned. This attribute shall be equal
-         * to the following:
-         *
-         *   - The number of entries in the NOCs attribute.
-         *
-         *   - The number of entries in the Fabrics attribute.
-         *
-         * Upon Factory Data Reset, this attribute shall be set to a default value of 0.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.18.5.4
-         */
-        commissionedFabrics: number;
+            /**
+             * Indicates the number of Fabrics to which the device is currently commissioned. This attribute shall be
+             * equal to the following:
+             *
+             *   - The number of entries in the NOCs attribute.
+             *
+             *   - The number of entries in the Fabrics attribute.
+             *
+             * Upon Factory Data Reset, this attribute shall be set to a default value of 0.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.18.5.4
+             */
+            readonly commissionedFabrics: number;
 
-        /**
-         * This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet
-         * strings containing their Matter Certificate Encoding representation.
-         *
-         * These certificates are installed through the AddTrustedRootCertificate command.
-         *
-         * Depending on the method of storage employed by the server, either shared storage for identical root
-         * certificates shared by many fabrics, or individually stored root certificate per fabric, multiple identical
-         * root certificates may legally appear within the list.
-         *
-         * To match a root with a given fabric, the root certificate’s subject and subject public key need to be
-         * cross-referenced with the NOC or ICAC certificates that appear in the NOCs attribute for a given fabric.
-         *
-         * Upon Factory Data Reset, this attribute shall be set to a default value whereby the list is empty.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.18.5.5
-         */
-        trustedRootCertificates: Bytes[];
+            /**
+             * This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, as
+             * octet strings containing their Matter Certificate Encoding representation.
+             *
+             * These certificates are installed through the AddTrustedRootCertificate command.
+             *
+             * Depending on the method of storage employed by the server, either shared storage for identical root
+             * certificates shared by many fabrics, or individually stored root certificate per fabric, multiple
+             * identical root certificates may legally appear within the list.
+             *
+             * To match a root with a given fabric, the root certificate’s subject and subject public key need to be
+             * cross-referenced with the NOC or ICAC certificates that appear in the NOCs attribute for a given fabric.
+             *
+             * Upon Factory Data Reset, this attribute shall be set to a default value whereby the list is empty.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.18.5.5
+             */
+            readonly trustedRootCertificates: Bytes[];
 
-        /**
-         * Indicates the accessing fabric index.
-         *
-         * This attribute is useful to contextualize Fabric-Scoped entries obtained from response commands or attribute
-         * reads, since a given Fabric may be referenced by a different Fabric Index locally on a remote Node.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.18.5.6
-         */
-        currentFabricIndex: FabricIndex;
-    }
+            /**
+             * Indicates the accessing fabric index.
+             *
+             * This attribute is useful to contextualize Fabric-Scoped entries obtained from response commands or
+             * attribute reads, since a given Fabric may be referenced by a different Fabric Index locally on a remote
+             * Node.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.18.5.6
+             */
+            readonly currentFabricIndex: FabricIndex;
+        }
 
-    export namespace Attributes {
-        export type Components = [{
-            flags: {},
-            mandatory: "nocs" | "fabrics" | "supportedFabrics" | "commissionedFabrics" | "trustedRootCertificates" | "currentFabricIndex"
-        }];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link OperationalCredentials} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command is used to perform an attestation request.
              *
@@ -416,9 +405,94 @@ export namespace OperationalCredentials {
              */
             signVidVerificationRequest(request: SignVidVerificationRequest): MaybePromise<SignVidVerificationResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    /**
+     * Attributes that may appear in {@link OperationalCredentials}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall contain all NOCs applicable to this Node, encoded as a read-only list of NOCStruct.
+         *
+         * Operational Certificates shall be added through the AddNOC command, and shall be removed through the
+         * RemoveFabric command.
+         *
+         * Upon Factory Data Reset, this attribute shall be set to a default value of an empty list.
+         *
+         * The number of entries in this list shall match the number of entries in the Fabrics attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.18.5.1
+         */
+        readonly nocs: Noc[];
+
+        /**
+         * Indicates all fabrics to which this Node is commissioned, encoded as a read-only list of
+         * FabricDescriptorStruct. This information may be computed directly from the NOCs attribute.
+         *
+         * The Fabrics attribute is also known as "the fabric table".
+         *
+         * Upon Factory Data Reset, this attribute shall be set to a default value of an empty list.
+         *
+         * The number of entries in this list shall match the number of entries in the NOCs attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.18.5.2
+         */
+        readonly fabrics: FabricDescriptor[];
+
+        /**
+         * Indicates the number of Fabrics that are supported by the device. This value is fixed for a particular
+         * device.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.18.5.3
+         */
+        readonly supportedFabrics: number;
+
+        /**
+         * Indicates the number of Fabrics to which the device is currently commissioned. This attribute shall be equal
+         * to the following:
+         *
+         *   - The number of entries in the NOCs attribute.
+         *
+         *   - The number of entries in the Fabrics attribute.
+         *
+         * Upon Factory Data Reset, this attribute shall be set to a default value of 0.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.18.5.4
+         */
+        readonly commissionedFabrics: number;
+
+        /**
+         * This attribute shall contain the list of Trusted Root CA Certificates (RCAC) installed on the Node, as octet
+         * strings containing their Matter Certificate Encoding representation.
+         *
+         * These certificates are installed through the AddTrustedRootCertificate command.
+         *
+         * Depending on the method of storage employed by the server, either shared storage for identical root
+         * certificates shared by many fabrics, or individually stored root certificate per fabric, multiple identical
+         * root certificates may legally appear within the list.
+         *
+         * To match a root with a given fabric, the root certificate’s subject and subject public key need to be
+         * cross-referenced with the NOC or ICAC certificates that appear in the NOCs attribute for a given fabric.
+         *
+         * Upon Factory Data Reset, this attribute shall be set to a default value whereby the list is empty.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.18.5.5
+         */
+        readonly trustedRootCertificates: Bytes[];
+
+        /**
+         * Indicates the accessing fabric index.
+         *
+         * This attribute is useful to contextualize Fabric-Scoped entries obtained from response commands or attribute
+         * reads, since a given Fabric may be referenced by a different Fabric Index locally on a remote Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.18.5.6
+         */
+        readonly currentFabricIndex: FabricIndex;
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
 
     /**
      * This encodes a NOC chain, underpinning a commissioned Operational Identity for a given Node.
@@ -2304,4 +2378,4 @@ export namespace OperationalCredentials {
 export type OperationalCredentialsCluster = OperationalCredentials.Cluster;
 export const OperationalCredentialsCluster = OperationalCredentials.Cluster;
 ClusterNamespace.define(OperationalCredentials);
-export interface OperationalCredentials extends ClusterTyping { Attributes: OperationalCredentials.Attributes & { Components: OperationalCredentials.Attributes.Components }; Commands: OperationalCredentials.Commands & { Components: OperationalCredentials.Commands.Components } }
+export interface OperationalCredentials extends ClusterTyping { Attributes: OperationalCredentials.Attributes; Commands: OperationalCredentials.Commands; Components: OperationalCredentials.Components }

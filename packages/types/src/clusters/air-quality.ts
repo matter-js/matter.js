@@ -20,6 +20,20 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace AirQuality {
     /**
+     * {@link AirQuality} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
+             */
+            readonly airQuality: AirQualityEnum;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link AirQuality}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -30,12 +44,10 @@ export namespace AirQuality {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
          */
-        airQuality: AirQualityEnum;
+        readonly airQuality: AirQualityEnum;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "airQuality" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
     export type Features = "Fair" | "Moderate" | "VeryPoor" | "ExtremelyPoor";
 
     /**
@@ -193,4 +205,4 @@ export namespace AirQuality {
 export type AirQualityCluster = AirQuality.Cluster;
 export const AirQualityCluster = AirQuality.Cluster;
 ClusterNamespace.define(AirQuality);
-export interface AirQuality extends ClusterTyping { Attributes: AirQuality.Attributes & { Components: AirQuality.Attributes.Components }; Features: AirQuality.Features }
+export interface AirQuality extends ClusterTyping { Attributes: AirQuality.Attributes; Features: AirQuality.Features; Components: AirQuality.Components }

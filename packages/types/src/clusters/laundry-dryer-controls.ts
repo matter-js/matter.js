@@ -21,6 +21,37 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace LaundryDryerControls {
     /**
+     * {@link LaundryDryerControls} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the list of supported dryness levels available to the appliance in the currently selected mode.
+             * The dryness level values are determined by the manufacturer. At least one dryness level value shall be
+             * provided in the SupportedDrynessLevels list. The list of dryness levels may change depending on the
+             * currently-selected Laundry Dryer mode.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.1
+             */
+            readonly supportedDrynessLevels: DrynessLevel[];
+
+            /**
+             * Indicates the currently-selected dryness level and it shall be the index into the SupportedDrynessLevels
+             * list of the selected dryness level.
+             *
+             * If an attempt is made to write this attribute with a value other than null or a value contained in
+             * SupportedDrynessLevels, a CONSTRAINT_ERROR response shall be sent as the response. If an attempt is made
+             * to write this attribute while the device is not in a state that supports modifying the dryness level, an
+             * INVALID_IN_STATE error shall be sent as the response. A value of null shall indicate that there will be
+             * no dryness level setting for the current mode.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.2
+             */
+            selectedDrynessLevel: DrynessLevel | null;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link LaundryDryerControls}.
      */
     export interface Attributes {
@@ -32,7 +63,7 @@ export namespace LaundryDryerControls {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.9.5.1
          */
-        supportedDrynessLevels: DrynessLevel[];
+        readonly supportedDrynessLevels: DrynessLevel[];
 
         /**
          * Indicates the currently-selected dryness level and it shall be the index into the SupportedDrynessLevels list
@@ -49,9 +80,7 @@ export namespace LaundryDryerControls {
         selectedDrynessLevel: DrynessLevel | null;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "supportedDrynessLevels" | "selectedDrynessLevel" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * This enum provides a representation of the level of dryness that will be used while drying in a selected mode.
@@ -139,4 +168,4 @@ export namespace LaundryDryerControls {
 export type LaundryDryerControlsCluster = LaundryDryerControls.Cluster;
 export const LaundryDryerControlsCluster = LaundryDryerControls.Cluster;
 ClusterNamespace.define(LaundryDryerControls);
-export interface LaundryDryerControls extends ClusterTyping { Attributes: LaundryDryerControls.Attributes & { Components: LaundryDryerControls.Attributes.Components } }
+export interface LaundryDryerControls extends ClusterTyping { Attributes: LaundryDryerControls.Attributes; Components: LaundryDryerControls.Components }

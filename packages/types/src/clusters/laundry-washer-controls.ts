@@ -23,6 +23,63 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace LaundryWasherControls {
     /**
+     * {@link LaundryWasherControls} supports these elements if it supports feature "Spin".
+     */
+    export namespace SpinComponent {
+        export interface Attributes {
+            /**
+             * Indicates the list of spin speeds available to the appliance in the currently selected mode. The spin
+             * speed values are determined by the manufacturer. At least one spin speed value shall be provided in the
+             * SpinSpeeds list. The list of spin speeds may change depending on the currently selected Laundry Washer
+             * mode. For example, Quick mode might have a completely different list of SpinSpeeds than Delicates mode.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.1
+             */
+            readonly spinSpeeds: string[];
+
+            /**
+             * Indicates the currently selected spin speed. It is the index into the SpinSpeeds list of the selected
+             * spin speed, as such, this attribute can be an integer between 0 and the number of entries in SpinSpeeds -
+             * 1. If a value is received that is outside of the defined constraints, a CONSTRAINT_ERROR shall be sent as
+             * the response. If a value is attempted to be written that doesn’t match a valid index (e.g. an index of 5
+             * when the list has 4 values), a CONSTRAINT_ERROR shall be sent as the response. If null is written to this
+             * attribute, there will be no spin speed for the selected cycle. If the value is null, there will be no
+             * spin speed on the current mode.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.2
+             */
+            spinSpeedCurrent: number | null;
+        }
+    }
+
+    /**
+     * {@link LaundryWasherControls} supports these elements if it supports feature "Rinse".
+     */
+    export namespace RinseComponent {
+        export interface Attributes {
+            /**
+             * Indicates how many times a rinse cycle shall be performed on a device for the current mode of operation.
+             * A value of None shall indicate that no rinse cycle will be performed. This value may be set by the client
+             * to adjust the number of rinses that are performed for the current mode of operation. If the device is not
+             * in a compatible state to accept the provided value, an INVALID_IN_STATE error shall be sent as the
+             * response.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.3
+             */
+            numberOfRinses: NumberOfRinses;
+
+            /**
+             * Indicates the amount of rinses allowed for a specific mode. Each entry shall indicate a
+             * NumberOfRinsesEnum value that is possible in the selected mode on the device. The value of this attribute
+             * may change at runtime based on the currently selected mode. Each entry shall be distinct.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.4
+             */
+            readonly supportedRinses: NumberOfRinses[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link LaundryWasherControls}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -36,7 +93,7 @@ export namespace LaundryWasherControls {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.1
          */
-        spinSpeeds: string[];
+        readonly spinSpeeds: string[];
 
         /**
          * Indicates the currently selected spin speed. It is the index into the SpinSpeeds list of the selected spin
@@ -68,16 +125,13 @@ export namespace LaundryWasherControls {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.6.6.4
          */
-        supportedRinses: NumberOfRinses[];
+        readonly supportedRinses: NumberOfRinses[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: { spin: true }, mandatory: "spinSpeeds" | "spinSpeedCurrent" },
-            { flags: { rinse: true }, mandatory: "numberOfRinses" | "supportedRinses" }
-        ];
-    }
-
+    export type Components = [
+        { flags: { spin: true }, attributes: SpinComponent.Attributes },
+        { flags: { rinse: true }, attributes: RinseComponent.Attributes }
+    ];
     export type Features = "Spin" | "Rinse";
 
     /**
@@ -297,4 +351,4 @@ export namespace LaundryWasherControls {
 export type LaundryWasherControlsCluster = LaundryWasherControls.Cluster;
 export const LaundryWasherControlsCluster = LaundryWasherControls.Cluster;
 ClusterNamespace.define(LaundryWasherControls);
-export interface LaundryWasherControls extends ClusterTyping { Attributes: LaundryWasherControls.Attributes & { Components: LaundryWasherControls.Attributes.Components }; Features: LaundryWasherControls.Features }
+export interface LaundryWasherControls extends ClusterTyping { Attributes: LaundryWasherControls.Attributes; Features: LaundryWasherControls.Features; Components: LaundryWasherControls.Components }

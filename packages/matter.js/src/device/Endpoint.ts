@@ -7,23 +7,22 @@
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
 import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
 import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
-import { ClusterClientObj, Val } from "@matter/protocol";
+import { ClusterClientObj, TypedClusterClientObj, Val } from "@matter/protocol";
 import {
-    Attributes,
-    BitSchema,
-    Cluster,
     ClusterId,
+    ClusterNamespace,
     ClusterType,
-    Commands,
     DeviceTypeId,
     EndpointNumber,
-    Events,
-    TypeFromPartialBitSchema,
     getClusterNameById,
 } from "@matter/types";
 import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
 import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
-import { ClusterServerObj, asClusterServerInternal } from "../cluster/server/ClusterServerTypes.js";
+import {
+    ClusterServerObj,
+    TypedClusterServerObj,
+    asClusterServerInternal,
+} from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
 export interface EndpointOptions {
@@ -207,17 +206,27 @@ export class Endpoint {
 
     // TODO cleanup with id number vs ClusterId
     // TODO add instance if optional and not existing, maybe get rid of undefined by throwing?
-    getClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined {
+    getClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
+    getClusterServer<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterServerObj<N["Typing"]> | undefined;
+    getClusterServer(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterServerObj | TypedClusterServerObj | undefined {
         const clusterServer = this.clusterServers.get(cluster.id);
         if (clusterServer !== undefined) {
-            // See comment in addClusterServer, this is the inverse of that
-            // issue
-            return clusterServer as unknown as ClusterServerObj<T>;
+            return clusterServer as unknown as ClusterServerObj;
         }
     }
 
-    getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined {
-        return this.clusterClients.get(cluster.id) as ClusterClientObj<T>;
+    getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
+    getClusterClient<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterClientObj<N["Typing"]> | undefined;
+    getClusterClient(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterClientObj | TypedClusterClientObj | undefined {
+        return this.clusterClients.get(cluster.id) as ClusterClientObj;
     }
 
     getClusterServerById(clusterId: ClusterId): ClusterServerObj | undefined {
@@ -228,23 +237,11 @@ export class Endpoint {
         return this.clusterClients.get(clusterId);
     }
 
-    hasClusterServer<
-        F extends BitSchema,
-        SF extends TypeFromPartialBitSchema<F>,
-        A extends Attributes,
-        C extends Commands,
-        E extends Events,
-    >(cluster: Cluster<F, SF, A, C, E>): boolean {
+    hasClusterServer(cluster: ClusterType | ClusterNamespace.Concrete): boolean {
         return this.clusterServers.has(cluster.id);
     }
 
-    hasClusterClient<
-        F extends BitSchema,
-        SF extends TypeFromPartialBitSchema<F>,
-        A extends Attributes,
-        C extends Commands,
-        E extends Events,
-    >(cluster: Cluster<F, SF, A, C, E>): boolean {
+    hasClusterClient(cluster: ClusterType | ClusterNamespace.Concrete): boolean {
         return this.clusterClients.has(cluster.id);
     }
 

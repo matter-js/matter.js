@@ -42,62 +42,63 @@ export namespace ClusterState {
             AttributeProperties<N>;
 
     /**
-     * Extract Attributes.Components tuple from namespace.
+     * Extract Components tuple from namespace.
      */
-    export type AttributesComponentsOf<N extends ClusterTyping> = N extends {
-        Attributes: { Components: infer C extends ClusterNamespace.ElementComponent[] };
+    export type ComponentsOf<N extends ClusterTyping> = N extends {
+        Components: infer C extends ClusterNamespace.Component[];
     }
         ? C
         : [];
 
     /**
      * N-driven attribute properties: mandatory vs optional from Components + value types from Attributes.
+     *
+     * Uses RequiredKeys/OptionalKeys on component Attributes interfaces — readonly and ? modifiers in the
+     * component interfaces encode writability and optionality directly.
      */
     type AttributeProperties<N extends ClusterTyping> = N extends { Attributes: infer A }
         ? {
-              [K in (
-                  | MandatoryAttrKeys<AttributesComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>
-                  | EnabledAttrKeys<N>
-              ) &
-                  keyof A]: A[K];
+              [K in (MandatoryAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>> | EnabledAttrKeys<N>) &
+                  keyof A]: Exclude<A[K], undefined>;
           } & {
               [K in Exclude<
-                  OptionalAttrKeys<AttributesComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>,
+                  OptionalAttrKeys<ComponentsOf<N>, ClusterNamespace.SupportedFeaturesOf<N>>,
                   EnabledAttrKeys<N>
               > &
-                  keyof A]?: A[K];
+                  keyof A]?: Exclude<A[K], undefined>;
           }
         : {};
 
     /**
      * Collect mandatory attribute keys from applicable components.
      */
-    type MandatoryAttrKeys<CA extends ClusterNamespace.ElementComponent[], S> = CA extends [
-        infer C extends ClusterNamespace.ElementComponent,
-        ...infer R extends ClusterNamespace.ElementComponent[],
+    type MandatoryAttrKeys<CA extends ClusterNamespace.Component[], S> = CA extends [
+        infer C extends ClusterNamespace.Component,
+        ...infer R extends ClusterNamespace.Component[],
     ]
         ?
-              | (S extends C["flags"] ? (C extends { mandatory: infer M extends string } ? M : never) : never)
+              | (S extends C["flags"]
+                    ? C extends { attributes: infer A }
+                        ? ClusterNamespace.RequiredKeys<A>
+                        : never
+                    : never)
               | MandatoryAttrKeys<R, S>
         : never;
 
     /**
      * All attribute keys across all components.
      */
-    type AllAttrKeys<CA extends ClusterNamespace.ElementComponent[]> = CA extends [
-        infer C extends ClusterNamespace.ElementComponent,
-        ...infer R extends ClusterNamespace.ElementComponent[],
+    type AllAttrKeys<CA extends ClusterNamespace.Component[]> = CA extends [
+        infer C extends ClusterNamespace.Component,
+        ...infer R extends ClusterNamespace.Component[],
     ]
-        ?
-              | (C extends { mandatory: infer M extends string } ? M : never)
-              | (C extends { optional: infer O extends string } ? O : never)
-              | AllAttrKeys<R>
+        ? (C extends { attributes: infer A } ? keyof A & string : never) | AllAttrKeys<R>
         : never;
 
     /**
      * Optional = all keys minus mandatory.
      */
-    type OptionalAttrKeys<CA extends ClusterNamespace.ElementComponent[], S> = Exclude<
+    type OptionalAttrKeys<CA extends ClusterNamespace.Component[], S> = Exclude<
         AllAttrKeys<CA>,
         MandatoryAttrKeys<CA, S>
     >;
@@ -121,12 +122,16 @@ export namespace ClusterState {
     /**
      * Mandatory keys from base components (flags: {}) only.
      */
-    type CompleteBaseMandatoryAttrKeys<CA extends ClusterNamespace.ElementComponent[]> = CA extends [
-        infer C extends ClusterNamespace.ElementComponent,
-        ...infer R extends ClusterNamespace.ElementComponent[],
+    type CompleteBaseMandatoryAttrKeys<CA extends ClusterNamespace.Component[]> = CA extends [
+        infer C extends ClusterNamespace.Component,
+        ...infer R extends ClusterNamespace.Component[],
     ]
         ?
-              | ({} extends C["flags"] ? (C extends { mandatory: infer M extends string } ? M : never) : never)
+              | ({} extends C["flags"]
+                    ? C extends { attributes: infer A }
+                        ? ClusterNamespace.RequiredKeys<A>
+                        : never
+                    : never)
               | CompleteBaseMandatoryAttrKeys<R>
         : never;
 
@@ -134,12 +139,9 @@ export namespace ClusterState {
      * Complete attribute properties: base-mandatory attrs are mandatory, everything else is optional.
      */
     type CompleteAttributeProperties<N extends ClusterTyping> = N extends { Attributes: infer A }
-        ? { [K in CompleteBaseMandatoryAttrKeys<AttributesComponentsOf<N>> & keyof A]: A[K] } & {
-              [K in Exclude<
-                  AllAttrKeys<AttributesComponentsOf<N>>,
-                  CompleteBaseMandatoryAttrKeys<AttributesComponentsOf<N>>
-              > &
-                  keyof A]?: A[K];
+        ? { [K in CompleteBaseMandatoryAttrKeys<ComponentsOf<N>> & keyof A]: Exclude<A[K], undefined> } & {
+              [K in Exclude<AllAttrKeys<ComponentsOf<N>>, CompleteBaseMandatoryAttrKeys<ComponentsOf<N>>> &
+                  keyof A]?: Exclude<A[K], undefined>;
           }
         : {};
 }

@@ -20,6 +20,70 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace Identify {
     /**
+     * {@link Identify} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the remaining length of time, in seconds, that the endpoint will continue to identify itself.
+             *
+             * If this attribute is set to a value other than 0 then the device shall enter its identification state, in
+             * order to indicate to an observer which of several nodes and/or endpoints it is. It is recommended that
+             * this state consists of flashing a light with a period of 0.5 seconds. The IdentifyTime attribute shall be
+             * decremented every second while in this state.
+             *
+             * If this attribute reaches or is set to the value 0 then the device shall terminate its identification
+             * state.
+             *
+             * Changes to this attribute shall only be marked as reportable in the following cases:
+             *
+             *   - When it changes from 0 to any other value and vice versa, or
+             *
+             *   - When it is written by a client, or
+             *
+             *   - When the value is set by an Identify command.
+             *
+             * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
+             * reporting of this attribute in order to keep track of the remaining duration.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.1
+             */
+            identifyTime: number;
+
+            /**
+             * Indicates how the identification state is presented to the user.
+             *
+             * This attribute shall contain one of the values defined in IdentifyTypeEnum. The value None shall NOT be
+             * used if the device is capable of presenting its identification state using one of the other methods
+             * defined in IdentifyTypeEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.2
+             */
+            readonly identifyType: IdentifyType;
+        }
+
+        export interface Commands {
+            /**
+             * This command starts or stops the receiving device identifying itself.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.1
+             */
+            identify(request: IdentifyRequest): MaybePromise;
+
+            /**
+             * This command allows the support of feedback to the user, such as a certain light effect. It is used to
+             * allow an implementation to provide visual feedback to the user under certain circumstances such as a
+             * color light turning green when it has successfully connected to a network. The use of this command and
+             * the effects themselves are entirely up to the implementer to use whenever a visual feedback is useful but
+             * it is not the same as and does not replace the identify mechanism used during commissioning.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2
+             */
+            triggerEffect(request: TriggerEffectRequest): MaybePromise;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link Identify}.
      */
     export interface Attributes {
@@ -57,40 +121,11 @@ export namespace Identify {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.2
          */
-        identifyType: IdentifyType;
+        readonly identifyType: IdentifyType;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "identifyTime" | "identifyType" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link Identify} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command starts or stops the receiving device identifying itself.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.1
-             */
-            identify(request: IdentifyRequest): MaybePromise;
-
-            /**
-             * This command allows the support of feedback to the user, such as a certain light effect. It is used to
-             * allow an implementation to provide visual feedback to the user under certain circumstances such as a
-             * color light turning green when it has successfully connected to a network. The use of this command and
-             * the effects themselves are entirely up to the implementer to use whenever a visual feedback is useful but
-             * it is not the same as and does not replace the identify mechanism used during commissioning.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2
-             */
-            triggerEffect(request: TriggerEffectRequest): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.2.4.1
@@ -350,4 +385,4 @@ export namespace Identify {
 export type IdentifyCluster = Identify.Cluster;
 export const IdentifyCluster = Identify.Cluster;
 ClusterNamespace.define(Identify);
-export interface Identify extends ClusterTyping { Attributes: Identify.Attributes & { Components: Identify.Attributes.Components }; Commands: Identify.Commands & { Components: Identify.Commands.Components } }
+export interface Identify extends ClusterTyping { Attributes: Identify.Attributes; Commands: Identify.Commands; Components: Identify.Components }

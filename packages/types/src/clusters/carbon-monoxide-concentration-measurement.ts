@@ -18,6 +18,131 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace CarbonMonoxideConcentrationMeasurement {
     /**
+     * {@link CarbonMonoxideConcentrationMeasurement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the medium in which MeasuredValue or LevelValue is being measured. See MeasurementMediumEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
+             */
+            readonly measurementMedium: ConcentrationMeasurement.MeasurementMedium;
+        }
+    }
+
+    /**
+     * {@link CarbonMonoxideConcentrationMeasurement} supports these elements if it supports feature
+     * "NumericMeasurement".
+     */
+    export namespace NumericMeasurementComponent {
+        export interface Attributes {
+            /**
+             * Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s unit
+             * is represented by MeasurementUnit.
+             *
+             * A value of null indicates that the measurement is unknown or outside the valid range.
+             *
+             * MinMeasuredValue and MaxMeasuredValue define the valid range for MeasuredValue.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
+             */
+            readonly measuredValue: number | null;
+
+            /**
+             * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of
+             * null indicates that the MinMeasuredValue is not defined.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
+             */
+            readonly minMeasuredValue: number | null;
+
+            /**
+             * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of
+             * null indicates that the MaxMeasuredValue is not defined.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
+             */
+            readonly maxMeasuredValue: number | null;
+
+            /**
+             * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
+             */
+            readonly measurementUnit: ConcentrationMeasurement.MeasurementUnit;
+
+            /**
+             * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This
+             * is considered a +/- value and should be considered to be in MeasurementUnit.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
+             */
+            readonly uncertainty?: number;
+        }
+    }
+
+    /**
+     * {@link CarbonMonoxideConcentrationMeasurement} supports these elements if it supports feature "PeakMeasurement".
+     */
+    export namespace PeakMeasurementComponent {
+        export interface Attributes {
+            /**
+             * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow.
+             * If this attribute is provided, the PeakMeasuredValueWindow attribute shall also be provided.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
+             */
+            readonly peakMeasuredValue: number | null;
+
+            /**
+             * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
+             */
+            readonly peakMeasuredValueWindow: number;
+        }
+    }
+
+    /**
+     * {@link CarbonMonoxideConcentrationMeasurement} supports these elements if it supports feature
+     * "AverageMeasurement".
+     */
+    export namespace AverageMeasurementComponent {
+        export interface Attributes {
+            /**
+             * Indicates the average value of MeasuredValue that has been measured during the
+             * AverageMeasuredValueWindow. If this attribute is provided, the AverageMeasuredValueWindow attribute shall
+             * also be provided.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
+             */
+            readonly averageMeasuredValue: number | null;
+
+            /**
+             * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
+             */
+            readonly averageMeasuredValueWindow: number;
+        }
+    }
+
+    /**
+     * {@link CarbonMonoxideConcentrationMeasurement} supports these elements if it supports feature "LevelIndication".
+     */
+    export namespace LevelIndicationComponent {
+        export interface Attributes {
+            /**
+             * Indicates the level of the substance detected. See LevelValueEnum.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
+             */
+            readonly levelValue: ConcentrationMeasurement.LevelValue;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link CarbonMonoxideConcentrationMeasurement}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -29,7 +154,7 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.10
          */
-        measurementMedium: ConcentrationMeasurement.MeasurementMedium;
+        readonly measurementMedium: ConcentrationMeasurement.MeasurementMedium;
 
         /**
          * Indicates the most recent measurement as a single-precision floating-point number. MeasuredValue’s unit is
@@ -41,7 +166,7 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.1
          */
-        measuredValue: number | null;
+        readonly measuredValue: number | null;
 
         /**
          * Indicates the minimum value of MeasuredValue that is capable of being measured. A MinMeasuredValue of null
@@ -49,7 +174,7 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.2
          */
-        minMeasuredValue: number | null;
+        readonly minMeasuredValue: number | null;
 
         /**
          * Indicates the maximum value of MeasuredValue that is capable of being measured. A MaxMeasuredValue of null
@@ -57,14 +182,14 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.3
          */
-        maxMeasuredValue: number | null;
+        readonly maxMeasuredValue: number | null;
 
         /**
          * Indicates the unit of MeasuredValue. See MeasurementUnitEnum.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.9
          */
-        measurementUnit: ConcentrationMeasurement.MeasurementUnit;
+        readonly measurementUnit: ConcentrationMeasurement.MeasurementUnit;
 
         /**
          * Indicates the range of error or deviation that can be found in MeasuredValue and PeakMeasuredValue. This is
@@ -72,7 +197,7 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.8
          */
-        uncertainty: number;
+        readonly uncertainty: number;
 
         /**
          * Indicates the maximum value of MeasuredValue that has been measured during the PeakMeasuredValueWindow. If
@@ -80,14 +205,14 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.4
          */
-        peakMeasuredValue: number | null;
+        readonly peakMeasuredValue: number | null;
 
         /**
          * Indicates the window of time used for determining the PeakMeasuredValue. The value is in seconds.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.5
          */
-        peakMeasuredValueWindow: number;
+        readonly peakMeasuredValueWindow: number;
 
         /**
          * Indicates the average value of MeasuredValue that has been measured during the AverageMeasuredValueWindow. If
@@ -95,36 +220,30 @@ export namespace CarbonMonoxideConcentrationMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.6
          */
-        averageMeasuredValue: number | null;
+        readonly averageMeasuredValue: number | null;
 
         /**
          * Indicates the window of time used for determining the AverageMeasuredValue. The value is in seconds.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.7
          */
-        averageMeasuredValueWindow: number;
+        readonly averageMeasuredValueWindow: number;
 
         /**
          * Indicates the level of the substance detected. See LevelValueEnum.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.10.6.11
          */
-        levelValue: ConcentrationMeasurement.LevelValue;
+        readonly levelValue: ConcentrationMeasurement.LevelValue;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "measurementMedium" },
-            {
-                flags: { numericMeasurement: true },
-                mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue" | "measurementUnit",
-                optional: "uncertainty"
-            },
-            { flags: { peakMeasurement: true }, mandatory: "peakMeasuredValue" | "peakMeasuredValueWindow" },
-            { flags: { averageMeasurement: true }, mandatory: "averageMeasuredValue" | "averageMeasuredValueWindow" },
-            { flags: { levelIndication: true }, mandatory: "levelValue" }
-        ];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes },
+        { flags: { numericMeasurement: true }, attributes: NumericMeasurementComponent.Attributes },
+        { flags: { peakMeasurement: true }, attributes: PeakMeasurementComponent.Attributes },
+        { flags: { averageMeasurement: true }, attributes: AverageMeasurementComponent.Attributes },
+        { flags: { levelIndication: true }, attributes: LevelIndicationComponent.Attributes }
+    ];
 
     export type Features = "NumericMeasurement" | "LevelIndication" | "MediumLevel" | "CriticalLevel" | "PeakMeasurement" | "AverageMeasurement";
 
@@ -166,7 +285,7 @@ export namespace CarbonMonoxideConcentrationMeasurement {
     export const Complete: Complete = CompleteInstance;
     export const id = ClusterId(0x40c);
     export const name = "CarbonMonoxideConcentrationMeasurement" as const;
-    export const revision = 1;
+    export const revision = 3;
     export const schema = CarbonMonoxideConcentrationMeasurementModel;
     export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
     export declare const attributes: AttributeObjects;
@@ -177,4 +296,4 @@ export namespace CarbonMonoxideConcentrationMeasurement {
 export type CarbonMonoxideConcentrationMeasurementCluster = CarbonMonoxideConcentrationMeasurement.Cluster;
 export const CarbonMonoxideConcentrationMeasurementCluster = CarbonMonoxideConcentrationMeasurement.Cluster;
 ClusterNamespace.define(CarbonMonoxideConcentrationMeasurement);
-export interface CarbonMonoxideConcentrationMeasurement extends ClusterTyping { Attributes: CarbonMonoxideConcentrationMeasurement.Attributes & { Components: CarbonMonoxideConcentrationMeasurement.Attributes.Components }; Features: CarbonMonoxideConcentrationMeasurement.Features }
+export interface CarbonMonoxideConcentrationMeasurement extends ClusterTyping { Attributes: CarbonMonoxideConcentrationMeasurement.Attributes; Features: CarbonMonoxideConcentrationMeasurement.Features; Components: CarbonMonoxideConcentrationMeasurement.Components }

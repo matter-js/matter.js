@@ -547,9 +547,10 @@ function generateComponents(file: ClusterFile, tlvSkippedTypes?: Map<string, Val
         }
 
         gen.generateTypes(tlvSkippedTypes);
-        hasAttrs = gen.generateAttributes();
-        hasCommands = gen.generateCommands();
-        hasEvents = gen.generateEvents();
+        const result = gen.generateAll();
+        hasAttrs = result.hasAttrs;
+        hasCommands = result.hasCommands;
+        hasEvents = result.hasEvents;
     }
 
     gen.generateFeatures();
@@ -595,16 +596,19 @@ function generateComponents(file: ClusterFile, tlvSkippedTypes?: Map<string, Val
     // Merge an interface with the namespace so it can be used as a type (e.g. in for(OnOff))
     const members = [] as string[];
     if (hasAttrs) {
-        members.push(`Attributes: ${name}.Attributes & { Components: ${name}.Attributes.Components }`);
+        members.push(`Attributes: ${name}.Attributes`);
     }
     if (hasCommands) {
-        members.push(`Commands: ${name}.Commands & { Components: ${name}.Commands.Components }`);
+        members.push(`Commands: ${name}.Commands`);
     }
     if (hasEvents) {
-        members.push(`Events: ${name}.Events & { Components: ${name}.Events.Components }`);
+        members.push(`Events: ${name}.Events`);
     }
     if (hasFeatures) {
         members.push(`Features: ${name}.Features`);
+    }
+    if (hasAttrs || hasCommands || hasEvents) {
+        members.push(`Components: ${name}.Components`);
     }
     const body = members.length ? ` ${members.join("; ")} ` : "";
     file.atom(`export interface ${name} extends ClusterTyping {${body}}`);
