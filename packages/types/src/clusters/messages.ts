@@ -26,44 +26,34 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace Messages {
     /**
-     * Attributes that may appear in {@link Messages}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link Messages} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * Indicates a list of queued messages.
-         *
-         * In addition to filtering based upon fabric, to preserve user privacy, the server may further limit the set of
-         * messages returned in a read request. At minimum, the server shall return to a client those messages that the
-         * client itself created/submitted.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
-         */
-        messages: Message[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates a list of queued messages.
+             *
+             * In addition to filtering based upon fabric, to preserve user privacy, the server may further limit the
+             * set of messages returned in a read request. At minimum, the server shall return to a client those
+             * messages that the client itself created/submitted.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
+             */
+            readonly messages: Message[];
 
-        /**
-         * Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, no
-         * messages are currently being presented.
-         *
-         * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no matter
-         * what fabric the client that queued them is on.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
-         */
-        activeMessageIDs: Bytes[];
-    }
+            /**
+             * Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, no
+             * messages are currently being presented.
+             *
+             * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no
+             * matter what fabric the client that queued them is on.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
+             */
+            readonly activeMessageIDs: Bytes[];
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "messages" | "activeMessageIDs" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link Messages} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * Upon receipt, this shall cause the message in the passed fields to be appended to the Messages attribute.
              *
@@ -97,8 +87,61 @@ export namespace Messages {
             cancelMessagesRequest(request: CancelMessagesRequest): MaybePromise;
         }
 
-        export type Components = [{ flags: {}, methods: Base }];
+        export interface Events {
+            /**
+             * This event shall be generated when a message is added to the messages attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
+             */
+            messageQueued: MessageQueuedEvent;
+
+            /**
+             * This event shall be generated when the message is presented to the user.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
+             */
+            messagePresented: MessagePresentedEvent;
+
+            /**
+             * This event shall be generated when the message is confirmed by the user, or when the Duration field of
+             * the message has elapsed without confirmation.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
+             */
+            messageComplete: MessageCompleteEvent;
+        }
     }
+
+    /**
+     * Attributes that may appear in {@link Messages}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates a list of queued messages.
+         *
+         * In addition to filtering based upon fabric, to preserve user privacy, the server may further limit the set of
+         * messages returned in a read request. At minimum, the server shall return to a client those messages that the
+         * client itself created/submitted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
+         */
+        readonly messages: Message[];
+
+        /**
+         * Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, no
+         * messages are currently being presented.
+         *
+         * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no matter
+         * what fabric the client that queued them is on.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
+         */
+        readonly activeMessageIDs: Bytes[];
+    }
+
+    export interface Commands extends Base.Commands {}
 
     /**
      * Events that may appear in {@link Messages}.
@@ -129,9 +172,7 @@ export namespace Messages {
         messageComplete: MessageCompleteEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, mandatory: "messageQueued" | "messagePresented" | "messageComplete" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events }];
     export type Features = "ReceivedConfirmation" | "ConfirmationResponse" | "ConfirmationReply" | "ProtectedMessages";
 
     /**
@@ -1012,4 +1053,4 @@ export namespace Messages {
 export type MessagesCluster = Messages.Cluster;
 export const MessagesCluster = Messages.Cluster;
 ClusterNamespace.define(Messages);
-export interface Messages extends ClusterTyping { Attributes: Messages.Attributes & { Components: Messages.Attributes.Components }; Commands: Messages.Commands & { Components: Messages.Commands.Components }; Events: Messages.Events & { Components: Messages.Events.Components }; Features: Messages.Features }
+export interface Messages extends ClusterTyping { Attributes: Messages.Attributes; Commands: Messages.Commands; Events: Messages.Events; Features: Messages.Features; Components: Messages.Components }

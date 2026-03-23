@@ -25,166 +25,76 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace GeneralCommissioning {
     /**
-     * Attributes that may appear in {@link GeneralCommissioning}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link GeneralCommissioning} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute allows for the storage of a client-provided small payload which Administrators and
-         * Commissioners may write and then subsequently read, to keep track of their own progress. This may be used by
-         * the Commissioner to avoid repeating already-executed actions upon re-establishing a commissioning link after
-         * an error.
-         *
-         * On start/restart of the server, such as when a device is power-cycled, this attribute shall be reset to zero.
-         *
-         * Some commands related to commissioning also have a side-effect of updating or resetting this attribute and
-         * this is specified in their respective functional descriptions.
-         *
-         * The format of the value within this attribute is unspecified and its value is not otherwise used by the
-         * functioning of any cluster, other than being set as a side-effect of commands where this behavior is
-         * described.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.1
-         */
-        breadcrumb: number | bigint;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute allows for the storage of a client-provided small payload which Administrators and
+             * Commissioners may write and then subsequently read, to keep track of their own progress. This may be used
+             * by the Commissioner to avoid repeating already-executed actions upon re-establishing a commissioning link
+             * after an error.
+             *
+             * On start/restart of the server, such as when a device is power-cycled, this attribute shall be reset to
+             * zero.
+             *
+             * Some commands related to commissioning also have a side-effect of updating or resetting this attribute
+             * and this is specified in their respective functional descriptions.
+             *
+             * The format of the value within this attribute is unspecified and its value is not otherwise used by the
+             * functioning of any cluster, other than being set as a side-effect of commands where this behavior is
+             * described.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.1
+             */
+            breadcrumb: number | bigint;
 
-        /**
-         * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See Section
-         * 11.10.5.3, “BasicCommissioningInfo Type” for more information.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
-         */
-        basicCommissioningInfo: BasicCommissioningInfo;
+            /**
+             * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See
+             * Section 11.10.5.3, “BasicCommissioningInfo Type” for more information.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
+             */
+            readonly basicCommissioningInfo: BasicCommissioningInfo;
 
-        /**
-         * Indicates the regulatory configuration for the product.
-         *
-         * Note that the country code is part of Basic Information Cluster and therefore NOT listed on the
-         * RegulatoryConfig attribute.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
-         */
-        regulatoryConfig: RegulatoryLocationType;
+            /**
+             * Indicates the regulatory configuration for the product.
+             *
+             * Note that the country code is part of Basic Information Cluster and therefore NOT listed on the
+             * RegulatoryConfig attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
+             */
+            readonly regulatoryConfig: RegulatoryLocationType;
 
-        /**
-         * LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told an exact
-         * RegulatoryLocation. For example a Node which is "Indoor Only" would not be certified for outdoor use at all,
-         * and thus there is no need for a commissioner to set or ask the user about whether the device will be used
-         * inside or outside. However a device which states its capability is "Indoor/Outdoor" means it would like
-         * clarification if possible.
-         *
-         * For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor shall always
-         * be used.
-         *
-         * The default value of the RegulatoryConfig attribute is the value of LocationCapability attribute. This means
-         * devices always have a safe default value, and Commissioners which choose to implement smarter handling can.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.4
-         */
-        locationCapability: RegulatoryLocationType;
+            /**
+             * LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told an
+             * exact RegulatoryLocation. For example a Node which is "Indoor Only" would not be certified for outdoor
+             * use at all, and thus there is no need for a commissioner to set or ask the user about whether the device
+             * will be used inside or outside. However a device which states its capability is "Indoor/Outdoor" means it
+             * would like clarification if possible.
+             *
+             * For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor shall
+             * always be used.
+             *
+             * The default value of the RegulatoryConfig attribute is the value of LocationCapability attribute. This
+             * means devices always have a safe default value, and Commissioners which choose to implement smarter
+             * handling can.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.4
+             */
+            readonly locationCapability: RegulatoryLocationType;
 
-        /**
-         * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
-         * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
-         */
-        supportsConcurrentConnection: boolean;
+            /**
+             * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
+             * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
+             */
+            readonly supportsConcurrentConnection: boolean;
+        }
 
-        /**
-         * Indicates the last version of the T&Cs for which the device received user acknowledgements. On factory reset
-         * this field shall be reset to 0.
-         *
-         * When Custom Commissioning Flow is used to obtain user consent (e. g. because the Commissioner does not
-         * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that this
-         * attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning the user
-         * back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.6
-         */
-        tcAcceptedVersion: number;
-
-        /**
-         * Indicates the minimum version of the texts presented by the Enhanced Setup Flow that need to be accepted by
-         * the user for this device. This attribute may change as the result of an OTA update.
-         *
-         * If an event such as a software update causes TCAcceptedVersion to become less than TCMinRequiredVersion, then
-         * the device shall update TCAcknowledgementsRequired to True so that an administrator can detect that a newer
-         * version of the texts needs to be presented to the user.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.7
-         */
-        tcMinRequiredVersion: number;
-
-        /**
-         * Indicates the user’s response to the presented terms. Each bit position corresponds to a user response for
-         * the associated index of matching text, such that bit 0 (bit value 1) is for text index 0. Bit 15 (bit value
-         * 0x8000) is for text index 15. A bit value of 1 indicates acceptance and a value of 0 indicates
-         * non-acceptance. For example, if there are two texts that were presented where the first (bit 0, value 1) was
-         * declined and the second accepted (bit 1, value 2), we would expect the resulting value of the map to be 2.
-         *
-         * Whenever a user provides responses to newly presented terms and conditions, this attribute shall be updated
-         * with the latest responses. This may happen in response to updated terms that were presented to the user. On a
-         * factory reset this field shall be reset with all bits set to 0.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.8
-         */
-        tcAcknowledgements: number;
-
-        /**
-         * Indicates whether SetTCAcknowledgements is currently required to be called with the inclusion of mandatory
-         * terms accepted.
-         *
-         * This attribute may be present and False in the case where no terms and conditions are currently mandatory to
-         * accept for CommissioningComplete command to succeed.
-         *
-         * This attribute may appear, or become True after commissioning (e.g. due to a firmware update) to indicate
-         * that new Terms & Conditions are available that the user must accept.
-         *
-         * Upon Factory Data Reset, this attribute shall be set to a value of True.
-         *
-         * When Custom Commissioning Flow is used to obtain user consent (e.g. because the Commissioner does not support
-         * the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that this attribute
-         * is set to False before returning the user back to the original Commissioner (see Section 5.7.4, “Enhanced
-         * Setup Flow (ESF)”).
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
-         */
-        tcAcknowledgementsRequired: boolean;
-
-        /**
-         * Indicates the System Time in seconds when any functionality limitations will begin due to a lack of
-         * acceptance of updated Terms and Conditions, as described in Section 5.7.4.6, “Presenting Updated Terms and
-         * Conditions”.
-         *
-         * A null value indicates that there is no pending deadline for updated TC acceptance.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.10
-         */
-        tcUpdateDeadline: number | null;
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "breadcrumb" | "basicCommissioningInfo" | "regulatoryConfig" | "locationCapability" | "supportsConcurrentConnection"
-            },
-            {
-                flags: { termsAndConditions: true },
-                mandatory: "tcAcceptedVersion" | "tcMinRequiredVersion" | "tcAcknowledgements" | "tcAcknowledgementsRequired" | "tcUpdateDeadline"
-            }
-        ];
-    }
-
-    export interface Commands extends Commands.Base, Commands.TermsAndConditions {}
-
-    export namespace Commands {
-        /**
-         * {@link GeneralCommissioning} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command is used to arm or disarm the fail-safe timer.
              *
@@ -413,11 +323,88 @@ export namespace GeneralCommissioning {
              */
             commissioningComplete(): MaybePromise<CommissioningCompleteResponse>;
         }
+    }
 
-        /**
-         * {@link GeneralCommissioning} supports these commands if it supports feature "TermsAndConditions".
-         */
-        export interface TermsAndConditions {
+    /**
+     * {@link GeneralCommissioning} supports these elements if it supports feature "TermsAndConditions".
+     */
+    export namespace TermsAndConditionsComponent {
+        export interface Attributes {
+            /**
+             * Indicates the last version of the T&Cs for which the device received user acknowledgements. On factory
+             * reset this field shall be reset to 0.
+             *
+             * When Custom Commissioning Flow is used to obtain user consent (e. g. because the Commissioner does not
+             * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that
+             * this attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning
+             * the user back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.6
+             */
+            readonly tcAcceptedVersion: number;
+
+            /**
+             * Indicates the minimum version of the texts presented by the Enhanced Setup Flow that need to be accepted
+             * by the user for this device. This attribute may change as the result of an OTA update.
+             *
+             * If an event such as a software update causes TCAcceptedVersion to become less than TCMinRequiredVersion,
+             * then the device shall update TCAcknowledgementsRequired to True so that an administrator can detect that
+             * a newer version of the texts needs to be presented to the user.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.7
+             */
+            readonly tcMinRequiredVersion: number;
+
+            /**
+             * Indicates the user’s response to the presented terms. Each bit position corresponds to a user response
+             * for the associated index of matching text, such that bit 0 (bit value 1) is for text index 0. Bit 15 (bit
+             * value 0x8000) is for text index 15. A bit value of 1 indicates acceptance and a value of 0 indicates
+             * non-acceptance. For example, if there are two texts that were presented where the first (bit 0, value 1)
+             * was declined and the second accepted (bit 1, value 2), we would expect the resulting value of the map to
+             * be 2.
+             *
+             * Whenever a user provides responses to newly presented terms and conditions, this attribute shall be
+             * updated with the latest responses. This may happen in response to updated terms that were presented to
+             * the user. On a factory reset this field shall be reset with all bits set to 0.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.8
+             */
+            readonly tcAcknowledgements: number;
+
+            /**
+             * Indicates whether SetTCAcknowledgements is currently required to be called with the inclusion of
+             * mandatory terms accepted.
+             *
+             * This attribute may be present and False in the case where no terms and conditions are currently mandatory
+             * to accept for CommissioningComplete command to succeed.
+             *
+             * This attribute may appear, or become True after commissioning (e.g. due to a firmware update) to indicate
+             * that new Terms & Conditions are available that the user must accept.
+             *
+             * Upon Factory Data Reset, this attribute shall be set to a value of True.
+             *
+             * When Custom Commissioning Flow is used to obtain user consent (e.g. because the Commissioner does not
+             * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that
+             * this attribute is set to False before returning the user back to the original Commissioner (see Section
+             * 5.7.4, “Enhanced Setup Flow (ESF)”).
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
+             */
+            readonly tcAcknowledgementsRequired: boolean;
+
+            /**
+             * Indicates the System Time in seconds when any functionality limitations will begin due to a lack of
+             * acceptance of updated Terms and Conditions, as described in Section 5.7.4.6, “Presenting Updated Terms
+             * and Conditions”.
+             *
+             * A null value indicates that there is no pending deadline for updated TC acceptance.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.10.6.10
+             */
+            readonly tcUpdateDeadline: number | null;
+        }
+
+        export interface Commands {
             /**
              * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms &
              * Conditions into the node.
@@ -426,12 +413,159 @@ export namespace GeneralCommissioning {
              */
             setTcAcknowledgements(request: SetTcAcknowledgementsRequest): MaybePromise<SetTcAcknowledgementsResponse>;
         }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { termsAndConditions: true }, methods: TermsAndConditions }
-        ];
     }
+
+    /**
+     * Attributes that may appear in {@link GeneralCommissioning}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute allows for the storage of a client-provided small payload which Administrators and
+         * Commissioners may write and then subsequently read, to keep track of their own progress. This may be used by
+         * the Commissioner to avoid repeating already-executed actions upon re-establishing a commissioning link after
+         * an error.
+         *
+         * On start/restart of the server, such as when a device is power-cycled, this attribute shall be reset to zero.
+         *
+         * Some commands related to commissioning also have a side-effect of updating or resetting this attribute and
+         * this is specified in their respective functional descriptions.
+         *
+         * The format of the value within this attribute is unspecified and its value is not otherwise used by the
+         * functioning of any cluster, other than being set as a side-effect of commands where this behavior is
+         * described.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.1
+         */
+        breadcrumb: number | bigint;
+
+        /**
+         * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See Section
+         * 11.10.5.3, “BasicCommissioningInfo Type” for more information.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
+         */
+        readonly basicCommissioningInfo: BasicCommissioningInfo;
+
+        /**
+         * Indicates the regulatory configuration for the product.
+         *
+         * Note that the country code is part of Basic Information Cluster and therefore NOT listed on the
+         * RegulatoryConfig attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
+         */
+        readonly regulatoryConfig: RegulatoryLocationType;
+
+        /**
+         * LocationCapability is statically set by the manufacturer and indicates if this Node needs to be told an exact
+         * RegulatoryLocation. For example a Node which is "Indoor Only" would not be certified for outdoor use at all,
+         * and thus there is no need for a commissioner to set or ask the user about whether the device will be used
+         * inside or outside. However a device which states its capability is "Indoor/Outdoor" means it would like
+         * clarification if possible.
+         *
+         * For Nodes without radio network interfaces (e.g. Ethernet-only devices), the value IndoorOutdoor shall always
+         * be used.
+         *
+         * The default value of the RegulatoryConfig attribute is the value of LocationCapability attribute. This means
+         * devices always have a safe default value, and Commissioners which choose to implement smarter handling can.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.4
+         */
+        readonly locationCapability: RegulatoryLocationType;
+
+        /**
+         * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
+         * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
+         */
+        readonly supportsConcurrentConnection: boolean;
+
+        /**
+         * Indicates the last version of the T&Cs for which the device received user acknowledgements. On factory reset
+         * this field shall be reset to 0.
+         *
+         * When Custom Commissioning Flow is used to obtain user consent (e. g. because the Commissioner does not
+         * support the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that this
+         * attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning the user
+         * back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.6
+         */
+        readonly tcAcceptedVersion: number;
+
+        /**
+         * Indicates the minimum version of the texts presented by the Enhanced Setup Flow that need to be accepted by
+         * the user for this device. This attribute may change as the result of an OTA update.
+         *
+         * If an event such as a software update causes TCAcceptedVersion to become less than TCMinRequiredVersion, then
+         * the device shall update TCAcknowledgementsRequired to True so that an administrator can detect that a newer
+         * version of the texts needs to be presented to the user.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.7
+         */
+        readonly tcMinRequiredVersion: number;
+
+        /**
+         * Indicates the user’s response to the presented terms. Each bit position corresponds to a user response for
+         * the associated index of matching text, such that bit 0 (bit value 1) is for text index 0. Bit 15 (bit value
+         * 0x8000) is for text index 15. A bit value of 1 indicates acceptance and a value of 0 indicates
+         * non-acceptance. For example, if there are two texts that were presented where the first (bit 0, value 1) was
+         * declined and the second accepted (bit 1, value 2), we would expect the resulting value of the map to be 2.
+         *
+         * Whenever a user provides responses to newly presented terms and conditions, this attribute shall be updated
+         * with the latest responses. This may happen in response to updated terms that were presented to the user. On a
+         * factory reset this field shall be reset with all bits set to 0.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.8
+         */
+        readonly tcAcknowledgements: number;
+
+        /**
+         * Indicates whether SetTCAcknowledgements is currently required to be called with the inclusion of mandatory
+         * terms accepted.
+         *
+         * This attribute may be present and False in the case where no terms and conditions are currently mandatory to
+         * accept for CommissioningComplete command to succeed.
+         *
+         * This attribute may appear, or become True after commissioning (e.g. due to a firmware update) to indicate
+         * that new Terms & Conditions are available that the user must accept.
+         *
+         * Upon Factory Data Reset, this attribute shall be set to a value of True.
+         *
+         * When Custom Commissioning Flow is used to obtain user consent (e.g. because the Commissioner does not support
+         * the TC feature), the manufacturer-provided means for obtaining user consent shall ensure that this attribute
+         * is set to False before returning the user back to the original Commissioner (see Section 5.7.4, “Enhanced
+         * Setup Flow (ESF)”).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
+         */
+        readonly tcAcknowledgementsRequired: boolean;
+
+        /**
+         * Indicates the System Time in seconds when any functionality limitations will begin due to a lack of
+         * acceptance of updated Terms and Conditions, as described in Section 5.7.4.6, “Presenting Updated Terms and
+         * Conditions”.
+         *
+         * A null value indicates that there is no pending deadline for updated TC acceptance.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.10.6.10
+         */
+        readonly tcUpdateDeadline: number | null;
+    }
+
+    export interface Commands extends Base.Commands, TermsAndConditionsComponent.Commands {}
+
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        {
+            flags: { termsAndConditions: true },
+            attributes: TermsAndConditionsComponent.Attributes,
+            commands: TermsAndConditionsComponent.Commands
+        }
+    ];
 
     export type Features = "TermsAndConditions";
 
@@ -1554,4 +1688,4 @@ export namespace GeneralCommissioning {
 export type GeneralCommissioningCluster = GeneralCommissioning.Cluster;
 export const GeneralCommissioningCluster = GeneralCommissioning.Cluster;
 ClusterNamespace.define(GeneralCommissioning);
-export interface GeneralCommissioning extends ClusterTyping { Attributes: GeneralCommissioning.Attributes & { Components: GeneralCommissioning.Attributes.Components }; Commands: GeneralCommissioning.Commands & { Components: GeneralCommissioning.Commands.Components }; Features: GeneralCommissioning.Features }
+export interface GeneralCommissioning extends ClusterTyping { Attributes: GeneralCommissioning.Attributes; Commands: GeneralCommissioning.Commands; Features: GeneralCommissioning.Features; Components: GeneralCommissioning.Components }

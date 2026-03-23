@@ -27,31 +27,21 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace Groups {
     /**
-     * Attributes that may appear in {@link Groups}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link Groups} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
-         * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
-         * other bits shall be 0.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
-         */
-        nameSupport: NameSupportAttribute;
-    }
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The
+             * most significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN
+             * Feature). All other bits shall be 0.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+             */
+            readonly nameSupport: NameSupportAttribute;
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "nameSupport" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link Groups} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * The AddGroup command allows a client to add group membership in a particular group for the server
              * endpoint.
@@ -106,10 +96,26 @@ export namespace Groups {
              */
             addGroupIfIdentifying(request: AddGroupIfIdentifyingRequest): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
 
+    /**
+     * Attributes that may appear in {@link Groups}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
+         * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
+         * other bits shall be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+         */
+        readonly nameSupport: NameSupportAttribute;
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "GroupNames";
 
     /**
@@ -679,4 +685,4 @@ export namespace Groups {
 export type GroupsCluster = Groups.Cluster;
 export const GroupsCluster = Groups.Cluster;
 ClusterNamespace.define(Groups);
-export interface Groups extends ClusterTyping { Attributes: Groups.Attributes & { Components: Groups.Attributes.Components }; Commands: Groups.Commands & { Components: Groups.Commands.Components }; Features: Groups.Features }
+export interface Groups extends ClusterTyping { Attributes: Groups.Attributes; Commands: Groups.Commands; Features: Groups.Features; Components: Groups.Components }

@@ -25,58 +25,59 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace SoftwareDiagnostics {
     /**
-     * Attributes that may appear in {@link SoftwareDiagnostics}.
-     *
-     * Optional properties represent attributes that devices are not required to support. Device support for attributes
-     * may also be affected by a device's supported {@link Features}.
+     * {@link SoftwareDiagnostics} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
-         * represented by a single entry within the ThreadMetrics attribute.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.1
-         */
-        threadMetrics: ThreadMetrics[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
+             * represented by a single entry within the ThreadMetrics attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.13.6.1
+             */
+            readonly threadMetrics?: ThreadMetrics[];
 
-        /**
-         * Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective amount may
-         * be smaller due to heap fragmentation or other reasons.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.2
-         */
-        currentHeapFree: number | bigint;
+            /**
+             * Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective amount
+             * may be smaller due to heap fragmentation or other reasons.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.13.6.2
+             */
+            readonly currentHeapFree?: number | bigint;
 
-        /**
-         * Indicates the current amount of heap memory, in bytes, that is being used.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.3
-         */
-        currentHeapUsed: number | bigint;
+            /**
+             * Indicates the current amount of heap memory, in bytes, that is being used.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.13.6.3
+             */
+            readonly currentHeapUsed?: number | bigint;
+        }
 
-        /**
-         * Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value shall only
-         * be reset upon a Node reboot or upon receiving of the ResetWatermarks command.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.4
-         */
-        currentHeapHighWatermark: number | bigint;
+        export interface Events {
+            /**
+             * This Event shall be generated when a software fault occurs on the Node.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.13.8.1
+             */
+            softwareFault?: SoftwareFaultEvent;
+        }
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, optional: "threadMetrics" | "currentHeapFree" | "currentHeapUsed" },
-            { flags: { watermarks: true }, mandatory: "currentHeapHighWatermark" }
-        ];
-    }
+    /**
+     * {@link SoftwareDiagnostics} supports these elements if it supports feature "Watermarks".
+     */
+    export namespace WatermarksComponent {
+        export interface Attributes {
+            /**
+             * Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value shall
+             * only be reset upon a Node reboot or upon receiving of the ResetWatermarks command.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.13.6.4
+             */
+            readonly currentHeapHighWatermark: number | bigint;
+        }
 
-    export interface Commands extends Commands.Watermarks {}
-
-    export namespace Commands {
-        /**
-         * {@link SoftwareDiagnostics} supports these commands if it supports feature "Watermarks".
-         */
-        export interface Watermarks {
+        export interface Commands {
             /**
              * This command is used to reset the high watermarks for heap and stack memory.
              *
@@ -100,9 +101,48 @@ export namespace SoftwareDiagnostics {
              */
             resetWatermarks(): MaybePromise;
         }
-
-        export type Components = [{ flags: { watermarks: true }, methods: Watermarks }];
     }
+
+    /**
+     * Attributes that may appear in {@link SoftwareDiagnostics}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
+         * represented by a single entry within the ThreadMetrics attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.13.6.1
+         */
+        readonly threadMetrics: ThreadMetrics[];
+
+        /**
+         * Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective amount may
+         * be smaller due to heap fragmentation or other reasons.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.13.6.2
+         */
+        readonly currentHeapFree: number | bigint;
+
+        /**
+         * Indicates the current amount of heap memory, in bytes, that is being used.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.13.6.3
+         */
+        readonly currentHeapUsed: number | bigint;
+
+        /**
+         * Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value shall only
+         * be reset upon a Node reboot or upon receiving of the ResetWatermarks command.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.13.6.4
+         */
+        readonly currentHeapHighWatermark: number | bigint;
+    }
+
+    export interface Commands extends WatermarksComponent.Commands {}
 
     /**
      * Events that may appear in {@link SoftwareDiagnostics}.
@@ -119,9 +159,15 @@ export namespace SoftwareDiagnostics {
         softwareFault: SoftwareFaultEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, optional: "softwareFault" }];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, events: Base.Events },
+        {
+            flags: { watermarks: true },
+            attributes: WatermarksComponent.Attributes,
+            commands: WatermarksComponent.Commands
+        }
+    ];
+
     export type Features = "Watermarks";
 
     /**
@@ -463,4 +509,4 @@ export namespace SoftwareDiagnostics {
 export type SoftwareDiagnosticsCluster = SoftwareDiagnostics.Cluster;
 export const SoftwareDiagnosticsCluster = SoftwareDiagnostics.Cluster;
 ClusterNamespace.define(SoftwareDiagnostics);
-export interface SoftwareDiagnostics extends ClusterTyping { Attributes: SoftwareDiagnostics.Attributes & { Components: SoftwareDiagnostics.Attributes.Components }; Commands: SoftwareDiagnostics.Commands & { Components: SoftwareDiagnostics.Commands.Components }; Events: SoftwareDiagnostics.Events & { Components: SoftwareDiagnostics.Events.Components }; Features: SoftwareDiagnostics.Features }
+export interface SoftwareDiagnostics extends ClusterTyping { Attributes: SoftwareDiagnostics.Attributes; Commands: SoftwareDiagnostics.Commands; Events: SoftwareDiagnostics.Events; Features: SoftwareDiagnostics.Features; Components: SoftwareDiagnostics.Components }

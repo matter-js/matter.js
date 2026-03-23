@@ -33,6 +33,246 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace SmokeCoAlarm {
     /**
+     * {@link SmokeCoAlarm} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the visibly- and audibly-expressed state of the alarm. When multiple alarm conditions are being
+             * reflected in the server, this attribute shall indicate the condition with the highest priority. Priority
+             * order of conditions is determined by the manufacturer and shall be supplied as a part of certification
+             * procedure. If the value of ExpressedState is not Normal, the attribute corresponding to the value shall
+             * NOT be Normal. For example, if the ExpressedState is set to SmokeAlarm, the value of the SmokeState will
+             * indicate the severity of the alarm (Warning or Critical). Clients SHOULD also read the other attributes
+             * to be aware of further alarm conditions beyond the one indicated in ExpressedState.
+             *
+             * Visible expression is typically a LED light pattern. Audible expression is a horn or speaker pattern.
+             * Audible expression shall BE suppressed if the DeviceMuted attribute is supported and set to Muted.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.1
+             */
+            readonly expressedState: ExpressedState;
+
+            /**
+             * Indicates whether the power resource fault detection mechanism is currently triggered at the device. If
+             * the detection mechanism is triggered, this attribute shall be set to Warning or Critical, otherwise it
+             * shall be set to Normal. The battery state shall also be reflected in the Power Source cluster
+             * representing the device’s battery using the appropriate supported attributes and events.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.4
+             */
+            readonly batteryAlert: AlarmState;
+
+            /**
+             * Indicates whether the device self-test is currently activated. If the device self-test is activated, this
+             * attribute shall be set to True, otherwise it shall be set to False.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.6
+             */
+            readonly testInProgress: boolean;
+
+            /**
+             * Indicates whether the hardware fault detection mechanism is currently triggered. If the detection
+             * mechanism is triggered, this attribute shall be set to True, otherwise it shall be set to False.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.7
+             */
+            readonly hardwareFaultAlert: boolean;
+
+            /**
+             * Indicates whether the end-of-service has been triggered at the device. This attribute shall be set to
+             * Expired when the device reaches the end-of-service.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.8
+             */
+            readonly endOfServiceAlert: EndOfService;
+
+            /**
+             * Indicates the whether the audible expression of the device is currently muted. Audible expression is
+             * typically a horn or speaker pattern.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.5
+             */
+            readonly deviceMuted?: MuteState;
+
+            /**
+             * Indicates whether the interconnected smoke alarm is currently triggering by branching devices. When the
+             * interconnected smoke alarm is being triggered, this attribute shall be set to Warning or Critical,
+             * otherwise it shall be set to Normal.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.9
+             */
+            readonly interconnectSmokeAlarm?: AlarmState;
+
+            /**
+             * Indicates whether the interconnected CO alarm is currently triggering by branching devices. When the
+             * interconnected CO alarm is being triggered, this attribute shall be set to Warning or Critical, otherwise
+             * it shall be set to Normal.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.10
+             */
+            readonly interconnectCoAlarm?: AlarmState;
+
+            /**
+             * Indicates the date when the device reaches its stated expiry date. After the ExpiryDate has been reached,
+             * the EndOfServiceAlert shall start to be triggered. To account for better customer experience across time
+             * zones, the EndOfServiceAlert may be delayed by up to 24 hours after the ExpiryDate. Similarly, clients
+             * may delay any actions based on the ExpiryDate by up to 24 hours to best align with the local time zone.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.13
+             */
+            readonly expiryDate?: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command shall initiate a device self-test. The return status shall indicate whether the test was
+             * successfully initiated. Only one SelfTestRequest may be processed at a time. When the value of the
+             * ExpressedState attribute is any of SmokeAlarm, COAlarm, Testing, InterconnectSmoke, InterconnectCO, the
+             * device shall NOT execute the self-test, and shall return status code BUSY.
+             *
+             * Upon successful acceptance of SelfTestRequest, the TestInProgress attribute shall be set to True and
+             * ExpressedState attribute shall be set to Testing. Any faults identified during the test shall be
+             * reflected in the appropriate attributes and events. Upon completion of the self test procedure, the
+             * SelfTestComplete event shall be generated, the TestInProgress attribute shall be set to False and
+             * ExpressedState attribute shall be updated to reflect the current state of the server.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.7.1
+             */
+            selfTestRequest(): MaybePromise;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when BatteryAlert attribute changes to either Warning or Critical state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.3
+             */
+            lowBattery: LowBatteryEvent;
+
+            /**
+             * This event shall be generated when the device detects a hardware fault that leads to setting
+             * HardwareFaultAlert to True.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.4
+             */
+            hardwareFault: void;
+
+            /**
+             * This event shall be generated when the EndOfServiceAlert is set to Expired.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.5
+             */
+            endOfService: void;
+
+            /**
+             * This event shall be generated when the SelfTest completes, and the attribute TestInProgress changes to
+             * False.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.6
+             */
+            selfTestComplete: void;
+
+            /**
+             * This event shall be generated when ExpressedState attribute returns to Normal state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.11
+             */
+            allClear: void;
+
+            /**
+             * This event shall be generated when the DeviceMuted attribute changes to Muted.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.7
+             */
+            alarmMuted?: void;
+
+            /**
+             * This event shall be generated when DeviceMuted attribute changes to NotMuted.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.8
+             */
+            muteEnded?: void;
+        }
+    }
+
+    /**
+     * {@link SmokeCoAlarm} supports these elements if it supports feature "SmokeAlarm".
+     */
+    export namespace SmokeAlarmComponent {
+        export interface Attributes {
+            /**
+             * Indicates whether the device’s smoke sensor is currently triggering a smoke alarm.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.2
+             */
+            readonly smokeState: AlarmState;
+
+            /**
+             * Indicates the contamination level of the smoke sensor.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.11
+             */
+            readonly contaminationState?: ContaminationState;
+
+            /**
+             * Indicates the sensitivity level of the smoke sensor configured on the device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.12
+             */
+            smokeSensitivityLevel?: Sensitivity;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when SmokeState attribute changes to either Warning or Critical state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.1
+             */
+            smokeAlarm: SmokeAlarmEvent;
+
+            /**
+             * This event shall be generated when the device hosting the server receives a smoke alarm from an
+             * interconnected sensor.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.9
+             */
+            interconnectSmokeAlarm?: InterconnectSmokeAlarmEvent;
+        }
+    }
+
+    /**
+     * {@link SmokeCoAlarm} supports these elements if it supports feature "CoAlarm".
+     */
+    export namespace CoAlarmComponent {
+        export interface Attributes {
+            /**
+             * Indicates whether the device’s CO sensor is currently triggering a CO alarm.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.3
+             */
+            readonly coState: AlarmState;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when COState attribute changes to either Warning or Critical state.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.2
+             */
+            coAlarm: CoAlarmEvent;
+
+            /**
+             * This event shall be generated when the device hosting the server receives a CO alarm from an
+             * interconnected sensor.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.10
+             */
+            interconnectCoAlarm?: InterconnectCoAlarmEvent;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link SmokeCoAlarm}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -53,7 +293,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.1
          */
-        expressedState: ExpressedState;
+        readonly expressedState: ExpressedState;
 
         /**
          * Indicates whether the power resource fault detection mechanism is currently triggered at the device. If the
@@ -63,7 +303,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.4
          */
-        batteryAlert: AlarmState;
+        readonly batteryAlert: AlarmState;
 
         /**
          * Indicates whether the device self-test is currently activated. If the device self-test is activated, this
@@ -71,7 +311,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.6
          */
-        testInProgress: boolean;
+        readonly testInProgress: boolean;
 
         /**
          * Indicates whether the hardware fault detection mechanism is currently triggered. If the detection mechanism
@@ -79,7 +319,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.7
          */
-        hardwareFaultAlert: boolean;
+        readonly hardwareFaultAlert: boolean;
 
         /**
          * Indicates whether the end-of-service has been triggered at the device. This attribute shall be set to Expired
@@ -87,7 +327,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.8
          */
-        endOfServiceAlert: EndOfService;
+        readonly endOfServiceAlert: EndOfService;
 
         /**
          * Indicates the whether the audible expression of the device is currently muted. Audible expression is
@@ -95,7 +335,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.5
          */
-        deviceMuted: MuteState;
+        readonly deviceMuted: MuteState;
 
         /**
          * Indicates whether the interconnected smoke alarm is currently triggering by branching devices. When the
@@ -104,7 +344,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.9
          */
-        interconnectSmokeAlarm: AlarmState;
+        readonly interconnectSmokeAlarm: AlarmState;
 
         /**
          * Indicates whether the interconnected CO alarm is currently triggering by branching devices. When the
@@ -113,7 +353,7 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.10
          */
-        interconnectCoAlarm: AlarmState;
+        readonly interconnectCoAlarm: AlarmState;
 
         /**
          * Indicates the date when the device reaches its stated expiry date. After the ExpiryDate has been reached, the
@@ -123,21 +363,21 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.13
          */
-        expiryDate: number;
+        readonly expiryDate: number;
 
         /**
          * Indicates whether the device’s smoke sensor is currently triggering a smoke alarm.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.2
          */
-        smokeState: AlarmState;
+        readonly smokeState: AlarmState;
 
         /**
          * Indicates the contamination level of the smoke sensor.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.11
          */
-        contaminationState: ContaminationState;
+        readonly contaminationState: ContaminationState;
 
         /**
          * Indicates the sensitivity level of the smoke sensor configured on the device.
@@ -151,51 +391,10 @@ export namespace SmokeCoAlarm {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.6.3
          */
-        coState: AlarmState;
+        readonly coState: AlarmState;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "expressedState" | "batteryAlert" | "testInProgress" | "hardwareFaultAlert" | "endOfServiceAlert",
-                optional: "deviceMuted" | "interconnectSmokeAlarm" | "interconnectCoAlarm" | "expiryDate"
-            },
-            {
-                flags: { smokeAlarm: true },
-                mandatory: "smokeState",
-                optional: "contaminationState" | "smokeSensitivityLevel"
-            },
-            { flags: { coAlarm: true }, mandatory: "coState" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link SmokeCoAlarm} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command shall initiate a device self-test. The return status shall indicate whether the test was
-             * successfully initiated. Only one SelfTestRequest may be processed at a time. When the value of the
-             * ExpressedState attribute is any of SmokeAlarm, COAlarm, Testing, InterconnectSmoke, InterconnectCO, the
-             * device shall NOT execute the self-test, and shall return status code BUSY.
-             *
-             * Upon successful acceptance of SelfTestRequest, the TestInProgress attribute shall be set to True and
-             * ExpressedState attribute shall be set to Testing. Any faults identified during the test shall be
-             * reflected in the appropriate attributes and events. Upon completion of the self test procedure, the
-             * SelfTestComplete event shall be generated, the TestInProgress attribute shall be set to False and
-             * ExpressedState attribute shall be updated to reflect the current state of the server.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.11.7.1
-             */
-            selfTestRequest(): MaybePromise;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
+    export interface Commands extends Base.Commands {}
 
     /**
      * Events that may appear in {@link SmokeCoAlarm}.
@@ -285,18 +484,11 @@ export namespace SmokeCoAlarm {
         interconnectCoAlarm: InterconnectCoAlarmEvent;
     }
 
-    export namespace Events {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "lowBattery" | "hardwareFault" | "endOfService" | "selfTestComplete" | "allClear",
-                optional: "alarmMuted" | "muteEnded"
-            },
-            { flags: { smokeAlarm: true }, mandatory: "smokeAlarm", optional: "interconnectSmokeAlarm" },
-            { flags: { coAlarm: true }, mandatory: "coAlarm", optional: "interconnectCoAlarm" }
-        ];
-    }
-
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events },
+        { flags: { smokeAlarm: true }, attributes: SmokeAlarmComponent.Attributes, events: SmokeAlarmComponent.Events },
+        { flags: { coAlarm: true }, attributes: CoAlarmComponent.Attributes, events: CoAlarmComponent.Events }
+    ];
     export type Features = "SmokeAlarm" | "CoAlarm";
 
     /**
@@ -1067,4 +1259,4 @@ export namespace SmokeCoAlarm {
 export type SmokeCoAlarmCluster = SmokeCoAlarm.Cluster;
 export const SmokeCoAlarmCluster = SmokeCoAlarm.Cluster;
 ClusterNamespace.define(SmokeCoAlarm);
-export interface SmokeCoAlarm extends ClusterTyping { Attributes: SmokeCoAlarm.Attributes & { Components: SmokeCoAlarm.Attributes.Components }; Commands: SmokeCoAlarm.Commands & { Components: SmokeCoAlarm.Commands.Components }; Events: SmokeCoAlarm.Events & { Components: SmokeCoAlarm.Events.Components }; Features: SmokeCoAlarm.Features }
+export interface SmokeCoAlarm extends ClusterTyping { Attributes: SmokeCoAlarm.Attributes; Commands: SmokeCoAlarm.Commands; Events: SmokeCoAlarm.Events; Features: SmokeCoAlarm.Features; Components: SmokeCoAlarm.Components }

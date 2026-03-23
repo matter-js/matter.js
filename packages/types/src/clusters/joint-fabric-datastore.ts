@@ -30,152 +30,141 @@ import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js"
  */
 export namespace JointFabricDatastore {
     /**
-     * Attributes that may appear in {@link JointFabricDatastore}.
+     * {@link JointFabricDatastore} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
-         * fabric. A null value indicates that the Joint Fabric is not yet formed.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.1
-         */
-        anchorRootCa: Bytes;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
+             * fabric. A null value indicates that the Joint Fabric is not yet formed.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.1
+             */
+            readonly anchorRootCa: Bytes;
 
-        /**
-         * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.2
-         */
-        anchorNodeId: NodeId;
+            /**
+             * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.2
+             */
+            readonly anchorNodeId: NodeId;
 
-        /**
-         * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.3
-         */
-        anchorVendorId: VendorId;
+            /**
+             * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.3
+             */
+            readonly anchorVendorId: VendorId;
 
-        /**
-         * Friendly name for the accessing fabric which can be propagated to nodes.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.4
-         */
-        friendlyName: string;
+            /**
+             * Friendly name for the accessing fabric which can be propagated to nodes.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.4
+             */
+            readonly friendlyName: string;
 
-        /**
-         * This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the accessing fabric.
-         *
-         * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.5
-         */
-        groupKeySetList: DatastoreGroupKeySet[];
+            /**
+             * This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the accessing
+             * fabric.
+             *
+             * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.5
+             */
+            readonly groupKeySetList: DatastoreGroupKeySet[];
 
-        /**
-         * This shall indicate the list of groups in the Joint Fabric for the accessing fabric.
-         *
-         * This list must include, at a minimum, one group with GroupCAT value set to Administrator CAT and one group
-         * with GroupCAT value set to Anchor CAT.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.6
-         */
-        groupList: DatastoreGroupInformationEntry[];
+            /**
+             * This shall indicate the list of groups in the Joint Fabric for the accessing fabric.
+             *
+             * This list must include, at a minimum, one group with GroupCAT value set to Administrator CAT and one
+             * group with GroupCAT value set to Anchor CAT.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.6
+             */
+            readonly groupList: DatastoreGroupInformationEntry[];
 
-        /**
-         * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.7
-         */
-        nodeList: DatastoreNodeInformationEntry[];
+            /**
+             * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.7
+             */
+            readonly nodeList: DatastoreNodeInformationEntry[];
 
-        /**
-         * This shall indicate the list of administrators in the Joint Fabric for the accessing fabric.
-         *
-         * Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall have index
-         * value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater.
-         *
-         * A null value or empty list indicates that the Joint Fabric is not yet formed.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.8
-         */
-        adminList: DatastoreAdministratorInformationEntry[];
+            /**
+             * This shall indicate the list of administrators in the Joint Fabric for the accessing fabric.
+             *
+             * Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall have
+             * index value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater.
+             *
+             * A null value or empty list indicates that the Joint Fabric is not yet formed.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.8
+             */
+            readonly adminList: DatastoreAdministratorInformationEntry[];
 
-        /**
-         * This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
-         *
-         * The Committed status indicates the DataStore is ready for use. The Pending status indicates that the
-         * DataStore is not yet ready for use. The DeletePending status indicates that the DataStore is in the process
-         * of being transferred to another Joint Fabric Anchor Administrator.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.9
-         */
-        status: DatastoreStatusEntry;
+            /**
+             * This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
+             *
+             * The Committed status indicates the DataStore is ready for use. The Pending status indicates that the
+             * DataStore is not yet ready for use. The DeletePending status indicates that the DataStore is in the
+             * process of being transferred to another Joint Fabric Anchor Administrator.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.9
+             */
+            readonly status: DatastoreStatusEntry;
 
-        /**
-         * This shall indicate the group membership of endpoints in the accessing fabric.
-         *
-         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
-         * reflected in the Status Entry.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.10
-         */
-        endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
+            /**
+             * This shall indicate the group membership of endpoints in the accessing fabric.
+             *
+             * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+             * reflected in the Status Entry.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.10
+             */
+            readonly endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
 
-        /**
-         * This shall indicate the binding list for endpoints in the accessing fabric.
-         *
-         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
-         * reflected in the Status Entry.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.11
-         */
-        endpointBindingList: DatastoreEndpointBindingEntry[];
+            /**
+             * This shall indicate the binding list for endpoints in the accessing fabric.
+             *
+             * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+             * reflected in the Status Entry.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.11
+             */
+            readonly endpointBindingList: DatastoreEndpointBindingEntry[];
 
-        /**
-         * This shall indicate the KeySet entries for nodes in the accessing fabric.
-         *
-         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
-         * reflected in the Status Entry.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.12
-         */
-        nodeKeySetList: DatastoreNodeKeySetEntry[];
+            /**
+             * This shall indicate the KeySet entries for nodes in the accessing fabric.
+             *
+             * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+             * reflected in the Status Entry.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.12
+             */
+            readonly nodeKeySetList: DatastoreNodeKeySetEntry[];
 
-        /**
-         * This shall indicate the ACL entries for nodes in the accessing fabric.
-         *
-         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
-         * reflected in the Status Entry.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.13
-         */
-        nodeAclList: DatastoreAclEntry[];
+            /**
+             * This shall indicate the ACL entries for nodes in the accessing fabric.
+             *
+             * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+             * reflected in the Status Entry.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.13
+             */
+            readonly nodeAclList: DatastoreAclEntry[];
 
-        /**
-         * This shall indicate the Endpoint entries for nodes in the accessing fabric.
-         *
-         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
-         * reflected in the Status Entry.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.14
-         */
-        nodeEndpointList: DatastoreEndpointEntry[];
-    }
+            /**
+             * This shall indicate the Endpoint entries for nodes in the accessing fabric.
+             *
+             * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+             * reflected in the Status Entry.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.24.6.14
+             */
+            readonly nodeEndpointList: DatastoreEndpointEntry[];
+        }
 
-    export namespace Attributes {
-        export type Components = [{
-            flags: {},
-            mandatory: "anchorRootCa" | "anchorNodeId" | "anchorVendorId" | "friendlyName" | "groupKeySetList" | "groupList" | "nodeList" | "adminList" | "status" | "endpointGroupIdList" | "endpointBindingList" | "nodeKeySetList" | "nodeAclList" | "nodeEndpointList"
-        }];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link JointFabricDatastore} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command shall be used to add a KeySet to the Joint Fabric Datastore Cluster of the accessing fabric.
              *
@@ -810,9 +799,143 @@ export namespace JointFabricDatastore {
              */
             removeAclFromNode(request: RemoveAclFromNodeRequest): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    /**
+     * Attributes that may appear in {@link JointFabricDatastore}.
+     */
+    export interface Attributes {
+        /**
+         * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
+         * fabric. A null value indicates that the Joint Fabric is not yet formed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.1
+         */
+        readonly anchorRootCa: Bytes;
+
+        /**
+         * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.2
+         */
+        readonly anchorNodeId: NodeId;
+
+        /**
+         * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.3
+         */
+        readonly anchorVendorId: VendorId;
+
+        /**
+         * Friendly name for the accessing fabric which can be propagated to nodes.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.4
+         */
+        readonly friendlyName: string;
+
+        /**
+         * This shall indicate the list of DatastoreGroupKeySetStruct used in the Joint Fabric for the accessing fabric.
+         *
+         * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.5
+         */
+        readonly groupKeySetList: DatastoreGroupKeySet[];
+
+        /**
+         * This shall indicate the list of groups in the Joint Fabric for the accessing fabric.
+         *
+         * This list must include, at a minimum, one group with GroupCAT value set to Administrator CAT and one group
+         * with GroupCAT value set to Anchor CAT.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.6
+         */
+        readonly groupList: DatastoreGroupInformationEntry[];
+
+        /**
+         * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.7
+         */
+        readonly nodeList: DatastoreNodeInformationEntry[];
+
+        /**
+         * This shall indicate the list of administrators in the Joint Fabric for the accessing fabric.
+         *
+         * Only one Administrator may serve as the Anchor Root CA and Anchor Fabric Administrator and shall have index
+         * value 0. All other Joint Fabric Administrators shall be referenced at index 1 or greater.
+         *
+         * A null value or empty list indicates that the Joint Fabric is not yet formed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.8
+         */
+        readonly adminList: DatastoreAdministratorInformationEntry[];
+
+        /**
+         * This shall indicate the current state of the Joint Fabric Datastore Cluster for the accessing fabric.
+         *
+         * The Committed status indicates the DataStore is ready for use. The Pending status indicates that the
+         * DataStore is not yet ready for use. The DeletePending status indicates that the DataStore is in the process
+         * of being transferred to another Joint Fabric Anchor Administrator.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.9
+         */
+        readonly status: DatastoreStatusEntry;
+
+        /**
+         * This shall indicate the group membership of endpoints in the accessing fabric.
+         *
+         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+         * reflected in the Status Entry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.10
+         */
+        readonly endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
+
+        /**
+         * This shall indicate the binding list for endpoints in the accessing fabric.
+         *
+         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+         * reflected in the Status Entry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.11
+         */
+        readonly endpointBindingList: DatastoreEndpointBindingEntry[];
+
+        /**
+         * This shall indicate the KeySet entries for nodes in the accessing fabric.
+         *
+         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+         * reflected in the Status Entry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.12
+         */
+        readonly nodeKeySetList: DatastoreNodeKeySetEntry[];
+
+        /**
+         * This shall indicate the ACL entries for nodes in the accessing fabric.
+         *
+         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+         * reflected in the Status Entry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.13
+         */
+        readonly nodeAclList: DatastoreAclEntry[];
+
+        /**
+         * This shall indicate the Endpoint entries for nodes in the accessing fabric.
+         *
+         * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
+         * reflected in the Status Entry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.24.6.14
+         */
+        readonly nodeEndpointList: DatastoreEndpointEntry[];
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.24.5.16
@@ -3526,4 +3649,4 @@ export namespace JointFabricDatastore {
 export type JointFabricDatastoreCluster = JointFabricDatastore.Cluster;
 export const JointFabricDatastoreCluster = JointFabricDatastore.Cluster;
 ClusterNamespace.define(JointFabricDatastore);
-export interface JointFabricDatastore extends ClusterTyping { Attributes: JointFabricDatastore.Attributes & { Components: JointFabricDatastore.Attributes.Components }; Commands: JointFabricDatastore.Commands & { Components: JointFabricDatastore.Commands.Components } }
+export interface JointFabricDatastore extends ClusterTyping { Attributes: JointFabricDatastore.Attributes; Commands: JointFabricDatastore.Commands; Components: JointFabricDatastore.Components }

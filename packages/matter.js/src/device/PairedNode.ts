@@ -46,6 +46,7 @@ import {
     PeerAddress,
     Read,
     SustainedSubscription,
+    TypedClusterClientObj,
     Val,
 } from "@matter/protocol";
 import {
@@ -53,6 +54,7 @@ import {
     Attributes,
     CaseAuthenticatedTag,
     ClusterId,
+    ClusterNamespace,
     ClusterType,
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
@@ -68,7 +70,12 @@ import { AdministratorCommissioning } from "@matter/types/clusters/administrator
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
-import { AttributeInitialValues, ClusterServerObj, isClusterServer } from "../cluster/server/ClusterServerTypes.js";
+import {
+    AttributeInitialValues,
+    ClusterServerObj,
+    isClusterServer,
+    TypedClusterServerObj,
+} from "../cluster/server/ClusterServerTypes.js";
 import { CommissioningController } from "../CommissioningController.js";
 import { Aggregator } from "./Aggregator.js";
 import { ComposedDevice } from "./ComposedDevice.js";
@@ -1448,8 +1455,16 @@ export class PairedNode {
      *
      * @param cluster ClusterServer to get or undefined if not existing
      */
-    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined {
-        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterServer(cluster);
+    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
+    getRootClusterServer<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterServerObj<N["Typing"]> | undefined;
+    getRootClusterServer(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterServerObj | TypedClusterServerObj | undefined {
+        return this.#ensureLegacyEndpointStructure()
+            .get(EndpointNumber(0))
+            ?.getClusterServer(cluster as ClusterType);
     }
 
     /**
@@ -1457,8 +1472,16 @@ export class PairedNode {
      *
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined {
-        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterClient(cluster);
+    getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
+    getRootClusterClient<const N extends ClusterNamespace.Concrete>(
+        cluster: N,
+    ): TypedClusterClientObj<N["Typing"]> | undefined;
+    getRootClusterClient(
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterClientObj | TypedClusterClientObj | undefined {
+        return this.#ensureLegacyEndpointStructure()
+            .get(EndpointNumber(0))
+            ?.getClusterClient(cluster as ClusterType);
     }
 
     /**
@@ -1470,8 +1493,16 @@ export class PairedNode {
     getClusterServerForDevice<const T extends ClusterType>(
         endpointId: EndpointNumber,
         cluster: T,
-    ): ClusterServerObj<T> | undefined {
-        return this.getDeviceById(endpointId)?.getClusterServer(cluster);
+    ): ClusterServerObj<T> | undefined;
+    getClusterServerForDevice<const N extends ClusterNamespace.Concrete>(
+        endpointId: EndpointNumber,
+        cluster: N,
+    ): TypedClusterServerObj<N["Typing"]> | undefined;
+    getClusterServerForDevice(
+        endpointId: EndpointNumber,
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterServerObj | TypedClusterServerObj | undefined {
+        return this.getDeviceById(endpointId)?.getClusterServer(cluster as ClusterType);
     }
 
     /**
@@ -1483,8 +1514,16 @@ export class PairedNode {
     getClusterClientForDevice<const T extends ClusterType>(
         endpointId: EndpointNumber,
         cluster: T,
-    ): ClusterClientObj<T> | undefined {
-        return this.getDeviceById(endpointId)?.getClusterClient(cluster);
+    ): ClusterClientObj<T> | undefined;
+    getClusterClientForDevice<const N extends ClusterNamespace.Concrete>(
+        endpointId: EndpointNumber,
+        cluster: N,
+    ): TypedClusterClientObj<N["Typing"]> | undefined;
+    getClusterClientForDevice(
+        endpointId: EndpointNumber,
+        cluster: ClusterType | ClusterNamespace.Concrete,
+    ): ClusterClientObj | TypedClusterClientObj | undefined {
+        return this.getDeviceById(endpointId)?.getClusterClient(cluster as ClusterType);
     }
 
     get [Diagnostic.value](): unknown {

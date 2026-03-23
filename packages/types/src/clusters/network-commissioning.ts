@@ -25,175 +25,136 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace NetworkCommissioning {
     /**
-     * Attributes that may appear in {@link NetworkCommissioning}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link NetworkCommissioning} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This shall indicate the maximum number of network configuration entries that can be added, based on available
-         * device resources. The length of the Networks attribute shall be less than or equal to this value.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.1
-         */
-        maxNetworks: number;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This shall indicate the maximum number of network configuration entries that can be added, based on
+             * available device resources. The length of the Networks attribute shall be less than or equal to this
+             * value.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.1
+             */
+            readonly maxNetworks: number;
 
-        /**
-         * Indicates the network configurations that are usable on the network interface represented by this cluster
-         * server instance.
-         *
-         * The order of configurations in the list reflects precedence. That is, any time the Node attempts to connect
-         * to the network it shall attempt to do so using the configurations in Networks Attribute in the order as they
-         * appear in the list.
-         *
-         * The order of list items shall only be modified by the AddOrUpdateThreadNetwork, AddOrUpdateWiFiNetwork and
-         * ReorderNetwork commands. In other words, the list shall be stable over time, unless mutated externally.
-         *
-         * Ethernet networks shall be automatically populated by the cluster server. Ethernet Network Commissioning
-         * Cluster instances shall always have exactly one NetworkInfoStruct instance in their Networks attribute. There
-         * shall be no way to add, update or remove Ethernet network configurations to those Cluster instances.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.2
-         */
-        networks: NetworkInfo[];
+            /**
+             * Indicates the network configurations that are usable on the network interface represented by this cluster
+             * server instance.
+             *
+             * The order of configurations in the list reflects precedence. That is, any time the Node attempts to
+             * connect to the network it shall attempt to do so using the configurations in Networks Attribute in the
+             * order as they appear in the list.
+             *
+             * The order of list items shall only be modified by the AddOrUpdateThreadNetwork, AddOrUpdateWiFiNetwork
+             * and ReorderNetwork commands. In other words, the list shall be stable over time, unless mutated
+             * externally.
+             *
+             * Ethernet networks shall be automatically populated by the cluster server. Ethernet Network Commissioning
+             * Cluster instances shall always have exactly one NetworkInfoStruct instance in their Networks attribute.
+             * There shall be no way to add, update or remove Ethernet network configurations to those Cluster
+             * instances.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.2
+             */
+            readonly networks: NetworkInfo[];
 
-        /**
-         * Indicates whether the associated network interface is enabled or not. By default all network interfaces
-         * SHOULD be enabled during initial commissioning (InterfaceEnabled set to true).
-         *
-         * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which is
-         * used to write the value. In that case, it is possible that the Administrator would have to await expiry of
-         * the fail-safe, and associated recovery of network configuration to prior safe values, before being able to
-         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
-         *
-         * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a write
-         * to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled, an
-         * Ethernet interface would longer employ media detection. That is, a simple unplug and replug of the cable
-         * shall NOT re-enable the interface.
-         *
-         * On Ethernet-only Nodes, there shall always be at least one of the Network Commissioning server cluster
-         * instances with InterfaceEnabled set to true.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.5
-         */
-        interfaceEnabled: boolean;
+            /**
+             * Indicates whether the associated network interface is enabled or not. By default all network interfaces
+             * SHOULD be enabled during initial commissioning (InterfaceEnabled set to true).
+             *
+             * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which
+             * is used to write the value. In that case, it is possible that the Administrator would have to await
+             * expiry of the fail-safe, and associated recovery of network configuration to prior safe values, before
+             * being able to communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
+             *
+             * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a
+             * write to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled,
+             * an Ethernet interface would longer employ media detection. That is, a simple unplug and replug of the
+             * cable shall NOT re-enable the interface.
+             *
+             * On Ethernet-only Nodes, there shall always be at least one of the Network Commissioning server cluster
+             * instances with InterfaceEnabled set to true.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.5
+             */
+            interfaceEnabled: boolean;
 
-        /**
-         * Indicates the status of the last attempt either scan or connect to an operational network, using this
-         * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
-         * connectivity or during initial establishment. If no such attempt was made, or no network configurations exist
-         * in the Networks attribute, then this attribute shall be set to null.
-         *
-         * This attribute is present to assist with error recovery during Network commissioning and to assist in
-         * non-concurrent networking commissioning flows.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.6
-         */
-        lastNetworkingStatus: NetworkCommissioningStatus | null;
+            /**
+             * Indicates the status of the last attempt either scan or connect to an operational network, using this
+             * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
+             * connectivity or during initial establishment. If no such attempt was made, or no network configurations
+             * exist in the Networks attribute, then this attribute shall be set to null.
+             *
+             * This attribute is present to assist with error recovery during Network commissioning and to assist in
+             * non-concurrent networking commissioning flows.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.6
+             */
+            readonly lastNetworkingStatus: NetworkCommissioningStatus | null;
 
-        /**
-         * Indicates the NetworkID used in the last attempt to connect to an operational network, using this interface,
-         * whether by invocation of the ConnectNetwork command or by autonomous connection after loss of connectivity or
-         * during initial establishment. If no such attempt was made, or no network configurations exist in the Networks
-         * attribute, then this attribute shall be set to null.
-         *
-         * If a network configuration is removed from the Networks attribute using the RemoveNetwork command after a
-         * connection attempt, this field may indicate a NetworkID that is no longer configured on the Node.
-         *
-         * This attribute is present to assist with error recovery during Network commissioning and to assist in
-         * non-concurrent networking commissioning flows.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.7
-         */
-        lastNetworkId: Bytes | null;
+            /**
+             * Indicates the NetworkID used in the last attempt to connect to an operational network, using this
+             * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
+             * connectivity or during initial establishment. If no such attempt was made, or no network configurations
+             * exist in the Networks attribute, then this attribute shall be set to null.
+             *
+             * If a network configuration is removed from the Networks attribute using the RemoveNetwork command after a
+             * connection attempt, this field may indicate a NetworkID that is no longer configured on the Node.
+             *
+             * This attribute is present to assist with error recovery during Network commissioning and to assist in
+             * non-concurrent networking commissioning flows.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.7
+             */
+            readonly lastNetworkId: Bytes | null;
 
-        /**
-         * Indicates the ErrorValue used in the last failed attempt to connect to an operational network, using this
-         * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
-         * connectivity or during initial establishment. If no such attempt was made, or no network configurations exist
-         * in the Networks attribute, then this attribute shall be set to null.
-         *
-         * If the last connection succeeded, as indicated by a value of Success in the LastNetworkingStatus attribute,
-         * then this field shall be set to null.
-         *
-         * This attribute is present to assist with error recovery during Network commissioning and to assist in
-         * non-concurrent networking commissioning flows.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.8
-         */
-        lastConnectErrorValue: number | null;
-
-        /**
-         * Indicates the maximum duration taken, in seconds, by the network interface on this cluster server instance to
-         * provide scan results.
-         *
-         * See Section 11.9.7.1, “ScanNetworks Command” for usage.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.3
-         */
-        scanMaxTimeSeconds: number;
-
-        /**
-         * Indicates the maximum duration taken, in seconds, by the network interface on this cluster server instance to
-         * report a successful or failed network connection indication. This maximum time shall account for all
-         * operations needed until a successful network connection is deemed to have occurred, including, for example,
-         * obtaining IP addresses, or the execution of necessary internal retries.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.4
-         */
-        connectMaxTimeSeconds: number;
-
-        /**
-         * Indicates all the frequency bands supported by the Wi-Fi interface configured by the cluster instance.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.9
-         */
-        supportedWiFiBands: WiFiBand[];
-
-        /**
-         * Indicates all of the Thread features supported by the Thread interface configured by the cluster instance.
-         *
-         * This attribute is primarily used to determine the most important general capabilities of the Thread interface
-         * associated with the cluster instance, as opposed to the current runtime dynamic configuration. Note that most
-         * run-time details of the actual Thread interface are found in the Thread Network Diagnostics cluster, if
-         * supported.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.10
-         */
-        supportedThreadFeatures: ThreadCapabilities;
-
-        /**
-         * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
-         *
-         * The format shall match the value mapping found in the "Version TLV" section of Thread specification. For
-         * example, Thread 1.3.0 would have ThreadVersion set to 4.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.11
-         */
-        threadVersion: number;
+            /**
+             * Indicates the ErrorValue used in the last failed attempt to connect to an operational network, using this
+             * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
+             * connectivity or during initial establishment. If no such attempt was made, or no network configurations
+             * exist in the Networks attribute, then this attribute shall be set to null.
+             *
+             * If the last connection succeeded, as indicated by a value of Success in the LastNetworkingStatus
+             * attribute, then this field shall be set to null.
+             *
+             * This attribute is present to assist with error recovery during Network commissioning and to assist in
+             * non-concurrent networking commissioning flows.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.8
+             */
+            readonly lastConnectErrorValue: number | null;
+        }
     }
 
-    export namespace Attributes {
-        export type Components = [
-            {
-                flags: {},
-                mandatory: "maxNetworks" | "networks" | "interfaceEnabled" | "lastNetworkingStatus" | "lastNetworkId" | "lastConnectErrorValue"
-            },
-            { flags: { wiFiNetworkInterface: true }, mandatory: "scanMaxTimeSeconds" | "connectMaxTimeSeconds" },
-            { flags: { threadNetworkInterface: true }, mandatory: "scanMaxTimeSeconds" | "connectMaxTimeSeconds" },
-            { flags: { wiFiNetworkInterface: true }, mandatory: "supportedWiFiBands" },
-            { flags: { threadNetworkInterface: true }, mandatory: "supportedThreadFeatures" | "threadVersion" }
-        ];
-    }
+    /**
+     * {@link NetworkCommissioning} supports these elements if it supports feature
+     * "WiFiNetworkInterfaceOrThreadNetworkInterface".
+     */
+    export namespace WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent {
+        export interface Attributes {
+            /**
+             * Indicates the maximum duration taken, in seconds, by the network interface on this cluster server
+             * instance to provide scan results.
+             *
+             * See Section 11.9.7.1, “ScanNetworks Command” for usage.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.3
+             */
+            readonly scanMaxTimeSeconds: number;
 
-    export interface Commands extends Commands.WiFiNetworkInterfaceOrThreadNetworkInterface, Commands.WiFiNetworkInterface, Commands.ThreadNetworkInterface {}
+            /**
+             * Indicates the maximum duration taken, in seconds, by the network interface on this cluster server
+             * instance to report a successful or failed network connection indication. This maximum time shall account
+             * for all operations needed until a successful network connection is deemed to have occurred, including,
+             * for example, obtaining IP addresses, or the execution of necessary internal retries.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.4
+             */
+            readonly connectMaxTimeSeconds: number;
+        }
 
-    export namespace Commands {
-        /**
-         * {@link NetworkCommissioning} supports these commands if it supports feature
-         * "WiFiNetworkInterfaceOrThreadNetworkInterface".
-         */
-        export interface WiFiNetworkInterfaceOrThreadNetworkInterface {
+        export interface Commands {
             /**
              * This command is used to scan for available networks on the network interface associated with the cluster
              * instance.
@@ -355,11 +316,22 @@ export namespace NetworkCommissioning {
              */
             reorderNetwork(request: ReorderNetworkRequest): MaybePromise<NetworkConfigResponse>;
         }
+    }
 
-        /**
-         * {@link NetworkCommissioning} supports these commands if it supports feature "WiFiNetworkInterface".
-         */
-        export interface WiFiNetworkInterface {
+    /**
+     * {@link NetworkCommissioning} supports these elements if it supports feature "WiFiNetworkInterface".
+     */
+    export namespace WiFiNetworkInterfaceComponent {
+        export interface Attributes {
+            /**
+             * Indicates all the frequency bands supported by the Wi-Fi interface configured by the cluster instance.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.9
+             */
+            readonly supportedWiFiBands: WiFiBand[];
+        }
+
+        export interface Commands {
             /**
              * This command is used to add or update a Wi-Fi network configuration.
              *
@@ -381,11 +353,38 @@ export namespace NetworkCommissioning {
              */
             addOrUpdateWiFiNetwork(request: AddOrUpdateWiFiNetworkRequest): MaybePromise<NetworkConfigResponse>;
         }
+    }
 
-        /**
-         * {@link NetworkCommissioning} supports these commands if it supports feature "ThreadNetworkInterface".
-         */
-        export interface ThreadNetworkInterface {
+    /**
+     * {@link NetworkCommissioning} supports these elements if it supports feature "ThreadNetworkInterface".
+     */
+    export namespace ThreadNetworkInterfaceComponent {
+        export interface Attributes {
+            /**
+             * Indicates all of the Thread features supported by the Thread interface configured by the cluster
+             * instance.
+             *
+             * This attribute is primarily used to determine the most important general capabilities of the Thread
+             * interface associated with the cluster instance, as opposed to the current runtime dynamic configuration.
+             * Note that most run-time details of the actual Thread interface are found in the Thread Network
+             * Diagnostics cluster, if supported.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.10
+             */
+            readonly supportedThreadFeatures: ThreadCapabilities;
+
+            /**
+             * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
+             *
+             * The format shall match the value mapping found in the "Version TLV" section of Thread specification. For
+             * example, Thread 1.3.0 would have ThreadVersion set to 4.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.9.6.11
+             */
+            readonly threadVersion: number;
+        }
+
+        export interface Commands {
             /**
              * This command is used to add or update a Thread network configuration.
              *
@@ -408,14 +407,182 @@ export namespace NetworkCommissioning {
              */
             addOrUpdateThreadNetwork(request: AddOrUpdateThreadNetworkRequest): MaybePromise<NetworkConfigResponse>;
         }
-
-        export type Components = [
-            { flags: { wiFiNetworkInterface: true }, methods: WiFiNetworkInterfaceOrThreadNetworkInterface },
-            { flags: { threadNetworkInterface: true }, methods: WiFiNetworkInterfaceOrThreadNetworkInterface },
-            { flags: { wiFiNetworkInterface: true }, methods: WiFiNetworkInterface },
-            { flags: { threadNetworkInterface: true }, methods: ThreadNetworkInterface }
-        ];
     }
+
+    /**
+     * Attributes that may appear in {@link NetworkCommissioning}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This shall indicate the maximum number of network configuration entries that can be added, based on available
+         * device resources. The length of the Networks attribute shall be less than or equal to this value.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.1
+         */
+        readonly maxNetworks: number;
+
+        /**
+         * Indicates the network configurations that are usable on the network interface represented by this cluster
+         * server instance.
+         *
+         * The order of configurations in the list reflects precedence. That is, any time the Node attempts to connect
+         * to the network it shall attempt to do so using the configurations in Networks Attribute in the order as they
+         * appear in the list.
+         *
+         * The order of list items shall only be modified by the AddOrUpdateThreadNetwork, AddOrUpdateWiFiNetwork and
+         * ReorderNetwork commands. In other words, the list shall be stable over time, unless mutated externally.
+         *
+         * Ethernet networks shall be automatically populated by the cluster server. Ethernet Network Commissioning
+         * Cluster instances shall always have exactly one NetworkInfoStruct instance in their Networks attribute. There
+         * shall be no way to add, update or remove Ethernet network configurations to those Cluster instances.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.2
+         */
+        readonly networks: NetworkInfo[];
+
+        /**
+         * Indicates whether the associated network interface is enabled or not. By default all network interfaces
+         * SHOULD be enabled during initial commissioning (InterfaceEnabled set to true).
+         *
+         * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which is
+         * used to write the value. In that case, it is possible that the Administrator would have to await expiry of
+         * the fail-safe, and associated recovery of network configuration to prior safe values, before being able to
+         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
+         *
+         * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a write
+         * to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled, an
+         * Ethernet interface would longer employ media detection. That is, a simple unplug and replug of the cable
+         * shall NOT re-enable the interface.
+         *
+         * On Ethernet-only Nodes, there shall always be at least one of the Network Commissioning server cluster
+         * instances with InterfaceEnabled set to true.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.5
+         */
+        interfaceEnabled: boolean;
+
+        /**
+         * Indicates the status of the last attempt either scan or connect to an operational network, using this
+         * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
+         * connectivity or during initial establishment. If no such attempt was made, or no network configurations exist
+         * in the Networks attribute, then this attribute shall be set to null.
+         *
+         * This attribute is present to assist with error recovery during Network commissioning and to assist in
+         * non-concurrent networking commissioning flows.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.6
+         */
+        readonly lastNetworkingStatus: NetworkCommissioningStatus | null;
+
+        /**
+         * Indicates the NetworkID used in the last attempt to connect to an operational network, using this interface,
+         * whether by invocation of the ConnectNetwork command or by autonomous connection after loss of connectivity or
+         * during initial establishment. If no such attempt was made, or no network configurations exist in the Networks
+         * attribute, then this attribute shall be set to null.
+         *
+         * If a network configuration is removed from the Networks attribute using the RemoveNetwork command after a
+         * connection attempt, this field may indicate a NetworkID that is no longer configured on the Node.
+         *
+         * This attribute is present to assist with error recovery during Network commissioning and to assist in
+         * non-concurrent networking commissioning flows.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.7
+         */
+        readonly lastNetworkId: Bytes | null;
+
+        /**
+         * Indicates the ErrorValue used in the last failed attempt to connect to an operational network, using this
+         * interface, whether by invocation of the ConnectNetwork command or by autonomous connection after loss of
+         * connectivity or during initial establishment. If no such attempt was made, or no network configurations exist
+         * in the Networks attribute, then this attribute shall be set to null.
+         *
+         * If the last connection succeeded, as indicated by a value of Success in the LastNetworkingStatus attribute,
+         * then this field shall be set to null.
+         *
+         * This attribute is present to assist with error recovery during Network commissioning and to assist in
+         * non-concurrent networking commissioning flows.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.8
+         */
+        readonly lastConnectErrorValue: number | null;
+
+        /**
+         * Indicates the maximum duration taken, in seconds, by the network interface on this cluster server instance to
+         * provide scan results.
+         *
+         * See Section 11.9.7.1, “ScanNetworks Command” for usage.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.3
+         */
+        readonly scanMaxTimeSeconds: number;
+
+        /**
+         * Indicates the maximum duration taken, in seconds, by the network interface on this cluster server instance to
+         * report a successful or failed network connection indication. This maximum time shall account for all
+         * operations needed until a successful network connection is deemed to have occurred, including, for example,
+         * obtaining IP addresses, or the execution of necessary internal retries.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.4
+         */
+        readonly connectMaxTimeSeconds: number;
+
+        /**
+         * Indicates all the frequency bands supported by the Wi-Fi interface configured by the cluster instance.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.9
+         */
+        readonly supportedWiFiBands: WiFiBand[];
+
+        /**
+         * Indicates all of the Thread features supported by the Thread interface configured by the cluster instance.
+         *
+         * This attribute is primarily used to determine the most important general capabilities of the Thread interface
+         * associated with the cluster instance, as opposed to the current runtime dynamic configuration. Note that most
+         * run-time details of the actual Thread interface are found in the Thread Network Diagnostics cluster, if
+         * supported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.10
+         */
+        readonly supportedThreadFeatures: ThreadCapabilities;
+
+        /**
+         * Indicates the Thread version supported by the Thread interface configured by the cluster instance.
+         *
+         * The format shall match the value mapping found in the "Version TLV" section of Thread specification. For
+         * example, Thread 1.3.0 would have ThreadVersion set to 4.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.9.6.11
+         */
+        readonly threadVersion: number;
+    }
+
+    export interface Commands extends WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.Commands, WiFiNetworkInterfaceComponent.Commands, ThreadNetworkInterfaceComponent.Commands {}
+
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes },
+        {
+            flags: { wiFiNetworkInterface: true },
+            attributes: WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.Attributes,
+            commands: WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.Commands
+        },
+        {
+            flags: { threadNetworkInterface: true },
+            attributes: WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.Attributes,
+            commands: WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.Commands
+        },
+        {
+            flags: { wiFiNetworkInterface: true },
+            attributes: WiFiNetworkInterfaceComponent.Attributes,
+            commands: WiFiNetworkInterfaceComponent.Commands
+        },
+        {
+            flags: { threadNetworkInterface: true },
+            attributes: ThreadNetworkInterfaceComponent.Attributes,
+            commands: ThreadNetworkInterfaceComponent.Commands
+        }
+    ];
 
     export type Features = "WiFiNetworkInterface" | "ThreadNetworkInterface" | "EthernetNetworkInterface";
 
@@ -2484,4 +2651,4 @@ export namespace NetworkCommissioning {
 export type NetworkCommissioningCluster = NetworkCommissioning.Cluster;
 export const NetworkCommissioningCluster = NetworkCommissioning.Cluster;
 ClusterNamespace.define(NetworkCommissioning);
-export interface NetworkCommissioning extends ClusterTyping { Attributes: NetworkCommissioning.Attributes & { Components: NetworkCommissioning.Attributes.Components }; Commands: NetworkCommissioning.Commands & { Components: NetworkCommissioning.Commands.Components }; Features: NetworkCommissioning.Features }
+export interface NetworkCommissioning extends ClusterTyping { Attributes: NetworkCommissioning.Attributes; Commands: NetworkCommissioning.Commands; Features: NetworkCommissioning.Features; Components: NetworkCommissioning.Components }

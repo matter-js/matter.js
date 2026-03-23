@@ -25,6 +25,29 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace MicrowaveOvenMode {
     /**
+     * {@link MicrowaveOvenMode} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Exactly one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags
+             * field.
+             *
+             * The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a mode’s
+             * ModeTags.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
+             */
+            readonly currentMode: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link MicrowaveOvenMode}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -38,17 +61,15 @@ export namespace MicrowaveOvenMode {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.12.5.1
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 8.12.5
          */
-        currentMode: number;
+        readonly currentMode: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "supportedModes" | "currentMode" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
     export type Features = "OnOff";
 
     /**
@@ -392,4 +413,4 @@ export namespace MicrowaveOvenMode {
 export type MicrowaveOvenModeCluster = MicrowaveOvenMode.Cluster;
 export const MicrowaveOvenModeCluster = MicrowaveOvenMode.Cluster;
 ClusterNamespace.define(MicrowaveOvenMode);
-export interface MicrowaveOvenMode extends ClusterTyping { Attributes: MicrowaveOvenMode.Attributes & { Components: MicrowaveOvenMode.Attributes.Components }; Features: MicrowaveOvenMode.Features }
+export interface MicrowaveOvenMode extends ClusterTyping { Attributes: MicrowaveOvenMode.Attributes; Features: MicrowaveOvenMode.Features; Components: MicrowaveOvenMode.Components }

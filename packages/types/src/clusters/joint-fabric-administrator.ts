@@ -27,29 +27,21 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace JointFabricAdministrator {
     /**
-     * Attributes that may appear in {@link JointFabricAdministrator}.
+     * {@link JointFabricAdministrator} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
-         * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
-         * have the value of null if there is no fabric associated with the JointFabric.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
-         */
-        administratorFabricIndex: FabricIndex | null;
-    }
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
+             * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field
+             * shall have the value of null if there is no fabric associated with the JointFabric.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
+             */
+            administratorFabricIndex: FabricIndex | null;
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "administratorFabricIndex" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link JointFabricAdministrator} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command shall be generated during Joint Commissioning Method and subsequently be responded in the
              * form of an ICACCSRResponse command.
@@ -127,9 +119,24 @@ export namespace JointFabricAdministrator {
              */
             announceJointFabricAdministrator(request: AnnounceJointFabricAdministratorRequest): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    /**
+     * Attributes that may appear in {@link JointFabricAdministrator}.
+     */
+    export interface Attributes {
+        /**
+         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
+         * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
+         * have the value of null if there is no fabric associated with the JointFabric.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.25.6.1
+         */
+        administratorFabricIndex: FabricIndex | null;
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
 
     /**
      * This command shall be generated in response to a ICACCSRRequest command.
@@ -669,4 +676,4 @@ export namespace JointFabricAdministrator {
 export type JointFabricAdministratorCluster = JointFabricAdministrator.Cluster;
 export const JointFabricAdministratorCluster = JointFabricAdministrator.Cluster;
 ClusterNamespace.define(JointFabricAdministrator);
-export interface JointFabricAdministrator extends ClusterTyping { Attributes: JointFabricAdministrator.Attributes & { Components: JointFabricAdministrator.Attributes.Components }; Commands: JointFabricAdministrator.Commands & { Components: JointFabricAdministrator.Commands.Components } }
+export interface JointFabricAdministrator extends ClusterTyping { Attributes: JointFabricAdministrator.Attributes; Commands: JointFabricAdministrator.Commands; Components: JointFabricAdministrator.Components }

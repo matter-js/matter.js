@@ -24,6 +24,169 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ElectricalEnergyMeasurement {
     /**
+     * {@link ElectricalEnergyMeasurement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on
+             * this MeasurementAccuracyStruct shall be ElectricalEnergy.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
+             */
+            readonly accuracy: MeasurementAccuracy;
+        }
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
+     * "ImportedEnergyAndCumulativeEnergy".
+     */
+    export namespace ImportedEnergyAndCumulativeEnergyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the most recent measurement of cumulative energy imported by the server over the lifetime of
+             * the device, and the timestamp of when the measurement was recorded.
+             *
+             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+             * publication of deltas considered not meaningful.
+             *
+             * The server shall NOT mark this attribute ready for report if the last time this was done was more
+             * recently than 1 second ago.
+             *
+             * The server may delay marking this attribute ready for report for longer periods if needed, however the
+             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+             *
+             * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
+             */
+            readonly cumulativeEnergyImported: EnergyMeasurement | null;
+        }
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
+     * "ExportedEnergyAndCumulativeEnergy".
+     */
+    export namespace ExportedEnergyAndCumulativeEnergyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the most recent measurement of cumulative energy exported by the server over the lifetime of
+             * the device, and the timestamp of when the measurement was recorded.
+             *
+             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+             * publication of deltas considered not meaningful.
+             *
+             * The server shall NOT mark this attribute ready for report if the last time this was done was more
+             * recently than 1 second ago.
+             *
+             * The server may delay marking this attribute ready for report for longer periods if needed, however the
+             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+             *
+             * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
+             */
+            readonly cumulativeEnergyExported: EnergyMeasurement | null;
+        }
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
+     * "ImportedEnergyAndPeriodicEnergy".
+     */
+    export namespace ImportedEnergyAndPeriodicEnergyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the most recent measurement of energy imported by the server and the period during which it was
+             * measured.
+             *
+             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+             * publication of deltas considered not meaningful.
+             *
+             * The server shall NOT mark this attribute ready for report if the last time this was done was more
+             * recently than 1 second ago.
+             *
+             * The server may delay marking this attribute ready for report for longer periods if needed, however the
+             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+             *
+             * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
+             */
+            readonly periodicEnergyImported: EnergyMeasurement | null;
+        }
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
+     * "ExportedEnergyAndPeriodicEnergy".
+     */
+    export namespace ExportedEnergyAndPeriodicEnergyComponent {
+        export interface Attributes {
+            /**
+             * Indicates the most recent measurement of energy exported by the server and the period during which it was
+             * measured.
+             *
+             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+             * publication of deltas considered not meaningful.
+             *
+             * The server shall NOT mark this attribute ready for report if the last time this was done was more
+             * recently than 1 second ago.
+             *
+             * The server may delay marking this attribute ready for report for longer periods if needed, however the
+             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+             *
+             * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
+             */
+            readonly periodicEnergyExported: EnergyMeasurement | null;
+        }
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature "CumulativeEnergy".
+     */
+    export namespace CumulativeEnergyComponent {
+        export interface Attributes {
+            /**
+             * Indicates when cumulative measurements were most recently zero.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
+             */
+            readonly cumulativeEnergyReset?: CumulativeEnergyReset | null;
+        }
+
+        export interface Events {
+            /**
+             * This event shall be generated when the server takes a snapshot of the cumulative energy imported by the
+             * server, exported from the server, or both, but not more frequently than the rate mentioned in the
+             * description above of the related attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
+             */
+            cumulativeEnergyMeasured: CumulativeEnergyMeasuredEvent;
+        }
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature "PeriodicEnergy".
+     */
+    export namespace PeriodicEnergyComponent {
+        export interface Events {
+            /**
+             * This event shall be generated when the server reaches the end of a reporting period for imported energy,
+             * exported energy, or both.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
+             */
+            periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link ElectricalEnergyMeasurement}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -36,7 +199,7 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
          */
-        accuracy: MeasurementAccuracy;
+        readonly accuracy: MeasurementAccuracy;
 
         /**
          * Indicates the most recent measurement of cumulative energy imported by the server over the lifetime of the
@@ -55,7 +218,7 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
          */
-        cumulativeEnergyImported: EnergyMeasurement | null;
+        readonly cumulativeEnergyImported: EnergyMeasurement | null;
 
         /**
          * Indicates the most recent measurement of cumulative energy exported by the server over the lifetime of the
@@ -74,7 +237,7 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
          */
-        cumulativeEnergyExported: EnergyMeasurement | null;
+        readonly cumulativeEnergyExported: EnergyMeasurement | null;
 
         /**
          * Indicates the most recent measurement of energy imported by the server and the period during which it was
@@ -93,7 +256,7 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
          */
-        periodicEnergyImported: EnergyMeasurement | null;
+        readonly periodicEnergyImported: EnergyMeasurement | null;
 
         /**
          * Indicates the most recent measurement of energy exported by the server and the period during which it was
@@ -112,25 +275,14 @@ export namespace ElectricalEnergyMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
          */
-        periodicEnergyExported: EnergyMeasurement | null;
+        readonly periodicEnergyExported: EnergyMeasurement | null;
 
         /**
          * Indicates when cumulative measurements were most recently zero.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
          */
-        cumulativeEnergyReset: CumulativeEnergyReset | null;
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "accuracy" },
-            { flags: { importedEnergy: true, cumulativeEnergy: true }, mandatory: "cumulativeEnergyImported" },
-            { flags: { exportedEnergy: true, cumulativeEnergy: true }, mandatory: "cumulativeEnergyExported" },
-            { flags: { importedEnergy: true, periodicEnergy: true }, mandatory: "periodicEnergyImported" },
-            { flags: { exportedEnergy: true, periodicEnergy: true }, mandatory: "periodicEnergyExported" },
-            { flags: { cumulativeEnergy: true }, optional: "cumulativeEnergyReset" }
-        ];
+        readonly cumulativeEnergyReset: CumulativeEnergyReset | null;
     }
 
     /**
@@ -157,12 +309,31 @@ export namespace ElectricalEnergyMeasurement {
         periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
     }
 
-    export namespace Events {
-        export type Components = [
-            { flags: { cumulativeEnergy: true }, mandatory: "cumulativeEnergyMeasured" },
-            { flags: { periodicEnergy: true }, mandatory: "periodicEnergyMeasured" }
-        ];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes },
+        {
+            flags: { importedEnergy: true, cumulativeEnergy: true },
+            attributes: ImportedEnergyAndCumulativeEnergyComponent.Attributes
+        },
+        {
+            flags: { exportedEnergy: true, cumulativeEnergy: true },
+            attributes: ExportedEnergyAndCumulativeEnergyComponent.Attributes
+        },
+        {
+            flags: { importedEnergy: true, periodicEnergy: true },
+            attributes: ImportedEnergyAndPeriodicEnergyComponent.Attributes
+        },
+        {
+            flags: { exportedEnergy: true, periodicEnergy: true },
+            attributes: ExportedEnergyAndPeriodicEnergyComponent.Attributes
+        },
+        {
+            flags: { cumulativeEnergy: true },
+            attributes: CumulativeEnergyComponent.Attributes,
+            events: CumulativeEnergyComponent.Events
+        },
+        { flags: { periodicEnergy: true }, events: PeriodicEnergyComponent.Events }
+    ];
 
     export type Features = "ImportedEnergy" | "ExportedEnergy" | "CumulativeEnergy" | "PeriodicEnergy";
 
@@ -1056,4 +1227,4 @@ export namespace ElectricalEnergyMeasurement {
 export type ElectricalEnergyMeasurementCluster = ElectricalEnergyMeasurement.Cluster;
 export const ElectricalEnergyMeasurementCluster = ElectricalEnergyMeasurement.Cluster;
 ClusterNamespace.define(ElectricalEnergyMeasurement);
-export interface ElectricalEnergyMeasurement extends ClusterTyping { Attributes: ElectricalEnergyMeasurement.Attributes & { Components: ElectricalEnergyMeasurement.Attributes.Components }; Events: ElectricalEnergyMeasurement.Events & { Components: ElectricalEnergyMeasurement.Events.Components }; Features: ElectricalEnergyMeasurement.Features }
+export interface ElectricalEnergyMeasurement extends ClusterTyping { Attributes: ElectricalEnergyMeasurement.Attributes; Events: ElectricalEnergyMeasurement.Events; Features: ElectricalEnergyMeasurement.Features; Components: ElectricalEnergyMeasurement.Components }

@@ -25,6 +25,42 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace RvcRunMode {
     /**
+     * {@link RvcRunMode} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * At least one entry in the SupportedModes attribute shall include the Idle mode tag in the ModeTags field.
+             *
+             * At least one entry in the SupportedModes attribute (different from the one above) shall include the
+             * Cleaning mode tag in the ModeTags field.
+             *
+             * The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a
+             * mode’s ModeTags.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
+             */
+            readonly currentMode: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to change device modes.
+             *
+             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+             */
+            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link RvcRunMode}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -41,37 +77,16 @@ export namespace RvcRunMode {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
          */
-        currentMode: number;
+        readonly currentMode: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "supportedModes" | "currentMode" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link RvcRunMode} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "OnOff";
 
     /**
@@ -522,4 +537,4 @@ export namespace RvcRunMode {
 export type RvcRunModeCluster = RvcRunMode.Cluster;
 export const RvcRunModeCluster = RvcRunMode.Cluster;
 ClusterNamespace.define(RvcRunMode);
-export interface RvcRunMode extends ClusterTyping { Attributes: RvcRunMode.Attributes & { Components: RvcRunMode.Attributes.Components }; Commands: RvcRunMode.Commands & { Components: RvcRunMode.Commands.Components }; Features: RvcRunMode.Features }
+export interface RvcRunMode extends ClusterTyping { Attributes: RvcRunMode.Attributes; Commands: RvcRunMode.Commands; Features: RvcRunMode.Features; Components: RvcRunMode.Components }

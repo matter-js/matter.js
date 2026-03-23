@@ -32,202 +32,49 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace TimeSynchronization {
     /**
-     * Attributes that may appear in {@link TimeSynchronization}.
-     *
-     * Optional properties represent attributes that devices are not required to support. Device support for attributes
-     * may also be affected by a device's supported {@link Features}.
+     * {@link TimeSynchronization} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
-         * epoch-us (Epoch Time in Microseconds).
-         *
-         * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
-         * when a SetUTCTime is received.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.1
-         */
-        utcTime: number | bigint | null;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
+             * epoch-us (Epoch Time in Microseconds).
+             *
+             * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be
+             * set when a SetUTCTime is received.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.1
+             */
+            readonly utcTime: number | bigint | null;
 
-        /**
-         * Indicates granularity of the error that the node is willing to guarantee on the time synchronization. It is
-         * of type GranularityEnum.
-         *
-         * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity if
-         * UTCTime is non-null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.2
-         */
-        granularity: Granularity;
+            /**
+             * Indicates granularity of the error that the node is willing to guarantee on the time synchronization. It
+             * is of type GranularityEnum.
+             *
+             * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity
+             * if UTCTime is non-null.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.2
+             */
+            readonly granularity: Granularity;
 
-        /**
-         * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether the
-         * source uses NTS or not and whether the source is internal or external to the Matter network. This attribute
-         * may be used by a client to determine its level of trust in the UTCTime. It is of type TimeSourceEnum.
-         *
-         * If a node is unsure if the selected NTP server is within the Matter network, it SHOULD select one of the
-         * NonMatter* values.
-         *
-         * This value shall be set to None if UTCTime is null and shall NOT be set to None if UTCTime is non-null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.3
-         */
-        timeSource: TimeSource;
+            /**
+             * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether
+             * the source uses NTS or not and whether the source is internal or external to the Matter network. This
+             * attribute may be used by a client to determine its level of trust in the UTCTime. It is of type
+             * TimeSourceEnum.
+             *
+             * If a node is unsure if the selected NTP server is within the Matter network, it SHOULD select one of the
+             * NonMatter* values.
+             *
+             * This value shall be set to None if UTCTime is null and shall NOT be set to None if UTCTime is non-null.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.3
+             */
+            readonly timeSource?: TimeSource;
+        }
 
-        /**
-         * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
-         * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an
-         * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
-         * been set.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.4
-         */
-        trustedTimeSource: TrustedTimeSource | null;
-
-        /**
-         * Indicates the default NTP server that this Node may use if other time sources are unavailable. This attribute
-         * is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the Commissioner during
-         * commissioning. If no default NTP server is available, the Commissioner may set this value to null. The
-         * default IANA assigned NTP port of 123 shall be used to access the NTP server.
-         *
-         * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
-         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
-         * NOT contain a port number.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.5
-         */
-        defaultNtp: string | null;
-
-        /**
-         * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may include
-         * domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.13
-         */
-        supportsDnsResolve: boolean;
-
-        /**
-         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
-         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
-         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
-         * “DSTOffset Attribute” for daylight savings time).
-         *
-         * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
-         * time.
-         *
-         * If a node supports a TimeZoneDatabase, and it has data for the given time zone Name and the given Offset
-         * matches, the node may update its own DSTOffset attribute to add new DST change times as required, based on
-         * the Name fields of the TimeZoneStruct. Administrators may add additional entries to the DSTOffset of other
-         * Nodes with the same time zone, if required.
-         *
-         * If a node does not support a TimeZoneDatabase, the Name field of the TimeZoneStruct is only applicable for
-         * client-side localization. In particular:
-         *
-         *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate the local
-         *     time.
-         *
-         *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate DST start
-         *     or end dates.
-         *
-         * When time passes, the node SHOULD remove any entries which are no longer active and change the ValidAt time
-         * for the currently used TimeZoneStruct list item to zero.
-         *
-         * This attribute shall have at least one entry. If the node does not have a default time zone and no time zone
-         * has been set, it may set this value to a list containing a single TimeZoneStruct with an offset of 0 (UTC)
-         * and a ValidAt time of 0.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.6
-         */
-        timeZone: TimeZone[];
-
-        /**
-         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
-         *
-         * List entries shall be sorted by ValidStarting time.
-         *
-         * A list entry shall NOT have a ValidStarting time that is smaller than the ValidUntil time of the previous
-         * entry. There shall be at most one list entry with a null ValidUntil time and, if such an entry is present, it
-         * shall appear last in the list.
-         *
-         * Over time, the node SHOULD remove any entries which are no longer active from the list.
-         *
-         * Over time, if the node supports a TimeZoneDatabase and it has information available for the given time zone
-         * name, it may update its own list to add additional entries.
-         *
-         * If a time zone does not use DST, this shall be indicated by a single entry with a 0 offset and a null
-         * ValidUntil field.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.7
-         */
-        dstOffset: DstOffset[];
-
-        /**
-         * Indicates the computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The value
-         * of LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from the
-         * TimeZone attribute (converted to microseconds), and the offset of the currently valid DSTOffsetStruct from
-         * the DSTOffset attribute (converted to microseconds), if such an entry exists.
-         *
-         * If the node has not achieved time synchronization, this shall be null. If the node has an empty DSTOffset,
-         * this shall be null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.8
-         */
-        localTime: number | bigint | null;
-
-        /**
-         * Indicates whether the node has access to a time zone database. Nodes with a time zone database may update
-         * their own DSTOffset attribute to add new entries and may push DSTOffset updates to other Nodes in the same
-         * time zone as required.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.9
-         */
-        timeZoneDatabase: TimeZoneDatabase;
-
-        /**
-         * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the value
-         * of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time zone changes.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.11
-         */
-        timeZoneListMaxSize: number;
-
-        /**
-         * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.12
-         */
-        dstOffsetListMaxSize: number;
-
-        /**
-         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
-         *
-         * If the node is not currently running an NTP server, this value shall be False.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.10
-         */
-        ntpServerAvailable: boolean;
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "utcTime" | "granularity", optional: "timeSource" },
-            { flags: { timeSyncClient: true }, mandatory: "trustedTimeSource" },
-            { flags: { ntpClient: true }, mandatory: "defaultNtp" | "supportsDnsResolve" },
-            {
-                flags: { timeZone: true },
-                mandatory: "timeZone" | "dstOffset" | "localTime" | "timeZoneDatabase" | "timeZoneListMaxSize" | "dstOffsetListMaxSize"
-            },
-            { flags: { ntpServer: true }, mandatory: "ntpServerAvailable" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base, Commands.TimeSyncClient, Commands.NtpClient, Commands.TimeZoneComponent {}
-
-    export namespace Commands {
-        /**
-         * {@link TimeSynchronization} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command is used to set the UTC time of the node.
              *
@@ -252,10 +99,35 @@ export namespace TimeSynchronization {
             setUtcTime(request: SetUtcTimeRequest): MaybePromise;
         }
 
-        /**
-         * {@link TimeSynchronization} supports these commands if it supports feature "TimeSyncClient".
-         */
-        export interface TimeSyncClient {
+        export interface Events {
+            /**
+             * This event shall be generated if the node has not generated a TimeFailure event in the last hour, and the
+             * node is unable to get a time from any source. This event SHOULD NOT be generated more often than once per
+             * hour.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.10.4
+             */
+            timeFailure: void;
+        }
+    }
+
+    /**
+     * {@link TimeSynchronization} supports these elements if it supports feature "TimeSyncClient".
+     */
+    export namespace TimeSyncClientComponent {
+        export interface Attributes {
+            /**
+             * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
+             * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by
+             * an administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has
+             * yet been set.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.4
+             */
+            readonly trustedTimeSource: TrustedTimeSource | null;
+        }
+
+        export interface Commands {
             /**
              * This command is used to set the TrustedTimeSource attribute.
              *
@@ -273,10 +145,51 @@ export namespace TimeSynchronization {
             setTrustedTimeSource(request: SetTrustedTimeSourceRequest): MaybePromise;
         }
 
-        /**
-         * {@link TimeSynchronization} supports these commands if it supports feature "NtpClient".
-         */
-        export interface NtpClient {
+        export interface Events {
+            /**
+             * This event shall be generated if the TrustedTimeSource is set to null upon fabric removal or by a
+             * SetTrustedTimeSource command.
+             *
+             * This event shall also be generated if the node has not generated a MissingTrustedTimeSource event in the
+             * last hour, and the node fails to update its time from the TrustedTimeSource because the TrustedTimeSource
+             * is null or the specified peer cannot be reached. MissingTrustedTimeSource events corresponding to a time
+             * update SHOULD NOT be generated more often than once per hour.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.10.5
+             */
+            missingTrustedTimeSource: void;
+        }
+    }
+
+    /**
+     * {@link TimeSynchronization} supports these elements if it supports feature "NtpClient".
+     */
+    export namespace NtpClientComponent {
+        export interface Attributes {
+            /**
+             * Indicates the default NTP server that this Node may use if other time sources are unavailable. This
+             * attribute is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the
+             * Commissioner during commissioning. If no default NTP server is available, the Commissioner may set this
+             * value to null. The default IANA assigned NTP port of 123 shall be used to access the NTP server.
+             *
+             * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in
+             * text format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4
+             * and shall NOT contain a port number.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.5
+             */
+            readonly defaultNtp: string | null;
+
+            /**
+             * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may
+             * include domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.13
+             */
+            readonly supportsDnsResolve: boolean;
+        }
+
+        export interface Commands {
             /**
              * This command is used to set the DefaultNTP attribute.
              *
@@ -290,11 +203,109 @@ export namespace TimeSynchronization {
              */
             setDefaultNtp(request: SetDefaultNtpRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link TimeSynchronization} supports these commands if it supports feature "TimeZone".
-         */
-        export interface TimeZoneComponent {
+    /**
+     * {@link TimeSynchronization} supports these elements if it supports feature "TimeZone".
+     */
+    export namespace TimeZoneComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
+             * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time
+             * zone changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section
+             * 11.17.8.7, “DSTOffset Attribute” for daylight savings time).
+             *
+             * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero
+             * ValidAt time.
+             *
+             * If a node supports a TimeZoneDatabase, and it has data for the given time zone Name and the given Offset
+             * matches, the node may update its own DSTOffset attribute to add new DST change times as required, based
+             * on the Name fields of the TimeZoneStruct. Administrators may add additional entries to the DSTOffset of
+             * other Nodes with the same time zone, if required.
+             *
+             * If a node does not support a TimeZoneDatabase, the Name field of the TimeZoneStruct is only applicable
+             * for client-side localization. In particular:
+             *
+             *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate the
+             *     local time.
+             *
+             *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate DST
+             *     start or end dates.
+             *
+             * When time passes, the node SHOULD remove any entries which are no longer active and change the ValidAt
+             * time for the currently used TimeZoneStruct list item to zero.
+             *
+             * This attribute shall have at least one entry. If the node does not have a default time zone and no time
+             * zone has been set, it may set this value to a list containing a single TimeZoneStruct with an offset of 0
+             * (UTC) and a ValidAt time of 0.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.6
+             */
+            readonly timeZone: TimeZone[];
+
+            /**
+             * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity
+             * period.
+             *
+             * List entries shall be sorted by ValidStarting time.
+             *
+             * A list entry shall NOT have a ValidStarting time that is smaller than the ValidUntil time of the previous
+             * entry. There shall be at most one list entry with a null ValidUntil time and, if such an entry is
+             * present, it shall appear last in the list.
+             *
+             * Over time, the node SHOULD remove any entries which are no longer active from the list.
+             *
+             * Over time, if the node supports a TimeZoneDatabase and it has information available for the given time
+             * zone name, it may update its own list to add additional entries.
+             *
+             * If a time zone does not use DST, this shall be indicated by a single entry with a 0 offset and a null
+             * ValidUntil field.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.7
+             */
+            readonly dstOffset: DstOffset[];
+
+            /**
+             * Indicates the computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The
+             * value of LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from
+             * the TimeZone attribute (converted to microseconds), and the offset of the currently valid DSTOffsetStruct
+             * from the DSTOffset attribute (converted to microseconds), if such an entry exists.
+             *
+             * If the node has not achieved time synchronization, this shall be null. If the node has an empty
+             * DSTOffset, this shall be null.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.8
+             */
+            readonly localTime: number | bigint | null;
+
+            /**
+             * Indicates whether the node has access to a time zone database. Nodes with a time zone database may update
+             * their own DSTOffset attribute to add new entries and may push DSTOffset updates to other Nodes in the
+             * same time zone as required.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.9
+             */
+            readonly timeZoneDatabase: TimeZoneDatabase;
+
+            /**
+             * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the
+             * value of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time
+             * zone changes.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.11
+             */
+            readonly timeZoneListMaxSize: number;
+
+            /**
+             * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.12
+             */
+            readonly dstOffsetListMaxSize: number;
+        }
+
+        export interface Commands {
             /**
              * This command is used to set the time zone of the node.
              *
@@ -335,13 +346,235 @@ export namespace TimeSynchronization {
             setDstOffset(request: SetDstOffsetRequest): MaybePromise;
         }
 
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { timeSyncClient: true }, methods: TimeSyncClient },
-            { flags: { ntpClient: true }, methods: NtpClient },
-            { flags: { timeZone: true }, methods: TimeZoneComponent }
-        ];
+        export interface Events {
+            /**
+             * This event shall be generated when the node stops applying the current DSTOffset and there are no entries
+             * in the list with a larger ValidStarting time, indicating the need to possibly get new DST data. This
+             * event shall also be generated if the DSTOffset list is cleared either by a SetTimeZone command, or by a
+             * SetDSTOffset command with an empty list.
+             *
+             * The node shall generate this event if the node has not generated a DSTTableEmpty event in the last hour,
+             * and the DSTOffset list is empty when the node attempts to update its time. DSTTableEmpty events
+             * corresponding to a time update SHOULD NOT be generated more often than once per hour.
+             *
+             * There is no data for this event.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.10.1
+             */
+            dstTableEmpty: void;
+
+            /**
+             * This event shall be generated when the node starts or stops applying a DST offset.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
+             */
+            dstStatus: DstStatusEvent;
+
+            /**
+             * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent
+             * for DST changes that are not accompanied by a time zone change.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
+             */
+            timeZoneStatus: TimeZoneStatusEvent;
+        }
     }
+
+    /**
+     * {@link TimeSynchronization} supports these elements if it supports feature "NtpServer".
+     */
+    export namespace NtpServerComponent {
+        export interface Attributes {
+            /**
+             * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be
+             * True.
+             *
+             * If the node is not currently running an NTP server, this value shall be False.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.17.8.10
+             */
+            readonly ntpServerAvailable: boolean;
+        }
+    }
+
+    /**
+     * Attributes that may appear in {@link TimeSynchronization}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * If the node has achieved time synchronization, this attribute shall indicate the current time as a UTC
+         * epoch-us (Epoch Time in Microseconds).
+         *
+         * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
+         * when a SetUTCTime is received.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.1
+         */
+        readonly utcTime: number | bigint | null;
+
+        /**
+         * Indicates granularity of the error that the node is willing to guarantee on the time synchronization. It is
+         * of type GranularityEnum.
+         *
+         * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity if
+         * UTCTime is non-null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.2
+         */
+        readonly granularity: Granularity;
+
+        /**
+         * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether the
+         * source uses NTS or not and whether the source is internal or external to the Matter network. This attribute
+         * may be used by a client to determine its level of trust in the UTCTime. It is of type TimeSourceEnum.
+         *
+         * If a node is unsure if the selected NTP server is within the Matter network, it SHOULD select one of the
+         * NonMatter* values.
+         *
+         * This value shall be set to None if UTCTime is null and shall NOT be set to None if UTCTime is non-null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.3
+         */
+        readonly timeSource: TimeSource;
+
+        /**
+         * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
+         * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an
+         * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
+         * been set.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.4
+         */
+        readonly trustedTimeSource: TrustedTimeSource | null;
+
+        /**
+         * Indicates the default NTP server that this Node may use if other time sources are unavailable. This attribute
+         * is settable by an Administrator using the SetDefaultNTP command. It SHOULD be set by the Commissioner during
+         * commissioning. If no default NTP server is available, the Commissioner may set this value to null. The
+         * default IANA assigned NTP port of 123 shall be used to access the NTP server.
+         *
+         * If set, the format of this attribute shall be a domain name or a static IPv6 address with no port, in text
+         * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
+         * NOT contain a port number.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.5
+         */
+        readonly defaultNtp: string | null;
+
+        /**
+         * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may include
+         * domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.13
+         */
+        readonly supportsDnsResolve: boolean;
+
+        /**
+         * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
+         * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
+         * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
+         * “DSTOffset Attribute” for daylight savings time).
+         *
+         * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
+         * time.
+         *
+         * If a node supports a TimeZoneDatabase, and it has data for the given time zone Name and the given Offset
+         * matches, the node may update its own DSTOffset attribute to add new DST change times as required, based on
+         * the Name fields of the TimeZoneStruct. Administrators may add additional entries to the DSTOffset of other
+         * Nodes with the same time zone, if required.
+         *
+         * If a node does not support a TimeZoneDatabase, the Name field of the TimeZoneStruct is only applicable for
+         * client-side localization. In particular:
+         *
+         *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate the local
+         *     time.
+         *
+         *   - If the node does not support a TimeZoneDatabase, the Name field shall NOT be used to calculate DST start
+         *     or end dates.
+         *
+         * When time passes, the node SHOULD remove any entries which are no longer active and change the ValidAt time
+         * for the currently used TimeZoneStruct list item to zero.
+         *
+         * This attribute shall have at least one entry. If the node does not have a default time zone and no time zone
+         * has been set, it may set this value to a list containing a single TimeZoneStruct with an offset of 0 (UTC)
+         * and a ValidAt time of 0.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.6
+         */
+        readonly timeZone: TimeZone[];
+
+        /**
+         * This attribute shall contain a list of offsets to apply for daylight savings time, and their validity period.
+         *
+         * List entries shall be sorted by ValidStarting time.
+         *
+         * A list entry shall NOT have a ValidStarting time that is smaller than the ValidUntil time of the previous
+         * entry. There shall be at most one list entry with a null ValidUntil time and, if such an entry is present, it
+         * shall appear last in the list.
+         *
+         * Over time, the node SHOULD remove any entries which are no longer active from the list.
+         *
+         * Over time, if the node supports a TimeZoneDatabase and it has information available for the given time zone
+         * name, it may update its own list to add additional entries.
+         *
+         * If a time zone does not use DST, this shall be indicated by a single entry with a 0 offset and a null
+         * ValidUntil field.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.7
+         */
+        readonly dstOffset: DstOffset[];
+
+        /**
+         * Indicates the computed current local time of the node as a epoch-us (Epoch Time in Microseconds). The value
+         * of LocalTime shall be the sum of the UTCTime, the offset of the currently valid TimeZoneStruct from the
+         * TimeZone attribute (converted to microseconds), and the offset of the currently valid DSTOffsetStruct from
+         * the DSTOffset attribute (converted to microseconds), if such an entry exists.
+         *
+         * If the node has not achieved time synchronization, this shall be null. If the node has an empty DSTOffset,
+         * this shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.8
+         */
+        readonly localTime: number | bigint | null;
+
+        /**
+         * Indicates whether the node has access to a time zone database. Nodes with a time zone database may update
+         * their own DSTOffset attribute to add new entries and may push DSTOffset updates to other Nodes in the same
+         * time zone as required.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.9
+         */
+        readonly timeZoneDatabase: TimeZoneDatabase;
+
+        /**
+         * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the value
+         * of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time zone changes.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.11
+         */
+        readonly timeZoneListMaxSize: number;
+
+        /**
+         * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.12
+         */
+        readonly dstOffsetListMaxSize: number;
+
+        /**
+         * Indicates if the node is running an RFC 5905 NTPv4 compliant server on port 123, this value shall be True.
+         *
+         * If the node is not currently running an NTP server, this value shall be False.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.17.8.10
+         */
+        readonly ntpServerAvailable: boolean;
+    }
+
+    export interface Commands extends Base.Commands, TimeSyncClientComponent.Commands, NtpClientComponent.Commands, TimeZoneComponent.Commands {}
 
     /**
      * Events that may appear in {@link TimeSynchronization}.
@@ -403,13 +636,31 @@ export namespace TimeSynchronization {
         timeZoneStatus: TimeZoneStatusEvent;
     }
 
-    export namespace Events {
-        export type Components = [
-            { flags: {}, mandatory: "timeFailure" },
-            { flags: { timeSyncClient: true }, mandatory: "missingTrustedTimeSource" },
-            { flags: { timeZone: true }, mandatory: "dstTableEmpty" | "dstStatus" | "timeZoneStatus" }
-        ];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events },
+
+        {
+            flags: { timeSyncClient: true },
+            attributes: TimeSyncClientComponent.Attributes,
+            commands: TimeSyncClientComponent.Commands,
+            events: TimeSyncClientComponent.Events
+        },
+
+        {
+            flags: { ntpClient: true },
+            attributes: NtpClientComponent.Attributes,
+            commands: NtpClientComponent.Commands
+        },
+
+        {
+            flags: { timeZone: true },
+            attributes: TimeZoneComponent.Attributes,
+            commands: TimeZoneComponent.Commands,
+            events: TimeZoneComponent.Events
+        },
+
+        { flags: { ntpServer: true }, attributes: NtpServerComponent.Attributes }
+    ];
 
     export type Features = "TimeZone" | "NtpClient" | "NtpServer" | "TimeSyncClient";
 
@@ -1730,4 +1981,4 @@ export namespace TimeSynchronization {
 export type TimeSynchronizationCluster = TimeSynchronization.Cluster;
 export const TimeSynchronizationCluster = TimeSynchronization.Cluster;
 ClusterNamespace.define(TimeSynchronization);
-export interface TimeSynchronization extends ClusterTyping { Attributes: TimeSynchronization.Attributes & { Components: TimeSynchronization.Attributes.Components }; Commands: TimeSynchronization.Commands & { Components: TimeSynchronization.Commands.Components }; Events: TimeSynchronization.Events & { Components: TimeSynchronization.Events.Components }; Features: TimeSynchronization.Features }
+export interface TimeSynchronization extends ClusterTyping { Attributes: TimeSynchronization.Attributes; Commands: TimeSynchronization.Commands; Events: TimeSynchronization.Events; Features: TimeSynchronization.Features; Components: TimeSynchronization.Components }

@@ -29,7 +29,7 @@ export namespace ClusterInterface {
         : AppliedMethodsOf<ComponentsOf<I>>;
 
     export type ComponentsOf<I extends ClusterInterface> = I extends {
-        Commands: { Components: infer C extends Component[] };
+        Components: infer C extends Component[];
     }
         ? C
         : [];
@@ -42,7 +42,7 @@ export namespace ClusterInterface {
         infer C extends Component,
         ...infer R extends Component[],
     ]
-        ? C["methods"] & AppliedMethodsOf<R>
+        ? (C extends { commands: infer M } ? M : {}) & AppliedMethodsOf<R>
         : {};
 
     export type ApplicableComponents<CA extends Component[], S> = CA extends [

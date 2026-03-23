@@ -28,65 +28,55 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace AdministratorCommissioning {
     /**
-     * Attributes that may appear in {@link AdministratorCommissioning}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link AdministratorCommissioning} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * Indicates whether a new Commissioning window has been opened by an Administrator, using either the
-         * OpenCommissioningWindow command or the OpenBasicCommissioningWindow command.
-         *
-         * This attribute shall revert to WindowNotOpen upon expiry of a commissioning window.
-         *
-         * > [!NOTE]
-         *
-         * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
-         *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
-         *   commissioning.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.19.7.1
-         */
-        windowStatus: CommissioningWindowStatus;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates whether a new Commissioning window has been opened by an Administrator, using either the
+             * OpenCommissioningWindow command or the OpenBasicCommissioningWindow command.
+             *
+             * This attribute shall revert to WindowNotOpen upon expiry of a commissioning window.
+             *
+             * > [!NOTE]
+             *
+             * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
+             *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on
+             *   initial commissioning.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.19.7.1
+             */
+            readonly windowStatus: CommissioningWindowStatus;
 
-        /**
-         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the FabricIndex
-         * associated with the Fabric scoping of the Administrator that opened the window. This may be used to
-         * cross-reference in the Fabrics attribute of the Operational Credentials cluster.
-         *
-         * If, during an open commissioning window, the fabric for the Administrator that opened the window is removed,
-         * then this attribute shall be set to null.
-         *
-         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.19.7.2
-         */
-        adminFabricIndex: FabricIndex | null;
+            /**
+             * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the
+             * FabricIndex associated with the Fabric scoping of the Administrator that opened the window. This may be
+             * used to cross-reference in the Fabrics attribute of the Operational Credentials cluster.
+             *
+             * If, during an open commissioning window, the fabric for the Administrator that opened the window is
+             * removed, then this attribute shall be set to null.
+             *
+             * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.19.7.2
+             */
+            readonly adminFabricIndex: FabricIndex | null;
 
-        /**
-         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
-         * associated with the Fabric scoping of the Administrator that opened the window. This field shall match the
-         * VendorID field of the Fabrics attribute list entry associated with the Administrator having opened the
-         * window, at the time of window opening. If the fabric for the Administrator that opened the window is removed
-         * from the node while the commissioning window is still open, this attribute shall NOT be updated.
-         *
-         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.19.7.3
-         */
-        adminVendorId: VendorId | null;
-    }
+            /**
+             * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
+             * associated with the Fabric scoping of the Administrator that opened the window. This field shall match
+             * the VendorID field of the Fabrics attribute list entry associated with the Administrator having opened
+             * the window, at the time of window opening. If the fabric for the Administrator that opened the window is
+             * removed from the node while the commissioning window is still open, this attribute shall NOT be updated.
+             *
+             * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.19.7.3
+             */
+            readonly adminVendorId: VendorId | null;
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "windowStatus" | "adminFabricIndex" | "adminVendorId" }];
-    }
-    export interface Commands extends Commands.Base, Commands.Basic {}
-
-    export namespace Commands {
-        /**
-         * {@link AdministratorCommissioning} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command is used by a current Administrator to instruct a Node to go into commissioning mode. The
              * Enhanced Commissioning Method specifies a window of time during which an already commissioned Node
@@ -141,11 +131,13 @@ export namespace AdministratorCommissioning {
              */
             revokeCommissioning(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link AdministratorCommissioning} supports these commands if it supports feature "Basic".
-         */
-        export interface Basic {
+    /**
+     * {@link AdministratorCommissioning} supports these elements if it supports feature "Basic".
+     */
+    export namespace BasicComponent {
+        export interface Commands {
             /**
              * This command may be used by a current Administrator to instruct a Node to go into commissioning mode, if
              * the node supports the Basic Commissioning Method. The Basic Commissioning Method specifies a window of
@@ -169,10 +161,63 @@ export namespace AdministratorCommissioning {
              */
             openBasicCommissioningWindow(request: OpenBasicCommissioningWindowRequest): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }, { flags: { basic: true }, methods: Basic }];
     }
 
+    /**
+     * Attributes that may appear in {@link AdministratorCommissioning}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates whether a new Commissioning window has been opened by an Administrator, using either the
+         * OpenCommissioningWindow command or the OpenBasicCommissioningWindow command.
+         *
+         * This attribute shall revert to WindowNotOpen upon expiry of a commissioning window.
+         *
+         * > [!NOTE]
+         *
+         * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
+         *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
+         *   commissioning.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.1
+         */
+        readonly windowStatus: CommissioningWindowStatus;
+
+        /**
+         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the FabricIndex
+         * associated with the Fabric scoping of the Administrator that opened the window. This may be used to
+         * cross-reference in the Fabrics attribute of the Operational Credentials cluster.
+         *
+         * If, during an open commissioning window, the fabric for the Administrator that opened the window is removed,
+         * then this attribute shall be set to null.
+         *
+         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.2
+         */
+        readonly adminFabricIndex: FabricIndex | null;
+
+        /**
+         * When the WindowStatus attribute is not set to WindowNotOpen, this attribute shall indicate the Vendor ID
+         * associated with the Fabric scoping of the Administrator that opened the window. This field shall match the
+         * VendorID field of the Fabrics attribute list entry associated with the Administrator having opened the
+         * window, at the time of window opening. If the fabric for the Administrator that opened the window is removed
+         * from the node while the commissioning window is still open, this attribute shall NOT be updated.
+         *
+         * When the WindowStatus attribute is set to WindowNotOpen, this attribute shall be set to null.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.19.7.3
+         */
+        readonly adminVendorId: VendorId | null;
+    }
+
+    export interface Commands extends Base.Commands, BasicComponent.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { basic: true }, commands: BasicComponent.Commands }
+    ];
     export type Features = "Basic";
 
     /**
@@ -762,4 +807,4 @@ export namespace AdministratorCommissioning {
 export type AdministratorCommissioningCluster = AdministratorCommissioning.Cluster;
 export const AdministratorCommissioningCluster = AdministratorCommissioning.Cluster;
 ClusterNamespace.define(AdministratorCommissioning);
-export interface AdministratorCommissioning extends ClusterTyping { Attributes: AdministratorCommissioning.Attributes & { Components: AdministratorCommissioning.Attributes.Components }; Commands: AdministratorCommissioning.Commands & { Components: AdministratorCommissioning.Commands.Components }; Features: AdministratorCommissioning.Features }
+export interface AdministratorCommissioning extends ClusterTyping { Attributes: AdministratorCommissioning.Attributes; Commands: AdministratorCommissioning.Commands; Features: AdministratorCommissioning.Features; Components: AdministratorCommissioning.Components }

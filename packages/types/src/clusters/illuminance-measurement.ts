@@ -20,6 +20,65 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace IlluminanceMeasurement {
     /**
+     * {@link IlluminanceMeasurement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the illuminance in Lux (symbol lx) as follows:
+             *
+             *   - MeasuredValue = 10,000 x log10(illuminance) + 1,
+             *
+             * where 1 lx <= illuminance <= 3.576 Mlx, corresponding to a MeasuredValue in the range 1 to 0xFFFE.
+             *
+             * The MeasuredValue attribute can take the following values:
+             *
+             *   - 0 indicates a value of illuminance that is too low to be measured,
+             *
+             *   - MinMeasuredValue <= MeasuredValue <= MaxMeasuredValue under normal circumstances,
+             *
+             *   - null indicates that the illuminance measurement is invalid.
+             *
+             * The MeasuredValue attribute is updated continuously as new measurements are made.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.1
+             */
+            readonly measuredValue: number | null;
+
+            /**
+             * Indicates the minimum value of MeasuredValue that can be measured. A value of null indicates that this
+             * attribute is not defined. See Measured Value for more details.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.2
+             */
+            readonly minMeasuredValue: number | null;
+
+            /**
+             * Indicates the maximum value of MeasuredValue that can be measured. A value of null indicates that this
+             * attribute is not defined. See Measured Value for more details.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.3
+             */
+            readonly maxMeasuredValue: number | null;
+
+            /**
+             * See Measured Value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.4
+             */
+            readonly tolerance?: number;
+
+            /**
+             * Indicates the electronic type of the light sensor. This attribute shall be set to one of the non-reserved
+             * values listed in LightSensorTypeEnum or null in case the sensor type is unknown.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.5
+             */
+            readonly lightSensorType?: number | null;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link IlluminanceMeasurement}.
      *
      * Optional properties represent attributes that devices are not required to support.
@@ -44,7 +103,7 @@ export namespace IlluminanceMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.1
          */
-        measuredValue: number | null;
+        readonly measuredValue: number | null;
 
         /**
          * Indicates the minimum value of MeasuredValue that can be measured. A value of null indicates that this
@@ -52,7 +111,7 @@ export namespace IlluminanceMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.2
          */
-        minMeasuredValue: number | null;
+        readonly minMeasuredValue: number | null;
 
         /**
          * Indicates the maximum value of MeasuredValue that can be measured. A value of null indicates that this
@@ -60,14 +119,14 @@ export namespace IlluminanceMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.3
          */
-        maxMeasuredValue: number | null;
+        readonly maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.4
          */
-        tolerance: number;
+        readonly tolerance: number;
 
         /**
          * Indicates the electronic type of the light sensor. This attribute shall be set to one of the non-reserved
@@ -75,16 +134,10 @@ export namespace IlluminanceMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.5
          */
-        lightSensorType: number | null;
+        readonly lightSensorType: number | null;
     }
 
-    export namespace Attributes {
-        export type Components = [{
-            flags: {},
-            mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue",
-            optional: "tolerance" | "lightSensorType"
-        }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.2.4.1
@@ -186,4 +239,4 @@ export namespace IlluminanceMeasurement {
 export type IlluminanceMeasurementCluster = IlluminanceMeasurement.Cluster;
 export const IlluminanceMeasurementCluster = IlluminanceMeasurement.Cluster;
 ClusterNamespace.define(IlluminanceMeasurement);
-export interface IlluminanceMeasurement extends ClusterTyping { Attributes: IlluminanceMeasurement.Attributes & { Components: IlluminanceMeasurement.Attributes.Components } }
+export interface IlluminanceMeasurement extends ClusterTyping { Attributes: IlluminanceMeasurement.Attributes; Components: IlluminanceMeasurement.Components }

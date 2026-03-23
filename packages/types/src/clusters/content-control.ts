@@ -29,166 +29,20 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ContentControl {
     /**
-     * Attributes that may appear in {@link ContentControl}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link ContentControl} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * Indicates whether the Content Control feature implemented on a media device is turned off (FALSE) or turned
-         * on (TRUE).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.1
-         */
-        enabled: boolean;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates whether the Content Control feature implemented on a media device is turned off (FALSE) or
+             * turned on (TRUE).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.1
+             */
+            readonly enabled: boolean;
+        }
 
-        /**
-         * This attribute shall provide the collection of ratings that are currently valid for this media device. The
-         * items should honor the metadata of the on-demand content (e.g. Movie) rating system for one country or region
-         * where the media device has been provisioned. For example, for the MPAA system, RatingName may be one value
-         * out of "G", "PG", "PG-13", "R", "NC-17".
-         *
-         * The media device shall have a way to determine which rating system applies for the on-demand content and then
-         * populate this attribute. For example, it can do it through examining the Location attribute in the Basic
-         * Information cluster, and then determining which rating system applies.
-         *
-         * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
-         * oldest viewers. Each rating in the list shall be unique.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.2
-         */
-        onDemandRatings: RatingName[];
-
-        /**
-         * Indicates a threshold rating as a content filter which is compared with the rating for on-demand content. For
-         * example, if the on-demand content rating is greater than or equal to OnDemandRatingThreshold, for a rating
-         * system that is ordered from lower viewer age to higher viewer age, then on-demand content is not appropriate
-         * for the User and the Node shall prevent the playback of content.
-         *
-         * This attribute shall be set to one of the values present in the OnDemandRatings attribute.
-         *
-         * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
-         * example, if the feature does not control content within apps, then the device should make this clear to the
-         * user when the attribute changes.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.3
-         */
-        onDemandRatingThreshold: string;
-
-        /**
-         * Indicates a collection of ratings which ScheduledContentRatingThreshold can be set to. The items should honor
-         * metadata of the scheduled content rating system for the country or region where the media device has been
-         * provisioned.
-         *
-         * The media device shall have a way to determine which scheduled content rating system applies and then
-         * populate this attribute. For example, this can be done by examining the Location attribute in Basic
-         * Information cluster, and then determining which rating system applies.
-         *
-         * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
-         * oldest viewers. Each rating in the list shall be unique.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.4
-         */
-        scheduledContentRatings: RatingName[];
-
-        /**
-         * Indicates a threshold rating as a content filter which is used to compare with the rating for scheduled
-         * content. For example, if the scheduled content rating is greater than or equal to
-         * ScheduledContentRatingThreshold for a rating system that is ordered from lower viewer age to higher viewer
-         * age, then the scheduled content is not appropriate for the User and shall be blocked.
-         *
-         * This attribute shall be set to one of the values present in the ScheduledContentRatings attribute.
-         *
-         * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
-         * example, if the feature does not control content within apps, then the device should make this clear to the
-         * user when the attribute changes.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.5
-         */
-        scheduledContentRatingThreshold: string;
-
-        /**
-         * Indicates the amount of time (in seconds) which the User is allowed to spend watching TV within one day when
-         * the Content Control feature is activated.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.6
-         */
-        screenDailyTime: number;
-
-        /**
-         * Indicates the remaining screen time (in seconds) which the User is allowed to spend watching TV for the
-         * current day when the Content Control feature is activated. When this value equals 0, the media device shall
-         * terminate the playback of content.
-         *
-         * This attribute shall be updated when the AddBonusTime command is received and processed successfully (with
-         * the correct PIN).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.7
-         */
-        remainingScreenTime: number;
-
-        /**
-         * Indicates whether the playback of unrated content is allowed when the Content Control feature is activated.
-         * If this attribute equals FALSE, then playback of unrated content shall be permitted. Otherwise, the media
-         * device shall prevent the playback of unrated content.
-         *
-         * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
-         * example, if the feature does not control content within apps, then the device should make this clear to the
-         * user when the attribute changes.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.8
-         */
-        blockUnrated: boolean;
-
-        /**
-         * Indicates a set of channels that shall be blocked when the Content Control feature is activated.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.9
-         */
-        blockChannelList: BlockChannel[];
-
-        /**
-         * Indicates a set of applications that shall be blocked when the Content Control feature is activated.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.10
-         */
-        blockApplicationList: AppInfo[];
-
-        /**
-         * Indicates a set of periods during which the playback of content on media device shall be blocked when the
-         * Content Control feature is activated. The media device shall reject any request to play content during one
-         * period of this attribute. If it is entering any one period of this attribute, the media device shall block
-         * content which is playing and generate an event EnteringBlockContentTimeWindow. There shall NOT be multiple
-         * entries in this attribute list for the same day of week.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.11
-         */
-        blockContentTimeWindow: TimeWindow[];
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "enabled" },
-            { flags: { onDemandContentRating: true }, mandatory: "onDemandRatings" | "onDemandRatingThreshold" },
-            {
-                flags: { scheduledContentRating: true },
-                mandatory: "scheduledContentRatings" | "scheduledContentRatingThreshold"
-            },
-            { flags: { screenTime: true }, mandatory: "screenDailyTime" | "remainingScreenTime" },
-            { flags: { blockUnrated: true }, mandatory: "blockUnrated" },
-            { flags: { blockChannels: true }, mandatory: "blockChannelList" },
-            { flags: { blockApplications: true }, mandatory: "blockApplicationList" },
-            { flags: { blockContentTimeWindow: true }, mandatory: "blockContentTimeWindow" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base, Commands.OnDemandContentRating, Commands.ScheduledContentRating, Commands.ScreenTime, Commands.BlockUnrated, Commands.BlockChannels, Commands.BlockApplications, Commands.BlockContentTimeWindow, Commands.PinManagement {}
-
-    export namespace Commands {
-        /**
-         * {@link ContentControl} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * The purpose of this command is to turn on the Content Control feature on a media device.
              *
@@ -207,11 +61,48 @@ export namespace ContentControl {
              */
             disable(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "OnDemandContentRating".
-         */
-        export interface OnDemandContentRating {
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "OnDemandContentRating".
+     */
+    export namespace OnDemandContentRatingComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall provide the collection of ratings that are currently valid for this media device.
+             * The items should honor the metadata of the on-demand content (e.g. Movie) rating system for one country
+             * or region where the media device has been provisioned. For example, for the MPAA system, RatingName may
+             * be one value out of "G", "PG", "PG-13", "R", "NC-17".
+             *
+             * The media device shall have a way to determine which rating system applies for the on-demand content and
+             * then populate this attribute. For example, it can do it through examining the Location attribute in the
+             * Basic Information cluster, and then determining which rating system applies.
+             *
+             * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for
+             * the oldest viewers. Each rating in the list shall be unique.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.2
+             */
+            readonly onDemandRatings: RatingName[];
+
+            /**
+             * Indicates a threshold rating as a content filter which is compared with the rating for on-demand content.
+             * For example, if the on-demand content rating is greater than or equal to OnDemandRatingThreshold, for a
+             * rating system that is ordered from lower viewer age to higher viewer age, then on-demand content is not
+             * appropriate for the User and the Node shall prevent the playback of content.
+             *
+             * This attribute shall be set to one of the values present in the OnDemandRatings attribute.
+             *
+             * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+             * example, if the feature does not control content within apps, then the device should make this clear to
+             * the user when the attribute changes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.3
+             */
+            readonly onDemandRatingThreshold: string;
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to set the OnDemandRatingThreshold attribute.
              *
@@ -223,11 +114,47 @@ export namespace ContentControl {
              */
             setOnDemandRatingThreshold(request: SetOnDemandRatingThresholdRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "ScheduledContentRating".
-         */
-        export interface ScheduledContentRating {
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "ScheduledContentRating".
+     */
+    export namespace ScheduledContentRatingComponent {
+        export interface Attributes {
+            /**
+             * Indicates a collection of ratings which ScheduledContentRatingThreshold can be set to. The items should
+             * honor metadata of the scheduled content rating system for the country or region where the media device
+             * has been provisioned.
+             *
+             * The media device shall have a way to determine which scheduled content rating system applies and then
+             * populate this attribute. For example, this can be done by examining the Location attribute in Basic
+             * Information cluster, and then determining which rating system applies.
+             *
+             * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for
+             * the oldest viewers. Each rating in the list shall be unique.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.4
+             */
+            readonly scheduledContentRatings: RatingName[];
+
+            /**
+             * Indicates a threshold rating as a content filter which is used to compare with the rating for scheduled
+             * content. For example, if the scheduled content rating is greater than or equal to
+             * ScheduledContentRatingThreshold for a rating system that is ordered from lower viewer age to higher
+             * viewer age, then the scheduled content is not appropriate for the User and shall be blocked.
+             *
+             * This attribute shall be set to one of the values present in the ScheduledContentRatings attribute.
+             *
+             * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+             * example, if the feature does not control content within apps, then the device should make this clear to
+             * the user when the attribute changes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.5
+             */
+            readonly scheduledContentRatingThreshold: string;
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to set ScheduledContentRatingThreshold attribute.
              *
@@ -239,11 +166,35 @@ export namespace ContentControl {
              */
             setScheduledContentRatingThreshold(request: SetScheduledContentRatingThresholdRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "ScreenTime".
-         */
-        export interface ScreenTime {
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "ScreenTime".
+     */
+    export namespace ScreenTimeComponent {
+        export interface Attributes {
+            /**
+             * Indicates the amount of time (in seconds) which the User is allowed to spend watching TV within one day
+             * when the Content Control feature is activated.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.6
+             */
+            readonly screenDailyTime: number;
+
+            /**
+             * Indicates the remaining screen time (in seconds) which the User is allowed to spend watching TV for the
+             * current day when the Content Control feature is activated. When this value equals 0, the media device
+             * shall terminate the playback of content.
+             *
+             * This attribute shall be updated when the AddBonusTime command is received and processed successfully
+             * (with the correct PIN).
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.7
+             */
+            readonly remainingScreenTime: number;
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to add the extra screen time for the user.
              *
@@ -279,10 +230,36 @@ export namespace ContentControl {
             setScreenDailyTime(request: SetScreenDailyTimeRequest): MaybePromise;
         }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "BlockUnrated".
-         */
-        export interface BlockUnrated {
+        export interface Events {
+            /**
+             * This event shall be generated when the RemainingScreenTime equals 0.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.9.1
+             */
+            remainingScreenTimeExpired: void;
+        }
+    }
+
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "BlockUnrated".
+     */
+    export namespace BlockUnratedComponent {
+        export interface Attributes {
+            /**
+             * Indicates whether the playback of unrated content is allowed when the Content Control feature is
+             * activated. If this attribute equals FALSE, then playback of unrated content shall be permitted.
+             * Otherwise, the media device shall prevent the playback of unrated content.
+             *
+             * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+             * example, if the feature does not control content within apps, then the device should make this clear to
+             * the user when the attribute changes.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.8
+             */
+            readonly blockUnrated: boolean;
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to specify whether programs with no Content rating must be blocked by this
              * media device.
@@ -305,11 +282,22 @@ export namespace ContentControl {
              */
             unblockUnratedContent(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "BlockChannels".
-         */
-        export interface BlockChannels {
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "BlockChannels".
+     */
+    export namespace BlockChannelsComponent {
+        export interface Attributes {
+            /**
+             * Indicates a set of channels that shall be blocked when the Content Control feature is activated.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.9
+             */
+            readonly blockChannelList: BlockChannel[];
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to set BlockChannelList attribute.
              *
@@ -341,11 +329,22 @@ export namespace ContentControl {
              */
             removeBlockChannels(request: RemoveBlockChannelsRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "BlockApplications".
-         */
-        export interface BlockApplications {
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "BlockApplications".
+     */
+    export namespace BlockApplicationsComponent {
+        export interface Attributes {
+            /**
+             * Indicates a set of applications that shall be blocked when the Content Control feature is activated.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.10
+             */
+            readonly blockApplicationList: AppInfo[];
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to set applications to the BlockApplicationList attribute.
              *
@@ -376,11 +375,26 @@ export namespace ContentControl {
              */
             removeBlockApplications(request: RemoveBlockApplicationsRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "BlockContentTimeWindow".
-         */
-        export interface BlockContentTimeWindow {
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "BlockContentTimeWindow".
+     */
+    export namespace BlockContentTimeWindowComponent {
+        export interface Attributes {
+            /**
+             * Indicates a set of periods during which the playback of content on media device shall be blocked when the
+             * Content Control feature is activated. The media device shall reject any request to play content during
+             * one period of this attribute. If it is entering any one period of this attribute, the media device shall
+             * block content which is playing and generate an event EnteringBlockContentTimeWindow. There shall NOT be
+             * multiple entries in this attribute list for the same day of week.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.11
+             */
+            readonly blockContentTimeWindow: TimeWindow[];
+        }
+
+        export interface Commands {
             /**
              * The purpose of this command is to set the BlockContentTimeWindow attribute.
              *
@@ -413,10 +427,22 @@ export namespace ContentControl {
             removeBlockContentTimeWindow(request: RemoveBlockContentTimeWindowRequest): MaybePromise;
         }
 
-        /**
-         * {@link ContentControl} supports these commands if it supports feature "PinManagement".
-         */
-        export interface PinManagement {
+        export interface Events {
+            /**
+             * This event shall be generated when entering a period of blocked content as configured in the
+             * BlockContentTimeWindow attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.13.9.2
+             */
+            enteringBlockContentTimeWindow: void;
+        }
+    }
+
+    /**
+     * {@link ContentControl} supports these elements if it supports feature "PinManagement".
+     */
+    export namespace PinManagementComponent {
+        export interface Commands {
             /**
              * The purpose of this command is to update the PIN used for protecting configuration of the content control
              * settings. Upon success, the old PIN shall no longer work.
@@ -447,19 +473,147 @@ export namespace ContentControl {
              */
             resetPin(): MaybePromise<ResetPinResponse>;
         }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { onDemandContentRating: true }, methods: OnDemandContentRating },
-            { flags: { scheduledContentRating: true }, methods: ScheduledContentRating },
-            { flags: { screenTime: true }, methods: ScreenTime },
-            { flags: { blockUnrated: true }, methods: BlockUnrated },
-            { flags: { blockChannels: true }, methods: BlockChannels },
-            { flags: { blockApplications: true }, methods: BlockApplications },
-            { flags: { blockContentTimeWindow: true }, methods: BlockContentTimeWindow },
-            { flags: { pinManagement: true }, methods: PinManagement }
-        ];
     }
+
+    /**
+     * Attributes that may appear in {@link ContentControl}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates whether the Content Control feature implemented on a media device is turned off (FALSE) or turned
+         * on (TRUE).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.1
+         */
+        readonly enabled: boolean;
+
+        /**
+         * This attribute shall provide the collection of ratings that are currently valid for this media device. The
+         * items should honor the metadata of the on-demand content (e.g. Movie) rating system for one country or region
+         * where the media device has been provisioned. For example, for the MPAA system, RatingName may be one value
+         * out of "G", "PG", "PG-13", "R", "NC-17".
+         *
+         * The media device shall have a way to determine which rating system applies for the on-demand content and then
+         * populate this attribute. For example, it can do it through examining the Location attribute in the Basic
+         * Information cluster, and then determining which rating system applies.
+         *
+         * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
+         * oldest viewers. Each rating in the list shall be unique.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.2
+         */
+        readonly onDemandRatings: RatingName[];
+
+        /**
+         * Indicates a threshold rating as a content filter which is compared with the rating for on-demand content. For
+         * example, if the on-demand content rating is greater than or equal to OnDemandRatingThreshold, for a rating
+         * system that is ordered from lower viewer age to higher viewer age, then on-demand content is not appropriate
+         * for the User and the Node shall prevent the playback of content.
+         *
+         * This attribute shall be set to one of the values present in the OnDemandRatings attribute.
+         *
+         * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+         * example, if the feature does not control content within apps, then the device should make this clear to the
+         * user when the attribute changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.3
+         */
+        readonly onDemandRatingThreshold: string;
+
+        /**
+         * Indicates a collection of ratings which ScheduledContentRatingThreshold can be set to. The items should honor
+         * metadata of the scheduled content rating system for the country or region where the media device has been
+         * provisioned.
+         *
+         * The media device shall have a way to determine which scheduled content rating system applies and then
+         * populate this attribute. For example, this can be done by examining the Location attribute in Basic
+         * Information cluster, and then determining which rating system applies.
+         *
+         * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
+         * oldest viewers. Each rating in the list shall be unique.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.4
+         */
+        readonly scheduledContentRatings: RatingName[];
+
+        /**
+         * Indicates a threshold rating as a content filter which is used to compare with the rating for scheduled
+         * content. For example, if the scheduled content rating is greater than or equal to
+         * ScheduledContentRatingThreshold for a rating system that is ordered from lower viewer age to higher viewer
+         * age, then the scheduled content is not appropriate for the User and shall be blocked.
+         *
+         * This attribute shall be set to one of the values present in the ScheduledContentRatings attribute.
+         *
+         * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+         * example, if the feature does not control content within apps, then the device should make this clear to the
+         * user when the attribute changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.5
+         */
+        readonly scheduledContentRatingThreshold: string;
+
+        /**
+         * Indicates the amount of time (in seconds) which the User is allowed to spend watching TV within one day when
+         * the Content Control feature is activated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.6
+         */
+        readonly screenDailyTime: number;
+
+        /**
+         * Indicates the remaining screen time (in seconds) which the User is allowed to spend watching TV for the
+         * current day when the Content Control feature is activated. When this value equals 0, the media device shall
+         * terminate the playback of content.
+         *
+         * This attribute shall be updated when the AddBonusTime command is received and processed successfully (with
+         * the correct PIN).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.7
+         */
+        readonly remainingScreenTime: number;
+
+        /**
+         * Indicates whether the playback of unrated content is allowed when the Content Control feature is activated.
+         * If this attribute equals FALSE, then playback of unrated content shall be permitted. Otherwise, the media
+         * device shall prevent the playback of unrated content.
+         *
+         * When this attribute changes, the device SHOULD make the user aware of any limits of this feature. For
+         * example, if the feature does not control content within apps, then the device should make this clear to the
+         * user when the attribute changes.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.8
+         */
+        readonly blockUnrated: boolean;
+
+        /**
+         * Indicates a set of channels that shall be blocked when the Content Control feature is activated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.9
+         */
+        readonly blockChannelList: BlockChannel[];
+
+        /**
+         * Indicates a set of applications that shall be blocked when the Content Control feature is activated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.10
+         */
+        readonly blockApplicationList: AppInfo[];
+
+        /**
+         * Indicates a set of periods during which the playback of content on media device shall be blocked when the
+         * Content Control feature is activated. The media device shall reject any request to play content during one
+         * period of this attribute. If it is entering any one period of this attribute, the media device shall block
+         * content which is playing and generate an event EnteringBlockContentTimeWindow. There shall NOT be multiple
+         * entries in this attribute list for the same day of week.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.11
+         */
+        readonly blockContentTimeWindow: TimeWindow[];
+    }
+
+    export interface Commands extends Base.Commands, OnDemandContentRatingComponent.Commands, ScheduledContentRatingComponent.Commands, ScreenTimeComponent.Commands, BlockUnratedComponent.Commands, BlockChannelsComponent.Commands, BlockApplicationsComponent.Commands, BlockContentTimeWindowComponent.Commands, PinManagementComponent.Commands {}
 
     /**
      * Events that may appear in {@link ContentControl}.
@@ -483,12 +637,51 @@ export namespace ContentControl {
         enteringBlockContentTimeWindow: void;
     }
 
-    export namespace Events {
-        export type Components = [
-            { flags: { screenTime: true }, mandatory: "remainingScreenTimeExpired" },
-            { flags: { blockContentTimeWindow: true }, mandatory: "enteringBlockContentTimeWindow" }
-        ];
-    }
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        {
+            flags: { onDemandContentRating: true },
+            attributes: OnDemandContentRatingComponent.Attributes,
+            commands: OnDemandContentRatingComponent.Commands
+        },
+        {
+            flags: { scheduledContentRating: true },
+            attributes: ScheduledContentRatingComponent.Attributes,
+            commands: ScheduledContentRatingComponent.Commands
+        },
+
+        {
+            flags: { screenTime: true },
+            attributes: ScreenTimeComponent.Attributes,
+            commands: ScreenTimeComponent.Commands,
+            events: ScreenTimeComponent.Events
+        },
+
+        {
+            flags: { blockUnrated: true },
+            attributes: BlockUnratedComponent.Attributes,
+            commands: BlockUnratedComponent.Commands
+        },
+        {
+            flags: { blockChannels: true },
+            attributes: BlockChannelsComponent.Attributes,
+            commands: BlockChannelsComponent.Commands
+        },
+        {
+            flags: { blockApplications: true },
+            attributes: BlockApplicationsComponent.Attributes,
+            commands: BlockApplicationsComponent.Commands
+        },
+
+        {
+            flags: { blockContentTimeWindow: true },
+            attributes: BlockContentTimeWindowComponent.Attributes,
+            commands: BlockContentTimeWindowComponent.Commands,
+            events: BlockContentTimeWindowComponent.Events
+        },
+
+        { flags: { pinManagement: true }, commands: PinManagementComponent.Commands }
+    ];
 
     export type Features = "ScreenTime" | "PinManagement" | "BlockUnrated" | "OnDemandContentRating" | "ScheduledContentRating" | "BlockChannels" | "BlockApplications" | "BlockContentTimeWindow";
 
@@ -2372,4 +2565,4 @@ export namespace ContentControl {
 export type ContentControlCluster = ContentControl.Cluster;
 export const ContentControlCluster = ContentControl.Cluster;
 ClusterNamespace.define(ContentControl);
-export interface ContentControl extends ClusterTyping { Attributes: ContentControl.Attributes & { Components: ContentControl.Attributes.Components }; Commands: ContentControl.Commands & { Components: ContentControl.Commands.Components }; Events: ContentControl.Events & { Components: ContentControl.Events.Components }; Features: ContentControl.Features }
+export interface ContentControl extends ClusterTyping { Attributes: ContentControl.Attributes; Commands: ContentControl.Commands; Events: ContentControl.Events; Features: ContentControl.Features; Components: ContentControl.Components }

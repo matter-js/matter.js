@@ -28,50 +28,20 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace Channel {
     /**
-     * Attributes that may appear in {@link Channel}.
-     *
-     * Optional properties represent attributes that devices are not required to support. Device support for attributes
-     * may also be affected by a device's supported {@link Features}.
+     * {@link Channel} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute shall contain the current channel. When supported but a channel is not currently tuned to (if
-         * a content application is in foreground), the value of the field shall be null.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.3
-         */
-        currentChannel: ChannelInfo | null;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall contain the current channel. When supported but a channel is not currently tuned to
+             * (if a content application is in foreground), the value of the field shall be null.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.3
+             */
+            readonly currentChannel?: ChannelInfo | null;
+        }
 
-        /**
-         * This attribute shall provide the list of supported channels.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.1
-         */
-        channelList: ChannelInfo[];
-
-        /**
-         * This attribute shall identify the channel lineup using external data sources.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.2
-         */
-        lineup: LineupInfo | null;
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, optional: "currentChannel" },
-            { flags: { channelList: true }, mandatory: "channelList" },
-            { flags: { lineupInfo: true }, mandatory: "lineup" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base, Commands.ChannelListOrLineupInfo, Commands.ElectronicGuide, Commands.RecordProgramAndElectronicGuide {}
-
-    export namespace Commands {
-        /**
-         * {@link Channel} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * Change the channel to the channel with the given Number in the ChannelList attribute.
              *
@@ -96,11 +66,41 @@ export namespace Channel {
              */
             skipChannel(request: SkipChannelRequest): MaybePromise;
         }
+    }
 
-        /**
-         * {@link Channel} supports these commands if it supports feature "ChannelListOrLineupInfo".
-         */
-        export interface ChannelListOrLineupInfo {
+    /**
+     * {@link Channel} supports these elements if it supports feature "ChannelList".
+     */
+    export namespace ChannelListComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall provide the list of supported channels.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.1
+             */
+            readonly channelList: ChannelInfo[];
+        }
+    }
+
+    /**
+     * {@link Channel} supports these elements if it supports feature "LineupInfo".
+     */
+    export namespace LineupInfoComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall identify the channel lineup using external data sources.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.2
+             */
+            readonly lineup: LineupInfo | null;
+        }
+    }
+
+    /**
+     * {@link Channel} supports these elements if it supports feature "ChannelListOrLineupInfo".
+     */
+    export namespace ChannelListOrLineupInfoComponent {
+        export interface Commands {
             /**
              * Change the channel to the channel case-insensitive exact matching the value passed as an argument.
              *
@@ -115,11 +115,13 @@ export namespace Channel {
              */
             changeChannel(request: ChangeChannelRequest): MaybePromise<ChangeChannelResponse>;
         }
+    }
 
-        /**
-         * {@link Channel} supports these commands if it supports feature "ElectronicGuide".
-         */
-        export interface ElectronicGuide {
+    /**
+     * {@link Channel} supports these elements if it supports feature "ElectronicGuide".
+     */
+    export namespace ElectronicGuideComponent {
+        export interface Commands {
             /**
              * This command retrieves the program guide. It accepts several filter parameters to return specific
              * schedule and program information from a content app. The command shall receive in response a
@@ -130,11 +132,13 @@ export namespace Channel {
              */
             getProgramGuide(request: GetProgramGuideRequest): MaybePromise<ProgramGuideResponse>;
         }
+    }
 
-        /**
-         * {@link Channel} supports these commands if it supports feature "RecordProgramAndElectronicGuide".
-         */
-        export interface RecordProgramAndElectronicGuide {
+    /**
+     * {@link Channel} supports these elements if it supports feature "RecordProgramAndElectronicGuide".
+     */
+    export namespace RecordProgramAndElectronicGuideComponent {
+        export interface Commands {
             /**
              * Record a specific program or series when it goes live. This functionality enables DVR recording features.
              *
@@ -149,15 +153,52 @@ export namespace Channel {
              */
             cancelRecordProgram(request: CancelRecordProgramRequest): MaybePromise;
         }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { channelList: true }, methods: ChannelListOrLineupInfo },
-            { flags: { lineupInfo: true }, methods: ChannelListOrLineupInfo },
-            { flags: { electronicGuide: true }, methods: ElectronicGuide },
-            { flags: { recordProgram: true, electronicGuide: true }, methods: RecordProgramAndElectronicGuide }
-        ];
     }
+
+    /**
+     * Attributes that may appear in {@link Channel}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall contain the current channel. When supported but a channel is not currently tuned to (if
+         * a content application is in foreground), the value of the field shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.3
+         */
+        readonly currentChannel: ChannelInfo | null;
+
+        /**
+         * This attribute shall provide the list of supported channels.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.1
+         */
+        readonly channelList: ChannelInfo[];
+
+        /**
+         * This attribute shall identify the channel lineup using external data sources.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.2
+         */
+        readonly lineup: LineupInfo | null;
+    }
+
+    export interface Commands extends Base.Commands, ChannelListOrLineupInfoComponent.Commands, ElectronicGuideComponent.Commands, RecordProgramAndElectronicGuideComponent.Commands {}
+
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { channelList: true }, attributes: ChannelListComponent.Attributes },
+        { flags: { lineupInfo: true }, attributes: LineupInfoComponent.Attributes },
+        { flags: { channelList: true }, commands: ChannelListOrLineupInfoComponent.Commands },
+        { flags: { lineupInfo: true }, commands: ChannelListOrLineupInfoComponent.Commands },
+        { flags: { electronicGuide: true }, commands: ElectronicGuideComponent.Commands },
+        {
+            flags: { recordProgram: true, electronicGuide: true },
+            commands: RecordProgramAndElectronicGuideComponent.Commands
+        }
+    ];
 
     export type Features = "ChannelList" | "LineupInfo" | "ElectronicGuide" | "RecordProgram";
 
@@ -1839,4 +1880,4 @@ export namespace Channel {
 export type ChannelCluster = Channel.Cluster;
 export const ChannelCluster = Channel.Cluster;
 ClusterNamespace.define(Channel);
-export interface Channel extends ClusterTyping { Attributes: Channel.Attributes & { Components: Channel.Attributes.Components }; Commands: Channel.Commands & { Components: Channel.Commands.Components }; Features: Channel.Features }
+export interface Channel extends ClusterTyping { Attributes: Channel.Attributes; Commands: Channel.Commands; Features: Channel.Features; Components: Channel.Components }

@@ -24,36 +24,26 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace MediaInput {
     /**
-     * Attributes that may appear in {@link MediaInput}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link MediaInput} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute shall provide a list of the media inputs supported by the device.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
-         */
-        inputList: InputInfo[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall provide a list of the media inputs supported by the device.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
+             */
+            readonly inputList: InputInfo[];
 
-        /**
-         * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
-         */
-        currentInput: number;
-    }
+            /**
+             * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
+             */
+            readonly currentInput: number;
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "inputList" | "currentInput" }];
-    }
-    export interface Commands extends Commands.Base, Commands.NameUpdates {}
-
-    export namespace Commands {
-        /**
-         * {@link MediaInput} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * Upon receipt, this command shall change the media input on the device to the input at a specific index in
              * the Input List.
@@ -76,11 +66,13 @@ export namespace MediaInput {
              */
             hideInputStatus(): MaybePromise;
         }
+    }
 
-        /**
-         * {@link MediaInput} supports these commands if it supports feature "NameUpdates".
-         */
-        export interface NameUpdates {
+    /**
+     * {@link MediaInput} supports these elements if it supports feature "NameUpdates".
+     */
+    export namespace NameUpdatesComponent {
+        export interface Commands {
             /**
              * Upon receipt, this command shall rename the input at a specific index in the Input List.
              *
@@ -90,13 +82,34 @@ export namespace MediaInput {
              */
             renameInput(request: RenameInputRequest): MaybePromise;
         }
-
-        export type Components = [
-            { flags: {}, methods: Base },
-            { flags: { nameUpdates: true }, methods: NameUpdates }
-        ];
     }
 
+    /**
+     * Attributes that may appear in {@link MediaInput}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall provide a list of the media inputs supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
+         */
+        readonly inputList: InputInfo[];
+
+        /**
+         * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
+         */
+        readonly currentInput: number;
+    }
+
+    export interface Commands extends Base.Commands, NameUpdatesComponent.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { nameUpdates: true }, commands: NameUpdatesComponent.Commands }
+    ];
     export type Features = "NameUpdates";
 
     /**
@@ -402,4 +415,4 @@ export namespace MediaInput {
 export type MediaInputCluster = MediaInput.Cluster;
 export const MediaInputCluster = MediaInput.Cluster;
 ClusterNamespace.define(MediaInput);
-export interface MediaInput extends ClusterTyping { Attributes: MediaInput.Attributes & { Components: MediaInput.Attributes.Components }; Commands: MediaInput.Commands & { Components: MediaInput.Commands.Components }; Features: MediaInput.Features }
+export interface MediaInput extends ClusterTyping { Attributes: MediaInput.Attributes; Commands: MediaInput.Commands; Features: MediaInput.Features; Components: MediaInput.Components }

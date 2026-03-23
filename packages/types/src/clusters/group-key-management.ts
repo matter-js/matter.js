@@ -34,65 +34,53 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace GroupKeyManagement {
     /**
-     * Attributes that may appear in {@link GroupKeyManagement}.
-     *
-     * Device support for attributes may be affected by a device's supported {@link Features}.
+     * {@link GroupKeyManagement} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
-         * particular group key set.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
-         */
-        groupKeyMap: GroupKeyMap[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
+             * particular group key set.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
+             */
+            groupKeyMap: GroupKeyMap[];
 
-        /**
-         * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
-         * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
-         * attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms referred to
-         * as the 'node-wide Group Table'.
-         *
-         * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
-         * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
-         * the entire GroupTable entry for that given GroupId shall be removed.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
-         */
-        groupTable: GroupInfoMap[];
+            /**
+             * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about
+             * how a given logical Group ID maps to a particular set of endpoints, and a name for the group. The content
+             * of this attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms
+             * referred to as the 'node-wide Group Table'.
+             *
+             * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
+             * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped
+             * endpoint, the entire GroupTable entry for that given GroupId shall be removed.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
+             */
+            readonly groupTable: GroupInfoMap[];
 
-        /**
-         * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute shall
-         * be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2, “Group
-         * Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
-         * MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
-         */
-        maxGroupsPerFabric: number;
+            /**
+             * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute
+             * shall be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2,
+             * “Group Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value
+             * of the MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
+             */
+            readonly maxGroupsPerFabric: number;
 
-        /**
-         * Indicates the maximum number of group key sets this node supports per fabric. The value of this attribute
-         * shall be set according to the minimum number of group key sets to support as specified in Section 2.11.1.2,
-         * “Group Limits”.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
-         */
-        maxGroupKeysPerFabric: number;
-    }
+            /**
+             * Indicates the maximum number of group key sets this node supports per fabric. The value of this attribute
+             * shall be set according to the minimum number of group key sets to support as specified in Section
+             * 2.11.1.2, “Group Limits”.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
+             */
+            readonly maxGroupKeysPerFabric: number;
+        }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "groupKeyMap" | "groupTable" | "maxGroupsPerFabric" | "maxGroupKeysPerFabric" }
-        ];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link GroupKeyManagement} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command is used by Administrators to set the state of a given Group Key Set, including atomically
              * updating the state of all epoch keys.
@@ -215,10 +203,58 @@ export namespace GroupKeyManagement {
              */
             keySetReadAllIndices(): MaybePromise<KeySetReadAllIndicesResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
 
+    /**
+     * Attributes that may appear in {@link GroupKeyManagement}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute is a list of GroupKeyMapStruct entries. Each entry associates a logical Group Id with a
+         * particular group key set.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.1
+         */
+        groupKeyMap: GroupKeyMap[];
+
+        /**
+         * This attribute is a list of GroupInfoMapStruct entries. Each entry provides read-only information about how a
+         * given logical Group ID maps to a particular set of endpoints, and a name for the group. The content of this
+         * attribute reflects data managed via the Groups cluster (see AppClusters), and is in general terms referred to
+         * as the 'node-wide Group Table'.
+         *
+         * The GroupTable shall NOT contain any entry whose GroupInfoMapStruct has an empty Endpoints list. If a
+         * RemoveGroup or RemoveAllGroups command causes the removal of a group mapping from its last mapped endpoint,
+         * the entire GroupTable entry for that given GroupId shall be removed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.2
+         */
+        readonly groupTable: GroupInfoMap[];
+
+        /**
+         * Indicates the maximum number of groups that this node supports per fabric. The value of this attribute shall
+         * be set to be no less than the required minimum supported groups as specified in Section 2.11.1.2, “Group
+         * Limits”. The length of the GroupKeyMap and GroupTable list attributes shall NOT exceed the value of the
+         * MaxGroupsPerFabric attribute multiplied by the number of supported fabrics.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.3
+         */
+        readonly maxGroupsPerFabric: number;
+
+        /**
+         * Indicates the maximum number of group key sets this node supports per fabric. The value of this attribute
+         * shall be set according to the minimum number of group key sets to support as specified in Section 2.11.1.2,
+         * “Group Limits”.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.2.6.4
+         */
+        readonly maxGroupKeysPerFabric: number;
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "CacheAndSync";
 
     /**
@@ -1009,4 +1045,4 @@ export namespace GroupKeyManagement {
 export type GroupKeyManagementCluster = GroupKeyManagement.Cluster;
 export const GroupKeyManagementCluster = GroupKeyManagement.Cluster;
 ClusterNamespace.define(GroupKeyManagement);
-export interface GroupKeyManagement extends ClusterTyping { Attributes: GroupKeyManagement.Attributes & { Components: GroupKeyManagement.Attributes.Components }; Commands: GroupKeyManagement.Commands & { Components: GroupKeyManagement.Commands.Components }; Features: GroupKeyManagement.Features }
+export interface GroupKeyManagement extends ClusterTyping { Attributes: GroupKeyManagement.Attributes; Commands: GroupKeyManagement.Commands; Features: GroupKeyManagement.Features; Components: GroupKeyManagement.Components }

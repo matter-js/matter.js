@@ -25,63 +25,54 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace Actions {
     /**
-     * Attributes that may appear in {@link Actions}.
-     *
-     * Optional properties represent attributes that devices are not required to support.
+     * {@link Actions} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
-         * EndpointListID shall exist in the EndpointLists attribute.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.1
-         */
-        actionList: Action[];
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
+             * EndpointListID shall exist in the EndpointLists attribute.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.14.5.1
+             */
+            readonly actionList: Action[];
 
-        /**
-         * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique EndpointListID.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.2
-         */
-        endpointLists: EndpointList[];
+            /**
+             * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique
+             * EndpointListID.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.14.5.2
+             */
+            readonly endpointLists: EndpointList[];
 
-        /**
-         * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as specified
-         * in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location referenced by this URL
-         * shall provide additional information for the actions provided:
-         *
-         *   - When used without suffix, it shall provide information about the various actions which the cluster
-         *     provides.
-         *
-         *     - Example: SetupURL could take the value of example://Actions or
-         *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
-         *       actions provided by this cluster).
-         *
-         *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
-         *     provide information about that particular action. This could be a deeplink to manufacturer-app/website
-         *     (associated somehow to the server node) with the information/edit-screen for this action so that the user
-         *     can view and update details of the action, e.g. edit the scene, or change the wake-up experience time
-         *     period.
-         *
-         *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
-         *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
-         *       action with ActionID 0x3039.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.3
-         */
-        setupUrl: string;
-    }
+            /**
+             * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as
+             * specified in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location referenced
+             * by this URL shall provide additional information for the actions provided:
+             *
+             *   - When used without suffix, it shall provide information about the various actions which the cluster
+             *     provides.
+             *
+             *     - Example: SetupURL could take the value of example://Actions or
+             *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to
+             *       use actions provided by this cluster).
+             *
+             *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
+             *     provide information about that particular action. This could be a deeplink to
+             *     manufacturer-app/website (associated somehow to the server node) with the information/edit-screen for
+             *     this action so that the user can view and update details of the action, e.g. edit the scene, or
+             *     change the wake-up experience time period.
+             *
+             *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
+             *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
+             *       action with ActionID 0x3039.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.14.5.3
+             */
+            readonly setupUrl?: string;
+        }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "actionList" | "endpointLists", optional: "setupUrl" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link Actions} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * This command is used to trigger an instantaneous action.
              *
@@ -254,8 +245,104 @@ export namespace Actions {
             disableActionWithDuration(request: DisableActionWithDurationRequest): MaybePromise;
         }
 
-        export type Components = [{ flags: {}, methods: Base }];
+        export interface Events {
+            /**
+             * This event shall be generated when there is a change in the State of an ActionID during the execution of
+             * an action and the most recent command using that ActionID used an InvokeID data field.
+             *
+             * It provides feedback to the client about the progress of the action.
+             *
+             * Example: When InstantActionWithTransition is invoked (with an InvokeID data field), two StateChanged
+             * events will be generated:
+             *
+             *   - one when the transition starts (NewState=Active)
+             *
+             *   - one when the transition completed (NewState=Inactive)
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
+             */
+            stateChanged: StateChangedEvent;
+
+            /**
+             * This event shall be generated when there is some error which prevents the action from its normal planned
+             * execution and the most recent command using that ActionID used an InvokeID data field.
+             *
+             * It provides feedback to the client about the non-successful progress of the action.
+             *
+             * Example: When InstantActionWithTransition is invoked (with an InvokeID data field), and another
+             * controller changes the state of one or more of the involved endpoints during the transition, thus
+             * interrupting the transition triggered by the action, two events would be generated:
+             *
+             *   - StateChanged when the transition starts (NewState=Active)
+             *
+             *   - ActionFailed when the interrupting command occurs (NewState=Inactive, Error=interrupted)
+             *
+             * Example: When InstantActionWithTransition is invoked (with an InvokeID data field = 1), and the same
+             * client invokes an InstantAction with (the same or another ActionId and) InvokeID = 2, and this second
+             * command interrupts the transition triggered by the first command, these events would be generated:
+             *
+             *   - StateChanged (InvokeID=1, NewState=Active) when the transition starts
+             *
+             *   - ActionFailed (InvokeID=2, NewState=Inactive, Error=interrupted) when the second command interrupts
+             *     the transition
+             *
+             *   - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
+             */
+            actionFailed: ActionFailedEvent;
+        }
     }
+
+    /**
+     * Attributes that may appear in {@link Actions}.
+     *
+     * Optional properties represent attributes that devices are not required to support.
+     */
+    export interface Attributes {
+        /**
+         * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
+         * EndpointListID shall exist in the EndpointLists attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.14.5.1
+         */
+        readonly actionList: Action[];
+
+        /**
+         * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique EndpointListID.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.14.5.2
+         */
+        readonly endpointLists: EndpointList[];
+
+        /**
+         * The SetupURL attribute (when provided) shall indicate a URL; its syntax shall follow the syntax as specified
+         * in RFC 1738, max. 512 ASCII characters and shall use the https scheme. The location referenced by this URL
+         * shall provide additional information for the actions provided:
+         *
+         *   - When used without suffix, it shall provide information about the various actions which the cluster
+         *     provides.
+         *
+         *     - Example: SetupURL could take the value of example://Actions or
+         *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
+         *       actions provided by this cluster).
+         *
+         *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
+         *     provide information about that particular action. This could be a deeplink to manufacturer-app/website
+         *     (associated somehow to the server node) with the information/edit-screen for this action so that the user
+         *     can view and update details of the action, e.g. edit the scene, or change the wake-up experience time
+         *     period.
+         *
+         *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
+         *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
+         *       action with ActionID 0x3039.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.14.5.3
+         */
+        readonly setupUrl: string;
+    }
+
+    export interface Commands extends Base.Commands {}
 
     /**
      * Events that may appear in {@link Actions}.
@@ -308,9 +395,7 @@ export namespace Actions {
         actionFailed: ActionFailedEvent;
     }
 
-    export namespace Events {
-        export type Components = [{ flags: {}, mandatory: "stateChanged" | "actionFailed" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events }];
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.14.4.2
@@ -1683,4 +1768,4 @@ export namespace Actions {
 export type ActionsCluster = Actions.Cluster;
 export const ActionsCluster = Actions.Cluster;
 ClusterNamespace.define(Actions);
-export interface Actions extends ClusterTyping { Attributes: Actions.Attributes & { Components: Actions.Attributes.Components }; Commands: Actions.Commands & { Components: Actions.Commands.Components }; Events: Actions.Events & { Components: Actions.Events.Components } }
+export interface Actions extends ClusterTyping { Attributes: Actions.Attributes; Commands: Actions.Commands; Events: Actions.Events; Components: Actions.Components }

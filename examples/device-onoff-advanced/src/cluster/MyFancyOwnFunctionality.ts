@@ -161,10 +161,7 @@ export type MyFancyCommandResponse = TypeFromSchema<typeof MyFancyOwnFunctionali
 export type MyFancyEvent = TypeFromSchema<typeof MyFancyOwnFunctionality.TlvMyFancyEvent>;
 
 export interface MyFancyOwnFunctionalityNamespace {
-    Commands: {
-        Base: MyFancyOwnFunctionalityNamespace.Base;
-        Components: [{ flags: {}; methods: MyFancyOwnFunctionalityNamespace.Base }];
-    };
+    Components: [{ flags: {}; commands: MyFancyOwnFunctionalityNamespace.Base }];
 }
 
 export namespace MyFancyOwnFunctionalityNamespace {

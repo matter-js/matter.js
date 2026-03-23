@@ -171,47 +171,42 @@ export interface MyClusterTyping extends ClusterTyping {
         condOptAttr2: number;
         optList: Uint8Array[];
         awesomeSauce: number;
-        Components: [
-            {
-                flags: {};
-                mandatory: "reqAttr";
-                optional: "optAttr" | "condAttr" | "condOptAttr1" | "condOptAttr2" | "optList";
-            },
-            {
-                flags: { awesome: true };
-                mandatory: "awesomeSauce";
-            },
-        ];
     };
-    Commands: {
-        Components: [
-            {
-                flags: {};
-                methods: MyClusterBaseInterface;
-            },
-            {
-                flags: { awesome: true };
-                methods: MyClusterAwesomeInterface;
-            },
-        ];
-    };
+    Commands: MyClusterBaseInterface & MyClusterAwesomeInterface;
     Events: {
         reqEv: string;
         optEv: string;
         becameAwesome: number;
-        Components: [
-            {
-                flags: {};
-                mandatory: "reqEv";
-                optional: "optEv";
-            },
-            {
-                flags: { awesome: true };
-                mandatory: "becameAwesome";
-            },
-        ];
     };
     Features: "Awesome";
+    Components: [
+        {
+            flags: {};
+            attributes: {
+                reqAttr: string;
+                optAttr?: boolean;
+                condAttr?: number;
+                condOptAttr1?: number;
+                condOptAttr2?: number;
+                optList?: Uint8Array[];
+            };
+            commands: MyClusterBaseInterface;
+            events: {
+                reqEv: string;
+                optEv?: string;
+            };
+        },
+        {
+            flags: { awesome: true };
+            attributes: {
+                awesomeSauce: number;
+            };
+            commands: MyClusterAwesomeInterface;
+            events: {
+                becameAwesome: number;
+            };
+        },
+    ];
 }
 
 export const BaseBehavior = ClusterBehavior.withInterface<MyClusterTyping>().for(MyCluster, MySchema);

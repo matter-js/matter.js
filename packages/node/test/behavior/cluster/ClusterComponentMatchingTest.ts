@@ -41,24 +41,25 @@ interface NotFeatureBMethods {
 }
 
 /**
- * Mimics OnOff.Commands.Components:
- *   { flags: {}, methods: Base }
- *   { flags: { featureA: true }, methods: FeatureA }
- *   { flags: { featureB: false }, methods: NotFeatureB }
+ * Mimics the unified Components tuple:
+ *   { flags: {}, commands: Base, attributes: ... }
+ *   { flags: { featureA: true }, commands: FeatureA }
+ *   { flags: { featureB: false }, commands: NotFeatureB }
  */
-type TestCommandComponents = [
-    { flags: {}; methods: BaseMethods },
-    { flags: { featureA: true }; methods: FeatureAMethods },
-    { flags: { featureB: false }; methods: NotFeatureBMethods },
+type TestComponents = [
+    { flags: {}; attributes: { attr1: string }; commands: BaseMethods },
+    { flags: { featureA: true }; commands: FeatureAMethods },
+    { flags: { featureB: false }; commands: NotFeatureBMethods },
 ];
 
 /**
  * Full typing interface (like OnOff extends ClusterTyping).
  */
 interface TestTyping extends ClusterTyping {
-    Attributes: { attr1: string } & { Components: [{ flags: {}; mandatory: "attr1" }] };
-    Commands: BaseMethods & FeatureAMethods & NotFeatureBMethods & { Components: TestCommandComponents };
+    Attributes: { attr1: string };
+    Commands: BaseMethods & FeatureAMethods & NotFeatureBMethods;
     Features: "FeatureA" | "FeatureB";
+    Components: TestComponents;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,52 +118,49 @@ describe("ClusterComponentMatching", () => {
     describe("ApplicableComponents", () => {
         it("matches unconditional (flags: {}) always", () => {
             // With no features selected, {} extends {} is true
-            type Result = ClusterInterface.ApplicableComponents<
-                TestCommandComponents,
-                { featureA: false; featureB: false }
-            >;
-            ({}) as Result[0]["methods"] satisfies BaseMethods;
+            type Result = ClusterInterface.ApplicableComponents<TestComponents, { featureA: false; featureB: false }>;
+            ({}) as Result[0]["commands"] satisfies BaseMethods;
         });
 
         it("matches negated flag when feature is false", () => {
             // { featureA: false, featureB: false } extends { featureB: false } → YES
             type S = { featureA: false; featureB: false };
-            type Result = ClusterInterface.ApplicableComponents<TestCommandComponents, S>;
+            type Result = ClusterInterface.ApplicableComponents<TestComponents, S>;
             // Should include Base and NotFeatureB
             ({}) as Result satisfies [
-                { flags: {}; methods: BaseMethods },
-                { flags: { featureB: false }; methods: NotFeatureBMethods },
+                { flags: {}; commands: BaseMethods },
+                { flags: { featureB: false }; commands: NotFeatureBMethods },
             ];
         });
 
         it("excludes negated flag when feature is true", () => {
             // { featureA: true, featureB: true } extends { featureB: false } → NO
             type S = { featureA: true; featureB: true };
-            type Result = ClusterInterface.ApplicableComponents<TestCommandComponents, S>;
+            type Result = ClusterInterface.ApplicableComponents<TestComponents, S>;
             // Should include Base and FeatureA, but NOT NotFeatureB
             ({}) as Result satisfies [
-                { flags: {}; methods: BaseMethods },
-                { flags: { featureA: true }; methods: FeatureAMethods },
+                { flags: {}; commands: BaseMethods },
+                { flags: { featureA: true }; commands: FeatureAMethods },
             ];
         });
 
         it("matches featureA + negated featureB together", () => {
             // { featureA: true, featureB: false } — like OnOff with Lighting but not OffOnly
             type S = { featureA: true; featureB: false };
-            type Result = ClusterInterface.ApplicableComponents<TestCommandComponents, S>;
+            type Result = ClusterInterface.ApplicableComponents<TestComponents, S>;
             // Should include all three: Base, FeatureA, NotFeatureB
             ({}) as Result satisfies [
-                { flags: {}; methods: BaseMethods },
-                { flags: { featureA: true }; methods: FeatureAMethods },
-                { flags: { featureB: false }; methods: NotFeatureBMethods },
+                { flags: {}; commands: BaseMethods },
+                { flags: { featureA: true }; commands: FeatureAMethods },
+                { flags: { featureB: false }; commands: NotFeatureBMethods },
             ];
         });
 
         it("does NOT match when flags are missing (not explicit false)", () => {
             // If S = {}, then {} extends { featureB: false } → NO (featureB is absent)
-            type Result = ClusterInterface.ApplicableComponents<TestCommandComponents, {}>;
+            type Result = ClusterInterface.ApplicableComponents<TestComponents, {}>;
             // Should include ONLY Base
-            ({}) as Result satisfies [{ flags: {}; methods: BaseMethods }];
+            ({}) as Result satisfies [{ flags: {}; commands: BaseMethods }];
         });
     });
 
@@ -243,10 +241,12 @@ describe("ClusterComponentMatching", () => {
          * - FeatureA: attr2 is mandatory when featureA is true
          */
         interface StateTestTyping extends ClusterTyping {
-            Attributes: { attr1: string; attr2: number } & {
-                Components: [{ flags: {}; mandatory: "attr1" }, { flags: { featureA: true }; mandatory: "attr2" }];
-            };
+            Attributes: { attr1: string; attr2: number };
             Features: "FeatureA" | "FeatureB";
+            Components: [
+                { flags: {}; attributes: { attr1: string } },
+                { flags: { featureA: true }; attributes: { attr2: number } },
+            ];
         }
 
         it("makes base attributes mandatory without features", () => {
@@ -273,10 +273,12 @@ describe("ClusterComponentMatching", () => {
 
     describe("ClusterEvents attribute change observables", () => {
         interface EventTestTyping extends ClusterTyping {
-            Attributes: { attr1: string; attr2: number } & {
-                Components: [{ flags: {}; mandatory: "attr1" }, { flags: { featureA: true }; mandatory: "attr2" }];
-            };
+            Attributes: { attr1: string; attr2: number };
             Features: "FeatureA";
+            Components: [
+                { flags: {}; attributes: { attr1: string } },
+                { flags: { featureA: true }; attributes: { attr2: number } },
+            ];
         }
 
         it("includes base attribute change events", () => {
@@ -580,14 +582,14 @@ describe("ClusterComponentMatching", () => {
          * Namespace where ALL commands are feature-conditional (like ColorControl).
          */
         interface AllConditionalTyping extends ClusterTyping {
-            Attributes: { baseAttr: string } & { Components: [{ flags: {}; mandatory: "baseAttr" }] };
-            Commands: { cmdA(): void; cmdB(): void } & {
-                Components: [
-                    { flags: { featureA: true }; methods: { cmdA(): void } },
-                    { flags: { featureB: true }; methods: { cmdB(): void } },
-                ];
-            };
+            Attributes: { baseAttr: string };
+            Commands: { cmdA(): void; cmdB(): void };
             Features: "FeatureA" | "FeatureB";
+            Components: [
+                { flags: {}; attributes: { baseAttr: string } },
+                { flags: { featureA: true }; commands: { cmdA(): void } },
+                { flags: { featureB: true }; commands: { cmdB(): void } },
+            ];
         }
 
         it("with(features) enables feature-conditional methods for override", () => {

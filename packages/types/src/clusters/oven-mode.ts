@@ -25,6 +25,37 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace OvenMode {
     /**
+     * {@link OvenMode} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
+             * list.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
+             */
+            readonly currentMode: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to change device modes.
+             *
+             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+             */
+            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link OvenMode}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -36,37 +67,16 @@ export namespace OvenMode {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
          */
-        currentMode: number;
+        readonly currentMode: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "supportedModes" | "currentMode" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link OvenMode} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "OnOff";
 
     /**
@@ -472,4 +482,4 @@ export namespace OvenMode {
 export type OvenModeCluster = OvenMode.Cluster;
 export const OvenModeCluster = OvenMode.Cluster;
 ClusterNamespace.define(OvenMode);
-export interface OvenMode extends ClusterTyping { Attributes: OvenMode.Attributes & { Components: OvenMode.Attributes.Components }; Commands: OvenMode.Commands & { Components: OvenMode.Commands.Components }; Features: OvenMode.Features }
+export interface OvenMode extends ClusterTyping { Attributes: OvenMode.Attributes; Commands: OvenMode.Commands; Features: OvenMode.Features; Components: OvenMode.Components }

@@ -24,6 +24,20 @@ import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js"
  */
 export namespace Binding {
     /**
+     * {@link Binding} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Each entry shall represent a binding.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.6.6.1
+             */
+            binding: Target[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link Binding}.
      */
     export interface Attributes {
@@ -35,9 +49,7 @@ export namespace Binding {
         binding: Target[];
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "binding" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
@@ -187,4 +199,4 @@ export namespace Binding {
 export type BindingCluster = Binding.Cluster;
 export const BindingCluster = Binding.Cluster;
 ClusterNamespace.define(Binding);
-export interface Binding extends ClusterTyping { Attributes: Binding.Attributes & { Components: Binding.Attributes.Components } }
+export interface Binding extends ClusterTyping { Attributes: Binding.Attributes; Components: Binding.Components }

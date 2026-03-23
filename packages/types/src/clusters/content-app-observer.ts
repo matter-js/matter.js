@@ -22,13 +22,11 @@ import { ClusterId } from "../datatype/ClusterId.js";
  * Definitions for the ContentAppObserver cluster.
  */
 export namespace ContentAppObserver {
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link ContentAppObserver} always supports these commands.
-         */
-        export interface Base {
+    /**
+     * {@link ContentAppObserver} always supports these elements.
+     */
+    export namespace Base {
+        export interface Commands {
             /**
              * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content
              * App. A Content App may when possible read attributes from the Basic Information Cluster on the Observer
@@ -40,9 +38,10 @@ export namespace ContentAppObserver {
              */
             contentAppMessage(request: ContentAppMessageRequest): MaybePromise<ContentAppMessageResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, commands: Base.Commands }];
 
     /**
      * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content App. A
@@ -255,4 +254,4 @@ export namespace ContentAppObserver {
 export type ContentAppObserverCluster = ContentAppObserver.Cluster;
 export const ContentAppObserverCluster = ContentAppObserver.Cluster;
 ClusterNamespace.define(ContentAppObserver);
-export interface ContentAppObserver extends ClusterTyping { Commands: ContentAppObserver.Commands & { Components: ContentAppObserver.Commands.Components } }
+export interface ContentAppObserver extends ClusterTyping { Commands: ContentAppObserver.Commands; Components: ContentAppObserver.Components }

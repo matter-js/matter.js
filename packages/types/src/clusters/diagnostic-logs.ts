@@ -22,13 +22,11 @@ import { ClusterId } from "../datatype/ClusterId.js";
  * Definitions for the DiagnosticLogs cluster.
  */
 export namespace DiagnosticLogs {
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link DiagnosticLogs} always supports these commands.
-         */
-        export interface Base {
+    /**
+     * {@link DiagnosticLogs} always supports these elements.
+     */
+    export namespace Base {
+        export interface Commands {
             /**
              * Reception of this command starts the process of retrieving diagnostic logs from a Node.
              *
@@ -36,9 +34,10 @@ export namespace DiagnosticLogs {
              */
             retrieveLogsRequest(request: RetrieveLogsRequest): MaybePromise<RetrieveLogsResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, commands: Base.Commands }];
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.11.4.1
@@ -464,4 +463,4 @@ export namespace DiagnosticLogs {
 export type DiagnosticLogsCluster = DiagnosticLogs.Cluster;
 export const DiagnosticLogsCluster = DiagnosticLogs.Cluster;
 ClusterNamespace.define(DiagnosticLogs);
-export interface DiagnosticLogs extends ClusterTyping { Commands: DiagnosticLogs.Commands & { Components: DiagnosticLogs.Commands.Components } }
+export interface DiagnosticLogs extends ClusterTyping { Commands: DiagnosticLogs.Commands; Components: DiagnosticLogs.Components }

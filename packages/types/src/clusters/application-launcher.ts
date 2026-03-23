@@ -27,48 +27,21 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace ApplicationLauncher {
     /**
-     * Attributes that may appear in {@link ApplicationLauncher}.
-     *
-     * Optional properties represent attributes that devices are not required to support. Device support for attributes
-     * may also be affected by a device's supported {@link Features}.
+     * {@link ApplicationLauncher} always supports these elements.
      */
-    export interface Attributes {
-        /**
-         * This attribute shall specify the current in-focus application, identified using an Application ID, catalog
-         * vendor ID and the corresponding endpoint number when the application is represented by a Content App
-         * endpoint. A null shall be used to indicate there is no current in-focus application.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
-         */
-        currentApp: ApplicationEp | null;
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall specify the current in-focus application, identified using an Application ID,
+             * catalog vendor ID and the corresponding endpoint number when the application is represented by a Content
+             * App endpoint. A null shall be used to indicate there is no current in-focus application.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
+             */
+            readonly currentApp?: ApplicationEp | null;
+        }
 
-        /**
-         * This attribute shall specify the list of supported application catalogs, where each entry in the list is the
-         * Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL Registry])
-         * shall use value 0x0000.
-         *
-         * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their own
-         * Vendor ID) and will assign an ApplicationID to each Content App.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
-         */
-        catalogList: number[];
-    }
-
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, optional: "currentApp" },
-            { flags: { applicationPlatform: true }, mandatory: "catalogList" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link ApplicationLauncher} always supports these commands.
-         */
-        export interface Base {
+        export interface Commands {
             /**
              * Upon receipt of this command, the server shall launch the application with optional data. The application
              * shall be either
@@ -126,10 +99,61 @@ export namespace ApplicationLauncher {
              */
             hideApp(request: HideAppRequest): MaybePromise<LauncherResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
 
+    /**
+     * {@link ApplicationLauncher} supports these elements if it supports feature "ApplicationPlatform".
+     */
+    export namespace ApplicationPlatformComponent {
+        export interface Attributes {
+            /**
+             * This attribute shall specify the list of supported application catalogs, where each entry in the list is
+             * the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL
+             * Registry]) shall use value 0x0000.
+             *
+             * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their
+             * own Vendor ID) and will assign an ApplicationID to each Content App.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
+             */
+            readonly catalogList: number[];
+        }
+    }
+
+    /**
+     * Attributes that may appear in {@link ApplicationLauncher}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall specify the current in-focus application, identified using an Application ID, catalog
+         * vendor ID and the corresponding endpoint number when the application is represented by a Content App
+         * endpoint. A null shall be used to indicate there is no current in-focus application.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
+         */
+        readonly currentApp: ApplicationEp | null;
+
+        /**
+         * This attribute shall specify the list of supported application catalogs, where each entry in the list is the
+         * Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL Registry])
+         * shall use value 0x0000.
+         *
+         * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their own
+         * Vendor ID) and will assign an ApplicationID to each Content App.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
+         */
+        readonly catalogList: number[];
+    }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { applicationPlatform: true }, attributes: ApplicationPlatformComponent.Attributes }
+    ];
     export type Features = "ApplicationPlatform";
 
     /**
@@ -707,4 +731,4 @@ export namespace ApplicationLauncher {
 export type ApplicationLauncherCluster = ApplicationLauncher.Cluster;
 export const ApplicationLauncherCluster = ApplicationLauncher.Cluster;
 ClusterNamespace.define(ApplicationLauncher);
-export interface ApplicationLauncher extends ClusterTyping { Attributes: ApplicationLauncher.Attributes & { Components: ApplicationLauncher.Attributes.Components }; Commands: ApplicationLauncher.Commands & { Components: ApplicationLauncher.Commands.Components }; Features: ApplicationLauncher.Features }
+export interface ApplicationLauncher extends ClusterTyping { Attributes: ApplicationLauncher.Attributes; Commands: ApplicationLauncher.Commands; Features: ApplicationLauncher.Features; Components: ApplicationLauncher.Components }

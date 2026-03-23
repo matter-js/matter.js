@@ -30,6 +30,97 @@ import { ModeBase as ModeBaseModel } from "@matter/model";
  */
 export namespace ModeBase {
     /**
+     * {@link ModeBase} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall contain the list of supported modes that may be selected for the CurrentMode
+             * attribute. Each item in this list represents a unique mode as indicated by the Mode field of the
+             * ModeOptionStruct.
+             *
+             * Each entry in this list shall have a unique value for the Mode field.
+             *
+             * Each entry in this list shall have a unique value for the Label field.
+             *
+             * The set of ModeTags listed in each entry in this list shall be distinct from the sets of ModeTags listed
+             * in the other entries. This comparison shall NOT depend on the order of the ModeTags in the lists. Two
+             * sets shall be considered distinct if one of them contains an element that the other one does not. Note
+             * that the two sets could have a non-empty intersection, or one could be a subset of the other, and still
+             * be distinct.
+             *
+             * Simplified examples of allowed ModeTags lists:
+             *
+             * Simplified examples of disallowed ModeTags lists:
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.1
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * Indicates the current mode of the server.
+             *
+             * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
+             *
+             * The value of this attribute may change at any time via an out-of-band interaction outside of the server,
+             * such as interactions with a user interface, via internal mode changes due to autonomously progressing
+             * through a sequence of operations, on system time-outs or idle delays, or via interactions coming from a
+             * fabric other than the one which last executed a ChangeToMode.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.2
+             */
+            readonly currentMode: number;
+
+            /**
+             * Indicates the desired startup mode for the server when it is supplied with power.
+             *
+             * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
+             * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute
+             * (see Section 1.10.6.4.1, “OnMode with Power Up”).
+             *
+             * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode
+             * attribute shall return to its value prior to the restart.
+             *
+             * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
+             *
+             * If this attribute is not implemented, or is set to the null value, it shall have no effect.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.3
+             */
+            startUpMode?: number | null;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to change device modes.
+             *
+             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+             */
+            changeToMode(request: ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
+        }
+    }
+
+    /**
+     * {@link ModeBase} supports these elements if it supports feature "OnOff".
+     */
+    export namespace OnOffComponent {
+        export interface Attributes {
+            /**
+             * Indicates whether the value of CurrentMode depends on the state of the On/Off cluster on the same
+             * endpoint. If this attribute is not present or is set to null, there is no dependency, otherwise the
+             * CurrentMode attribute shall depend on the OnOff attribute in the On/Off cluster
+             *
+             * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.4
+             */
+            onMode: number | null;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link ModeBase}.
      *
      * Optional properties represent attributes that devices are not required to support. Device support for attributes
@@ -55,7 +146,7 @@ export namespace ModeBase {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.1
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * Indicates the current mode of the server.
@@ -69,7 +160,7 @@ export namespace ModeBase {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.6.2
          */
-        currentMode: number;
+        readonly currentMode: number;
 
         /**
          * Indicates the desired startup mode for the server when it is supplied with power.
@@ -101,33 +192,11 @@ export namespace ModeBase {
         onMode: number | null;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "supportedModes" | "currentMode", optional: "startUpMode" },
-            { flags: { onOff: true }, mandatory: "onMode" }
-        ];
-    }
-
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link ModeBase} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: { onOff: true }, attributes: OnOffComponent.Attributes }
+    ];
     export type Features = "OnOff";
 
     /**
@@ -662,4 +731,4 @@ export namespace ModeBase {
 }
 
 ClusterNamespace.define(ModeBase);
-export interface ModeBase extends ClusterTyping { Attributes: ModeBase.Attributes & { Components: ModeBase.Attributes.Components }; Commands: ModeBase.Commands & { Components: ModeBase.Commands.Components }; Features: ModeBase.Features }
+export interface ModeBase extends ClusterTyping { Attributes: ModeBase.Attributes; Commands: ModeBase.Commands; Features: ModeBase.Features; Components: ModeBase.Components }

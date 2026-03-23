@@ -25,6 +25,46 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace DeviceEnergyManagementMode {
     /**
+     * {@link DeviceEnergyManagementMode} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * At least one entry in the SupportedModes attribute shall include the NoOptimization mode tag in the
+             * ModeTags field.
+             *
+             * At least one entry in the SupportedModes attribute shall include the LocalOptimization mode tag in the
+             * ModeTags field list.
+             *
+             * At least one entry in the SupportedModes attribute shall include the GridOptimization mode tag in the
+             * ModeTags field list.
+             *
+             * An entry in the SupportedModes attribute that includes one of an DeviceOptimization, LocalOptimization,
+             * or GridOptimization tags shall NOT also include NoOptimization tag.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
+             */
+            readonly supportedModes: ModeOption[];
+
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
+             */
+            readonly currentMode: number;
+        }
+
+        export interface Commands {
+            /**
+             * This command is used to change device modes.
+             *
+             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+             */
+            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link DeviceEnergyManagementMode}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -45,37 +85,16 @@ export namespace DeviceEnergyManagementMode {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.8.6.1
          */
-        supportedModes: ModeOption[];
+        readonly supportedModes: ModeOption[];
 
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 9.8.6
          */
-        currentMode: number;
+        readonly currentMode: number;
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "supportedModes" | "currentMode" }];
-    }
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link DeviceEnergyManagementMode} always supports these commands.
-         */
-        export interface Base {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
-
-        export type Components = [{ flags: {}, methods: Base }];
-    }
-
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
     export type Features = "OnOff";
 
     /**
@@ -455,4 +474,4 @@ export namespace DeviceEnergyManagementMode {
 export type DeviceEnergyManagementModeCluster = DeviceEnergyManagementMode.Cluster;
 export const DeviceEnergyManagementModeCluster = DeviceEnergyManagementMode.Cluster;
 ClusterNamespace.define(DeviceEnergyManagementMode);
-export interface DeviceEnergyManagementMode extends ClusterTyping { Attributes: DeviceEnergyManagementMode.Attributes & { Components: DeviceEnergyManagementMode.Attributes.Components }; Commands: DeviceEnergyManagementMode.Commands & { Components: DeviceEnergyManagementMode.Commands.Components }; Features: DeviceEnergyManagementMode.Features }
+export interface DeviceEnergyManagementMode extends ClusterTyping { Attributes: DeviceEnergyManagementMode.Attributes; Commands: DeviceEnergyManagementMode.Commands; Features: DeviceEnergyManagementMode.Features; Components: DeviceEnergyManagementMode.Components }

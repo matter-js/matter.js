@@ -20,6 +20,50 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace FlowMeasurement {
     /**
+     * {@link FlowMeasurement} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the flow in m^3/h as follows:
+             *
+             * MeasuredValue = 10 x Flow
+             *
+             * The null value indicates that the flow measurement is unknown, otherwise the range shall be as described
+             * in Measured Value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.1
+             */
+            readonly measuredValue: number | null;
+
+            /**
+             * Indicates the minimum value of MeasuredValue that can be measured. See Measured Value for more details.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.2
+             */
+            readonly minMeasuredValue: number | null;
+
+            /**
+             * Indicates the maximum value of MeasuredValue that can be measured. See Measured Value for more details.
+             *
+             * The null value indicates that the value is not available.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.3
+             */
+            readonly maxMeasuredValue: number | null;
+
+            /**
+             * See Measured Value.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.4
+             */
+            readonly tolerance?: number;
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link FlowMeasurement}.
      *
      * Optional properties represent attributes that devices are not required to support.
@@ -35,7 +79,7 @@ export namespace FlowMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.1
          */
-        measuredValue: number | null;
+        readonly measuredValue: number | null;
 
         /**
          * Indicates the minimum value of MeasuredValue that can be measured. See Measured Value for more details.
@@ -44,7 +88,7 @@ export namespace FlowMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.2
          */
-        minMeasuredValue: number | null;
+        readonly minMeasuredValue: number | null;
 
         /**
          * Indicates the maximum value of MeasuredValue that can be measured. See Measured Value for more details.
@@ -53,21 +97,17 @@ export namespace FlowMeasurement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.3
          */
-        maxMeasuredValue: number | null;
+        readonly maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.5.4.4
          */
-        tolerance: number;
+        readonly tolerance: number;
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue", optional: "tolerance" }
-        ];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * @see {@link Cluster}
@@ -139,4 +179,4 @@ export namespace FlowMeasurement {
 export type FlowMeasurementCluster = FlowMeasurement.Cluster;
 export const FlowMeasurementCluster = FlowMeasurement.Cluster;
 ClusterNamespace.define(FlowMeasurement);
-export interface FlowMeasurement extends ClusterTyping { Attributes: FlowMeasurement.Attributes & { Components: FlowMeasurement.Attributes.Components } }
+export interface FlowMeasurement extends ClusterTyping { Attributes: FlowMeasurement.Attributes; Components: FlowMeasurement.Components }

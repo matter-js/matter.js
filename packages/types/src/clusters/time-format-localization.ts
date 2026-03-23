@@ -21,6 +21,52 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace TimeFormatLocalization {
     /**
+     * {@link TimeFormatLocalization} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * Indicates the format that the Node is currently configured to use when conveying the hour unit of time.
+             *
+             * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+             * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
+             * format, and if ActiveLocale is not present, the hour format is unknown.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
+             */
+            hourFormat: HourFormat;
+        }
+    }
+
+    /**
+     * {@link TimeFormatLocalization} supports these elements if it supports feature "CalendarFormat".
+     */
+    export namespace CalendarFormatComponent {
+        export interface Attributes {
+            /**
+             * Indicates the calendar format that the Node is currently configured to use when conveying dates.
+             *
+             * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+             * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the
+             * calendar type, and if ActiveLocale is not present, the calendar type is unknown.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
+             */
+            activeCalendarType: CalendarType;
+
+            /**
+             * Indicates a list of CalendarTypeEnum values that are supported by the Node. The list shall NOT contain
+             * any duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum
+             * length of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within
+             * CalendarTypeEnum.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
+             */
+            readonly supportedCalendarTypes: CalendarType[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link TimeFormatLocalization}.
      *
      * Device support for attributes may be affected by a device's supported {@link Features}.
@@ -55,16 +101,13 @@ export namespace TimeFormatLocalization {
          *
          * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
          */
-        supportedCalendarTypes: CalendarType[];
+        readonly supportedCalendarTypes: CalendarType[];
     }
 
-    export namespace Attributes {
-        export type Components = [
-            { flags: {}, mandatory: "hourFormat" },
-            { flags: { calendarFormat: true }, mandatory: "activeCalendarType" | "supportedCalendarTypes" }
-        ];
-    }
-
+    export type Components = [
+        { flags: {}, attributes: Base.Attributes },
+        { flags: { calendarFormat: true }, attributes: CalendarFormatComponent.Attributes }
+    ];
     export type Features = "CalendarFormat";
 
     /**
@@ -309,4 +352,4 @@ export namespace TimeFormatLocalization {
 export type TimeFormatLocalizationCluster = TimeFormatLocalization.Cluster;
 export const TimeFormatLocalizationCluster = TimeFormatLocalization.Cluster;
 ClusterNamespace.define(TimeFormatLocalization);
-export interface TimeFormatLocalization extends ClusterTyping { Attributes: TimeFormatLocalization.Attributes & { Components: TimeFormatLocalization.Attributes.Components }; Features: TimeFormatLocalization.Features }
+export interface TimeFormatLocalization extends ClusterTyping { Attributes: TimeFormatLocalization.Attributes; Features: TimeFormatLocalization.Features; Components: TimeFormatLocalization.Components }

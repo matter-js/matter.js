@@ -18,13 +18,11 @@ import { ClusterId } from "../datatype/ClusterId.js";
  * Definitions for the LowPower cluster.
  */
 export namespace LowPower {
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link LowPower} always supports these commands.
-         */
-        export interface Base {
+    /**
+     * {@link LowPower} always supports these elements.
+     */
+    export namespace Base {
+        export interface Commands {
             /**
              * This command shall put the device into low power mode.
              *
@@ -32,9 +30,10 @@ export namespace LowPower {
              */
             sleep(): MaybePromise;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
+
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, commands: Base.Commands }];
 
     /**
      * @see {@link Cluster}
@@ -88,4 +87,4 @@ export namespace LowPower {
 export type LowPowerCluster = LowPower.Cluster;
 export const LowPowerCluster = LowPower.Cluster;
 ClusterNamespace.define(LowPower);
-export interface LowPower extends ClusterTyping { Commands: LowPower.Commands & { Components: LowPower.Commands.Components } }
+export interface LowPower extends ClusterTyping { Commands: LowPower.Commands; Components: LowPower.Components }

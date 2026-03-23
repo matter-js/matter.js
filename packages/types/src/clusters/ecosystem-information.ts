@@ -26,6 +26,35 @@ import { ClusterId } from "../datatype/ClusterId.js";
  */
 export namespace EcosystemInformation {
     /**
+     * {@link EcosystemInformation} always supports these elements.
+     */
+    export namespace Base {
+        export interface Attributes {
+            /**
+             * This attribute shall contain the list of logical devices represented by a Bridged Node. Most of the time
+             * this will contain a single entry, but may grow with more complex device compositions (e.g. another
+             * bridge.) An empty list indicates that the information is not available.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
+             */
+            readonly deviceDirectory: EcosystemDevice[];
+
+            /**
+             * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory
+             * entries, and shall NOT contain locations which are dynamically generated and removed by an ecosystem.
+             * (E.g. a location that is generated and removed based on the user being home is not permitted. However, an
+             * initially generated location name that does not quickly change is acceptable.) An empty list indicates
+             * that the information is not available.
+             *
+             * LocationDirectory entries shall be removed if there is no DeviceDirectory that references it.
+             *
+             * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
+             */
+            readonly locationDirectory: EcosystemLocation[];
+        }
+    }
+
+    /**
      * Attributes that may appear in {@link EcosystemInformation}.
      */
     export interface Attributes {
@@ -36,7 +65,7 @@ export namespace EcosystemInformation {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.17.5.1
          */
-        deviceDirectory: EcosystemDevice[];
+        readonly deviceDirectory: EcosystemDevice[];
 
         /**
          * This attribute shall contain the list of rooms, areas and groups associated with the DeviceDirectory entries,
@@ -49,12 +78,10 @@ export namespace EcosystemInformation {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.17.5.2
          */
-        locationDirectory: EcosystemLocation[];
+        readonly locationDirectory: EcosystemLocation[];
     }
 
-    export namespace Attributes {
-        export type Components = [{ flags: {}, mandatory: "deviceDirectory" | "locationDirectory" }];
-    }
+    export type Components = [{ flags: {}, attributes: Base.Attributes }];
 
     /**
      * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
@@ -438,4 +465,4 @@ export namespace EcosystemInformation {
 export type EcosystemInformationCluster = EcosystemInformation.Cluster;
 export const EcosystemInformationCluster = EcosystemInformation.Cluster;
 ClusterNamespace.define(EcosystemInformation);
-export interface EcosystemInformation extends ClusterTyping { Attributes: EcosystemInformation.Attributes & { Components: EcosystemInformation.Attributes.Components } }
+export interface EcosystemInformation extends ClusterTyping { Attributes: EcosystemInformation.Attributes; Components: EcosystemInformation.Components }

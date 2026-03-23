@@ -22,13 +22,11 @@ import { ClusterId } from "../datatype/ClusterId.js";
  * Definitions for the KeypadInput cluster.
  */
 export namespace KeypadInput {
-    export interface Commands extends Commands.Base {}
-
-    export namespace Commands {
-        /**
-         * {@link KeypadInput} always supports these commands.
-         */
-        export interface Base {
+    /**
+     * {@link KeypadInput} always supports these elements.
+     */
+    export namespace Base {
+        export interface Commands {
             /**
              * Upon receipt, this shall process a keycode as input to the media endpoint.
              *
@@ -45,10 +43,10 @@ export namespace KeypadInput {
              */
             sendKey(request: SendKeyRequest): MaybePromise<SendKeyResponse>;
         }
-
-        export type Components = [{ flags: {}, methods: Base }];
     }
 
+    export interface Commands extends Base.Commands {}
+    export type Components = [{ flags: {}, commands: Base.Commands }];
     export type Features = "NavigationKeyCodes" | "LocationKeys" | "NumberKeys";
 
     /**
@@ -378,4 +376,4 @@ export namespace KeypadInput {
 export type KeypadInputCluster = KeypadInput.Cluster;
 export const KeypadInputCluster = KeypadInput.Cluster;
 ClusterNamespace.define(KeypadInput);
-export interface KeypadInput extends ClusterTyping { Commands: KeypadInput.Commands & { Components: KeypadInput.Commands.Components }; Features: KeypadInput.Features }
+export interface KeypadInput extends ClusterTyping { Commands: KeypadInput.Commands; Features: KeypadInput.Features; Components: KeypadInput.Components }
