@@ -16,7 +16,7 @@ import { AggregatorEndpoint } from "#endpoints/aggregator";
 import { ServerNode } from "#node/ServerNode.js";
 import { AsyncObservable, cropValueRange, Identity, Logger, MaybePromise, Millis } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { LevelControlBehavior } from "./LevelControlBehavior.js";
@@ -728,7 +728,7 @@ export namespace LevelControlBaseServer {
 
 // We had turned on some more features to provide the default implementation, but export the cluster with no
 // Features again.
-export class LevelControlServer extends LevelControlBaseServer.for(ClusterType(LevelControl.Base)) {}
+export class LevelControlServer extends LevelControlBaseServer.for(LevelControl) {}
 
 function asIntOrNull(value: number | null) {
     if (value === null) {

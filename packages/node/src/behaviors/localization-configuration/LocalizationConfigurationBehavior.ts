@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * LocalizationConfigurationBehavior is the base class for objects that support interaction with
  * {@link LocalizationConfiguration.Cluster}.
  */
-export const LocalizationConfigurationBehaviorConstructor = ClusterBehavior.for(LocalizationConfiguration.Cluster);
+export const LocalizationConfigurationBehaviorConstructor = ClusterBehavior.for(LocalizationConfiguration);
 
 export interface LocalizationConfigurationBehaviorConstructor extends Identity<typeof LocalizationConfigurationBehaviorConstructor> {}
 export const LocalizationConfigurationBehavior: LocalizationConfigurationBehaviorConstructor = LocalizationConfigurationBehaviorConstructor;

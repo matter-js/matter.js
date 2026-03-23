@@ -19,14 +19,207 @@ import {
     OptionalEvent
 } from "../cluster/Cluster.js";
 import { TlvUInt8, TlvBitmap, TlvUInt16 } from "../tlv/TlvNumber.js";
-import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity } from "@matter/general";
+import { BitFlag } from "../schema/BitmapSchema.js";
+import { Identity, MaybePromise } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { BooleanStateConfiguration as BooleanStateConfigurationModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the BooleanStateConfiguration cluster.
+ */
 export namespace BooleanStateConfiguration {
+    /**
+     * Attributes that may appear in {@link BooleanStateConfiguration}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates any faults registered by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.8
+         */
+        sensorFault: SensorFault;
+
+        /**
+         * Indicates the currently selected sensitivity level.
+         *
+         * If a write interaction to this attribute contains an unsupported sensitivity value, a CONSTRAINT_ERROR status
+         * shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.1
+         */
+        currentSensitivityLevel: number;
+
+        /**
+         * Indicates the number of supported sensitivity levels by the device.
+         *
+         * These supported sensitivity levels shall be ordered by sensitivity, where a value of 0 shall be considered
+         * the lowest sensitivity level (least sensitive) and the highest supported value shall be considered the
+         * highest sensitivity level. The number of supported sensitivity levels SHOULD represent unique sensitivity
+         * levels supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.2
+         */
+        supportedSensitivityLevels: number;
+
+        /**
+         * Indicates the default sensitivity level selected by the manufacturer.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.3
+         */
+        defaultSensitivityLevel: number;
+
+        /**
+         * Indicates which specific alarm modes on the server are currently active. When the sensor is no longer
+         * triggered, this attribute shall be set to the inactive state, by setting the bit to 0, for all supported
+         * alarm modes.
+         *
+         * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
+         *
+         * A bit shall indicate whether the alarm mode inactive or not:
+         *
+         *   - 0 = Inactive
+         *
+         *   - 1 = Active
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.4
+         */
+        alarmsActive: AlarmMode;
+
+        /**
+         * Indicates the alarms supported by the sensor.
+         *
+         * A bit shall indicate whether the alarm mode is supported:
+         *
+         *   - 0 = Not supported
+         *
+         *   - 1 = Supported
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.7
+         */
+        alarmsSupported: AlarmMode;
+
+        /**
+         * Indicates the alarm modes that will be emitted if the sensor is triggered.
+         *
+         * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
+         *
+         * A bit shall indicate whether the alarm mode is enabled or disabled:
+         *
+         *   - 0 = Disabled
+         *
+         *   - 1 = Enabled
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.6
+         */
+        alarmsEnabled: AlarmMode;
+
+        /**
+         * Indicates which specific alarm modes on the server are currently suppressed. When the sensor is no longer
+         * triggered, this attribute shall be set to the unsuppressed state, by setting the bit to 0, for all supported
+         * alarm modes.
+         *
+         * If an alarm mode is not supported, the bit indicating this alarm mode shall always be 0.
+         *
+         * A bit shall indicate whether the alarm mode is suppressed or not:
+         *
+         *   - 0 = Not suppressed
+         *
+         *   - 1 = Suppressed
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.6.5
+         */
+        alarmsSuppressed: AlarmMode;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, optional: "sensorFault" },
+            {
+                flags: { sensitivityLevel: true },
+                mandatory: "currentSensitivityLevel" | "supportedSensitivityLevels",
+                optional: "defaultSensitivityLevel"
+            },
+            { flags: { visual: true }, mandatory: "alarmsActive" | "alarmsSupported", optional: "alarmsEnabled" },
+            { flags: { audible: true }, mandatory: "alarmsActive" | "alarmsSupported", optional: "alarmsEnabled" },
+            { flags: { alarmSuppress: true }, mandatory: "alarmsSuppressed" }
+        ];
+    }
+
+    export interface Commands extends Commands.VisualOrAudible, Commands.AlarmSuppress {}
+
+    export namespace Commands {
+        /**
+         * {@link BooleanStateConfiguration} supports these commands if it supports feature "VisualOrAudible".
+         */
+        export interface VisualOrAudible {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
+             */
+            enableDisableAlarm(request: EnableDisableAlarmRequest): MaybePromise;
+        }
+
+        /**
+         * {@link BooleanStateConfiguration} supports these commands if it supports feature "AlarmSuppress".
+         */
+        export interface AlarmSuppress {
+            /**
+             * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
+             */
+            suppressAlarm(request: SuppressAlarmRequest): MaybePromise;
+        }
+
+        export type Components = [
+            { flags: { visual: true }, methods: VisualOrAudible },
+            { flags: { audible: true }, methods: VisualOrAudible },
+            { flags: { alarmSuppress: true }, methods: AlarmSuppress }
+        ];
+    }
+
+    /**
+     * Events that may appear in {@link BooleanStateConfiguration}.
+     *
+     * Devices may not support all of these events. Device support for events may also be affected by a device's
+     * supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated when the device registers or clears a fault.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
+         */
+        sensorFault: SensorFaultEvent;
+
+        /**
+         * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressed attributes change.
+         * This may occur in situations such as when internal processing by the server determines that an alarm mode
+         * becomes active or inactive, or when the SuppressAlarm or EnableDisableAlarm commands are processed in a way
+         * that some alarm modes becomes suppressed, active or inactive.
+         *
+         * If several alarm modes change state at the same time, a single event combining multiple changes may be
+         * emitted instead of multiple events each representing a single change.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
+         */
+        alarmsStateChanged: AlarmsStateChangedEvent;
+    }
+
+    export namespace Events {
+        export type Components = [
+            { flags: {}, optional: "sensorFault" },
+            { flags: { visual: true }, mandatory: "alarmsStateChanged" },
+            { flags: { audible: true }, mandatory: "alarmsStateChanged" }
+        ];
+    }
+
+    export type Features = "Visual" | "Audible" | "AlarmSuppress" | "SensitivityLevel";
+
     /**
      * These are optional features supported by BooleanStateConfigurationCluster.
      *
@@ -94,6 +287,103 @@ export namespace BooleanStateConfiguration {
         audible: BitFlag(1)
     };
 
+    export interface AlarmMode {
+        /**
+         * Visual alarming
+         */
+        visual?: boolean;
+
+        /**
+         * Audible alarming
+         */
+        audible?: boolean;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
+     */
+    export interface EnableDisableAlarmRequest {
+        /**
+         * This field shall indicate the alarm modes to either enable or disable depending on the bit status, as
+         * specified for the AlarmsEnabled attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2.1
+         */
+        alarmsToEnableDisable: AlarmMode;
+    }
+
+    /**
+     * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressed attributes change. This
+     * may occur in situations such as when internal processing by the server determines that an alarm mode becomes
+     * active or inactive, or when the SuppressAlarm or EnableDisableAlarm commands are processed in a way that some
+     * alarm modes becomes suppressed, active or inactive.
+     *
+     * If several alarm modes change state at the same time, a single event combining multiple changes may be emitted
+     * instead of multiple events each representing a single change.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
+     */
+    export interface AlarmsStateChangedEvent {
+        /**
+         * This field shall indicate the state of active alarm modes, as indicated by the AlarmsActive attribute, at the
+         * time the event was generated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1.1
+         */
+        alarmsActive: AlarmMode;
+
+        /**
+         * This field shall indicate the state of suppressed alarm modes, as indicated by the AlarmsSuppressed
+         * attribute, at the time the event was generated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1.2
+         */
+        alarmsSuppressed?: AlarmMode;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
+     */
+    export interface SuppressAlarmRequest {
+        /**
+         * This field shall indicate the alarm modes to suppress.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1.1
+         */
+        alarmsToSuppress: AlarmMode;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.5.2
+     */
+    export const SensorFault = {
+        /**
+         * Unspecified fault detected
+         */
+        generalFault: BitFlag(0)
+    };
+
+    export interface SensorFault {
+        /**
+         * Unspecified fault detected
+         */
+        generalFault?: boolean;
+    }
+
+    /**
+     * This event shall be generated when the device registers or clears a fault.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
+     */
+    export interface SensorFaultEvent {
+        /**
+         * This field shall indicate the value of the SensorFault attribute, at the time this event is generated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2.1
+         */
+        sensorFault: SensorFault;
+    }
+
     /**
      * Input to the BooleanStateConfiguration enableDisableAlarm command
      *
@@ -108,13 +398,6 @@ export namespace BooleanStateConfiguration {
          */
         alarmsToEnableDisable: TlvField(0, TlvBitmap(TlvUInt8, AlarmMode))
     });
-
-    /**
-     * Input to the BooleanStateConfiguration enableDisableAlarm command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
-     */
-    export interface EnableDisableAlarmRequest extends TypeFromSchema<typeof TlvEnableDisableAlarmRequest> {}
 
     /**
      * Body of the BooleanStateConfiguration alarmsStateChanged event
@@ -140,13 +423,6 @@ export namespace BooleanStateConfiguration {
     });
 
     /**
-     * Body of the BooleanStateConfiguration alarmsStateChanged event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
-     */
-    export interface AlarmsStateChangedEvent extends TypeFromSchema<typeof TlvAlarmsStateChangedEvent> {}
-
-    /**
      * Input to the BooleanStateConfiguration suppressAlarm command
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
@@ -161,23 +437,6 @@ export namespace BooleanStateConfiguration {
     });
 
     /**
-     * Input to the BooleanStateConfiguration suppressAlarm command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
-     */
-    export interface SuppressAlarmRequest extends TypeFromSchema<typeof TlvSuppressAlarmRequest> {}
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.8.5.2
-     */
-    export const SensorFault = {
-        /**
-         * Unspecified fault detected
-         */
-        generalFault: BitFlag(0)
-    };
-
-    /**
      * Body of the BooleanStateConfiguration sensorFault event
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
@@ -190,13 +449,6 @@ export namespace BooleanStateConfiguration {
          */
         sensorFault: TlvField(0, TlvBitmap(TlvUInt16, SensorFault))
     });
-
-    /**
-     * Body of the BooleanStateConfiguration sensorFault event
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
-     */
-    export interface SensorFaultEvent extends TypeFromSchema<typeof TlvSensorFaultEvent> {}
 
     /**
      * A BooleanStateConfigurationCluster supports these elements if it supports feature SensitivityLevel.
@@ -510,8 +762,22 @@ export namespace BooleanStateConfiguration {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x80);
+    export const name = "BooleanStateConfiguration" as const;
+    export const revision = 1;
+    export const schema = BooleanStateConfigurationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
+    export declare const events: EventObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: BooleanStateConfiguration;
 }
 
 export type BooleanStateConfigurationCluster = BooleanStateConfiguration.Cluster;
 export const BooleanStateConfigurationCluster = BooleanStateConfiguration.Cluster;
 ClusterRegistry.register(BooleanStateConfiguration.Complete);
+ClusterNamespace.define(BooleanStateConfiguration);
+export interface BooleanStateConfiguration extends ClusterTyping { Attributes: BooleanStateConfiguration.Attributes & { Components: BooleanStateConfiguration.Attributes.Components }; Commands: BooleanStateConfiguration.Commands & { Components: BooleanStateConfiguration.Commands.Components }; Events: BooleanStateConfiguration.Events & { Components: BooleanStateConfiguration.Events.Components }; Features: BooleanStateConfiguration.Features }

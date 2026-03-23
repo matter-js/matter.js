@@ -13,8 +13,117 @@ import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { PressureMeasurement as PressureMeasurementModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the PressureMeasurement cluster.
+ */
 export namespace PressureMeasurement {
+    /**
+     * Attributes that may appear in {@link PressureMeasurement}.
+     *
+     * Optional properties represent attributes that devices are not required to support. Device support for attributes
+     * may also be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the pressure in kPa as follows:
+         *
+         * MeasuredValue = 10 x Pressure [kPa]
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.1
+         */
+        measuredValue: number | null;
+
+        /**
+         * Indicates the minimum value of MeasuredValue that can be measured. See Measured Value for more details.
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.2
+         */
+        minMeasuredValue: number | null;
+
+        /**
+         * Indicates the maximum value of MeasuredValue that can be measured. See Measured Value for more details.
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.3
+         */
+        maxMeasuredValue: number | null;
+
+        /**
+         * See Measured Value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.4
+         */
+        tolerance: number;
+
+        /**
+         * Indicates the pressure in Pascals as follows:
+         *
+         * ScaledValue = 10Scale x Pressure [Pa]
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.5
+         */
+        scaledValue: number | null;
+
+        /**
+         * Indicates the minimum value of ScaledValue that can be measured.
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.6
+         */
+        minScaledValue: number | null;
+
+        /**
+         * Indicates the maximum value of ScaledValue that can be measured.
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.7
+         */
+        maxScaledValue: number | null;
+
+        /**
+         * Indicates the base 10 exponent used to obtain ScaledValue (see ScaledValue).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.9
+         */
+        scale: number;
+
+        /**
+         * Indicates the magnitude of the possible error that is associated with ScaledValue. The true value is located
+         * in the range
+         *
+         * (ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.8
+         */
+        scaledTolerance: number;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue", optional: "tolerance" },
+            {
+                flags: { extended: true },
+                mandatory: "scaledValue" | "minScaledValue" | "maxScaledValue" | "scale",
+                optional: "scaledTolerance"
+            }
+        ];
+    }
+
+    export type Features = "Extended";
+
     /**
      * These are optional features supported by PressureMeasurementCluster.
      *
@@ -198,8 +307,18 @@ export namespace PressureMeasurement {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x403);
+    export const name = "PressureMeasurement" as const;
+    export const revision = 3;
+    export const schema = PressureMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: PressureMeasurement;
 }
 
 export type PressureMeasurementCluster = PressureMeasurement.Cluster;
 export const PressureMeasurementCluster = PressureMeasurement.Cluster;
 ClusterRegistry.register(PressureMeasurement.Complete);
+ClusterNamespace.define(PressureMeasurement);
+export interface PressureMeasurement extends ClusterTyping { Attributes: PressureMeasurement.Attributes & { Components: PressureMeasurement.Attributes.Components }; Features: PressureMeasurement.Features }

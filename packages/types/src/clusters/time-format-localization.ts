@@ -9,13 +9,65 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableAttribute, FixedAttribute } from "../cluster/Cluster.js";
 import { TlvEnum } from "../tlv/TlvNumber.js";
-import { AccessLevel } from "@matter/model";
+import { AccessLevel, TimeFormatLocalization as TimeFormatLocalizationModel } from "@matter/model";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the TimeFormatLocalization cluster.
+ */
 export namespace TimeFormatLocalization {
+    /**
+     * Attributes that may appear in {@link TimeFormatLocalization}.
+     *
+     * Device support for attributes may be affected by a device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the format that the Node is currently configured to use when conveying the hour unit of time.
+         *
+         * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+         * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the hour
+         * format, and if ActiveLocale is not present, the hour format is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.1
+         */
+        hourFormat: HourFormat;
+
+        /**
+         * Indicates the calendar format that the Node is currently configured to use when conveying dates.
+         *
+         * If not UseActiveLocale, this value shall take priority over any unit implied through the ActiveLocale
+         * attribute. If UseActiveLocale, any unit implied through the ActiveLocale attribute is used as the calendar
+         * type, and if ActiveLocale is not present, the calendar type is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.2
+         */
+        activeCalendarType: CalendarType;
+
+        /**
+         * Indicates a list of CalendarTypeEnum values that are supported by the Node. The list shall NOT contain any
+         * duplicate entries. The ordering of items within the list SHOULD NOT express any meaning. The maximum length
+         * of the SupportedCalendarTypes list shall be equivalent to the number of enumerations within CalendarTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.4.6.3
+         */
+        supportedCalendarTypes: CalendarType[];
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "hourFormat" },
+            { flags: { calendarFormat: true }, mandatory: "activeCalendarType" | "supportedCalendarTypes" }
+        ];
+    }
+
+    export type Features = "CalendarFormat";
+
     /**
      * These are optional features supported by TimeFormatLocalizationCluster.
      *
@@ -245,8 +297,18 @@ export namespace TimeFormatLocalization {
     export interface Complete extends Identity<typeof CompleteInstance> {}
 
     export const Complete: Complete = CompleteInstance;
+    export const id = ClusterId(0x2c);
+    export const name = "TimeFormatLocalization" as const;
+    export const revision = 1;
+    export const schema = TimeFormatLocalizationModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export declare const Typing: TimeFormatLocalization;
 }
 
 export type TimeFormatLocalizationCluster = TimeFormatLocalization.Cluster;
 export const TimeFormatLocalizationCluster = TimeFormatLocalization.Cluster;
 ClusterRegistry.register(TimeFormatLocalization.Complete);
+ClusterNamespace.define(TimeFormatLocalization);
+export interface TimeFormatLocalization extends ClusterTyping { Attributes: TimeFormatLocalization.Attributes & { Components: TimeFormatLocalization.Attributes.Components }; Features: TimeFormatLocalization.Features }

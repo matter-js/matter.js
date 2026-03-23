@@ -8,7 +8,6 @@
 
 import { LevelControl } from "@matter/types/clusters/level-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { LevelControlInterface } from "./LevelControlInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of LevelControl.Cluster enabled. You can enable additional features using
  * LevelControlBehavior.with.
  */
-export const LevelControlBehaviorConstructor = ClusterBehavior
-    .withInterface<LevelControlInterface>()
-    .for(LevelControl.Cluster);
+export const LevelControlBehaviorConstructor = ClusterBehavior.for(LevelControl);
 
 export interface LevelControlBehaviorConstructor extends Identity<typeof LevelControlBehaviorConstructor> {}
 export const LevelControlBehavior: LevelControlBehaviorConstructor = LevelControlBehaviorConstructor;

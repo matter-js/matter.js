@@ -8,7 +8,6 @@
 
 import { ServiceArea } from "@matter/types/clusters/service-area";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ServiceAreaInterface } from "./ServiceAreaInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ServiceArea.Cluster enabled. You can enable additional features using
  * ServiceAreaBehavior.with.
  */
-export const ServiceAreaBehaviorConstructor = ClusterBehavior
-    .withInterface<ServiceAreaInterface>()
-    .for(ServiceArea.Cluster);
+export const ServiceAreaBehaviorConstructor = ClusterBehavior.for(ServiceArea);
 
 export interface ServiceAreaBehaviorConstructor extends Identity<typeof ServiceAreaBehaviorConstructor> {}
 export const ServiceAreaBehavior: ServiceAreaBehaviorConstructor = ServiceAreaBehaviorConstructor;

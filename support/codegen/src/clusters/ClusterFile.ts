@@ -11,7 +11,33 @@ import { Block } from "../util/TsFile.js";
 export class ClusterFile extends ScopeFile {
     clusterName: string;
     typesName: string;
+
+    /**
+     * Section for cluster-level interfaces: Attributes, Commands, Events, Features type.
+     *
+     * Appears at the top of the namespace.
+     */
+    interfaces: Block;
+
+    /**
+     * Section for the Feature enum.
+     *
+     * Appears after interfaces, before component type definitions.
+     */
+    featureEnum: Block;
+
+    /**
+     * Section for component type definitions (enums, structs, bitmaps).
+     *
+     * Appears after the Feature enum, before ClusterType definitions.
+     */
+    components: Block;
+
+    /**
+     * Section for ClusterType definitions (TLV schemas, MutableCluster.Component consts).
+     */
     types: Block;
+
     ns: Block;
 
     constructor(cluster: ClusterModel) {
@@ -19,6 +45,10 @@ export class ClusterFile extends ScopeFile {
         this.clusterName = `${cluster.name}Cluster`;
         this.typesName = cluster.name;
         this.ns = this.statements(`export namespace ${this.typesName} {`, "}");
+        this.ns.document(`Definitions for the ${cluster.name} cluster.`);
+        this.interfaces = this.ns.section();
+        this.featureEnum = this.ns.section();
+        this.components = this.ns.section();
         this.types = this.ns.section();
     }
 

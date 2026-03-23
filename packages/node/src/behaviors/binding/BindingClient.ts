@@ -10,7 +10,7 @@ import { Binding } from "@matter/types/clusters/binding";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const BindingClientConstructor = ClientBehavior(Binding.Complete);
+export const BindingClientConstructor = ClientBehavior(Binding);
 export interface BindingClient extends InstanceType<typeof BindingClientConstructor> {}
 export interface BindingClientConstructor extends Identity<typeof BindingClientConstructor> {}
 export const BindingClient: BindingClientConstructor = BindingClientConstructor;

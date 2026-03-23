@@ -12,8 +12,63 @@ import { TlvInt16, TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { TemperatureMeasurement as TemperatureMeasurementModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the TemperatureMeasurement cluster.
+ */
 export namespace TemperatureMeasurement {
+    /**
+     * Attributes that may appear in {@link TemperatureMeasurement}.
+     *
+     * Optional properties represent attributes that devices are not required to support.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the measured temperature.
+         *
+         * The null value indicates that the temperature is unknown.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.1
+         */
+        measuredValue: number | null;
+
+        /**
+         * Indicates the minimum value of MeasuredValue that is capable of being measured. See Measured Value for more
+         * details.
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.2
+         */
+        minMeasuredValue: number | null;
+
+        /**
+         * This attribute indicates the maximum value of MeasuredValue that is capable of being measured. See Measured
+         * Value for more details.
+         *
+         * The null value indicates that the value is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.3
+         */
+        maxMeasuredValue: number | null;
+
+        /**
+         * See Measured Value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.3.4.4
+         */
+        tolerance: number;
+    }
+
+    export namespace Attributes {
+        export type Components = [
+            { flags: {}, mandatory: "measuredValue" | "minMeasuredValue" | "maxMeasuredValue", optional: "tolerance" }
+        ];
+    }
+
     /**
      * @see {@link Cluster}
      */
@@ -71,8 +126,17 @@ export namespace TemperatureMeasurement {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x402);
+    export const name = "TemperatureMeasurement" as const;
+    export const revision = 4;
+    export const schema = TemperatureMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const Typing: TemperatureMeasurement;
 }
 
 export type TemperatureMeasurementCluster = TemperatureMeasurement.Cluster;
 export const TemperatureMeasurementCluster = TemperatureMeasurement.Cluster;
 ClusterRegistry.register(TemperatureMeasurement.Complete);
+ClusterNamespace.define(TemperatureMeasurement);
+export interface TemperatureMeasurement extends ClusterTyping { Attributes: TemperatureMeasurement.Attributes & { Components: TemperatureMeasurement.Attributes.Components } }

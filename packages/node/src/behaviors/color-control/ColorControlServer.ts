@@ -23,7 +23,7 @@ import {
     Millis,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ColorControlBehavior } from "./ColorControlBehavior.js";
@@ -2021,4 +2021,4 @@ export namespace ColorControlBaseServer {
 
 // We had turned on some more features to provide a default implementation, but export the cluster with default
 // Features again.
-export class ColorControlServer extends ColorControlBaseServer.for(ClusterType(ColorControl.Base)) {}
+export class ColorControlServer extends ColorControlBaseServer.for(ColorControl) {}

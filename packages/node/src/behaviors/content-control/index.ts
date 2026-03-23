@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./ContentControlInterface.js";
 export * from "./ContentControlBehavior.js";
 export * from "./ContentControlServer.js";
 export * from "./ContentControlClient.js";

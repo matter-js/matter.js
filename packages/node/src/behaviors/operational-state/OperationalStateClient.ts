@@ -10,7 +10,7 @@ import { OperationalState } from "@matter/types/clusters/operational-state";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OperationalStateClientConstructor = ClientBehavior(OperationalState.Complete);
+export const OperationalStateClientConstructor = ClientBehavior(OperationalState);
 export interface OperationalStateClient extends InstanceType<typeof OperationalStateClientConstructor> {}
 export interface OperationalStateClientConstructor extends Identity<typeof OperationalStateClientConstructor> {}
 export const OperationalStateClient: OperationalStateClientConstructor = OperationalStateClientConstructor;

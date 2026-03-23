@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./OperationalCredentialsInterface.js";
 export * from "./OperationalCredentialsBehavior.js";
 export * from "./OperationalCredentialsServer.js";
 export * from "./OperationalCredentialsClient.js";

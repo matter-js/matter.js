@@ -7,7 +7,7 @@
 import { ActionContext } from "#behavior/context/ActionContext.js";
 import { Duration, Logger, MaybePromise, Millis, Observable, Seconds, Time, Timer } from "@matter/general";
 import { FieldElement } from "@matter/model";
-import { ClusterType, StatusCode, StatusResponseError } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { Switch } from "@matter/types/clusters/switch";
 import { SwitchBehavior } from "./SwitchBehavior.js";
 
@@ -16,7 +16,7 @@ const DEFAULT_LONG_PRESS_DELAY = Seconds(2);
 
 const logger = Logger.get("SwitchServer");
 
-const SwitchServerBase = SwitchBehavior.for(Switch.Complete).with(
+const SwitchServerBase = SwitchBehavior.with(
     Switch.Feature.LatchingSwitch,
     Switch.Feature.MomentarySwitch,
     Switch.Feature.MomentarySwitchRelease,
@@ -360,4 +360,4 @@ export namespace SwitchBaseServer {
 }
 
 // Reset all Features
-export class SwitchServer extends SwitchBaseServer.for(ClusterType(Switch.Base)) {}
+export class SwitchServer extends SwitchBaseServer.for(Switch) {}

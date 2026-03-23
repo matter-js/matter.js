@@ -8,7 +8,6 @@
 
 import { ContentLauncher } from "@matter/types/clusters/content-launcher";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ContentLauncherInterface } from "./ContentLauncherInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ContentLauncher.Cluster enabled. You can enable additional features
  * using ContentLauncherBehavior.with.
  */
-export const ContentLauncherBehaviorConstructor = ClusterBehavior
-    .withInterface<ContentLauncherInterface>()
-    .for(ContentLauncher.Cluster);
+export const ContentLauncherBehaviorConstructor = ClusterBehavior.for(ContentLauncher);
 
 export interface ContentLauncherBehaviorConstructor extends Identity<typeof ContentLauncherBehaviorConstructor> {}
 export const ContentLauncherBehavior: ContentLauncherBehaviorConstructor = ContentLauncherBehaviorConstructor;

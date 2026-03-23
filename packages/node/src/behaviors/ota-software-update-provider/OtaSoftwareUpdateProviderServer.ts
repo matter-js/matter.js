@@ -128,7 +128,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                             subjects?.length === 0 &&
                             targets?.length === 1 &&
                             targets[0].endpoint === this.endpoint.number &&
-                            targets[0].cluster === OtaSoftwareUpdateProvider.Cluster.id,
+                            targets[0].cluster === OtaSoftwareUpdateProvider.id,
                     )
             ) {
                 // Allow anyone in the fabric to access the OTA Software Update Provider cluster on this node here
@@ -139,7 +139,7 @@ export class OtaSoftwareUpdateProviderServer extends OtaSoftwareUpdateProviderBe
                         privilege: AccessControl.AccessControlEntryPrivilege.Operate,
                         authMode: AccessControl.AccessControlEntryAuthMode.Case,
                         subjects: [],
-                        targets: [{ endpoint: this.endpoint.number, cluster: OtaSoftwareUpdateProvider.Cluster.id }],
+                        targets: [{ endpoint: this.endpoint.number, cluster: OtaSoftwareUpdateProvider.id }],
                     },
                 ];
                 await node.setStateOf(AccessControlServer, { acl });
