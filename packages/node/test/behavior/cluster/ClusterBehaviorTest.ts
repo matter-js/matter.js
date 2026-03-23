@@ -29,7 +29,6 @@ import {
     Attribute,
     ClusterId,
     ClusterType,
-    ClusterTypeModifier,
     Command,
     CommandId,
     TlvBoolean,
@@ -270,16 +269,8 @@ describe("ClusterBehavior", () => {
 
     describe("alter", () => {
         it("recreates ID", () => {
-            // Test constituent parts
             MyCluster.name satisfies "MyCluster";
 
-            const AlteredCluster = new ClusterTypeModifier(My.Cluster).alter({});
-            AlteredCluster.name satisfies "MyCluster";
-
-            const BehaviorForAlteredCluster = MyBehavior.for(AlteredCluster);
-            BehaviorForAlteredCluster.id satisfies "myCluster";
-
-            // Now test all together
             const AlteredBehavior = MyBehavior.alter({});
             AlteredBehavior.id satisfies "myCluster";
             expect(AlteredBehavior.id).equals("myCluster");

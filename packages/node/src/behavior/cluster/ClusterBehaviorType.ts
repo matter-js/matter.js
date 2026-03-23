@@ -73,7 +73,7 @@ export function ClusterBehaviorType({
 
     // Construct namespace from schema if not provided
     if (!namespace) {
-        namespace = createNamespaceFromSchema(schema);
+        namespace = ClusterNamespace(schema);
     }
 
     const useCache = name === undefined;
@@ -513,24 +513,6 @@ function syncFeaturesFromSet(schema: Schema.Cluster, featureSet: FeatureSet): Sc
     schemaBucket[featureKey] = schema;
 
     return schema;
-}
-
-/**
- * Create a minimal namespace-like object from a schema for use as the `cluster` property.
- */
-function createNamespaceFromSchema(schema: Schema.Cluster): object {
-    const ns = { schema: schema as ClusterModel } as Record<string, unknown>;
-    const model = schema as ClusterModel;
-
-    if (model.id !== undefined) {
-        ns.id = model.id;
-    }
-    ns.name = model.name;
-    ns.revision = model.revision;
-
-    ClusterNamespace.define(ns);
-
-    return ns;
 }
 
 /**
