@@ -6,14 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
-import { Command } from "../cluster/Cluster.js";
-import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
-import { TlvEnum, TlvEpochUs, TlvSysTimeUs } from "../tlv/TlvNumber.js";
-import { TlvString, TlvByteString } from "../tlv/TlvString.js";
+import { MaybePromise, Bytes } from "@matter/general";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
-import { Identity, Bytes, MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { DiagnosticLogs as DiagnosticLogsModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -38,64 +33,6 @@ export namespace DiagnosticLogs {
 
     export interface Commands extends Base.Commands {}
     export type Components = [{ flags: {}, commands: Base.Commands }];
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.1
-     */
-    export enum Intent {
-        /**
-         * Logs to be used for end-user support
-         *
-         * shall indicate that the purpose of the log request is to retrieve logs for the intention of providing support
-         * to an end-user.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.1
-         */
-        EndUserSupport = 0,
-
-        /**
-         * Logs to be used for network diagnostics
-         *
-         * shall indicate that the purpose of the log request is to diagnose the network(s) for which the Node is
-         * currently commissioned (and/or connected) or has previously been commissioned (and/or connected).
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.2
-         */
-        NetworkDiag = 1,
-
-        /**
-         * Obtain crash logs from the Node
-         *
-         * shall indicate that the purpose of the log request is to retrieve any crash logs that may be present on a
-         * Node.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.3
-         */
-        CrashLogs = 2
-    }
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.3
-     */
-    export enum TransferProtocol {
-        /**
-         * Logs to be returned as a response
-         *
-         * shall be used by a Client to request that logs are transferred using the LogContent attribute of the response
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.3.1
-         */
-        ResponsePayload = 0,
-
-        /**
-         * Logs to be returned using BDX
-         *
-         * shall be used by a Client to request that logs are transferred using BDX as defined in BDX Protocol
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.3.2
-         */
-        Bdx = 1
-    }
 
     /**
      * Reception of this command starts the process of retrieving diagnostic logs from a Node.
@@ -160,6 +97,84 @@ export namespace DiagnosticLogs {
     }
 
     /**
+     * This shall be generated as a response to the RetrieveLogsRequest.
+     *
+     * The data for this command is shown in the following.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
+     */
+    export interface RetrieveLogsResponse {
+        /**
+         * This field shall indicate the result of an attempt to retrieve diagnostic logs.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.1
+         */
+        status: Status;
+
+        /**
+         * This field shall be included in the command if the Status field has a value of Success or Exhausted. A Node
+         * SHOULD utilize this field to transfer the newest diagnostic log entries. This field shall be empty if BDX is
+         * requested and the Status field has a value of Success.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.2
+         */
+        logContent: Bytes;
+
+        /**
+         * This field SHOULD be included in the command if the Status field has a value of Success and the Node
+         * maintains a wall clock. When included, the UTCTimeStamp field shall contain the value of the oldest log entry
+         * in the diagnostic logs that are being transferred.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.3
+         */
+        utcTimeStamp?: number | bigint;
+
+        /**
+         * This field SHOULD be included in the command if the Status field has a value of Success. When included, the
+         * TimeSinceBoot field shall contain the time of the oldest log entry in the diagnostic logs that are being
+         * transferred represented by the number of microseconds since the last time the Node went through a reboot.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.4
+         */
+        timeSinceBoot?: number | bigint;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 11.11.4.1
+     */
+    export enum Intent {
+        /**
+         * Logs to be used for end-user support
+         *
+         * shall indicate that the purpose of the log request is to retrieve logs for the intention of providing support
+         * to an end-user.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.1
+         */
+        EndUserSupport = 0,
+
+        /**
+         * Logs to be used for network diagnostics
+         *
+         * shall indicate that the purpose of the log request is to diagnose the network(s) for which the Node is
+         * currently commissioned (and/or connected) or has previously been commissioned (and/or connected).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.2
+         */
+        NetworkDiag = 1,
+
+        /**
+         * Obtain crash logs from the Node
+         *
+         * shall indicate that the purpose of the log request is to retrieve any crash logs that may be present on a
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.3
+         */
+        CrashLogs = 2
+    }
+
+    /**
      * @see {@link MatterSpecification.v142.Core} § 11.11.4.2
      */
     export enum Status {
@@ -211,111 +226,6 @@ export namespace DiagnosticLogs {
          */
         Denied = 4
     }
-
-    /**
-     * This shall be generated as a response to the RetrieveLogsRequest.
-     *
-     * The data for this command is shown in the following.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
-     */
-    export interface RetrieveLogsResponse {
-        /**
-         * This field shall indicate the result of an attempt to retrieve diagnostic logs.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.1
-         */
-        status: Status;
-
-        /**
-         * This field shall be included in the command if the Status field has a value of Success or Exhausted. A Node
-         * SHOULD utilize this field to transfer the newest diagnostic log entries. This field shall be empty if BDX is
-         * requested and the Status field has a value of Success.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.2
-         */
-        logContent: Bytes;
-
-        /**
-         * This field SHOULD be included in the command if the Status field has a value of Success and the Node
-         * maintains a wall clock. When included, the UTCTimeStamp field shall contain the value of the oldest log entry
-         * in the diagnostic logs that are being transferred.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.3
-         */
-        utcTimeStamp?: number | bigint;
-
-        /**
-         * This field SHOULD be included in the command if the Status field has a value of Success. When included, the
-         * TimeSinceBoot field shall contain the time of the oldest log entry in the diagnostic logs that are being
-         * transferred represented by the number of microseconds since the last time the Node went through a reboot.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.4
-         */
-        timeSinceBoot?: number | bigint;
-    }
-
-    /**
-     * Input to the DiagnosticLogs retrieveLogsRequest command
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
-     */
-    export const TlvRetrieveLogsRequest = TlvObject({
-        /**
-         * This field shall indicate why the diagnostic logs are being retrieved from the Node. A Node may utilize this
-         * field to selectively determine the logs to transfer.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.1
-         */
-        intent: TlvField(0, TlvEnum<Intent>()),
-
-        /**
-         * This field shall be used to indicate how the log transfer is to be realized. If the field is set to BDX, then
-         * if the receiving Node supports BDX it shall attempt to use BDX to transfer any potential diagnostic logs; if
-         * the receiving Node does not support BDX then the Node shall follow the requirements defined for a
-         * TransferProtocolEnum of ResponsePayload. If this field is set to ResponsePayload the receiving Node shall
-         * only utilize the LogContent field of the RetrieveLogsResponse command to transfer diagnostic log information.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.2
-         */
-        requestedProtocol: TlvField(1, TlvEnum<TransferProtocol>()),
-
-        /**
-         * This field shall be present if the RequestedProtocol is BDX. The TransferFileDesignator shall be set as the
-         * File Designator of the BDX transfer if initiated.
-         *
-         * ### Effect on Receipt
-         *
-         * On receipt of this command, the Node shall respond with a RetrieveLogsResponse command.
-         *
-         * If the RequestedProtocol is set to BDX the Node SHOULD immediately realize the RetrieveLogsResponse command
-         * by initiating a BDX Transfer, sending a BDX SendInit message with the File Designator field of the message
-         * set to the value of the TransferFileDesignator field of the RetrieveLogsRequest. On reception of a BDX
-         * SendAccept message the Node shall send a RetrieveLogsResponse command with a Status field set to Success and
-         * proceed with the log transfer over BDX. If a failure StatusReport is received in response to the SendInit
-         * message, the Node shall send a RetrieveLogsResponse command with a Status of Denied. In the case where the
-         * Node is able to fit the entirety of the requested logs within the LogContent field, the Status field of the
-         * RetrieveLogsResponse shall be set to Exhausted and a BDX session shall NOT be initiated.
-         *
-         * If the RequestedProtocol is set to BDX and either the Node does not support BDX or it is not possible for the
-         * Node to establish a BDX session, then the Node shall utilize the LogContent field of the RetrieveLogsResponse
-         * command to transfer as much of the current logs as it can fit within the response, and the Status field of
-         * the RetrieveLogsResponse shall be set to Exhausted.
-         *
-         * If the RequestedProtocol is set to ResponsePayload the Node shall utilize the LogContent field of the
-         * RetrieveLogsResponse command to transfer as much of the current logs as it can fit within the response, and a
-         * BDX session shall NOT be initiated.
-         *
-         * If the RequestedProtocol is set to BDX and there is no TransferFileDesignator the command shall fail with a
-         * Status Code of INVALID_COMMAND.
-         *
-         * If the Intent and/or the RequestedProtocol arguments contain invalid (out of range) values the command shall
-         * fail with a Status Code of INVALID_COMMAND.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.3
-         */
-        transferFileDesignator: TlvOptionalField(2, TlvString.bound({ maxLength: 32 }))
-    });
 
     /**
      * Thrown for cluster status code {@link Status.Exhausted}.
@@ -378,78 +288,36 @@ export namespace DiagnosticLogs {
     }
 
     /**
-     * This shall be generated as a response to the RetrieveLogsRequest.
-     *
-     * The data for this command is shown in the following.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
+     * @see {@link MatterSpecification.v142.Core} § 11.11.4.3
      */
-    export const TlvRetrieveLogsResponse = TlvObject({
+    export enum TransferProtocol {
         /**
-         * This field shall indicate the result of an attempt to retrieve diagnostic logs.
+         * Logs to be returned as a response
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.1
-         */
-        status: TlvField(0, TlvEnum<Status>()),
-
-        /**
-         * This field shall be included in the command if the Status field has a value of Success or Exhausted. A Node
-         * SHOULD utilize this field to transfer the newest diagnostic log entries. This field shall be empty if BDX is
-         * requested and the Status field has a value of Success.
+         * shall be used by a Client to request that logs are transferred using the LogContent attribute of the response
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.2
+         * @see {@link MatterSpecification.v142.Core} § 11.11.4.3.1
          */
-        logContent: TlvField(1, TlvByteString.bound({ maxLength: 1024 })),
+        ResponsePayload = 0,
 
         /**
-         * This field SHOULD be included in the command if the Status field has a value of Success and the Node
-         * maintains a wall clock. When included, the UTCTimeStamp field shall contain the value of the oldest log entry
-         * in the diagnostic logs that are being transferred.
+         * Logs to be returned using BDX
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.3
-         */
-        utcTimeStamp: TlvOptionalField(2, TlvEpochUs),
-
-        /**
-         * This field SHOULD be included in the command if the Status field has a value of Success. When included, the
-         * TimeSinceBoot field shall contain the time of the oldest log entry in the diagnostic logs that are being
-         * transferred represented by the number of microseconds since the last time the Node went through a reboot.
+         * shall be used by a Client to request that logs are transferred using BDX as defined in BDX Protocol
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.4
+         * @see {@link MatterSpecification.v142.Core} § 11.11.4.3.2
          */
-        timeSinceBoot: TlvOptionalField(3, TlvSysTimeUs)
-    });
+        Bdx = 1
+    }
 
-    /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster({
-        id: 0x32,
-        name: "DiagnosticLogs",
-        revision: 1,
-
-        commands: {
-            /**
-             * Reception of this command starts the process of retrieving diagnostic logs from a Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
-             */
-            retrieveLogsRequest: Command(0x0, TlvRetrieveLogsRequest, 0x1, TlvRetrieveLogsResponse)
-        }
-    });
-
-    /**
-     * This Cluster supports an interface to a Node. It provides commands for retrieving unstructured diagnostic logs
-     * from a Node that may be used to aid in diagnostics. It will often be the case that unstructured diagnostic logs
-     * will be Node-wide and not specific to any subset of Endpoints. When present, this Cluster shall be implemented
-     * once for the Node. The Node SHOULD also implement the BDX Initiator and BDX Sender roles as defined in the BDX
-     * Protocol.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.11
-     */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
-
-    export const Cluster: Cluster = ClusterInstance;
+    export const id = ClusterId(0x32);
+    export const name = "DiagnosticLogs" as const;
+    export const revision = 1;
+    export const schema = DiagnosticLogsModel;
+    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
+    export declare const commands: CommandObjects;
+    export type Cluster = typeof DiagnosticLogs;
+    export declare const Cluster: Cluster;
 
     /**
      * @deprecated Use the cluster namespace directly (e.g. `DiagnosticLogs` instead of `DiagnosticLogs.Complete`)
@@ -457,16 +325,10 @@ export namespace DiagnosticLogs {
     export type Complete = typeof DiagnosticLogs;
 
     export declare const Complete: Complete;
-    export const id = ClusterId(0x32);
-    export const name = "DiagnosticLogs" as const;
-    export const revision = 1;
-    export const schema = DiagnosticLogsModel;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export declare const commands: CommandObjects;
     export declare const Typing: DiagnosticLogs;
 }
 
+ClusterNamespace.define(DiagnosticLogs);
 export type DiagnosticLogsCluster = DiagnosticLogs.Cluster;
 export const DiagnosticLogsCluster = DiagnosticLogs.Cluster;
-ClusterNamespace.define(DiagnosticLogs);
 export interface DiagnosticLogs extends ClusterTyping { Commands: DiagnosticLogs.Commands; Components: DiagnosticLogs.Components }

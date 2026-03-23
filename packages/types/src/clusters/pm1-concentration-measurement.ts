@@ -6,9 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
-import { Identity } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { Pm1ConcentrationMeasurement as Pm1ConcentrationMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -245,22 +243,64 @@ export namespace Pm1ConcentrationMeasurement {
 
     export type Features = "NumericMeasurement" | "LevelIndication" | "MediumLevel" | "CriticalLevel" | "PeakMeasurement" | "AverageMeasurement";
 
-    export const Base = { ...ConcentrationMeasurement.Base, id: 0x42c, name: "Pm1ConcentrationMeasurement" } as const;
-
     /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster.ExtensibleOnly(Base);
-
-    /**
-     * This alias specializes the semantics of {@link ConcentrationMeasurement.Base}.
+     * These are optional features supported by Pm1ConcentrationMeasurementCluster.
      *
-     * Per the Matter specification you cannot use {@link Pm1ConcentrationMeasurementCluster} without enabling certain
-     * feature combinations. You must use the {@link with} factory method to obtain a working cluster.
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.4
      */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
+    export enum Feature {
+        /**
+         * NumericMeasurement (MEA)
+         *
+         * Cluster supports numeric measurement of substance
+         */
+        NumericMeasurement = "NumericMeasurement",
 
-    export const Cluster: Cluster = ClusterInstance;
+        /**
+         * LevelIndication (LEV)
+         *
+         * Cluster supports basic level indication for substance using the ConcentrationLevel enum
+         */
+        LevelIndication = "LevelIndication",
+
+        /**
+         * MediumLevel (MED)
+         *
+         * Cluster supports the Medium Concentration Level
+         */
+        MediumLevel = "MediumLevel",
+
+        /**
+         * CriticalLevel (CRI)
+         *
+         * Cluster supports the Critical Concentration Level
+         */
+        CriticalLevel = "CriticalLevel",
+
+        /**
+         * PeakMeasurement (PEA)
+         *
+         * Cluster supports peak numeric measurement of substance
+         */
+        PeakMeasurement = "PeakMeasurement",
+
+        /**
+         * AverageMeasurement (AVG)
+         *
+         * Cluster supports average numeric measurement of substance
+         */
+        AverageMeasurement = "AverageMeasurement"
+    }
+
+    export const id = ClusterId(0x42c);
+    export const name = "Pm1ConcentrationMeasurement" as const;
+    export const revision = 3;
+    export const schema = Pm1ConcentrationMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof Pm1ConcentrationMeasurement;
+    export declare const Cluster: Cluster;
 
     /**
      * @deprecated Use the cluster namespace directly (e.g. `Pm1ConcentrationMeasurement` instead of
@@ -269,17 +309,10 @@ export namespace Pm1ConcentrationMeasurement {
     export type Complete = typeof Pm1ConcentrationMeasurement;
 
     export declare const Complete: Complete;
-    export const id = ClusterId(0x42c);
-    export const name = "Pm1ConcentrationMeasurement" as const;
-    export const revision = 3;
-    export const schema = Pm1ConcentrationMeasurementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export declare const attributes: AttributeObjects;
-    export declare const features: ClusterNamespace.Features<Features>;
     export declare const Typing: Pm1ConcentrationMeasurement;
 }
 
+ClusterNamespace.define(Pm1ConcentrationMeasurement);
 export type Pm1ConcentrationMeasurementCluster = Pm1ConcentrationMeasurement.Cluster;
 export const Pm1ConcentrationMeasurementCluster = Pm1ConcentrationMeasurement.Cluster;
-ClusterNamespace.define(Pm1ConcentrationMeasurement);
 export interface Pm1ConcentrationMeasurement extends ClusterTyping { Attributes: Pm1ConcentrationMeasurement.Attributes; Features: Pm1ConcentrationMeasurement.Features; Components: Pm1ConcentrationMeasurement.Components }

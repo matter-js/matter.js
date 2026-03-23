@@ -6,14 +6,9 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
-import { BitFlag } from "../schema/BitmapSchema.js";
-import { Command } from "../cluster/Cluster.js";
-import { TlvField, TlvObject } from "../tlv/TlvObject.js";
-import { TlvEnum } from "../tlv/TlvNumber.js";
+import { MaybePromise } from "@matter/general";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
-import { Identity, MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { KeypadInput as KeypadInputModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -75,6 +70,93 @@ export namespace KeypadInput {
          * Supports numeric input 0..9
          */
         NumberKeys = "NumberKeys"
+    }
+
+    /**
+     * Upon receipt, this shall process a keycode as input to the media endpoint.
+     *
+     * If a device has multiple media endpoints implementing this cluster, such as a casting video player endpoint with
+     * one or more content app endpoints, then only the endpoint receiving the command shall process the keycode as
+     * input. In other words, a specific content app endpoint shall NOT process a keycode received by a different
+     * content app endpoint.
+     *
+     * If a second SendKey request with the same KeyCode value is received within 200 ms, then the endpoint will
+     * consider the first key press to be a press and hold. When such a repeat KeyCode value is not received within 200
+     * ms, then the endpoint will consider the last key press to be a release.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
+     */
+    export interface SendKeyRequest {
+        /**
+         * This field shall indicate the key code to process.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1.1
+         */
+        keyCode: CecKeyCode;
+    }
+
+    /**
+     * This command shall be generated in response to a SendKey command.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2
+     */
+    export interface SendKeyResponse {
+        /**
+         * This field shall indicate the status of the request.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2.1
+         */
+        status: Status;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
+     */
+    export enum Status {
+        /**
+         * Succeeded
+         */
+        Success = 0,
+
+        /**
+         * Key code is not supported.
+         */
+        UnsupportedKey = 1,
+
+        /**
+         * Requested key code is invalid in the context of the responder’s current state.
+         */
+        InvalidKeyInCurrentState = 2
+    }
+
+    /**
+     * Thrown for cluster status code {@link Status.UnsupportedKey}.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
+     */
+    export class UnsupportedKeyError extends StatusResponseError {
+        constructor(
+            message = "Key code is not supported",
+            code = GlobalStatus.Failure,
+            clusterCode = Status.UnsupportedKey
+        ) {
+            super(message, code, clusterCode);
+        }
+    }
+
+    /**
+     * Thrown for cluster status code {@link Status.InvalidKeyInCurrentState}.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
+     */
+    export class InvalidKeyInCurrentStateError extends StatusResponseError {
+        constructor(
+            message = "Requested key code is invalid in the context of the responder’s current state",
+            code = GlobalStatus.Failure,
+            clusterCode = Status.InvalidKeyInCurrentState
+        ) {
+            super(message, code, clusterCode);
+        }
     }
 
     /**
@@ -168,207 +250,6 @@ export namespace KeypadInput {
         Data = 118
     }
 
-    /**
-     * Upon receipt, this shall process a keycode as input to the media endpoint.
-     *
-     * If a device has multiple media endpoints implementing this cluster, such as a casting video player endpoint with
-     * one or more content app endpoints, then only the endpoint receiving the command shall process the keycode as
-     * input. In other words, a specific content app endpoint shall NOT process a keycode received by a different
-     * content app endpoint.
-     *
-     * If a second SendKey request with the same KeyCode value is received within 200 ms, then the endpoint will
-     * consider the first key press to be a press and hold. When such a repeat KeyCode value is not received within 200
-     * ms, then the endpoint will consider the last key press to be a release.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
-     */
-    export interface SendKeyRequest {
-        /**
-         * This field shall indicate the key code to process.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1.1
-         */
-        keyCode: CecKeyCode;
-    }
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
-     */
-    export enum Status {
-        /**
-         * Succeeded
-         */
-        Success = 0,
-
-        /**
-         * Key code is not supported.
-         */
-        UnsupportedKey = 1,
-
-        /**
-         * Requested key code is invalid in the context of the responder’s current state.
-         */
-        InvalidKeyInCurrentState = 2
-    }
-
-    /**
-     * This command shall be generated in response to a SendKey command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2
-     */
-    export interface SendKeyResponse {
-        /**
-         * This field shall indicate the status of the request.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2.1
-         */
-        status: Status;
-    }
-
-    /**
-     * Input to the KeypadInput sendKey command
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
-     */
-    export const TlvSendKeyRequest = TlvObject({
-        /**
-         * This field shall indicate the key code to process.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1.1
-         */
-        keyCode: TlvField(0, TlvEnum<CecKeyCode>())
-    });
-
-    /**
-     * Thrown for cluster status code {@link Status.UnsupportedKey}.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
-     */
-    export class UnsupportedKeyError extends StatusResponseError {
-        constructor(
-            message = "Key code is not supported",
-            code = GlobalStatus.Failure,
-            clusterCode = Status.UnsupportedKey
-        ) {
-            super(message, code, clusterCode);
-        }
-    }
-
-    /**
-     * Thrown for cluster status code {@link Status.InvalidKeyInCurrentState}.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
-     */
-    export class InvalidKeyInCurrentStateError extends StatusResponseError {
-        constructor(
-            message = "Requested key code is invalid in the context of the responder’s current state",
-            code = GlobalStatus.Failure,
-            clusterCode = Status.InvalidKeyInCurrentState
-        ) {
-            super(message, code, clusterCode);
-        }
-    }
-
-    /**
-     * This command shall be generated in response to a SendKey command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2
-     */
-    export const TlvSendKeyResponse = TlvObject({
-        /**
-         * This field shall indicate the status of the request.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2.1
-         */
-        status: TlvField(0, TlvEnum<Status>())
-    });
-
-    /**
-     * These elements and properties are present in all KeypadInput clusters.
-     */
-    export const Base = MutableCluster.Component({
-        id: 0x509,
-        name: "KeypadInput",
-        revision: 1,
-
-        features: {
-            /**
-             * Supports UP, DOWN, LEFT, RIGHT, SELECT, BACK, EXIT, MENU
-             */
-            navigationKeyCodes: BitFlag(0),
-
-            /**
-             * Supports CEC keys 0x0A (Settings) and 0x09 (Home)
-             */
-            locationKeys: BitFlag(1),
-
-            /**
-             * Supports numeric input 0..9
-             */
-            numberKeys: BitFlag(2)
-        },
-
-        commands: {
-            /**
-             * Upon receipt, this shall process a keycode as input to the media endpoint.
-             *
-             * If a device has multiple media endpoints implementing this cluster, such as a casting video player
-             * endpoint with one or more content app endpoints, then only the endpoint receiving the command shall
-             * process the keycode as input. In other words, a specific content app endpoint shall NOT process a keycode
-             * received by a different content app endpoint.
-             *
-             * If a second SendKey request with the same KeyCode value is received within 200 ms, then the endpoint will
-             * consider the first key press to be a press and hold. When such a repeat KeyCode value is not received
-             * within 200 ms, then the endpoint will consider the last key press to be a release.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
-             */
-            sendKey: Command(0x0, TlvSendKeyRequest, 0x1, TlvSendKeyResponse)
-        },
-
-        /**
-         * This metadata controls which KeypadInputCluster elements matter.js activates for specific feature
-         * combinations.
-         */
-        extensions: MutableCluster.Extensions()
-    });
-
-    /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster(Base);
-
-    /**
-     * This cluster provides an interface for key code based input and control on a device like a Video Player or an
-     * endpoint like a Content App. This may include text or action commands such as UP, DOWN, and SELECT.
-     *
-     * This cluster would be supported on Video Player devices as well as devices that support remote control input from
-     * a keypad or remote. This cluster provides the list of supported keypad inputs and provides a command for sending
-     * them.
-     *
-     * The cluster server for Keypad Input is implemented by a device that can receive keypad input, such as a Video
-     * Player, or an endpoint that can receive keypad input, such as a Content App.
-     *
-     * The key codes used are those defined in the HDMI CEC specification (see HDMI).
-     *
-     * Devices may understand a subset of these key codes. Feature flags are used to indicate a specific subset that is
-     * supported. Device may support additional codes beyond what is indicated in feature flags.
-     *
-     * KeypadInputCluster supports optional features that you can enable with the KeypadInputCluster.with() factory
-     * method.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8
-     */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
-
-    export const Cluster: Cluster = ClusterInstance;
-
-    /**
-     * @deprecated Use the cluster namespace directly (e.g. `KeypadInput` instead of `KeypadInput.Complete`)
-     */
-    export type Complete = typeof KeypadInput;
-
-    export declare const Complete: Complete;
     export const id = ClusterId(0x509);
     export const name = "KeypadInput" as const;
     export const revision = 1;
@@ -376,10 +257,19 @@ export namespace KeypadInput {
     export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
     export declare const commands: CommandObjects;
     export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof KeypadInput;
+    export declare const Cluster: Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `KeypadInput` instead of `KeypadInput.Complete`)
+     */
+    export type Complete = typeof KeypadInput;
+
+    export declare const Complete: Complete;
     export declare const Typing: KeypadInput;
 }
 
+ClusterNamespace.define(KeypadInput);
 export type KeypadInputCluster = KeypadInput.Cluster;
 export const KeypadInputCluster = KeypadInput.Cluster;
-ClusterNamespace.define(KeypadInput);
 export interface KeypadInput extends ClusterTyping { Commands: KeypadInput.Commands; Features: KeypadInput.Features; Components: KeypadInput.Components }

@@ -6,9 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ResourceMonitoring } from "./resource-monitoring.js";
-import { Identity, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ActivatedCarbonFilterMonitoring as ActivatedCarbonFilterMonitoringModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -160,30 +159,34 @@ export namespace ActivatedCarbonFilterMonitoring {
     ];
     export type Features = "Condition" | "Warning" | "ReplacementProductList";
 
-    export const Base = { ...ResourceMonitoring.Base, id: 0x72, name: "ActivatedCarbonFilterMonitoring" } as const;
-
     /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster(Base);
-
-    /**
-     * This alias specializes the semantics of {@link ResourceMonitoring.Base}.
+     * These are optional features supported by ActivatedCarbonFilterMonitoringCluster.
      *
-     * ActivatedCarbonFilterMonitoringCluster supports optional features that you can enable with the
-     * ActivatedCarbonFilterMonitoringCluster.with() factory method.
+     * @see {@link MatterSpecification.v142.Cluster} § 2.8.4
      */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
+    export enum Feature {
+        /**
+         * Condition (CON)
+         *
+         * Supports monitoring the condition of the resource in percentage
+         */
+        Condition = "Condition",
 
-    export const Cluster: Cluster = ClusterInstance;
+        /**
+         * Warning (WRN)
+         *
+         * Supports warning indication
+         */
+        Warning = "Warning",
 
-    /**
-     * @deprecated Use the cluster namespace directly (e.g. `ActivatedCarbonFilterMonitoring` instead of
-     * `ActivatedCarbonFilterMonitoring.Complete`)
-     */
-    export type Complete = typeof ActivatedCarbonFilterMonitoring;
+        /**
+         * ReplacementProductList (REP)
+         *
+         * Supports specifying the list of replacement products
+         */
+        ReplacementProductList = "ReplacementProductList"
+    }
 
-    export declare const Complete: Complete;
     export const id = ClusterId(0x72);
     export const name = "ActivatedCarbonFilterMonitoring" as const;
     export const revision = 1;
@@ -193,10 +196,20 @@ export namespace ActivatedCarbonFilterMonitoring {
     export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
     export declare const commands: CommandObjects;
     export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof ActivatedCarbonFilterMonitoring;
+    export declare const Cluster: Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `ActivatedCarbonFilterMonitoring` instead of
+     * `ActivatedCarbonFilterMonitoring.Complete`)
+     */
+    export type Complete = typeof ActivatedCarbonFilterMonitoring;
+
+    export declare const Complete: Complete;
     export declare const Typing: ActivatedCarbonFilterMonitoring;
 }
 
+ClusterNamespace.define(ActivatedCarbonFilterMonitoring);
 export type ActivatedCarbonFilterMonitoringCluster = ActivatedCarbonFilterMonitoring.Cluster;
 export const ActivatedCarbonFilterMonitoringCluster = ActivatedCarbonFilterMonitoring.Cluster;
-ClusterNamespace.define(ActivatedCarbonFilterMonitoring);
 export interface ActivatedCarbonFilterMonitoring extends ClusterTyping { Attributes: ActivatedCarbonFilterMonitoring.Attributes; Commands: ActivatedCarbonFilterMonitoring.Commands; Features: ActivatedCarbonFilterMonitoring.Features; Components: ActivatedCarbonFilterMonitoring.Components }

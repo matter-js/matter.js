@@ -6,9 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
-import { Identity } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { FormaldehydeConcentrationMeasurement as FormaldehydeConcentrationMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -245,26 +243,64 @@ export namespace FormaldehydeConcentrationMeasurement {
 
     export type Features = "NumericMeasurement" | "LevelIndication" | "MediumLevel" | "CriticalLevel" | "PeakMeasurement" | "AverageMeasurement";
 
-    export const Base = {
-        ...ConcentrationMeasurement.Base,
-        id: 0x42b,
-        name: "FormaldehydeConcentrationMeasurement"
-    } as const;
-
     /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster.ExtensibleOnly(Base);
-
-    /**
-     * This alias specializes the semantics of {@link ConcentrationMeasurement.Base}.
+     * These are optional features supported by FormaldehydeConcentrationMeasurementCluster.
      *
-     * Per the Matter specification you cannot use {@link FormaldehydeConcentrationMeasurementCluster} without enabling
-     * certain feature combinations. You must use the {@link with} factory method to obtain a working cluster.
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.4
      */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
+    export enum Feature {
+        /**
+         * NumericMeasurement (MEA)
+         *
+         * Cluster supports numeric measurement of substance
+         */
+        NumericMeasurement = "NumericMeasurement",
 
-    export const Cluster: Cluster = ClusterInstance;
+        /**
+         * LevelIndication (LEV)
+         *
+         * Cluster supports basic level indication for substance using the ConcentrationLevel enum
+         */
+        LevelIndication = "LevelIndication",
+
+        /**
+         * MediumLevel (MED)
+         *
+         * Cluster supports the Medium Concentration Level
+         */
+        MediumLevel = "MediumLevel",
+
+        /**
+         * CriticalLevel (CRI)
+         *
+         * Cluster supports the Critical Concentration Level
+         */
+        CriticalLevel = "CriticalLevel",
+
+        /**
+         * PeakMeasurement (PEA)
+         *
+         * Cluster supports peak numeric measurement of substance
+         */
+        PeakMeasurement = "PeakMeasurement",
+
+        /**
+         * AverageMeasurement (AVG)
+         *
+         * Cluster supports average numeric measurement of substance
+         */
+        AverageMeasurement = "AverageMeasurement"
+    }
+
+    export const id = ClusterId(0x42b);
+    export const name = "FormaldehydeConcentrationMeasurement" as const;
+    export const revision = 3;
+    export const schema = FormaldehydeConcentrationMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof FormaldehydeConcentrationMeasurement;
+    export declare const Cluster: Cluster;
 
     /**
      * @deprecated Use the cluster namespace directly (e.g. `FormaldehydeConcentrationMeasurement` instead of
@@ -273,17 +309,10 @@ export namespace FormaldehydeConcentrationMeasurement {
     export type Complete = typeof FormaldehydeConcentrationMeasurement;
 
     export declare const Complete: Complete;
-    export const id = ClusterId(0x42b);
-    export const name = "FormaldehydeConcentrationMeasurement" as const;
-    export const revision = 3;
-    export const schema = FormaldehydeConcentrationMeasurementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export declare const attributes: AttributeObjects;
-    export declare const features: ClusterNamespace.Features<Features>;
     export declare const Typing: FormaldehydeConcentrationMeasurement;
 }
 
+ClusterNamespace.define(FormaldehydeConcentrationMeasurement);
 export type FormaldehydeConcentrationMeasurementCluster = FormaldehydeConcentrationMeasurement.Cluster;
 export const FormaldehydeConcentrationMeasurementCluster = FormaldehydeConcentrationMeasurement.Cluster;
-ClusterNamespace.define(FormaldehydeConcentrationMeasurement);
 export interface FormaldehydeConcentrationMeasurement extends ClusterTyping { Attributes: FormaldehydeConcentrationMeasurement.Attributes; Features: FormaldehydeConcentrationMeasurement.Features; Components: FormaldehydeConcentrationMeasurement.Components }

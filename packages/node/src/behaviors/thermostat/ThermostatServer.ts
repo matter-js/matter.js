@@ -24,7 +24,7 @@ import {
 } from "@matter/general";
 import { FieldElement } from "@matter/model";
 import { hasLocalActor, Val } from "@matter/protocol";
-import { StatusResponse, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusResponse } from "@matter/types";
 import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { Thermostat } from "@matter/types/clusters/thermostat";
 import { AtomicWriteHandler } from "./AtomicWriteHandler.js";
@@ -544,7 +544,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.state.occupancy = { occupied: newValue };
     }
 
-    #handleOccupancyChange(newValue: TypeFromPartialBitSchema<typeof OccupancySensing.Occupancy>) {
+    #handleOccupancyChange(newValue: OccupancySensing.Occupancy) {
         this.state.occupancy = newValue;
     }
 
@@ -647,7 +647,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
         this.state.minSetpointDeadBand = this.internal.minSetpointDeadBand;
     }
 
-    #assertRemoteSensingChanging(remoteSensing: TypeFromPartialBitSchema<typeof Thermostat.RemoteSensing>) {
+    #assertRemoteSensingChanging(remoteSensing: Thermostat.RemoteSensing) {
         if (this.features.localTemperatureNotExposed && remoteSensing.localTemperature) {
             throw new StatusResponse.ConstraintErrorError(
                 "LocalTemperature is not exposed, so RemoteSensing cannot be set to LocalTemperature",

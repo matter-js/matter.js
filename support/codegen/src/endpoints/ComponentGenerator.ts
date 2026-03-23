@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { capitalize, decamelize } from "#general";
 import {
     AttributeModel,
     CommandModel,
@@ -17,7 +18,7 @@ import {
     VarianceCondition,
 } from "#model";
 import type { ClusterFile } from "../clusters/ClusterFile.js";
-import { asObjectKey, camelize } from "../util/string.js";
+import { asObjectKey, camelize, serialize } from "../util/string.js";
 import type { Block } from "../util/TsFile.js";
 import { TypeGenerator } from "./TypeGenerator.js";
 
@@ -181,15 +182,20 @@ export class ComponentGenerator {
     }
 
     /**
-     * Generate type definitions (enums, structs, bitmaps) for all types referenced by the component interfaces
-     * and any types that TlvGenerator skipped (passed via {@link tlvSkippedTypes}).
+     * Generate type definitions (enums, structs, bitmaps) for all types referenced by the component interfaces.
      */
-    generateTypes(tlvSkippedTypes?: Map<string, ValueModel>) {
-        // Seed with types that TlvGenerator encountered but didn't define
-        if (tlvSkippedTypes) {
-            for (const [name, model] of tlvSkippedTypes) {
+    generateTypes() {
+        // Discover standalone compound datatypes that aren't referenced by any interface.  Without this, types
+        // not referenced by attributes/commands/events would be silently dropped.
+        const scope = this.file.scope;
+        if (scope) {
+            for (const datatype of this.file.cluster.all(DatatypeModel)) {
+                if (!datatype.definesFields || !datatype.children.length) {
+                    continue;
+                }
+                const name = scope.nameFor(datatype);
                 if (!this.#referencedTypes.has(name)) {
-                    this.#referencedTypes.set(name, model);
+                    this.#referencedTypes.set(name, datatype);
                 }
             }
         }
@@ -498,6 +504,11 @@ export class ComponentGenerator {
             }
             enumBlock.atom(`${asObjectKey(childName)} = ${child.id}`).document(child);
         });
+
+        // For cluster status codes, also generate appropriate error classes
+        if (model.name === "StatusEnum" || model.name === "StatusCodeEnum") {
+            this.#defineErrors(name, model, this.file.components);
+        }
     }
 
     #generateStruct(name: string, model: ValueModel) {
@@ -531,22 +542,14 @@ export class ComponentGenerator {
         this.#definedNames.add(name);
 
         this.file.components.undefine(name);
-        const bitmap = this.file.components.expressions(`export const ${name} = {`, "}");
-        bitmap.document(model);
-
-        // Also generate a type interface for the bitmap (declaration merging with the const)
-        this.file.components.undefine(name);
         const intf = this.file.components.statements(`export interface ${name} {`, "}");
-        intf.shouldDelimit = false;
+        intf.document(model);
 
         for (const child of model.members) {
-            let constType: string | undefined;
             let fieldType: string | undefined;
 
             const constraint = child.effectiveConstraint;
             if (typeof constraint.value === "number") {
-                this.file.addImport("!types/schema/BitmapSchema.js", "BitFlag");
-                constType = `BitFlag(${constraint.value})`;
                 fieldType = "boolean";
             } else if (typeof constraint.min === "number" && typeof constraint.max === "number") {
                 if (child.effectiveMetatype === Metatype.enum) {
@@ -559,28 +562,75 @@ export class ComponentGenerator {
                             if (!this.#referencedTypes.has(enumName)) {
                                 this.#referencedTypes.set(enumName, defining);
                             }
-                            this.file.addImport("!types/schema/BitmapSchema.js", "BitFieldEnum");
-                            constType = `BitFieldEnum<${enumName}>`;
                             fieldType = enumName;
                         }
                     }
                 }
 
-                if (!constType) {
-                    this.file.addImport("!types/schema/BitmapSchema.js", "BitField");
-                    constType = `BitField`;
+                if (!fieldType) {
                     fieldType = "number";
                 }
-
-                constType = `${constType}(${constraint.min}, ${constraint.max - constraint.min + 1})`;
             } else {
                 continue;
             }
 
             const fieldName = camelize(child.name);
-            bitmap.atom(fieldName, constType).document(child);
             intf.atom(`${fieldName}?: ${fieldType}`).document(child);
         }
+    }
+
+    #defineErrors(enumName: string, model: ValueModel, block: Block) {
+        for (const field of model.fields) {
+            let { name: errName } = field;
+            if (errName === "Success") {
+                continue;
+            }
+
+            if (!errName.endsWith("Error")) {
+                errName = `${errName}Error`;
+            }
+
+            this.file.addImport("!types/common/StatusResponseError.js", "StatusResponseError");
+            const error = block.statements(`export class ${errName} extends StatusResponseError {`, "}");
+            const constructor = error.expressions(
+                "constructor(",
+                // Ugh, manual formatting necessary here because we use args for children
+                ") {\n            super(message, code, clusterCode);\n        }",
+            );
+            constructor.shouldDelimit = false;
+
+            let { description: message } = field;
+            if (message === undefined) {
+                message = capitalize(decamelize(field.name, " "));
+            }
+            if (message.endsWith(".")) {
+                message = message.slice(0, message.length - 1);
+            }
+            constructor.atom(`message = ${serialize(message)}`);
+
+            const globalStatus = this.#importGlobalStatus();
+            constructor.atom(`code = ${globalStatus}.Failure`);
+
+            const ref = `${enumName}.${field.name}`;
+            constructor.atom(`clusterCode = ${ref}`);
+
+            const description = `Thrown for cluster status code {@link ${ref}}.`;
+            error.document({ description, xref: field.effectiveXref });
+        }
+    }
+
+    #importGlobalStatus() {
+        const needsAlias =
+            this.file.scope?.owner?.get(DatatypeModel, "Status") ||
+            this.file.scope?.owner?.get(DatatypeModel, "StatusEnum");
+
+        if (needsAlias) {
+            this.file.addImport("!types/globals/Status.js", "Status as GlobalStatus");
+            return "GlobalStatus";
+        }
+
+        this.file.addImport("!types/globals/Status.js", "Status");
+        return "Status";
     }
 }
 

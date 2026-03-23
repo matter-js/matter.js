@@ -6,9 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
-import { Identity } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { OzoneConcentrationMeasurement as OzoneConcentrationMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -245,22 +243,64 @@ export namespace OzoneConcentrationMeasurement {
 
     export type Features = "NumericMeasurement" | "LevelIndication" | "MediumLevel" | "CriticalLevel" | "PeakMeasurement" | "AverageMeasurement";
 
-    export const Base = { ...ConcentrationMeasurement.Base, id: 0x415, name: "OzoneConcentrationMeasurement" } as const;
-
     /**
-     * @see {@link Cluster}
-     */
-    export const ClusterInstance = MutableCluster.ExtensibleOnly(Base);
-
-    /**
-     * This alias specializes the semantics of {@link ConcentrationMeasurement.Base}.
+     * These are optional features supported by OzoneConcentrationMeasurementCluster.
      *
-     * Per the Matter specification you cannot use {@link OzoneConcentrationMeasurementCluster} without enabling certain
-     * feature combinations. You must use the {@link with} factory method to obtain a working cluster.
+     * @see {@link MatterSpecification.v142.Cluster} § 2.10.4
      */
-    export interface Cluster extends Identity<typeof ClusterInstance> {}
+    export enum Feature {
+        /**
+         * NumericMeasurement (MEA)
+         *
+         * Cluster supports numeric measurement of substance
+         */
+        NumericMeasurement = "NumericMeasurement",
 
-    export const Cluster: Cluster = ClusterInstance;
+        /**
+         * LevelIndication (LEV)
+         *
+         * Cluster supports basic level indication for substance using the ConcentrationLevel enum
+         */
+        LevelIndication = "LevelIndication",
+
+        /**
+         * MediumLevel (MED)
+         *
+         * Cluster supports the Medium Concentration Level
+         */
+        MediumLevel = "MediumLevel",
+
+        /**
+         * CriticalLevel (CRI)
+         *
+         * Cluster supports the Critical Concentration Level
+         */
+        CriticalLevel = "CriticalLevel",
+
+        /**
+         * PeakMeasurement (PEA)
+         *
+         * Cluster supports peak numeric measurement of substance
+         */
+        PeakMeasurement = "PeakMeasurement",
+
+        /**
+         * AverageMeasurement (AVG)
+         *
+         * Cluster supports average numeric measurement of substance
+         */
+        AverageMeasurement = "AverageMeasurement"
+    }
+
+    export const id = ClusterId(0x415);
+    export const name = "OzoneConcentrationMeasurement" as const;
+    export const revision = 3;
+    export const schema = OzoneConcentrationMeasurementModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const features: ClusterNamespace.Features<Features>;
+    export type Cluster = typeof OzoneConcentrationMeasurement;
+    export declare const Cluster: Cluster;
 
     /**
      * @deprecated Use the cluster namespace directly (e.g. `OzoneConcentrationMeasurement` instead of
@@ -269,17 +309,10 @@ export namespace OzoneConcentrationMeasurement {
     export type Complete = typeof OzoneConcentrationMeasurement;
 
     export declare const Complete: Complete;
-    export const id = ClusterId(0x415);
-    export const name = "OzoneConcentrationMeasurement" as const;
-    export const revision = 3;
-    export const schema = OzoneConcentrationMeasurementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export declare const attributes: AttributeObjects;
-    export declare const features: ClusterNamespace.Features<Features>;
     export declare const Typing: OzoneConcentrationMeasurement;
 }
 
+ClusterNamespace.define(OzoneConcentrationMeasurement);
 export type OzoneConcentrationMeasurementCluster = OzoneConcentrationMeasurement.Cluster;
 export const OzoneConcentrationMeasurementCluster = OzoneConcentrationMeasurement.Cluster;
-ClusterNamespace.define(OzoneConcentrationMeasurement);
 export interface OzoneConcentrationMeasurement extends ClusterTyping { Attributes: OzoneConcentrationMeasurement.Attributes; Features: OzoneConcentrationMeasurement.Features; Components: OzoneConcentrationMeasurement.Components }

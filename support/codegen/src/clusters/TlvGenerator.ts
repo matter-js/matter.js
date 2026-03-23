@@ -476,10 +476,6 @@ export class TlvGenerator {
                 if (this.skipTypeDefinitions) {
                     // Enum type definition is handled by ComponentGenerator.generateTypes().
                     this.skippedTypes.set(name, model);
-                    // Still generate error classes for status code enums.
-                    if (model.name === "StatusEnum" || model.name === "StatusCodeEnum") {
-                        this.defineErrors(name, model, this.#definitions);
-                    }
                     return name;
                 }
                 definition = this.#defineEnum(name, model);
