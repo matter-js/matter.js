@@ -273,7 +273,7 @@ describe("ClusterBehavior", () => {
             // Test constituent parts
             MyCluster.name satisfies "MyCluster";
 
-            const AlteredCluster = new ClusterTypeModifier(MyCluster).alter({});
+            const AlteredCluster = new ClusterTypeModifier(My.Cluster).alter({});
             AlteredCluster.name satisfies "MyCluster";
 
             const BehaviorForAlteredCluster = MyBehavior.for(AlteredCluster);

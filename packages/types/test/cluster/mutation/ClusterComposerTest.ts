@@ -6,7 +6,6 @@
 
 import { ClusterType } from "#cluster/ClusterType.js";
 import { ClusterComposer, IllegalClusterError } from "#cluster/mutation/ClusterComposer.js";
-import { OnOff } from "#clusters/on-off.js";
 import {
     ELEMENTS2,
     Elements1ish,
@@ -68,16 +67,6 @@ describe("ClusterComposer", () => {
             cluster satisfies Elements2ish;
 
             expectElementCounts(cluster, 2);
-        });
-
-        it("works with real-world cluster and enum feature identifier", () => {
-            type Flags = ClusterComposer.FeaturesAsFlags<OnOff.Cluster, [OnOff.Feature.Lighting]>;
-            ({}) as Flags satisfies { lighting: true };
-
-            const cluster = OnOff.Cluster.with(OnOff.Feature.Lighting);
-
-            cluster satisfies typeof OnOff.Base;
-            cluster satisfies typeof OnOff.LightingComponent;
         });
 
         it("treats missing feature as false", () => {

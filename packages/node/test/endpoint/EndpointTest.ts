@@ -19,11 +19,11 @@ import { RootEndpoint } from "#endpoints/root";
 import { FabricIndex } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { WindowCoveringCluster } from "@matter/types/clusters/window-covering";
+import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MockServerNode } from "../node/mock-server-node.js";
 
 const WindowCoveringLiftDevice = WindowCoveringDevice.with(
-    WindowCoveringServer.for(WindowCoveringCluster.with("Lift", "PositionAwareLift", "AbsolutePosition")),
+    WindowCoveringServer.for(WindowCovering).with("Lift", "PositionAwareLift", "AbsolutePosition"),
 );
 
 describe("Endpoint", () => {
