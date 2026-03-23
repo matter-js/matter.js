@@ -429,23 +429,6 @@ export namespace ClusterNamespace {
     };
 
     /**
-     * Install lazy getters on a cluster namespace object.  Each property is computed on first access via
-     * {@link Object.defineProperty}, then replaced with the computed value.
-     */
-    export function define(ns: object, inputModel?: ClusterModel): void {
-        const model = inputModel ?? (ns as { schema?: ClusterModel }).schema;
-        if (!model) {
-            return;
-        }
-
-        if (!Object.hasOwn(ns, "schema")) {
-            Object.defineProperty(ns, "schema", { value: model, enumerable: true, configurable: true });
-        }
-
-        installLazyProperties(ns, model);
-    }
-
-    /**
      * Create a typed map of cluster attributes from a {@link ClusterModel}.
      */
     export function attributes(model: ClusterModel) {
