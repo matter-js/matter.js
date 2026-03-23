@@ -10,4 +10,3 @@ export * from "./ClusterNamespace.js";
 export * from "./ClusterType.js";
 export * from "./ClusterTypeBridge.js";
 export * from "./Global.js";
-export * from "./mutation/index.js";

@@ -9,8 +9,20 @@ import { ClusterType } from "#cluster/ClusterType.js";
 import { Priority } from "#globals/Priority.js";
 import { TlvNumberSchema, TlvUInt8 } from "#tlv/TlvNumber.js";
 import { TlvSchema } from "#tlv/TlvSchema.js";
-import { Branded } from "@matter/general";
-import { stripFunctions } from "./mutation/util.js";
+import { Branded, isObject } from "@matter/general";
+
+function stripFunctions(value: any): any {
+    if (typeof value === "function") {
+        return undefined;
+    }
+    if (isObject(value)) {
+        return Object.fromEntries(Object.entries(value).map(kv => [kv[0], stripFunctions(kv[1])]));
+    }
+    if (Array.isArray(value)) {
+        return value.map(v => stripFunctions(v));
+    }
+    return value;
+}
 
 const BaseFoo = {
     id: 1,
