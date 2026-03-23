@@ -13,13 +13,13 @@ import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/bas
 import { AsyncObservable, EventEmitter, MaybePromise, Observable } from "@matter/general";
 import { ClusterNamespace } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { MyCluster, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
+import { My, MyCluster, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
 
 type MyClusterWithOptEvent = ClusterNamespace.WithEnabledEvents<MyClusterTyping, "optEv">;
 type BiWithStartup = ClusterNamespace.WithEnabledEvents<BasicInformation, "startUp">;
 
 const MyClusterBehavior = ClusterBehavior.for(MyCluster, MySchema);
-const MyClusterWithOptEventCluster = MyCluster.enable({ events: { optEv: true } });
+const MyClusterWithOptEventCluster = My.Cluster.enable({ events: { optEv: true } });
 const MyClusterWithOptEventBehavior = MyClusterBehavior.for(MyClusterWithOptEventCluster);
 
 describe("ClusterEvents", () => {

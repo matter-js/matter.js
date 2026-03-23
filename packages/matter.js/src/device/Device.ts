@@ -9,6 +9,7 @@ import { RootNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { ClusterClientObj, TypedClusterClientObj } from "@matter/protocol";
 import { Cluster, ClusterNamespace, ClusterType, EndpointNumber } from "@matter/types";
+import { ClusterTypeOfModel } from "../cluster/ClusterTypeOfModel.js";
 import { Binding } from "@matter/types/clusters/binding";
 import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
 import { ClusterServer } from "../cluster/server/ClusterServer.js";
@@ -189,7 +190,7 @@ export class Device extends Endpoint {
         if (definition.deviceClass === DeviceClasses.Simple || definition.deviceClass === DeviceClasses.Client) {
             this.addClusterServer(
                 ClusterServer(
-                    Binding.Cluster,
+                    ClusterTypeOfModel(Binding.schema),
                     {
                         binding: [],
                     },

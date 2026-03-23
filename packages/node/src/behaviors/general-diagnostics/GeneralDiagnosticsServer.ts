@@ -29,7 +29,7 @@ import {
 } from "@matter/general";
 import { FieldElement, Specification } from "@matter/model";
 import { assertRemoteActor, MdnsService, Val } from "@matter/protocol";
-import { CommandId, StatusCode, StatusResponseError, TlvInvokeResponse } from "@matter/types";
+import { CommandId, StatusCode, StatusResponseError, TlvInvokeResponse, TlvOfModel } from "@matter/types";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { GeneralDiagnosticsBehavior } from "./GeneralDiagnosticsBehavior.js";
 
@@ -163,7 +163,9 @@ export class GeneralDiagnosticsServer extends Base {
                             commandId: CommandId(0x04), // Hardcode for now
                         },
                         commandRef: 0,
-                        commandFields: GeneralDiagnostics.TlvPayloadTestResponse.encodeTlv({
+                        commandFields: TlvOfModel(
+                            GeneralDiagnostics.schema.commands.require("PayloadTestResponse"),
+                        ).encodeTlv({
                             payload,
                         }),
                     },

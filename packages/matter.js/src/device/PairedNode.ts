@@ -1337,11 +1337,11 @@ export class PairedNode {
      * this case! Better use openEnhancedCommissioningWindow() instead.
      */
     async openBasicCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
-        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning.Cluster.with("Basic"));
+        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
         if (adminCommissioningCluster === undefined) {
             throw new ImplementationError(`AdministratorCommissioningCluster for node ${this.nodeId} not found.`);
         }
-        if (adminCommissioningCluster.supportedFeatures.basic === false) {
+        if ((adminCommissioningCluster.supportedFeatures as Record<string, boolean>)?.basic === false) {
             throw new ImplementationError(
                 `AdministratorCommissioningCluster for node ${this.nodeId} does not support basic commissioning.`,
             );
@@ -1364,7 +1364,7 @@ export class PairedNode {
 
     /** Opens an Enhanced Commissioning Window (uses a generated random Passcode) with the device. */
     async openEnhancedCommissioningWindow(commissioningTimeout = 900 /* 15 minutes */) {
-        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning.Cluster);
+        const adminCommissioningCluster = this.getRootClusterClient(AdministratorCommissioning);
         if (adminCommissioningCluster === undefined) {
             throw new ImplementationError(`AdministratorCommissioningCluster for node ${this.nodeId} not found.`);
         }
@@ -1381,7 +1381,7 @@ export class PairedNode {
             }
         }
 
-        const basicInformationCluster = this.getRootClusterClient(BasicInformation.Cluster);
+        const basicInformationCluster = this.getRootClusterClient(BasicInformation);
         if (basicInformationCluster === undefined) {
             throw new ImplementationError(`BasicInformationCluster for node ${this.nodeId} not found.`);
         }

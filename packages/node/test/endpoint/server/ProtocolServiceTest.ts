@@ -23,6 +23,7 @@ import {
     TlvNullable,
     TlvObject,
     TlvOfModel,
+    TlvSchema,
     TlvSubjectId,
     TypeFromSchema,
 } from "@matter/types";
@@ -70,11 +71,15 @@ class WifiCommissioningServer extends NetworkCommissioningServer.with("WiFiNetwo
 
 // This is AccessControl.AccessControlEntryStruct but not sure how to remove fabric index from payload so just
 // redefining for now
+const TlvAccessControlTarget = TlvOfModel(
+    AccessControl.schema.datatypes.require("AccessControlTargetStruct"),
+) as TlvSchema<AccessControl.AccessControlTarget>;
+
 const AcesWithoutFabric = TlvObject({
     privilege: TlvField(1, TlvEnum<AccessControl.AccessControlEntryPrivilege>()),
     authMode: TlvField(2, TlvEnum<AccessControl.AccessControlEntryAuthMode>()),
     subjects: TlvField(3, TlvNullable(TlvArray(TlvSubjectId))),
-    targets: TlvField(4, TlvNullable(TlvArray(AccessControl.TlvAccessControlTarget))),
+    targets: TlvField(4, TlvNullable(TlvArray(TlvAccessControlTarget))),
 });
 
 async function writeAcl(node: MockServerNode, fabric: Fabric, acl: TypeFromSchema<typeof AcesWithoutFabric>) {
@@ -238,9 +243,7 @@ describe("ProtocolServiceTest", () => {
             attributeId: AttributeId(AcceptedCommandList.id),
         });
 
-        expect(commands).deep.equals([
-            NetworkCommissioning.WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.scanNetworks.requestId,
-        ]);
+        expect(commands).deep.equals([NetworkCommissioning.commands.scanNetworks.id]);
 
         const commandResponds = await interaction.read(node, fabric, false, {
             endpointId: EndpointNumber(1),
@@ -248,9 +251,7 @@ describe("ProtocolServiceTest", () => {
             attributeId: AttributeId(GeneratedCommandList.id),
         });
 
-        expect(commandResponds).deep.equals([
-            NetworkCommissioning.WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.scanNetworks.responseId,
-        ]);
+        expect(commandResponds).deep.equals([NetworkCommissioning.schema.commands.require("ScanNetworksResponse").id]);
     });
 
     it("publishes correct feature map", async () => {
@@ -267,7 +268,7 @@ describe("ProtocolServiceTest", () => {
         });
 
         expect(() => {
-            OnOff.Cluster.attributes.featureMap.schema.validate(featureMap);
+            TlvOfModel(OnOff.schema.attributes.require("FeatureMap")).validate(featureMap);
         }).not.throws();
 
         expect({ ...featureMap }).deep.equals({
@@ -298,10 +299,10 @@ describe("ProtocolServiceTest", () => {
                 commandPath: {
                     endpointId: EndpointNumber(1),
                     clusterId: OnOff.id,
-                    commandId: CommandId(OnOff.LightingComponent.commands.offWithEffect.requestId),
+                    commandId: CommandId(OnOff.commands.offWithEffect.id),
                 },
 
-                commandFields: OnOff.TlvOffWithEffectRequest.encodeTlv({
+                commandFields: TlvOfModel(OnOff.commands.offWithEffect).encodeTlv({
                     effectIdentifier: 0,
                     effectVariant: 1,
                 }),
