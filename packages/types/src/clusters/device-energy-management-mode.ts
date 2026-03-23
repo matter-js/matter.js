@@ -458,7 +458,14 @@ export namespace DeviceEnergyManagementMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `DeviceEnergyManagementMode` instead of
+     * `DeviceEnergyManagementMode.Complete`)
+     */
+    export type Complete = typeof DeviceEnergyManagementMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x9f);
     export const name = "DeviceEnergyManagementMode" as const;
     export const revision = 2;

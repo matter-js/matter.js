@@ -281,7 +281,14 @@ export namespace WiFiNetworkManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `WiFiNetworkManagement` instead of
+     * `WiFiNetworkManagement.Complete`)
+     */
+    export type Complete = typeof WiFiNetworkManagement;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x451);
     export const name = "WiFiNetworkManagement" as const;
     export const revision = 1;

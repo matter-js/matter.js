@@ -259,6 +259,7 @@ export namespace ClusterNamespace {
         lazy("commands", () => commands(model));
         lazy("events", () => events(model));
         lazy("features", () => features(model));
+        lazy("Complete", () => ns);
     }
 
     /**

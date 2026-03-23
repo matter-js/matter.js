@@ -784,47 +784,14 @@ export namespace WaterHeaterManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const EM = { energyManagement: true };
-    const TP = { tankPercent: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `WaterHeaterManagement` instead of
+     * `WaterHeaterManagement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof WaterHeaterManagement;
 
-        attributes: {
-            ...Cluster.attributes,
-            tankVolume: MutableCluster.AsConditional(
-                EnergyManagementComponent.attributes.tankVolume,
-                { mandatoryIf: [EM] }
-            ),
-            estimatedHeatRequired: MutableCluster.AsConditional(
-                EnergyManagementComponent.attributes.estimatedHeatRequired,
-                { mandatoryIf: [EM] }
-            ),
-            tankPercentage: MutableCluster.AsConditional(
-                TankPercentComponent.attributes.tankPercentage,
-                { mandatoryIf: [TP] }
-            )
-        },
-
-        commands: Cluster.commands,
-        events: Cluster.events
-    });
-
-    /**
-     * This cluster supports all WaterHeaterManagement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x94);
     export const name = "WaterHeaterManagement" as const;
     export const revision = 2;

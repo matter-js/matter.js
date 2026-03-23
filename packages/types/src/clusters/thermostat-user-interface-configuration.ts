@@ -209,7 +209,14 @@ export namespace ThermostatUserInterfaceConfiguration {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `ThermostatUserInterfaceConfiguration` instead of
+     * `ThermostatUserInterfaceConfiguration.Complete`)
+     */
+    export type Complete = typeof ThermostatUserInterfaceConfiguration;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x204);
     export const name = "ThermostatUserInterfaceConfiguration" as const;
     export const revision = 2;

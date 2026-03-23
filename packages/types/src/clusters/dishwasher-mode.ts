@@ -423,7 +423,13 @@ export namespace DishwasherMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `DishwasherMode` instead of `DishwasherMode.Complete`)
+     */
+    export type Complete = typeof DishwasherMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x59);
     export const name = "DishwasherMode" as const;
     export const revision = 3;

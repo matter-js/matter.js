@@ -83,7 +83,13 @@ export namespace FixedLabel {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `FixedLabel` instead of `FixedLabel.Complete`)
+     */
+    export type Complete = typeof FixedLabel;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x40);
     export const name = "FixedLabel" as const;
     export const revision = 1;

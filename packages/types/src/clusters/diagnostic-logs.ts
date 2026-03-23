@@ -450,7 +450,13 @@ export namespace DiagnosticLogs {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `DiagnosticLogs` instead of `DiagnosticLogs.Complete`)
+     */
+    export type Complete = typeof DiagnosticLogs;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x32);
     export const name = "DiagnosticLogs" as const;
     export const revision = 1;

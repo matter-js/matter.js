@@ -953,7 +953,14 @@ export namespace OtaSoftwareUpdateRequestor {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `OtaSoftwareUpdateRequestor` instead of
+     * `OtaSoftwareUpdateRequestor.Complete`)
+     */
+    export type Complete = typeof OtaSoftwareUpdateRequestor;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x2a);
     export const name = "OtaSoftwareUpdateRequestor" as const;
     export const revision = 1;

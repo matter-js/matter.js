@@ -599,7 +599,13 @@ export namespace AccountLogin {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `AccountLogin` instead of `AccountLogin.Complete`)
+     */
+    export type Complete = typeof AccountLogin;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x50e);
     export const name = "AccountLogin" as const;
     export const revision = 2;

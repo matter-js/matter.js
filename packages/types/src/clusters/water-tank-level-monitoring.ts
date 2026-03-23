@@ -178,19 +178,12 @@ export namespace WaterTankLevelMonitoring {
     export const Cluster: Cluster = ClusterInstance;
 
     /**
-     * This cluster supports all WaterTankLevelMonitoring features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
+     * @deprecated Use the cluster namespace directly (e.g. `WaterTankLevelMonitoring` instead of
+     * `WaterTankLevelMonitoring.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        ...ResourceMonitoring.Complete,
-        id: 0x79,
-        name: "WaterTankLevelMonitoring"
-    });
+    export type Complete = typeof WaterTankLevelMonitoring;
 
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x79);
     export const name = "WaterTankLevelMonitoring" as const;
     export const revision = 1;

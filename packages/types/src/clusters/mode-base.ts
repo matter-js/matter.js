@@ -21,7 +21,7 @@ import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
-import { Identity, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ModeBase as ModeBaseModel } from "@matter/model";
 
@@ -694,31 +694,12 @@ export namespace ModeBase {
         extensions: MutableCluster.Extensions({ flags: { onOff: true }, component: OnOffComponent })
     });
 
-    const DEPONOFF = { onOff: true };
-
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ModeBase` instead of `ModeBase.Complete`)
      */
-    export const CompleteInstance = MutableCluster.Component({
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
-        attributes: {
-            ...Base.attributes,
-            onMode: MutableCluster.AsConditional(OnOffComponent.attributes.onMode, { mandatoryIf: [DEPONOFF] })
-        },
-        commands: Base.commands
-    });
+    export type Complete = typeof ModeBase;
 
-    /**
-     * This cluster supports all ModeBase features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const name = "ModeBase" as const;
     export const revision = 2;
     export const schema = ModeBaseModel;

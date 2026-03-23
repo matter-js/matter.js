@@ -924,43 +924,14 @@ export namespace BridgedDeviceBasicInformation {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const BIS = { bridgedIcdSupport: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `BridgedDeviceBasicInformation` instead of
+     * `BridgedDeviceBasicInformation.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
-        attributes: Cluster.attributes,
+    export type Complete = typeof BridgedDeviceBasicInformation;
 
-        commands: {
-            keepActive: MutableCluster.AsConditional(
-                BridgedIcdSupportComponent.commands.keepActive,
-                { mandatoryIf: [BIS] }
-            )
-        },
-
-        events: {
-            ...Cluster.events,
-            activeChanged: MutableCluster.AsConditional(
-                BridgedIcdSupportComponent.events.activeChanged,
-                { mandatoryIf: [BIS] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all BridgedDeviceBasicInformation features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x39);
     export const name = "BridgedDeviceBasicInformation" as const;
     export const revision = 5;

@@ -189,38 +189,13 @@ export namespace UnitLocalization {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const TEMP = { temperatureUnit: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `UnitLocalization` instead of `UnitLocalization.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof UnitLocalization;
 
-        attributes: {
-            temperatureUnit: MutableCluster.AsConditional(
-                TemperatureUnitComponent.attributes.temperatureUnit,
-                { mandatoryIf: [TEMP] }
-            ),
-            supportedTemperatureUnits: MutableCluster.AsConditional(
-                TemperatureUnitComponent.attributes.supportedTemperatureUnits,
-                { mandatoryIf: [TEMP] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all UnitLocalization features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x2d);
     export const name = "UnitLocalization" as const;
     export const revision = 2;

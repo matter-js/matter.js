@@ -356,45 +356,14 @@ export namespace PressureMeasurement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const EXT = { extended: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `PressureMeasurement` instead of
+     * `PressureMeasurement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof PressureMeasurement;
 
-        attributes: {
-            ...Cluster.attributes,
-            scaledValue: MutableCluster.AsConditional(ExtendedComponent.attributes.scaledValue, { mandatoryIf: [EXT] }),
-            minScaledValue: MutableCluster.AsConditional(
-                ExtendedComponent.attributes.minScaledValue,
-                { mandatoryIf: [EXT] }
-            ),
-            maxScaledValue: MutableCluster.AsConditional(
-                ExtendedComponent.attributes.maxScaledValue,
-                { mandatoryIf: [EXT] }
-            ),
-            scaledTolerance: MutableCluster.AsConditional(
-                ExtendedComponent.attributes.scaledTolerance,
-                { optionalIf: [EXT] }
-            ),
-            scale: MutableCluster.AsConditional(ExtendedComponent.attributes.scale, { mandatoryIf: [EXT] })
-        }
-    });
-
-    /**
-     * This cluster supports all PressureMeasurement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x403);
     export const name = "PressureMeasurement" as const;
     export const revision = 3;

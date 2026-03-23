@@ -86,8 +86,6 @@ export namespace LevelControl {
              */
             options: Options;
 
-            readonly minLevel?: number;
-
             /**
              * Indicates the maximum value of CurrentLevel that is capable of being assigned.
              *
@@ -217,6 +215,13 @@ export namespace LevelControl {
              * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
              */
             startUpCurrentLevel: number | null;
+
+            /**
+             * Indicates the minimum value of CurrentLevel that is capable of being assigned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+             */
+            readonly minLevel?: number;
         }
     }
 
@@ -338,8 +343,6 @@ export namespace LevelControl {
          */
         options: Options;
 
-        readonly minLevel: number;
-
         /**
          * Indicates the maximum value of CurrentLevel that is capable of being assigned.
          *
@@ -416,6 +419,13 @@ export namespace LevelControl {
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
          */
         startUpCurrentLevel: number | null;
+
+        /**
+         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+         */
+        readonly minLevel: number;
 
         /**
          * Indicates the frequency at which the device is at CurrentLevel. A CurrentFrequency of 0 is unknown.
@@ -786,6 +796,11 @@ export namespace LevelControl {
              */
             remainingTime: Attribute(0x1, TlvUInt16),
 
+            /**
+             * Indicates the minimum value of CurrentLevel that is capable of being assigned.
+             *
+             * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+             */
             minLevel: OptionalAttribute(0x2, TlvUInt8.bound({ min: 1, max: 254 }), { default: 1 }),
 
             /**
@@ -1082,61 +1097,13 @@ export namespace LevelControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const LT = { lighting: true };
-    const FQ = { frequency: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `LevelControl` instead of `LevelControl.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof LevelControl;
 
-        attributes: {
-            ...Cluster.attributes,
-            remainingTime: MutableCluster.AsConditional(
-                LightingComponent.attributes.remainingTime,
-                { mandatoryIf: [LT] }
-            ),
-            minLevel: MutableCluster.AsConditional(LightingComponent.attributes.minLevel, { optionalIf: [LT] }),
-            currentFrequency: MutableCluster.AsConditional(
-                FrequencyComponent.attributes.currentFrequency,
-                { mandatoryIf: [FQ] }
-            ),
-            minFrequency: MutableCluster.AsConditional(
-                FrequencyComponent.attributes.minFrequency,
-                { mandatoryIf: [FQ] }
-            ),
-            maxFrequency: MutableCluster.AsConditional(
-                FrequencyComponent.attributes.maxFrequency,
-                { mandatoryIf: [FQ] }
-            ),
-            startUpCurrentLevel: MutableCluster.AsConditional(
-                LightingComponent.attributes.startUpCurrentLevel,
-                { mandatoryIf: [LT] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            moveToClosestFrequency: MutableCluster.AsConditional(
-                FrequencyComponent.commands.moveToClosestFrequency,
-                { mandatoryIf: [FQ] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all LevelControl features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x8);
     export const name = "LevelControl" as const;
     export const revision = 6;

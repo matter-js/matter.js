@@ -1880,90 +1880,14 @@ export namespace TimeSynchronization {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const TSC = { timeSyncClient: true };
-    const NTPC = { ntpClient: true };
-    const TZ = { timeZone: true };
-    const NTPS = { ntpServer: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `TimeSynchronization` instead of
+     * `TimeSynchronization.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof TimeSynchronization;
 
-        attributes: {
-            ...Cluster.attributes,
-            trustedTimeSource: MutableCluster.AsConditional(
-                TimeSyncClientComponent.attributes.trustedTimeSource,
-                { mandatoryIf: [TSC] }
-            ),
-            defaultNtp: MutableCluster.AsConditional(NtpClientComponent.attributes.defaultNtp, { mandatoryIf: [NTPC] }),
-            timeZone: MutableCluster.AsConditional(TimeZoneComponent.attributes.timeZone, { mandatoryIf: [TZ] }),
-            dstOffset: MutableCluster.AsConditional(TimeZoneComponent.attributes.dstOffset, { mandatoryIf: [TZ] }),
-            localTime: MutableCluster.AsConditional(TimeZoneComponent.attributes.localTime, { mandatoryIf: [TZ] }),
-            timeZoneDatabase: MutableCluster.AsConditional(
-                TimeZoneComponent.attributes.timeZoneDatabase,
-                { mandatoryIf: [TZ] }
-            ),
-            ntpServerAvailable: MutableCluster.AsConditional(
-                NtpServerComponent.attributes.ntpServerAvailable,
-                { mandatoryIf: [NTPS] }
-            ),
-            timeZoneListMaxSize: MutableCluster.AsConditional(
-                TimeZoneComponent.attributes.timeZoneListMaxSize,
-                { mandatoryIf: [TZ] }
-            ),
-            dstOffsetListMaxSize: MutableCluster.AsConditional(
-                TimeZoneComponent.attributes.dstOffsetListMaxSize,
-                { mandatoryIf: [TZ] }
-            ),
-            supportsDnsResolve: MutableCluster.AsConditional(
-                NtpClientComponent.attributes.supportsDnsResolve,
-                { mandatoryIf: [NTPC] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            setTrustedTimeSource: MutableCluster.AsConditional(
-                TimeSyncClientComponent.commands.setTrustedTimeSource,
-                { mandatoryIf: [TSC] }
-            ),
-            setTimeZone: MutableCluster.AsConditional(TimeZoneComponent.commands.setTimeZone, { mandatoryIf: [TZ] }),
-            setDstOffset: MutableCluster.AsConditional(TimeZoneComponent.commands.setDstOffset, { mandatoryIf: [TZ] }),
-            setDefaultNtp: MutableCluster.AsConditional(
-                NtpClientComponent.commands.setDefaultNtp,
-                { mandatoryIf: [NTPC] }
-            )
-        },
-
-        events: {
-            ...Cluster.events,
-            dstTableEmpty: MutableCluster.AsConditional(TimeZoneComponent.events.dstTableEmpty, { mandatoryIf: [TZ] }),
-            dstStatus: MutableCluster.AsConditional(TimeZoneComponent.events.dstStatus, { mandatoryIf: [TZ] }),
-            timeZoneStatus: MutableCluster.AsConditional(
-                TimeZoneComponent.events.timeZoneStatus,
-                { mandatoryIf: [TZ] }
-            ),
-            missingTrustedTimeSource: MutableCluster.AsConditional(
-                TimeSyncClientComponent.events.missingTrustedTimeSource,
-                { mandatoryIf: [TSC] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all TimeSynchronization features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x38);
     export const name = "TimeSynchronization" as const;
     export const revision = 2;

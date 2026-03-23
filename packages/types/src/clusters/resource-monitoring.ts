@@ -23,7 +23,7 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
-import { Identity, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ResourceMonitoring as ResourceMonitoringModel } from "@matter/model";
 
@@ -410,42 +410,13 @@ export namespace ResourceMonitoring {
         )
     });
 
-    const CON = { condition: true };
-    const REP = { replacementProductList: true };
-
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ResourceMonitoring` instead of
+     * `ResourceMonitoring.Complete`)
      */
-    export const CompleteInstance = MutableCluster.Component({
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof ResourceMonitoring;
 
-        attributes: {
-            ...Base.attributes,
-            condition: MutableCluster.AsConditional(ConditionComponent.attributes.condition, { mandatoryIf: [CON] }),
-            degradationDirection: MutableCluster.AsConditional(
-                ConditionComponent.attributes.degradationDirection,
-                { mandatoryIf: [CON] }
-            ),
-            replacementProductList: MutableCluster.AsConditional(
-                ReplacementProductListComponent.attributes.replacementProductList,
-                { mandatoryIf: [REP] }
-            )
-        },
-
-        commands: Base.commands
-    });
-
-    /**
-     * This cluster supports all ResourceMonitoring features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const name = "ResourceMonitoring" as const;
     export const revision = 1;
     export const schema = ResourceMonitoringModel;

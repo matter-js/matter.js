@@ -1984,92 +1984,13 @@ export namespace MediaPlayback {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const AS = { advancedSeek: true };
-    const AT = { audioTracks: true };
-    const TT = { textTracks: true };
-    const VS = { variableSpeed: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `MediaPlayback` instead of `MediaPlayback.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof MediaPlayback;
 
-        attributes: {
-            ...Cluster.attributes,
-            startTime: MutableCluster.AsConditional(AdvancedSeekComponent.attributes.startTime, { mandatoryIf: [AS] }),
-            duration: MutableCluster.AsConditional(AdvancedSeekComponent.attributes.duration, { mandatoryIf: [AS] }),
-            sampledPosition: MutableCluster.AsConditional(
-                AdvancedSeekComponent.attributes.sampledPosition,
-                { mandatoryIf: [AS] }
-            ),
-            playbackSpeed: MutableCluster.AsConditional(
-                AdvancedSeekComponent.attributes.playbackSpeed,
-                { mandatoryIf: [AS] }
-            ),
-            seekRangeEnd: MutableCluster.AsConditional(
-                AdvancedSeekComponent.attributes.seekRangeEnd,
-                { mandatoryIf: [AS] }
-            ),
-            seekRangeStart: MutableCluster.AsConditional(
-                AdvancedSeekComponent.attributes.seekRangeStart,
-                { mandatoryIf: [AS] }
-            ),
-            activeAudioTrack: MutableCluster.AsConditional(
-                AudioTracksComponent.attributes.activeAudioTrack,
-                { mandatoryIf: [AT] }
-            ),
-            availableAudioTracks: MutableCluster.AsConditional(
-                AudioTracksComponent.attributes.availableAudioTracks,
-                { mandatoryIf: [AT] }
-            ),
-            activeTextTrack: MutableCluster.AsConditional(
-                TextTracksComponent.attributes.activeTextTrack,
-                { mandatoryIf: [TT] }
-            ),
-            availableTextTracks: MutableCluster.AsConditional(
-                TextTracksComponent.attributes.availableTextTracks,
-                { mandatoryIf: [TT] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            rewind: MutableCluster.AsConditional(VariableSpeedComponent.commands.rewind, { mandatoryIf: [VS] }),
-            fastForward: MutableCluster.AsConditional(
-                VariableSpeedComponent.commands.fastForward,
-                { mandatoryIf: [VS] }
-            ),
-            seek: MutableCluster.AsConditional(AdvancedSeekComponent.commands.seek, { mandatoryIf: [AS] }),
-            activateAudioTrack: MutableCluster.AsConditional(
-                AudioTracksComponent.commands.activateAudioTrack,
-                { mandatoryIf: [AT] }
-            ),
-            activateTextTrack: MutableCluster.AsConditional(
-                TextTracksComponent.commands.activateTextTrack,
-                { mandatoryIf: [TT] }
-            ),
-            deactivateTextTrack: MutableCluster.AsConditional(
-                TextTracksComponent.commands.deactivateTextTrack,
-                { mandatoryIf: [TT] }
-            )
-        },
-
-        events: Cluster.events
-    });
-
-    /**
-     * This cluster supports all MediaPlayback features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x506);
     export const name = "MediaPlayback" as const;
     export const revision = 2;

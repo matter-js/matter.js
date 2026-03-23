@@ -35,7 +35,6 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
 import { PeerAddressMonitor } from "./PeerAddressMonitor.js";
@@ -452,10 +451,7 @@ export namespace Peer {
     }
 
     export interface BasicInformation extends Identity<{
-        readonly [N in keyof Omit<
-            typeof BasicInformation.Complete.attributes,
-            keyof typeof GlobalAttributes
-        >]?: TypeFromSchema<(typeof BasicInformation.Complete.attributes)[N]["schema"]>;
+        readonly [N in keyof BasicInformation.Attributes]?: BasicInformation.Attributes[N];
     }> {}
 
     export interface ConnectOptions {

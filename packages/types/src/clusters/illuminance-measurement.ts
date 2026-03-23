@@ -226,7 +226,14 @@ export namespace IlluminanceMeasurement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `IlluminanceMeasurement` instead of
+     * `IlluminanceMeasurement.Complete`)
+     */
+    export type Complete = typeof IlluminanceMeasurement;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x400);
     export const name = "IlluminanceMeasurement" as const;
     export const revision = 3;

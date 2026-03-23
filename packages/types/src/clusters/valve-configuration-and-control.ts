@@ -967,46 +967,14 @@ export namespace ValveConfigurationAndControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const TS = { timeSync: true };
-    const LVL = { level: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `ValveConfigurationAndControl` instead of
+     * `ValveConfigurationAndControl.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof ValveConfigurationAndControl;
 
-        attributes: {
-            ...Cluster.attributes,
-            autoCloseTime: MutableCluster.AsConditional(
-                TimeSyncComponent.attributes.autoCloseTime,
-                { mandatoryIf: [TS] }
-            ),
-            currentLevel: MutableCluster.AsConditional(LevelComponent.attributes.currentLevel, { mandatoryIf: [LVL] }),
-            targetLevel: MutableCluster.AsConditional(LevelComponent.attributes.targetLevel, { mandatoryIf: [LVL] }),
-            defaultOpenLevel: MutableCluster.AsConditional(
-                LevelComponent.attributes.defaultOpenLevel,
-                { optionalIf: [LVL] }
-            ),
-            levelStep: MutableCluster.AsConditional(LevelComponent.attributes.levelStep, { optionalIf: [LVL] })
-        },
-
-        commands: Cluster.commands,
-        events: Cluster.events
-    });
-
-    /**
-     * This cluster supports all ValveConfigurationAndControl features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x81);
     export const name = "ValveConfigurationAndControl" as const;
     export const revision = 1;

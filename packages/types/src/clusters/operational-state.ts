@@ -1015,7 +1015,13 @@ export namespace OperationalState {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `OperationalState` instead of `OperationalState.Complete`)
+     */
+    export type Complete = typeof OperationalState;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x60);
     export const name = "OperationalState" as const;
     export const revision = 3;

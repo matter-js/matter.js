@@ -1029,7 +1029,14 @@ export namespace GroupKeyManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `GroupKeyManagement` instead of
+     * `GroupKeyManagement.Complete`)
+     */
+    export type Complete = typeof GroupKeyManagement;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x3f);
     export const name = "GroupKeyManagement" as const;
     export const revision = 2;

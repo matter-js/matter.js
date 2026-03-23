@@ -2248,122 +2248,13 @@ export namespace WindowCovering {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const LF_PA_LF_ABS = { lift: true, positionAwareLift: true, absolutePosition: true };
-    const TL_PA_TL_ABS = { tilt: true, positionAwareTilt: true, absolutePosition: true };
-    const LF = { lift: true };
-    const TL = { tilt: true };
-    const LF_PA_LF = { lift: true, positionAwareLift: true };
-    const TL_PA_TL = { tilt: true, positionAwareTilt: true };
-    const LF_ABS = { lift: true, absolutePosition: true };
-    const TL_ABS = { tilt: true, absolutePosition: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `WindowCovering` instead of `WindowCovering.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof WindowCovering;
 
-        attributes: {
-            ...Base.attributes,
-            physicalClosedLimitLift: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftAndAbsolutePositionComponent.attributes.physicalClosedLimitLift,
-                { optionalIf: [LF_PA_LF_ABS] }
-            ),
-            physicalClosedLimitTilt: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltAndAbsolutePositionComponent.attributes.physicalClosedLimitTilt,
-                { optionalIf: [TL_PA_TL_ABS] }
-            ),
-            currentPositionLift: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftAndAbsolutePositionComponent.attributes.currentPositionLift,
-                { optionalIf: [LF_PA_LF_ABS] }
-            ),
-            currentPositionTilt: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltAndAbsolutePositionComponent.attributes.currentPositionTilt,
-                { optionalIf: [TL_PA_TL_ABS] }
-            ),
-            numberOfActuationsLift: MutableCluster.AsConditional(
-                LiftComponent.attributes.numberOfActuationsLift,
-                { optionalIf: [LF] }
-            ),
-            numberOfActuationsTilt: MutableCluster.AsConditional(
-                TiltComponent.attributes.numberOfActuationsTilt,
-                { optionalIf: [TL] }
-            ),
-            currentPositionLiftPercentage: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftComponent.attributes.currentPositionLiftPercentage,
-                { optionalIf: [LF_PA_LF] }
-            ),
-            currentPositionTiltPercentage: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltComponent.attributes.currentPositionTiltPercentage,
-                { optionalIf: [TL_PA_TL] }
-            ),
-            targetPositionLiftPercent100ths: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftComponent.attributes.targetPositionLiftPercent100ths,
-                { mandatoryIf: [LF_PA_LF] }
-            ),
-            targetPositionTiltPercent100ths: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltComponent.attributes.targetPositionTiltPercent100ths,
-                { mandatoryIf: [TL_PA_TL] }
-            ),
-            currentPositionLiftPercent100ths: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftComponent.attributes.currentPositionLiftPercent100ths,
-                { mandatoryIf: [LF_PA_LF] }
-            ),
-            currentPositionTiltPercent100ths: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltComponent.attributes.currentPositionTiltPercent100ths,
-                { mandatoryIf: [TL_PA_TL] }
-            ),
-            installedOpenLimitLift: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftAndAbsolutePositionComponent.attributes.installedOpenLimitLift,
-                { mandatoryIf: [LF_PA_LF_ABS] }
-            ),
-            installedClosedLimitLift: MutableCluster.AsConditional(
-                LiftAndPositionAwareLiftAndAbsolutePositionComponent.attributes.installedClosedLimitLift,
-                { mandatoryIf: [LF_PA_LF_ABS] }
-            ),
-            installedOpenLimitTilt: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltAndAbsolutePositionComponent.attributes.installedOpenLimitTilt,
-                { mandatoryIf: [TL_PA_TL_ABS] }
-            ),
-            installedClosedLimitTilt: MutableCluster.AsConditional(
-                TiltAndPositionAwareTiltAndAbsolutePositionComponent.attributes.installedClosedLimitTilt,
-                { mandatoryIf: [TL_PA_TL_ABS] }
-            )
-        },
-
-        commands: {
-            ...Base.commands,
-            goToLiftValue: MutableCluster.AsConditional(
-                LiftAndAbsolutePositionComponent.commands.goToLiftValue,
-                { optionalIf: [LF_ABS] }
-            ),
-            goToLiftPercentage: MutableCluster.AsConditional(
-                LiftComponent.commands.goToLiftPercentage,
-                { optionalIf: [LF], mandatoryIf: [LF_PA_LF] }
-            ),
-            goToTiltValue: MutableCluster.AsConditional(
-                TiltAndAbsolutePositionComponent.commands.goToTiltValue,
-                { optionalIf: [TL_ABS] }
-            ),
-            goToTiltPercentage: MutableCluster.AsConditional(
-                TiltComponent.commands.goToTiltPercentage,
-                { optionalIf: [TL], mandatoryIf: [TL_PA_TL] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all WindowCovering features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x102);
     export const name = "WindowCovering" as const;
     export const revision = 6;

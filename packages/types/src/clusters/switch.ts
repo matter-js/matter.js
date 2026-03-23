@@ -1144,71 +1144,13 @@ export namespace Switch {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const MSM = { momentarySwitchMultiPress: true };
-    const LS = { latchingSwitch: true };
-    const MS = { momentarySwitch: true };
-    const MSL = { momentarySwitchLongPress: true };
-    const MSR = { momentarySwitchRelease: true };
-    const MSM_NOT_AS = { momentarySwitchMultiPress: true, actionSwitch: false };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `Switch` instead of `Switch.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof Switch;
 
-        attributes: {
-            ...Base.attributes,
-            multiPressMax: MutableCluster.AsConditional(
-                MomentarySwitchMultiPressComponent.attributes.multiPressMax,
-                { mandatoryIf: [MSM] }
-            )
-        },
-
-        events: {
-            switchLatched: MutableCluster.AsConditional(
-                LatchingSwitchComponent.events.switchLatched,
-                { mandatoryIf: [LS] }
-            ),
-            initialPress: MutableCluster.AsConditional(
-                MomentarySwitchComponent.events.initialPress,
-                { mandatoryIf: [MS] }
-            ),
-            longPress: MutableCluster.AsConditional(
-                MomentarySwitchLongPressComponent.events.longPress,
-                { mandatoryIf: [MSL] }
-            ),
-            shortRelease: MutableCluster.AsConditional(
-                MomentarySwitchReleaseComponent.events.shortRelease,
-                { mandatoryIf: [MSR] }
-            ),
-            longRelease: MutableCluster.AsConditional(
-                MomentarySwitchLongPressComponent.events.longRelease,
-                { mandatoryIf: [MSL] }
-            ),
-            multiPressOngoing: MutableCluster.AsConditional(
-                MomentarySwitchMultiPressNotActionSwitchComponent.events.multiPressOngoing,
-                { mandatoryIf: [MSM_NOT_AS] }
-            ),
-            multiPressComplete: MutableCluster.AsConditional(
-                MomentarySwitchMultiPressComponent.events.multiPressComplete,
-                { mandatoryIf: [MSM] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all Switch features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x3b);
     export const name = "Switch" as const;
     export const revision = 2;

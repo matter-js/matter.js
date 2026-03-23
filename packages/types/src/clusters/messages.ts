@@ -1035,7 +1035,13 @@ export namespace Messages {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `Messages` instead of `Messages.Complete`)
+     */
+    export type Complete = typeof Messages;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x97);
     export const name = "Messages" as const;
     export const revision = 3;

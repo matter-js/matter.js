@@ -12,7 +12,7 @@ import { TlvUInt32 } from "../tlv/TlvNumber.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Priority } from "../globals/Priority.js";
-import { Identity, MaybePromise } from "@matter/general";
+import { MaybePromise } from "@matter/general";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { AlarmBase as AlarmBaseModel } from "@matter/model";
 
@@ -438,35 +438,12 @@ export namespace AlarmBase {
         extensions: MutableCluster.Extensions({ flags: { reset: true }, component: ResetComponent })
     });
 
-    const RESET = { reset: true };
-
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `AlarmBase` instead of `AlarmBase.Complete`)
      */
-    export const CompleteInstance = MutableCluster.Component({
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
-        attributes: {
-            ...Base.attributes,
-            latch: MutableCluster.AsConditional(ResetComponent.attributes.latch, { mandatoryIf: [RESET] })
-        },
-        commands: {
-            ...Base.commands,
-            reset: MutableCluster.AsConditional(ResetComponent.commands.reset, { mandatoryIf: [RESET] })
-        },
-        events: Base.events
-    });
+    export type Complete = typeof AlarmBase;
 
-    /**
-     * This cluster supports all AlarmBase features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const name = "AlarmBase" as const;
     export const revision = 2;
     export const schema = AlarmBaseModel;

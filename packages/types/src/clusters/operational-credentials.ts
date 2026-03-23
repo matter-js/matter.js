@@ -2363,7 +2363,14 @@ export namespace OperationalCredentials {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `OperationalCredentials` instead of
+     * `OperationalCredentials.Complete`)
+     */
+    export type Complete = typeof OperationalCredentials;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x3e);
     export const name = "OperationalCredentials" as const;
     export const revision = 2;

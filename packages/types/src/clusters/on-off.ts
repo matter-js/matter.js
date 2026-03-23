@@ -714,59 +714,13 @@ export namespace OnOff {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const LT = { lighting: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `OnOff` instead of `OnOff.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof OnOff;
 
-        attributes: {
-            ...Cluster.attributes,
-            globalSceneControl: MutableCluster.AsConditional(
-                LightingComponent.attributes.globalSceneControl,
-                { mandatoryIf: [LT] }
-            ),
-            onTime: MutableCluster.AsConditional(LightingComponent.attributes.onTime, { mandatoryIf: [LT] }),
-            offWaitTime: MutableCluster.AsConditional(LightingComponent.attributes.offWaitTime, { mandatoryIf: [LT] }),
-            startUpOnOff: MutableCluster.AsConditional(
-                LightingComponent.attributes.startUpOnOff,
-                { mandatoryIf: [LT] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            on: MutableCluster.AsConditional(NotOffOnlyComponent.commands.on, { mandatoryIf: [] }),
-            toggle: MutableCluster.AsConditional(NotOffOnlyComponent.commands.toggle, { mandatoryIf: [] }),
-            offWithEffect: MutableCluster.AsConditional(
-                LightingComponent.commands.offWithEffect,
-                { mandatoryIf: [LT] }
-            ),
-            onWithRecallGlobalScene: MutableCluster.AsConditional(
-                LightingComponent.commands.onWithRecallGlobalScene,
-                { mandatoryIf: [LT] }
-            ),
-            onWithTimedOff: MutableCluster.AsConditional(
-                LightingComponent.commands.onWithTimedOff,
-                { mandatoryIf: [LT] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all OnOff features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x6);
     export const name = "OnOff" as const;
     export const revision = 6;

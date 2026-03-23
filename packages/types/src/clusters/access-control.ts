@@ -2177,57 +2177,13 @@ export namespace AccessControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const EXTS = { extension: true };
-    const MNGD = { managedDevice: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `AccessControl` instead of `AccessControl.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof AccessControl;
 
-        attributes: {
-            ...Cluster.attributes,
-            extension: MutableCluster.AsConditional(ExtensionComponent.attributes.extension, { mandatoryIf: [EXTS] }),
-            commissioningArl: MutableCluster.AsConditional(
-                ManagedDeviceComponent.attributes.commissioningArl,
-                { mandatoryIf: [MNGD] }
-            ),
-            arl: MutableCluster.AsConditional(ManagedDeviceComponent.attributes.arl, { mandatoryIf: [MNGD] })
-        },
-
-        commands: {
-            reviewFabricRestrictions: MutableCluster.AsConditional(
-                ManagedDeviceComponent.commands.reviewFabricRestrictions,
-                { mandatoryIf: [MNGD] }
-            )
-        },
-
-        events: {
-            ...Cluster.events,
-            accessControlExtensionChanged: MutableCluster.AsConditional(
-                ExtensionComponent.events.accessControlExtensionChanged,
-                { mandatoryIf: [EXTS] }
-            ),
-            fabricRestrictionReviewUpdate: MutableCluster.AsConditional(
-                ManagedDeviceComponent.events.fabricRestrictionReviewUpdate,
-                { mandatoryIf: [MNGD] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all AccessControl features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x1f);
     export const name = "AccessControl" as const;
     export const revision = 2;

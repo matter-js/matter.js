@@ -466,7 +466,13 @@ export namespace OvenMode {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `OvenMode` instead of `OvenMode.Complete`)
+     */
+    export type Complete = typeof OvenMode;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x49);
     export const name = "OvenMode" as const;
     export const revision = 2;

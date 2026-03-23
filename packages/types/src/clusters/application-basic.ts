@@ -334,7 +334,13 @@ export namespace ApplicationBasic {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `ApplicationBasic` instead of `ApplicationBasic.Complete`)
+     */
+    export type Complete = typeof ApplicationBasic;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x50d);
     export const name = "ApplicationBasic" as const;
     export const revision = 1;

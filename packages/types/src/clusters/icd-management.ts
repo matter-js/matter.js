@@ -1588,73 +1588,13 @@ export namespace IcdManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const CIP = { checkInProtocolSupport: true };
-    const UAT = { userActiveModeTrigger: true };
-    const LITS = { longIdleTimeSupport: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `IcdManagement` instead of `IcdManagement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Cluster.id,
-        name: Cluster.name,
-        revision: Cluster.revision,
-        features: Cluster.features,
+    export type Complete = typeof IcdManagement;
 
-        attributes: {
-            ...Cluster.attributes,
-            registeredClients: MutableCluster.AsConditional(
-                CheckInProtocolSupportComponent.attributes.registeredClients,
-                { mandatoryIf: [CIP] }
-            ),
-            icdCounter: MutableCluster.AsConditional(
-                CheckInProtocolSupportComponent.attributes.icdCounter,
-                { mandatoryIf: [CIP] }
-            ),
-            clientsSupportedPerFabric: MutableCluster.AsConditional(
-                CheckInProtocolSupportComponent.attributes.clientsSupportedPerFabric,
-                { mandatoryIf: [CIP] }
-            ),
-            userActiveModeTriggerHint: MutableCluster.AsConditional(
-                UserActiveModeTriggerComponent.attributes.userActiveModeTriggerHint,
-                { mandatoryIf: [UAT] }
-            ),
-            operatingMode: MutableCluster.AsConditional(
-                LongIdleTimeSupportComponent.attributes.operatingMode,
-                { mandatoryIf: [LITS] }
-            ),
-            maximumCheckInBackoff: MutableCluster.AsConditional(
-                CheckInProtocolSupportComponent.attributes.maximumCheckInBackoff,
-                { mandatoryIf: [CIP] }
-            )
-        },
-
-        commands: {
-            ...Cluster.commands,
-            registerClient: MutableCluster.AsConditional(
-                CheckInProtocolSupportComponent.commands.registerClient,
-                { mandatoryIf: [CIP] }
-            ),
-            unregisterClient: MutableCluster.AsConditional(
-                CheckInProtocolSupportComponent.commands.unregisterClient,
-                { mandatoryIf: [CIP] }
-            ),
-            stayActiveRequest: MutableCluster.AsConditional(
-                LongIdleTimeSupportComponent.commands.stayActiveRequest,
-                { mandatoryIf: [LITS] }
-            )
-        }
-    });
-
-    /**
-     * This cluster supports all IcdManagement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x46);
     export const name = "IcdManagement" as const;
     export const revision = 3;

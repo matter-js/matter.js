@@ -35,10 +35,10 @@ import {
     ClusterNamespace,
     EndpointNumber,
     FabricIndex,
+    Global,
     NodeId,
     Status,
     StatusResponseError,
-    TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -151,7 +151,7 @@ type CollectedCommissioningData = {
     productName?: string;
     networkFeatures?: {
         endpointId: EndpointNumber;
-        value: TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>;
+        value: ClusterNamespace.FeaturesOf<NetworkCommissioning>;
     }[];
     networkStatus?: {
         endpointId: EndpointNumber;
@@ -672,7 +672,7 @@ export class ControllerCommissioningFlow {
 
         const networkFeatures = new Array<{
             endpointId: EndpointNumber;
-            value: TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>;
+            value: ClusterNamespace.FeaturesOf<NetworkCommissioning>;
         }>();
         const networkStatus = new Array<{
             endpointId: EndpointNumber;
@@ -690,10 +690,10 @@ export class ControllerCommissioningFlow {
                     value,
                 } = entry;
                 switch (attributeId) {
-                    case NetworkCommissioning.Complete.attributes.featureMap.id:
+                    case Global.attributes.featureMap.id:
                         networkFeatures.push({
                             endpointId,
-                            value: value as TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>,
+                            value: value as ClusterNamespace.FeaturesOf<NetworkCommissioning>,
                         });
                         break;
                     case NetworkCommissioning.attributes.networks.id:

@@ -269,20 +269,12 @@ export namespace CarbonDioxideConcentrationMeasurement {
     export const Cluster: Cluster = ClusterInstance;
 
     /**
-     * This cluster supports all CarbonDioxideConcentrationMeasurement features. It may support illegal feature
-     * combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
+     * @deprecated Use the cluster namespace directly (e.g. `CarbonDioxideConcentrationMeasurement` instead of
+     * `CarbonDioxideConcentrationMeasurement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        ...ConcentrationMeasurement.Complete,
-        id: 0x40d,
-        name: "CarbonDioxideConcentrationMeasurement"
-    });
+    export type Complete = typeof CarbonDioxideConcentrationMeasurement;
 
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x40d);
     export const name = "CarbonDioxideConcentrationMeasurement" as const;
     export const revision = 3;

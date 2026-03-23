@@ -464,7 +464,14 @@ export namespace CommissionerControl {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `CommissionerControl` instead of
+     * `CommissionerControl.Complete`)
+     */
+    export type Complete = typeof CommissionerControl;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x751);
     export const name = "CommissionerControl" as const;
     export const revision = 1;

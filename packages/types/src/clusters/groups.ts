@@ -669,7 +669,13 @@ export namespace Groups {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    export const Complete = Cluster;
+
+    /**
+     * @deprecated Use the cluster namespace directly (e.g. `Groups` instead of `Groups.Complete`)
+     */
+    export type Complete = typeof Groups;
+
+    export declare const Complete: Complete;
     export const id = ClusterId(0x4);
     export const name = "Groups" as const;
     export const revision = 4;

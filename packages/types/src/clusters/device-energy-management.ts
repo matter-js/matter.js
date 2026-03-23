@@ -3151,94 +3151,14 @@ export namespace DeviceEnergyManagement {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const PA = { powerAdjustment: true };
-    const PFR = { powerForecastReporting: true };
-    const SFR = { stateForecastReporting: true };
-    const STA = { startTimeAdjustment: true };
-    const PAU = { pausable: true };
-    const FA = { forecastAdjustment: true };
-    const CON = { constraintBasedAdjustment: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `DeviceEnergyManagement` instead of
+     * `DeviceEnergyManagement.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof DeviceEnergyManagement;
 
-        attributes: {
-            ...Base.attributes,
-            powerAdjustmentCapability: MutableCluster.AsConditional(
-                PowerAdjustmentComponent.attributes.powerAdjustmentCapability,
-                { mandatoryIf: [PA] }
-            ),
-            forecast: MutableCluster.AsConditional(
-                PowerForecastReportingOrStateForecastReportingComponent.attributes.forecast,
-                { mandatoryIf: [PFR, SFR] }
-            ),
-            optOutState: MutableCluster.AsConditional(
-                PowerAdjustmentOrStartTimeAdjustmentOrPausableOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.attributes.optOutState,
-                { mandatoryIf: [PA, STA, PAU, FA, CON] }
-            )
-        },
-
-        commands: {
-            powerAdjustRequest: MutableCluster.AsConditional(
-                PowerAdjustmentComponent.commands.powerAdjustRequest,
-                { mandatoryIf: [PA] }
-            ),
-            cancelPowerAdjustRequest: MutableCluster.AsConditional(
-                PowerAdjustmentComponent.commands.cancelPowerAdjustRequest,
-                { mandatoryIf: [PA] }
-            ),
-            startTimeAdjustRequest: MutableCluster.AsConditional(
-                StartTimeAdjustmentComponent.commands.startTimeAdjustRequest,
-                { mandatoryIf: [STA] }
-            ),
-            pauseRequest: MutableCluster.AsConditional(PausableComponent.commands.pauseRequest, { mandatoryIf: [PAU] }),
-            resumeRequest: MutableCluster.AsConditional(
-                PausableComponent.commands.resumeRequest,
-                { mandatoryIf: [PAU] }
-            ),
-            modifyForecastRequest: MutableCluster.AsConditional(
-                ForecastAdjustmentComponent.commands.modifyForecastRequest,
-                { mandatoryIf: [FA] }
-            ),
-            requestConstraintBasedForecast: MutableCluster.AsConditional(
-                ConstraintBasedAdjustmentComponent.commands.requestConstraintBasedForecast,
-                { mandatoryIf: [CON] }
-            ),
-            cancelRequest: MutableCluster.AsConditional(
-                StartTimeAdjustmentOrForecastAdjustmentOrConstraintBasedAdjustmentComponent.commands.cancelRequest,
-                { mandatoryIf: [STA, FA, CON] }
-            )
-        },
-
-        events: {
-            powerAdjustStart: MutableCluster.AsConditional(
-                PowerAdjustmentComponent.events.powerAdjustStart,
-                { mandatoryIf: [PA] }
-            ),
-            powerAdjustEnd: MutableCluster.AsConditional(
-                PowerAdjustmentComponent.events.powerAdjustEnd,
-                { mandatoryIf: [PA] }
-            ),
-            paused: MutableCluster.AsConditional(PausableComponent.events.paused, { mandatoryIf: [PAU] }),
-            resumed: MutableCluster.AsConditional(PausableComponent.events.resumed, { mandatoryIf: [PAU] })
-        }
-    });
-
-    /**
-     * This cluster supports all DeviceEnergyManagement features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x98);
     export const name = "DeviceEnergyManagement" as const;
     export const revision = 4;

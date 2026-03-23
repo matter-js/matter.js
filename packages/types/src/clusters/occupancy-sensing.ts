@@ -882,71 +882,13 @@ export namespace OccupancySensing {
     export interface Cluster extends Identity<typeof ClusterInstance> {}
 
     export const Cluster: Cluster = ClusterInstance;
-    const PIR = { passiveInfrared: true };
-    const US = { ultrasonic: true };
-    const PHY = { physicalContact: true };
 
     /**
-     * @see {@link Complete}
+     * @deprecated Use the cluster namespace directly (e.g. `OccupancySensing` instead of `OccupancySensing.Complete`)
      */
-    export const CompleteInstance = MutableCluster({
-        id: Base.id,
-        name: Base.name,
-        revision: Base.revision,
-        features: Base.features,
+    export type Complete = typeof OccupancySensing;
 
-        attributes: {
-            ...Base.attributes,
-            pirOccupiedToUnoccupiedDelay: MutableCluster.AsConditional(
-                PassiveInfraredComponent.attributes.pirOccupiedToUnoccupiedDelay,
-                { optionalIf: [PIR] }
-            ),
-            pirUnoccupiedToOccupiedDelay: MutableCluster.AsConditional(
-                PassiveInfraredComponent.attributes.pirUnoccupiedToOccupiedDelay,
-                { optionalIf: [PIR] }
-            ),
-            pirUnoccupiedToOccupiedThreshold: MutableCluster.AsConditional(
-                PassiveInfraredComponent.attributes.pirUnoccupiedToOccupiedThreshold,
-                { optionalIf: [PIR] }
-            ),
-            ultrasonicOccupiedToUnoccupiedDelay: MutableCluster.AsConditional(
-                UltrasonicComponent.attributes.ultrasonicOccupiedToUnoccupiedDelay,
-                { optionalIf: [US] }
-            ),
-            ultrasonicUnoccupiedToOccupiedDelay: MutableCluster.AsConditional(
-                UltrasonicComponent.attributes.ultrasonicUnoccupiedToOccupiedDelay,
-                { optionalIf: [US] }
-            ),
-            ultrasonicUnoccupiedToOccupiedThreshold: MutableCluster.AsConditional(
-                UltrasonicComponent.attributes.ultrasonicUnoccupiedToOccupiedThreshold,
-                { optionalIf: [US] }
-            ),
-            physicalContactOccupiedToUnoccupiedDelay: MutableCluster.AsConditional(
-                PhysicalContactComponent.attributes.physicalContactOccupiedToUnoccupiedDelay,
-                { optionalIf: [PHY] }
-            ),
-            physicalContactUnoccupiedToOccupiedDelay: MutableCluster.AsConditional(
-                PhysicalContactComponent.attributes.physicalContactUnoccupiedToOccupiedDelay,
-                { optionalIf: [PHY] }
-            ),
-            physicalContactUnoccupiedToOccupiedThreshold: MutableCluster.AsConditional(
-                PhysicalContactComponent.attributes.physicalContactUnoccupiedToOccupiedThreshold,
-                { optionalIf: [PHY] }
-            )
-        },
-
-        events: Base.events
-    });
-
-    /**
-     * This cluster supports all OccupancySensing features. It may support illegal feature combinations.
-     *
-     * If you use this cluster you must manually specify which features are active and ensure the set of active features
-     * is legal per the Matter specification.
-     */
-    export interface Complete extends Identity<typeof CompleteInstance> {}
-
-    export const Complete: Complete = CompleteInstance;
+    export declare const Complete: Complete;
     export const id = ClusterId(0x406);
     export const name = "OccupancySensing" as const;
     export const revision = 5;
