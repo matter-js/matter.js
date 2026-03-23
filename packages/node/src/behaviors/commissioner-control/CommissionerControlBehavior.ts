@@ -8,16 +8,13 @@
 
 import { CommissionerControl } from "@matter/types/clusters/commissioner-control";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { CommissionerControlInterface } from "./CommissionerControlInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * CommissionerControlBehavior is the base class for objects that support interaction with
  * {@link CommissionerControl.Cluster}.
  */
-export const CommissionerControlBehaviorConstructor = ClusterBehavior
-    .withInterface<CommissionerControlInterface>()
-    .for(CommissionerControl.Cluster);
+export const CommissionerControlBehaviorConstructor = ClusterBehavior.for(CommissionerControl);
 
 export interface CommissionerControlBehaviorConstructor extends Identity<typeof CommissionerControlBehaviorConstructor> {}
 export const CommissionerControlBehavior: CommissionerControlBehaviorConstructor = CommissionerControlBehaviorConstructor;

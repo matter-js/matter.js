@@ -9,10 +9,52 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { OptionalFixedAttribute } from "../cluster/Cluster.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
-import { Identity } from "@matter/general";
+import { Identity, Bytes } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import { WakeOnLan as WakeOnLanModel } from "@matter/model";
+import { ClusterId } from "../datatype/ClusterId.js";
 
+/**
+ * Definitions for the WakeOnLan cluster.
+ */
 export namespace WakeOnLan {
+    /**
+     * Attributes that may appear in {@link WakeOnLan}.
+     *
+     * Optional properties represent attributes that devices are not required to support.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the current MAC address of the device. Only 48-bit MAC Addresses shall be used for this attribute
+         * as required by the Wake on LAN protocol.
+         *
+         * Format of this attribute shall be an upper-case hex-encoded string representing the hex address, like
+         * 12345678ABCD.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.1
+         */
+        macAddress: string;
+
+        /**
+         * Indicates the current link-local address of the device. Only 128-bit IPv6 link-local addresses shall be used
+         * for this attribute.
+         *
+         * > [!NOTE]
+         *
+         * > Some companies may consider MAC Address to be protected data subject to PII handling considerations and
+         *   will therefore choose not to include it or read it. The MAC Address can often be determined using ARP in
+         *   IPv4 or NDP in IPv6.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
+         */
+        linkLocalAddress: Bytes;
+    }
+
+    export namespace Attributes {
+        export type Components = [{ flags: {}, optional: "macAddress" | "linkLocalAddress" }];
+    }
+
     /**
      * @see {@link Cluster}
      */
@@ -80,8 +122,17 @@ export namespace WakeOnLan {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x503);
+    export const name = "WakeOnLan" as const;
+    export const revision = 1;
+    export const schema = WakeOnLanModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const Typing: WakeOnLan;
 }
 
 export type WakeOnLanCluster = WakeOnLan.Cluster;
 export const WakeOnLanCluster = WakeOnLan.Cluster;
 ClusterRegistry.register(WakeOnLan.Complete);
+ClusterNamespace.define(WakeOnLan);
+export interface WakeOnLan extends ClusterTyping { Attributes: WakeOnLan.Attributes & { Components: WakeOnLan.Attributes.Components } }

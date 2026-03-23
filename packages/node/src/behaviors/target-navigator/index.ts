@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./TargetNavigatorInterface.js";
 export * from "./TargetNavigatorBehavior.js";
 export * from "./TargetNavigatorServer.js";
 export * from "./TargetNavigatorClient.js";

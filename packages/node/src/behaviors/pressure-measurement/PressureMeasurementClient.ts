@@ -10,7 +10,7 @@ import { PressureMeasurement } from "@matter/types/clusters/pressure-measurement
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const PressureMeasurementClientConstructor = ClientBehavior(PressureMeasurement.Complete);
+export const PressureMeasurementClientConstructor = ClientBehavior(PressureMeasurement);
 export interface PressureMeasurementClient extends InstanceType<typeof PressureMeasurementClientConstructor> {}
 export interface PressureMeasurementClientConstructor extends Identity<typeof PressureMeasurementClientConstructor> {}
 export const PressureMeasurementClient: PressureMeasurementClientConstructor = PressureMeasurementClientConstructor;

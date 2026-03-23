@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./ApplicationLauncherInterface.js";
 export * from "./ApplicationLauncherBehavior.js";
 export * from "./ApplicationLauncherServer.js";
 export * from "./ApplicationLauncherClient.js";

@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./ThreadBorderRouterManagementInterface.js";
 export * from "./ThreadBorderRouterManagementBehavior.js";
 export * from "./ThreadBorderRouterManagementServer.js";
 export * from "./ThreadBorderRouterManagementClient.js";

@@ -19,7 +19,6 @@ import {
     MaybePromise,
     UnexpectedDataError,
 } from "@matter/general";
-import { AccessLevel } from "@matter/model";
 import {
     assertRemoteActor,
     DeviceCertification,
@@ -36,17 +35,11 @@ import {
     Val,
 } from "@matter/protocol";
 import {
-    Command,
     FabricIndex,
     StatusCode,
     StatusResponse,
     StatusResponseError,
     SubjectId,
-    TlvBoolean,
-    TlvByteString,
-    TlvField,
-    TlvObject,
-    TlvOptionalField,
     ValidationError,
     VendorId,
 } from "@matter/types";
@@ -57,30 +50,24 @@ import { VendorIdVerification } from "./VendorIdVerification.js";
 const logger = Logger.get("OperationalCredentials");
 
 /**
- * Monkey patching Tlv Structure of attestationRequest and csrRequest commands to prevent data validation of the nonce
- * fields to be handled as ConstraintError because we need to return a special error.
- * We do this to leave the model in fact for other validations and only apply the change for our Schema-aware Tlv parsing.
+ * Extend the OperationalCredentials model to relax constraints on AttestationNonce and CsrNonce fields.  This prevents
+ * the interaction layer from rejecting with ConstraintError so the behavior can validate and return InvalidCommand.
  */
-OperationalCredentials.Cluster.commands = {
-    ...OperationalCredentials.Cluster.commands,
-    attestationRequest: Command(
-        0x0,
-        TlvObject({ attestationNonce: TlvField(0, TlvByteString) }),
-        0x1,
-        OperationalCredentials.TlvAttestationResponse,
-        { invokeAcl: AccessLevel.Administer },
-    ),
-    csrRequest: Command(
-        0x4,
-        TlvObject({
-            csrNonce: TlvField(0, TlvByteString),
-            isForUpdateNoc: TlvOptionalField(1, TlvBoolean),
-        }),
-        0x5,
-        OperationalCredentials.TlvCsrResponse,
-        { invokeAcl: AccessLevel.Administer },
-    ),
-};
+const { commands } = OperationalCredentials.schema;
+
+const attestationRequest = commands.require("AttestationRequest");
+const csrRequest = commands.require("CsrRequest");
+
+const OperationalCredentialsSchema = OperationalCredentials.schema.extend(
+    undefined,
+    attestationRequest.extend(undefined, attestationRequest.fields.extend("AttestationNonce", { constraint: "none" })),
+    csrRequest.extend(undefined, csrRequest.fields.extend("CsrNonce", { constraint: "none" })),
+);
+
+const OperationalCredentialsBase = OperationalCredentialsBehavior.for(
+    OperationalCredentials,
+    OperationalCredentialsSchema,
+);
 
 /**
  * This is the default server implementation of OperationalCredentialsBehavior.
@@ -90,7 +77,7 @@ OperationalCredentials.Cluster.commands = {
  * comprehensive as required by current use cases.  If fabrics are mutated directly on FabricManager then this code will
  * require update.
  */
-export class OperationalCredentialsServer extends OperationalCredentialsBehavior {
+export class OperationalCredentialsServer extends OperationalCredentialsBase {
     declare internal: OperationalCredentialsServer.Internal;
     declare state: OperationalCredentialsServer.State;
 
@@ -601,7 +588,7 @@ export namespace OperationalCredentialsServer {
         certification?: DeviceCertification;
     }
 
-    export class State extends OperationalCredentialsBehavior.State {
+    export class State extends OperationalCredentialsBase.State {
         /**
          * Device certification information.
          *

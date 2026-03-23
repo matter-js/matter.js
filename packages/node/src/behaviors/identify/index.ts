@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./IdentifyInterface.js";
 export * from "./IdentifyBehavior.js";
 export * from "./IdentifyServer.js";
 export * from "./IdentifyClient.js";

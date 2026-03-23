@@ -7,7 +7,7 @@
 import { DescriptorServer } from "#behaviors/descriptor";
 import { Seconds } from "@matter/general";
 import type { Val } from "@matter/protocol";
-import { ClusterType } from "@matter/types";
+
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { PowerSourceBehavior } from "./PowerSourceBehavior.js";
 
@@ -63,4 +63,4 @@ export class PowerSourceBaseServer extends PowerSourceLevelBase {
 
 // We had turned on some more features to provide the default implementation, but export the cluster with default
 // Features again.
-export class PowerSourceServer extends PowerSourceBaseServer.for(ClusterType(PowerSource.Base)) {}
+export class PowerSourceServer extends PowerSourceBaseServer.for(PowerSource) {}

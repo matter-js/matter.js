@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * ApplicationBasicBehavior is the base class for objects that support interaction with
  * {@link ApplicationBasic.Cluster}.
  */
-export const ApplicationBasicBehaviorConstructor = ClusterBehavior.for(ApplicationBasic.Cluster);
+export const ApplicationBasicBehaviorConstructor = ClusterBehavior.for(ApplicationBasic);
 
 export interface ApplicationBasicBehaviorConstructor extends Identity<typeof ApplicationBasicBehaviorConstructor> {}
 export const ApplicationBasicBehavior: ApplicationBasicBehaviorConstructor = ApplicationBasicBehaviorConstructor;

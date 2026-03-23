@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./FanControlInterface.js";
 export * from "./FanControlBehavior.js";
 export * from "./FanControlServer.js";
 export * from "./FanControlClient.js";

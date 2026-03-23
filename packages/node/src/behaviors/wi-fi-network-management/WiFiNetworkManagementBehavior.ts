@@ -8,16 +8,13 @@
 
 import { WiFiNetworkManagement } from "@matter/types/clusters/wi-fi-network-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { WiFiNetworkManagementInterface } from "./WiFiNetworkManagementInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * WiFiNetworkManagementBehavior is the base class for objects that support interaction with
  * {@link WiFiNetworkManagement.Cluster}.
  */
-export const WiFiNetworkManagementBehaviorConstructor = ClusterBehavior
-    .withInterface<WiFiNetworkManagementInterface>()
-    .for(WiFiNetworkManagement.Cluster);
+export const WiFiNetworkManagementBehaviorConstructor = ClusterBehavior.for(WiFiNetworkManagement);
 
 export interface WiFiNetworkManagementBehaviorConstructor extends Identity<typeof WiFiNetworkManagementBehaviorConstructor> {}
 export const WiFiNetworkManagementBehavior: WiFiNetworkManagementBehaviorConstructor = WiFiNetworkManagementBehaviorConstructor;

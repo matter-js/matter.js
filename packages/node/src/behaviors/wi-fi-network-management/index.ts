@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./WiFiNetworkManagementInterface.js";
 export * from "./WiFiNetworkManagementBehavior.js";
 export * from "./WiFiNetworkManagementServer.js";
 export * from "./WiFiNetworkManagementClient.js";

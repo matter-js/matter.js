@@ -10,7 +10,7 @@ import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const WindowCoveringClientConstructor = ClientBehavior(WindowCovering.Complete);
+export const WindowCoveringClientConstructor = ClientBehavior(WindowCovering);
 export interface WindowCoveringClient extends InstanceType<typeof WindowCoveringClientConstructor> {}
 export interface WindowCoveringClientConstructor extends Identity<typeof WindowCoveringClientConstructor> {}
 export const WindowCoveringClient: WindowCoveringClientConstructor = WindowCoveringClientConstructor;

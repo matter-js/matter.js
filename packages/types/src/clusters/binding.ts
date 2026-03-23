@@ -10,17 +10,75 @@ import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { WritableFabricScopedAttribute } from "../cluster/Cluster.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvOptionalField, TlvField, TlvObject } from "../tlv/TlvObject.js";
-import { TlvNodeId } from "../datatype/NodeId.js";
-import { TlvGroupId } from "../datatype/GroupId.js";
-import { TlvEndpointNumber } from "../datatype/EndpointNumber.js";
-import { TlvClusterId } from "../datatype/ClusterId.js";
-import { TlvFabricIndex } from "../datatype/FabricIndex.js";
-import { TypeFromSchema } from "../tlv/TlvSchema.js";
-import { AccessLevel } from "@matter/model";
+import { TlvNodeId, NodeId } from "../datatype/NodeId.js";
+import { TlvGroupId, GroupId } from "../datatype/GroupId.js";
+import { TlvEndpointNumber, EndpointNumber } from "../datatype/EndpointNumber.js";
+import { TlvClusterId, ClusterId } from "../datatype/ClusterId.js";
+import { TlvFabricIndex, FabricIndex } from "../datatype/FabricIndex.js";
+import { AccessLevel, Binding as BindingModel } from "@matter/model";
 import { Identity } from "@matter/general";
 import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
+import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 
+/**
+ * Definitions for the Binding cluster.
+ */
 export namespace Binding {
+    /**
+     * Attributes that may appear in {@link Binding}.
+     */
+    export interface Attributes {
+        /**
+         * Each entry shall represent a binding.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.6.6.1
+         */
+        binding: Target[];
+    }
+
+    export namespace Attributes {
+        export type Components = [{ flags: {}, mandatory: "binding" }];
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
+     */
+    export interface Target {
+        /**
+         * This field is the remote target node ID. If the Endpoint field is present, this field shall be present.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.1
+         */
+        node?: NodeId;
+
+        /**
+         * This field is the target group ID that represents remote endpoints. If the Endpoint field is present, this
+         * field shall NOT be present.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.2
+         */
+        group?: GroupId;
+
+        /**
+         * This field is the remote endpoint that the local endpoint is bound to. If the Group field is present, this
+         * field shall NOT be present.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.3
+         */
+        endpoint?: EndpointNumber;
+
+        /**
+         * This field is the cluster ID (client & server) on the local and target endpoint(s). If this field is present,
+         * the client cluster shall also exist on this endpoint (with this Binding cluster). If this field is present,
+         * the target shall be this cluster on the target endpoint(s).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.4
+         */
+        cluster?: ClusterId;
+
+        fabricIndex: FabricIndex;
+    }
+
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
      */
@@ -59,11 +117,6 @@ export namespace Binding {
 
         fabricIndex: TlvField(254, TlvFabricIndex)
     });
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
-     */
-    export interface Target extends TypeFromSchema<typeof TlvTarget> {}
 
     /**
      * @see {@link Cluster}
@@ -123,8 +176,17 @@ export namespace Binding {
 
     export const Cluster: Cluster = ClusterInstance;
     export const Complete = Cluster;
+    export const id = ClusterId(0x1e);
+    export const name = "Binding" as const;
+    export const revision = 1;
+    export const schema = BindingModel;
+    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
+    export declare const attributes: AttributeObjects;
+    export declare const Typing: Binding;
 }
 
 export type BindingCluster = Binding.Cluster;
 export const BindingCluster = Binding.Cluster;
 ClusterRegistry.register(Binding.Complete);
+ClusterNamespace.define(Binding);
+export interface Binding extends ClusterTyping { Attributes: Binding.Attributes & { Components: Binding.Attributes.Components } }
