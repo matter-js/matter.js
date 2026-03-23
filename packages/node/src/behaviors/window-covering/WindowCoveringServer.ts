@@ -198,9 +198,7 @@ export class WindowCoveringBaseServer extends WindowCoveringBase {
     }
 
     /** Update the global operational status based on the lift or tilt status. */
-    #handleOperationalStatusChanging(
-        operationalStatus: WindowCovering.OperationalStatus,
-    ) {
+    #handleOperationalStatusChanging(operationalStatus: WindowCovering.OperationalStatus) {
         // Global tracks lift if moving otherwise it follows tilt
         const globalStatus =
             operationalStatus.lift !== WindowCovering.MovementStatus.Stopped

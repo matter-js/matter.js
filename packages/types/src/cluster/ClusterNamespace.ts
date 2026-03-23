@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { OptionalKeys as OptionalKeysType, RequiredKeys as RequiredKeysType } from "@matter/general";
 import { camelize, capitalize, decamelize } from "@matter/general";
 import type { AttributeModel, CommandModel, EventModel } from "@matter/model";
 import { ClusterModel, ClusterModifier, GeneratorScope, GLOBAL_IDS, Metatype, ValueModel } from "@matter/model";
@@ -15,6 +14,68 @@ import type { CommandId } from "../datatype/CommandId.js";
 import type { EventId } from "../datatype/EventId.js";
 import { Status } from "../globals/Status.js";
 import type { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
+
+/**
+ * Describes the shape of generated namespace objects for standard Matter clusters (`typeof OnOff`).
+ *
+ * For many standard clusters, API varies based on configuration such as cluster features.  Matter.js generates this API
+ * dynamically based on information stored in these namespaces.  The namespace also conveys compile-time type
+ * information.
+ *
+ * For hand-crafted clusters, decorated classes may be preferable to replicating matter.js's code generation.
+ *
+ * ## Namespace layout
+ *
+ * Generated cluster namespaces contain:
+ *
+ *   - **Per-component attribute interfaces** (`BaseAttributes`, `LightingAttributes`, etc.) — each feature component
+ *     gets its own interface with mandatory attributes required and optional attributes using `?`.  These carry full
+ *     JSDoc and are what the IDE navigates to for go-to-definition and hover.
+ *
+ *   - **Attributes** — flat interface listing every attribute the cluster defines with its value type.  All properties
+ *     are required (no `?`).  This is used by `ClusterEvents` for `$Changed`/`$Changing` observable key generation
+ *     where value types must be read via `A[K]` without `undefined` contamination.
+ *
+ *   - **Per-component command interfaces** (`BaseCommands`, `FrequencyCommands`, etc.) — method signatures per feature
+ *     component.  Each feature's commands live in a separate interface so that users clicking through to a command see
+ *     a normal, readable interface.
+ *
+ *   - **Commands** — flat interface extending all per-component command interfaces.
+ *
+ *   - **Events** — flat interface, same design as Attributes (all required, string-union optionality in Components).
+ *
+ *   - **Components** — tuple of `{ flags, attributes?, commands?, events? }` entries.  `attributes` references a
+ *     per-component attribute interface.  `commands` references a per-component command interface.  `events` uses
+ *     `{ mandatory?, optional? }` string-union maps.
+ */
+export interface ClusterNamespace {
+    readonly Typing: ClusterTyping;
+    readonly schema: ClusterModel;
+    readonly id?: ClusterId;
+    readonly name: string;
+    readonly revision?: number;
+    readonly attributes?: Record<string, ClusterNamespace.Attribute>;
+    readonly commands?: Record<string, ClusterNamespace.Command>;
+    readonly events?: Record<string, ClusterNamespace.Event>;
+    readonly features?: Record<string, ClusterNamespace.Feature>;
+}
+
+/**
+ * Describes the shape of types matter.js uses for compile-time generation of Matter cluster-related APIs.
+ *
+ * This does not represent an actual object.  It only exists to convey type information that is input to matter.js's
+ * type system.  For standard clusters this information has no other compile-time representation as matter.js generates
+ * related classes at runtime.
+ */
+export interface ClusterTyping {
+    Attributes?: {};
+    Commands?: {};
+    Events?: {};
+    Features?: {};
+    Components?: {};
+    SupportedFeatures?: {};
+    readonly schema?: ClusterModel;
+}
 
 const cache = new WeakMap<ClusterModel, object>();
 
@@ -163,27 +224,6 @@ function installEnumGetters(model: ClusterModel, lazy: (name: string, factory: (
     }
 }
 
-/**
- * Describes the shape of generated namespace objects for standard Matter clusters (`typeof OnOff`).
- *
- * For many standard clusters, API varies based on configuration such as cluster features.  Matter.js generates this
- * API dynamically based on information stored in these namespaces.  The namespace also conveys compile-time type
- * information.
- *
- * For hand-crafted clusters, decorated classes may be preferable to replicating matter.js's code generation.
- */
-export interface ClusterNamespace {
-    readonly Typing: ClusterTyping;
-    readonly schema: ClusterModel;
-    readonly id?: ClusterId;
-    readonly name: string;
-    readonly revision?: number;
-    readonly attributes?: Record<string, ClusterNamespace.Attribute>;
-    readonly commands?: Record<string, ClusterNamespace.Command>;
-    readonly events?: Record<string, ClusterNamespace.Event>;
-    readonly features?: Record<string, ClusterNamespace.Feature>;
-}
-
 export namespace ClusterNamespace {
     export interface Component<F extends BitSchema = {}> {
         flags: TypeFromPartialBitSchema<F>;
@@ -191,9 +231,6 @@ export namespace ClusterNamespace {
         commands?: {};
         events?: {};
     }
-
-    export type RequiredKeys<T> = RequiredKeysType<T>;
-    export type OptionalKeys<T> = OptionalKeysType<T>;
 
     export interface Attribute<T = unknown> {
         id: AttributeId;
@@ -252,9 +289,6 @@ export namespace ClusterNamespace {
 
     /**
      * Set supported feature flags on a namespace, replacing any previous selection.
-     *
-     * Uses Omit+& (not bare &) so that chained `.with()` calls replace rather than intersect, matching the
-     * runtime behavior of {@link ClusterComposer.WithFeatures}.
      */
     export type WithSupportedFeatures<N extends ClusterTyping, S> = Omit<N, "SupportedFeatures"> & {
         SupportedFeatures: S;
@@ -277,38 +311,22 @@ export namespace ClusterNamespace {
         : Record<string, boolean>;
 
     /**
-     * Intersect attribute interfaces from components whose feature flags match `S`.
-     *
-     * The resulting type carries the component interfaces' own optionality modifiers (`?` for optional attributes,
-     * required for mandatory) so no separate key classification is needed.
+     * Extract the Components tuple from a namespace.
      */
-    export type ApplicableAttrs<CA extends Component[], S> = CA extends [
-        infer C extends Component,
-        ...infer R extends Component[],
-    ]
-        ? (S extends C["flags"] ? (C extends { attributes: infer A } ? A : {}) : {}) & ApplicableAttrs<R, S>
-        : {};
-
-    /**
-     * Intersect event interfaces from components whose feature flags match `S`.
-     */
-    export type ApplicableEvents<CA extends Component[], S> = CA extends [
-        infer C extends Component,
-        ...infer R extends Component[],
-    ]
-        ? (S extends C["flags"] ? (C extends { events: infer E } ? E : {}) : {}) & ApplicableEvents<R, S>
-        : {};
+    export type ComponentsOf<N> = N extends { Components: infer C extends Component[] } ? C : [];
 
     /**
      * Augment a namespace with attribute keys forced mandatory (e.g. via `enable()` or `alter()`).
      *
-     * Injects a synthetic base component (`flags: {}`) with the enabled keys as required.  Since base components
-     * always match, `MandatoryAttrKeys` naturally picks up these keys.
+     * Injects a synthetic base component (`flags: {}`) with the enabled keys as mandatory.
      */
     export type WithEnabledAttributes<N extends ClusterTyping, K extends string> = Omit<N, "Components"> & {
         Components: [
             ...(N extends { Components: infer C extends Component[] } ? C : []),
-            { flags: {}; attributes: { [P in K & keyof AttrsOf<N>]-?: Exclude<AttrsOf<N>[P], undefined> } },
+            {
+                flags: {};
+                attributes: N extends { Attributes: infer A } ? { [P in K & keyof A]: A[P] } : never;
+            },
         ];
     };
 
@@ -327,12 +345,12 @@ export namespace ClusterNamespace {
     /**
      * Augment a namespace with event keys forced mandatory (e.g. via `enable()`).
      *
-     * Injects a synthetic base component (`flags: {}`) with the enabled keys as required.
+     * Injects a synthetic base component (`flags: {}`) with the enabled keys as mandatory.
      */
     export type WithEnabledEvents<N extends ClusterTyping, K extends string> = Omit<N, "Components"> & {
         Components: [
             ...(N extends { Components: infer C extends Component[] } ? C : []),
-            { flags: {}; events: { [P in K & keyof EventsOf<N>]-?: Exclude<EventsOf<N>[P], undefined> } },
+            { flags: {}; events: N extends { Events: infer E } ? { [P in K & keyof E]: E[P] } : never },
         ];
     };
 
@@ -349,16 +367,6 @@ export namespace ClusterNamespace {
     export type AlteredMandatoryEventKeysOf<A> = A extends { events: infer E }
         ? { [K in keyof E & string]: E[K] extends { optional: false } ? K : never }[keyof E & string]
         : never;
-
-    /**
-     * Extract the Attributes interface from a namespace.
-     */
-    type AttrsOf<N> = N extends { Attributes: infer A } ? A : {};
-
-    /**
-     * Extract the Events interface from a namespace.
-     */
-    type EventsOf<N> = N extends { Events: infer E } ? E : {};
 
     /**
      * Extract attribute key names from a namespace.
@@ -510,21 +518,4 @@ export namespace ClusterNamespace {
         }
         return result;
     }
-}
-
-/**
- * Describes the shape of types matter.js uses for compile-time generation of Matter cluster-related APIs.
- *
- * This does not represent an actual object.  It only exists to convey type information that is input to matter.js's
- * type system.  For standard clusters this information has no other compile-time representation as matter.js generates
- * related classes at runtime.
- */
-export interface ClusterTyping {
-    Attributes?: {};
-    Commands?: {};
-    Events?: {};
-    Features?: {};
-    Components?: {};
-    SupportedFeatures?: {};
-    readonly schema?: ClusterModel;
 }

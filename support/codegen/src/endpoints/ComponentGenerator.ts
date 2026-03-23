@@ -23,37 +23,21 @@ import type { Block } from "../util/TsFile.js";
 import { TypeGenerator } from "./TypeGenerator.js";
 
 /**
- * Generates per-cluster typed interfaces: component namespaces, flat Attributes/Commands/Events interfaces,
- * unified Components tuple, and Features.
+ * Generates per-cluster typed interfaces: flat Attributes/Commands/Events interfaces, per-component
+ * attribute/command/event interfaces, unified Components tuple, and Features.
  *
- * Component namespaces contain per-component Attributes/Commands/Events interfaces with native TS modifiers
- * (readonly for non-writable, ? for optional).  Flat interfaces extend component interfaces.  The unified
- * Components tuple references component interfaces directly.
+ * Flat interfaces list ALL elements from ALL components with clean types (all required, no `?`).  Per-component
+ * interfaces (`BaseAttributes`, `BaseCommands`, `BaseEvents`, etc.) carry per-property JSDoc and are referenced
+ * from the Components tuple so that IDE go-to-definition navigates to readable, documented interfaces.
  */
 export class ComponentGenerator {
     #components = Array<ComponentInfo>();
     #referencedTypes = new Map<string, ValueModel>();
     #definedNames = new Set<string>();
-    #scopeTypeNames: Set<string>;
     types;
 
     constructor(private file: ClusterFile) {
         this.types = new TypeGenerator(file);
-
-        // Pre-collect all type names in the scope so we can detect collisions with component names
-        this.#scopeTypeNames = new Set<string>();
-        const scope = file.scope;
-        if (scope) {
-            for (const child of file.cluster.children) {
-                if (child instanceof DatatypeModel) {
-                    try {
-                        this.#scopeTypeNames.add(scope.nameFor(child));
-                    } catch {
-                        // Model may not be in scope
-                    }
-                }
-            }
-        }
 
         // Track local types that are referenced so we can generate definitions
         this.types.onReference = model => {
@@ -98,19 +82,8 @@ export class ComponentGenerator {
             return;
         }
 
-        // Component naming: "Base" keeps its name, others get "Component" suffix.
-        // Also disambiguate names that collide with type names in the scope.
-        let interfaceName = name;
-        if (name !== "Base") {
-            interfaceName = `${name}Component`;
-        }
-        if (this.#scopeTypeNames.has(interfaceName)) {
-            interfaceName = `${interfaceName}Component`;
-        }
-
         this.#components.push({
-            name: interfaceName,
-            displayName: name,
+            name,
             condition: component.condition ?? {},
             commands,
             mandatoryAttrs,
@@ -121,8 +94,7 @@ export class ComponentGenerator {
     }
 
     /**
-     * Generate per-component namespaces with Attributes/Commands/Events interfaces, flat interfaces that
-     * extend them, and a unified Components tuple.
+     * Generate flat interfaces, per-component command interfaces, and unified Components tuple.
      *
      * @returns object indicating which element types were emitted
      */
@@ -146,21 +118,31 @@ export class ComponentGenerator {
             return result;
         }
 
-        // Generate per-component namespaces
-        for (const comp of this.#components) {
-            this.#generateComponentNamespace(comp);
-        }
-
-        // Generate flat interfaces
+        // Generate flat interfaces listing ALL elements from ALL components.
+        // Order: per-component attribute interfaces, flat Attributes, per-component command interfaces,
+        // flat Commands, flat Events.
         if (result.hasAttrs) {
+            for (const comp of this.#components) {
+                if (comp.mandatoryAttrs.length || comp.optionalAttrs.length) {
+                    this.#generateAttributeInterface(comp);
+                }
+            }
             this.#generateFlatAttributesInterface();
         }
         if (result.hasCommands) {
-            this.#generateFlatInterface("Commands", comp =>
-                comp.commands.length > 0 ? `${comp.name}.Commands` : undefined,
-            );
+            for (const comp of this.#components) {
+                if (comp.commands.length) {
+                    this.#generateCommandInterface(comp);
+                }
+            }
+            this.#generateFlatCommandsInterface();
         }
         if (result.hasEvents) {
+            for (const comp of this.#components) {
+                if (comp.mandatoryEvents.length || comp.optionalEvents.length) {
+                    this.#generateEventInterface(comp);
+                }
+            }
             this.#generateFlatEventsInterface();
         }
 
@@ -222,106 +204,163 @@ export class ComponentGenerator {
     }
 
     /**
-     * Generate a per-component namespace containing Attributes, Commands, and/or Events interfaces.
+     * Generate a per-component attribute interface (e.g. `BaseAttributes`, `LightingAttributes`).
+     *
+     * Mandatory attributes are required; optional attributes use `?`.  Full JSDoc on each property.
+     * These interfaces are referenced from the Components tuple and composed via recursive intersection
+     * in {@link ClusterState} to produce state types with IDE go-to-definition and hover support.
      */
-    #generateComponentNamespace(comp: ComponentInfo) {
-        const hasAttrs = comp.mandatoryAttrs.length > 0 || comp.optionalAttrs.length > 0;
-        const hasCommands = comp.commands.length > 0;
-        const hasEvents = comp.mandatoryEvents.length > 0 || comp.optionalEvents.length > 0;
+    #generateAttributeInterface(comp: ComponentInfo) {
+        const name = `${comp.name}Attributes`;
+        const intf = this.file.interfaces.statements(`export interface ${name} {`, "}");
+        intf.shouldDelimit = false;
+        intf.document(this.#componentDescription(comp.name, comp.condition));
 
-        if (!hasAttrs && !hasCommands && !hasEvents) {
-            return;
+        for (const attr of comp.mandatoryAttrs) {
+            intf.atom(`${attr.propertyName}: ${this.#attrType(attr)}`).document(attr);
         }
-
-        const ns = this.file.interfaces.statements(`export namespace ${comp.name} {`, "}");
-        ns.document(this.#componentDescription(comp.displayName, comp.condition));
-
-        if (hasAttrs) {
-            const intf = ns.statements("export interface Attributes {", "}");
-            intf.shouldDelimit = false;
-            for (const attr of comp.mandatoryAttrs) {
-                const key = camelize(attr.name);
-                const readonlyPrefix = !attr.writable ? "readonly " : "";
-                intf.atom(`${readonlyPrefix}${key}: ${this.#attrType(attr)}`).document(attr);
-            }
-            for (const attr of comp.optionalAttrs) {
-                const key = camelize(attr.name);
-                const readonlyPrefix = !attr.writable ? "readonly " : "";
-                intf.atom(`${readonlyPrefix}${key}?: ${this.#attrType(attr)}`).document(attr);
-            }
-        }
-
-        if (hasCommands) {
-            const intf = ns.statements("export interface Commands {", "}");
-            intf.shouldDelimit = false;
-            this.#generateCommandMethods(intf, comp.commands);
-        }
-
-        if (hasEvents) {
-            const intf = ns.statements("export interface Events {", "}");
-            intf.shouldDelimit = false;
-            for (const evt of comp.mandatoryEvents) {
-                const key = camelize(evt.name);
-                intf.atom(`${key}: ${this.#eventPayloadType(evt)}`).document(evt);
-            }
-            for (const evt of comp.optionalEvents) {
-                const key = camelize(evt.name);
-                intf.atom(`${key}?: ${this.#eventPayloadType(evt)}`).document(evt);
-            }
+        for (const attr of comp.optionalAttrs) {
+            intf.atom(`${attr.propertyName}?: ${this.#attrType(attr)}`).document(attr);
         }
     }
 
     /**
-     * Generate a flat Attributes interface that extends all component Attributes interfaces.
+     * Generate a per-component command interface (e.g. `BaseCommands`, `FrequencyCommands`).
+     */
+    #generateCommandInterface(comp: ComponentInfo) {
+        const name = `${comp.name}Commands`;
+        const intf = this.file.interfaces.statements(`export interface ${name} {`, "}");
+        intf.shouldDelimit = false;
+        intf.document(this.#componentDescription(comp.name, comp.condition));
+        this.#generateCommandMethods(intf, comp.commands);
+    }
+
+    /**
+     * Generate a per-component event interface (e.g. `BaseEvents`, `MomentarySwitchEvents`).
      *
-     * Base component (condition `{}`) extends directly; feature components extend via `Partial` since their
-     * attributes are only present when the feature is enabled.
+     * Mandatory events are required; optional events use `?`.  Full JSDoc on each property.
+     * These interfaces are referenced from the Components tuple and composed via recursive intersection
+     * in {@link ClusterEvents} to produce event observable types with IDE go-to-definition and hover support.
+     */
+    #generateEventInterface(comp: ComponentInfo) {
+        const name = `${comp.name}Events`;
+        const intf = this.file.interfaces.statements(`export interface ${name} {`, "}");
+        intf.shouldDelimit = false;
+        intf.document(this.#componentDescription(comp.name, comp.condition));
+
+        for (const evt of comp.mandatoryEvents) {
+            intf.atom(`${evt.propertyName}: ${this.#eventPayloadType(evt)}`).document(evt);
+        }
+        for (const evt of comp.optionalEvents) {
+            intf.atom(`${evt.propertyName}?: ${this.#eventPayloadType(evt)}`).document(evt);
+        }
+    }
+
+    /**
+     * Generate a flat Attributes interface listing ALL attributes from ALL components.
+     *
+     * All properties are required (no `?`) with clean types.  Writability is not encoded here; it is a
+     * runtime/model concern.  Optionality information lives in the Components tuple modifier maps instead.
      */
     #generateFlatAttributesInterface() {
-        this.#generateFlatInterface("Attributes", comp => {
-            const hasAttrs = comp.mandatoryAttrs.length > 0 || comp.optionalAttrs.length > 0;
-            if (!hasAttrs) {
-                return undefined;
+        // Deduplicate: an attribute may appear in multiple components (e.g. minLevel in Lighting and NotLighting)
+        const seen = new Set<string>();
+
+        this.file.interfaces.undefine("Attributes");
+        const intf = this.file.interfaces.statements("export interface Attributes {", "}");
+        intf.shouldDelimit = false;
+
+        const clusterName = this.file.cluster.name;
+        const hasOptional = this.#components.some(c => c.optionalAttrs.length > 0);
+        const hasFeatures = this.file.cluster.features.length > 0;
+        const description = `Attributes that may appear in {@link ${clusterName}}.`;
+        let details: string | undefined;
+        if (hasOptional || hasFeatures) {
+            details = `Some properties may be optional if device support is not mandatory.`;
+        }
+        if (hasFeatures) {
+            details += ` Device support may also be affected by a device's supported {@link Features}.`;
+        }
+        intf.document({ description, details });
+
+        for (const comp of this.#components) {
+            for (const attr of [...comp.mandatoryAttrs, ...comp.optionalAttrs]) {
+                const key = attr.propertyName;
+                if (seen.has(key)) {
+                    continue;
+                }
+                seen.add(key);
+
+                intf.atom(`${key}: ${this.#attrType(attr)}`).document(attr);
             }
-            const isBase = Object.keys(comp.condition).length === 0;
-            return isBase ? `${comp.name}.Attributes` : `Partial<${comp.name}.Attributes>`;
-        });
+        }
     }
 
     /**
-     * Generate a flat Events interface that extends all component Events interfaces.
-     *
-     * All components extend directly (no `Partial`) — events and commands are unconditionally
-     * implemented at runtime.
+     * Generate a flat Commands interface extending all per-component command interfaces.
      */
-    #generateFlatEventsInterface() {
-        this.#generateFlatInterface("Events", comp => {
-            const hasEvents = comp.mandatoryEvents.length > 0 || comp.optionalEvents.length > 0;
-            return hasEvents ? `${comp.name}.Events` : undefined;
-        });
-    }
-
-    /**
-     * Generate a flat interface that extends all component interfaces of the given kind.
-     */
-    #generateFlatInterface(kind: string, extendsFor: (comp: ComponentInfo) => string | undefined) {
+    #generateFlatCommandsInterface() {
         const clauses = [] as string[];
         for (const comp of this.#components) {
-            const clause = extendsFor(comp);
-            if (clause !== undefined) {
-                clauses.push(clause);
+            if (comp.commands.length) {
+                clauses.push(`${comp.name}Commands`);
             }
         }
-        if (!clauses.length) {
-            return;
-        }
 
-        this.file.interfaces.undefine(kind);
-        this.file.interfaces.atom(`export interface ${kind} extends ${clauses.join(", ")} {}`);
+        if (clauses.length) {
+            this.file.interfaces.undefine("Commands");
+            const clusterName = this.file.cluster.name;
+            this.file.interfaces
+                .extendsInterface("Commands", clauses)
+                .document(`Commands that may appear in {@link ${clusterName}}.`);
+        }
     }
 
     /**
-     * Generate the unified Components tuple with entries referencing component interfaces.
+     * Generate a flat Events interface listing ALL events from ALL components.
+     *
+     * All properties are required (no `?`) with clean payload types.  This differs from the per-component
+     * event interfaces which use `?` for optional events.  The flat interface is used by `ClusterEvents` for
+     * `EventObservable<E[K]>` value type extraction where `undefined` contamination must be avoided.
+     */
+    #generateFlatEventsInterface() {
+        const seen = new Set<string>();
+
+        this.file.interfaces.undefine("Events");
+        const intf = this.file.interfaces.statements("export interface Events {", "}");
+        intf.shouldDelimit = false;
+
+        const clusterName = this.file.cluster.name;
+        const hasOptional = this.#components.some(c => c.optionalEvents.length > 0);
+        const hasFeatures = this.file.cluster.features.length > 0;
+        const description = `Events that may appear in {@link ${clusterName}}.`;
+        let details: string | undefined;
+        if (hasOptional || hasFeatures) {
+            details = `Some properties may be optional if device support is not mandatory.`;
+        }
+        if (hasFeatures) {
+            details += ` Device support may also be affected by a device's supported {@link Features}.`;
+        }
+        intf.document({ description, details });
+
+        for (const comp of this.#components) {
+            for (const evt of [...comp.mandatoryEvents, ...comp.optionalEvents]) {
+                const key = evt.propertyName;
+                if (seen.has(key)) {
+                    continue;
+                }
+                seen.add(key);
+
+                intf.atom(`${key}: ${this.#eventPayloadType(evt)}`).document(evt);
+            }
+        }
+    }
+
+    /**
+     * Generate the unified Components tuple.
+     *
+     * Each element type references its per-component interface directly (e.g. `attributes: BaseAttributes`,
+     * `commands: BaseCommands`, `events: BaseEvents`).
      */
     #generateUnifiedComponents() {
         const tuple = this.file.interfaces.expressions("export type Components = [", "]");
@@ -338,14 +377,17 @@ export class ComponentGenerator {
             for (const bitmap of bitmaps) {
                 const obj = tuple.expressions("{", "}");
                 obj.value(bitmap, "flags: ");
+
                 if (hasAttrs) {
-                    obj.atom("attributes", `${comp.name}.Attributes`);
+                    obj.atom("attributes", `${comp.name}Attributes`);
                 }
+
                 if (hasCommands) {
-                    obj.atom("commands", `${comp.name}.Commands`);
+                    obj.atom("commands", `${comp.name}Commands`);
                 }
+
                 if (hasEvents) {
-                    obj.atom("events", `${comp.name}.Events`);
+                    obj.atom("events", `${comp.name}Events`);
                 }
             }
         }
@@ -381,7 +423,7 @@ export class ComponentGenerator {
             const response = this.#referenceType(command.responseModel, "void");
             const returnType = response === "void" ? "MaybePromise" : `MaybePromise<${response}>`;
 
-            block.atom(`${camelize(command.name)}(${request}): ${returnType}`).document(command);
+            block.atom(`${command.propertyName}(${request}): ${returnType}`).document(command);
         }
     }
 
@@ -473,7 +515,7 @@ export class ComponentGenerator {
                 fieldType += " | null";
             }
             const optional = !field.mandatory ? "?" : "";
-            struct.atom(`${camelize(field.name)}${optional}: ${fieldType}`).document(field);
+            struct.atom(`${field.propertyName}${optional}: ${fieldType}`).document(field);
         });
     }
 
@@ -516,7 +558,7 @@ export class ComponentGenerator {
                 continue;
             }
 
-            const fieldName = camelize(child.name);
+            const fieldName = child.propertyName;
             intf.atom(`${fieldName}?: ${fieldType}`).document(child);
         }
     }
@@ -591,7 +633,6 @@ export class ComponentGenerator {
 
 interface ComponentInfo {
     name: string;
-    displayName: string;
     condition: VarianceCondition;
     commands: CommandModel[];
     mandatoryAttrs: AttributeModel[];

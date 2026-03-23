@@ -6,92 +6,152 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { GroupId } from "../datatype/GroupId.js";
 import type { Status } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { Groups as GroupsModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the Groups cluster.
+ *
+ * The Groups cluster manages, per endpoint, the content of the node-wide Group Table that is part of the underlying
+ * interaction layer.
+ *
+ * In a network supporting fabrics, group IDs referenced by attributes or other elements of this cluster are scoped to
+ * the accessing fabric.
+ *
+ * The Groups cluster is scoped to the endpoint. Groups cluster commands support discovering the endpoint membership in
+ * a group, adding the endpoint to a group, removing the endpoint from a group, removing endpoint membership from all
+ * groups. All commands defined in this cluster shall only affect groups scoped to the accessing fabric.
+ *
+ * When group names are supported, the server stores a name string, which is set by the client for each assigned group
+ * and indicated in response to a client request.
+ *
+ * Note that configuration of group addresses for outgoing commands is achieved using the Message Layer mechanisms where
+ * the Group Table is not involved. Hence this cluster does not play a part in that.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 1.3
  */
 export declare namespace Groups {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0004;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "Groups";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 4;
+
+    /**
+     * Canonical metadata for the Groups cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link Groups} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The
-             * most significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN
-             * Feature). All other bits shall be 0.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
-             */
-            readonly nameSupport: NameSupportAttribute;
-        }
-
-        export interface Commands {
-            /**
-             * The AddGroup command allows a client to add group membership in a particular group for the server
-             * endpoint.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
-             */
-            addGroup(request: AddGroupRequest): MaybePromise<AddGroupResponse>;
-
-            /**
-             * The ViewGroup command allows a client to request that the server responds with a ViewGroupResponse
-             * command containing the name string for a particular group.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
-             */
-            viewGroup(request: ViewGroupRequest): MaybePromise<ViewGroupResponse>;
-
-            /**
-             * The GetGroupMembership command allows a client to inquire about the group membership of the server
-             * endpoint, in a number of ways.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
-             */
-            getGroupMembership(request: GetGroupMembershipRequest): MaybePromise<GetGroupMembershipResponse>;
-
-            /**
-             * The RemoveGroup command allows a client to request that the server removes the membership for the server
-             * endpoint, if any, in a particular group.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
-             */
-            removeGroup(request: RemoveGroupRequest): MaybePromise<RemoveGroupResponse>;
-
-            /**
-             * The RemoveAllGroups command allows a client to direct the server to remove all group associations for the
-             * server endpoint.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.5
-             */
-            removeAllGroups(): MaybePromise;
-
-            /**
-             * The AddGroupIfIdentifying command allows a client to add group membership in a particular group for the
-             * server endpoint, on condition that the endpoint is identifying itself. Identifying functionality is
-             * controlled using the Identify cluster, (see Identify Cluster).
-             *
-             * For correct operation of the AddGroupIfIdentifying command, any endpoint that supports the Groups server
-             * cluster shall also support the Identify server cluster.
-             *
-             * This command might be used to assist configuring group membership in the absence of a commissioning tool.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
-             */
-            addGroupIfIdentifying(request: AddGroupIfIdentifyingRequest): MaybePromise;
-        }
+    export interface BaseAttributes {
+        /**
+         * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
+         * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
+         * other bits shall be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+         */
+        nameSupport: NameSupportAttribute;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link Groups}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
+         * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All
+         * other bits shall be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+         */
+        nameSupport: NameSupportAttribute;
+    }
+
+    /**
+     * {@link Groups} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * The AddGroup command allows a client to add group membership in a particular group for the server endpoint.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.1
+         */
+        addGroup(request: AddGroupRequest): MaybePromise<AddGroupResponse>;
+
+        /**
+         * The ViewGroup command allows a client to request that the server responds with a ViewGroupResponse command
+         * containing the name string for a particular group.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.2
+         */
+        viewGroup(request: ViewGroupRequest): MaybePromise<ViewGroupResponse>;
+
+        /**
+         * The GetGroupMembership command allows a client to inquire about the group membership of the server endpoint,
+         * in a number of ways.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.3
+         */
+        getGroupMembership(request: GetGroupMembershipRequest): MaybePromise<GetGroupMembershipResponse>;
+
+        /**
+         * The RemoveGroup command allows a client to request that the server removes the membership for the server
+         * endpoint, if any, in a particular group.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.4
+         */
+        removeGroup(request: RemoveGroupRequest): MaybePromise<RemoveGroupResponse>;
+
+        /**
+         * The RemoveAllGroups command allows a client to direct the server to remove all group associations for the
+         * server endpoint.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.5
+         */
+        removeAllGroups(): MaybePromise;
+
+        /**
+         * The AddGroupIfIdentifying command allows a client to add group membership in a particular group for the
+         * server endpoint, on condition that the endpoint is identifying itself. Identifying functionality is
+         * controlled using the Identify cluster, (see Identify Cluster).
+         *
+         * For correct operation of the AddGroupIfIdentifying command, any endpoint that supports the Groups server
+         * cluster shall also support the Identify server cluster.
+         *
+         * This command might be used to assist configuring group membership in the absence of a commissioning tool.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6
+         */
+        addGroupIfIdentifying(request: AddGroupIfIdentifyingRequest): MaybePromise;
+    }
+
+    /**
+     * Commands that may appear in {@link Groups}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "GroupNames";
 
     /**
@@ -326,24 +386,42 @@ export declare namespace Groups {
         groupNames?: boolean;
     }
 
-    export const id: ClusterId;
-    export const name: "Groups";
-    export const revision: 4;
-    export const schema: typeof GroupsModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link Groups}.
+     */
     export const Cluster: typeof Groups;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `Groups` instead of `Groups.Complete`)
+     * @deprecated Use {@link Groups}.
      */
     export const Complete: typeof Groups;
 
     export const Typing: Groups;
 }
 
+/**
+ * @deprecated Use {@link Groups}.
+ */
 export declare const GroupsCluster: typeof Groups;
-export interface Groups extends ClusterTyping { Attributes: Groups.Attributes; Commands: Groups.Commands; Features: Groups.Features; Components: Groups.Components }
+
+export interface Groups extends ClusterTyping {
+    Attributes: Groups.Attributes;
+    Commands: Groups.Commands;
+    Features: Groups.Features;
+    Components: Groups.Components;
+}

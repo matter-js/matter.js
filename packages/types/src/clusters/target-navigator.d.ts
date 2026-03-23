@@ -6,67 +6,150 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { TargetNavigator as TargetNavigatorModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the TargetNavigator cluster.
+ *
+ * This cluster provides an interface for UX navigation within a set of targets on a device or endpoint.
+ *
+ * This cluster would be supported on Video Player devices or devices with navigable user interfaces. This cluster would
+ * also be supported on endpoints with navigable user interfaces such as a Content App. It supports listing a set of
+ * navigation targets, tracking and changing the current target.
+ *
+ * The cluster server for Target Navigator is implemented by endpoints on a device that support UX navigation.
+ *
+ * When this cluster is implemented for a Content App endpoint, the Video Player device containing the endpoint shall
+ * launch the Content App when a client invokes the NavigateTarget command.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.11
  */
 export declare namespace TargetNavigator {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0505;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "TargetNavigator";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the TargetNavigator cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link TargetNavigator} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates a list of targets that can be navigated to within the experience presented to the user by the
-             * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier
-             * in the TargetInfoStruct object.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
-             */
-            readonly targetList: TargetInfo[];
+    export interface BaseAttributes {
+        /**
+         * Indicates a list of targets that can be navigated to within the experience presented to the user by the
+         * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier in
+         * the TargetInfoStruct object.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
+         */
+        targetList: TargetInfo[];
 
-            /**
-             * Indicates the Identifier for the target which is currently in foreground on the corresponding Endpoint
-             * (Video Player or Content App), or 0xFF to indicate that no target is in the foreground.
-             *
-             * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the
-             * TargetInfoStruct objects in the TargetList attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
-             */
-            readonly currentTarget?: number;
-        }
-
-        export interface Commands {
-            /**
-             * Upon receipt, this shall navigation the UX to the target identified.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
-             */
-            navigateTarget(request: NavigateTargetRequest): MaybePromise<NavigateTargetResponse>;
-        }
-
-        export interface Events {
-            /**
-             * This event shall be generated when there is a change in either the active target or the list of available
-             * targets or both.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
-             */
-            targetUpdated?: TargetUpdatedEvent;
-        }
+        /**
+         * Indicates the Identifier for the target which is currently in foreground on the corresponding Endpoint (Video
+         * Player or Content App), or 0xFF to indicate that no target is in the foreground.
+         *
+         * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the TargetInfoStruct
+         * objects in the TargetList attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
+         */
+        currentTarget?: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export interface Events extends Base.Events {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events }];
+    /**
+     * Attributes that may appear in {@link TargetNavigator}.
+     *
+     * Some properties may be optional if device support is not mandatory.
+     */
+    export interface Attributes {
+        /**
+         * Indicates a list of targets that can be navigated to within the experience presented to the user by the
+         * Endpoint (Video Player or Content App). The list shall NOT contain any entries with the same Identifier in
+         * the TargetInfoStruct object.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.1
+         */
+        targetList: TargetInfo[];
+
+        /**
+         * Indicates the Identifier for the target which is currently in foreground on the corresponding Endpoint (Video
+         * Player or Content App), or 0xFF to indicate that no target is in the foreground.
+         *
+         * When not 0xFF, the CurrentTarget shall be an Identifier value contained within one of the TargetInfoStruct
+         * objects in the TargetList attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.5.2
+         */
+        currentTarget: number;
+    }
+
+    /**
+     * {@link TargetNavigator} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * Upon receipt, this shall navigation the UX to the target identified.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
+         */
+        navigateTarget(request: NavigateTargetRequest): MaybePromise<NavigateTargetResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link TargetNavigator}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    /**
+     * {@link TargetNavigator} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * This event shall be generated when there is a change in either the active target or the list of available
+         * targets or both.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
+         */
+        targetUpdated?: TargetUpdatedEvent;
+    }
+
+    /**
+     * Events that may appear in {@link TargetNavigator}.
+     *
+     * Some properties may be optional if device support is not mandatory.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated when there is a change in either the active target or the list of available
+         * targets or both.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
+         */
+        targetUpdated: TargetUpdatedEvent;
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
 
     /**
      * This indicates an object describing the navigable target.
@@ -182,25 +265,42 @@ export declare namespace TargetNavigator {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
     }
 
-    export const id: ClusterId;
-    export const name: "TargetNavigator";
-    export const revision: 2;
-    export const schema: typeof TargetNavigatorModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * @deprecated Use {@link TargetNavigator}.
+     */
     export const Cluster: typeof TargetNavigator;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `TargetNavigator` instead of `TargetNavigator.Complete`)
+     * @deprecated Use {@link TargetNavigator}.
      */
     export const Complete: typeof TargetNavigator;
 
     export const Typing: TargetNavigator;
 }
 
+/**
+ * @deprecated Use {@link TargetNavigator}.
+ */
 export declare const TargetNavigatorCluster: typeof TargetNavigator;
-export interface TargetNavigator extends ClusterTyping { Attributes: TargetNavigator.Attributes; Commands: TargetNavigator.Commands; Events: TargetNavigator.Events; Components: TargetNavigator.Components }
+
+export interface TargetNavigator extends ClusterTyping {
+    Attributes: TargetNavigator.Attributes;
+    Commands: TargetNavigator.Commands;
+    Events: TargetNavigator.Events;
+    Components: TargetNavigator.Components;
+}

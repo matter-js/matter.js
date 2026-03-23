@@ -6,740 +6,1286 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ColorControl as ColorControlModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the ColorControl cluster.
+ *
+ * This cluster provides an interface for changing the color of a light. Color is specified according to the CIE 1931
+ * Color space. Color control is carried out in terms of x,y values, as defined by this specification.
+ *
+ * Additionally, color may optionally be controlled in terms of color temperature, or as hue and saturation values based
+ * on optionally variable RGB and W color points. It is recommended that the hue and saturation are interpreted
+ * according to the HSV (a.k.a. HSB) color model.
+ *
+ * Control over luminance is not included, as this is provided by means of the Level Control for Lighting cluster. It is
+ * recommended that the level provided by this cluster be interpreted as representing a proportion of the maximum
+ * intensity achievable at the current color.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 3.2
  */
 export declare namespace ColorControl {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0300;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ColorControl";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 7;
+
+    /**
+     * Canonical metadata for the ColorControl cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ColorControl} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates which attributes are currently determining the color of the device.
-             *
-             * The value of the ColorMode attribute cannot be written directly - it is set upon reception of any command
-             * in section Commands to the appropriate mode for that command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.10
-             */
-            readonly colorMode: ColorMode;
+    export interface BaseAttributes {
+        /**
+         * Indicates which attributes are currently determining the color of the device.
+         *
+         * The value of the ColorMode attribute cannot be written directly - it is set upon reception of any command in
+         * section Commands to the appropriate mode for that command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.10
+         */
+        colorMode: ColorMode;
 
-            /**
-             * Indicates a bitmap that determines the default behavior of some cluster commands. Each command that is
-             * dependent on the Options attribute shall first construct a temporary Options bitmap that is in effect
-             * during the command processing. The temporary Options bitmap has the same format and meaning as the
-             * Options attribute, but includes any bits that may be overridden by command fields.
-             *
-             * This attribute is meant to be changed only during commissioning.
-             *
-             * Below is the format and description of the Options attribute and temporary Options bitmap and the effect
-             * on dependent commands.
-             *
-             * Command execution shall NOT continue beyond the Options processing if all of these criteria are true:
-             *
-             *   - The On/Off cluster exists on the same endpoint as this cluster.
-             *
-             *   - The OnOff attribute of the On/Off cluster, on this endpoint, is FALSE.
-             *
-             *   - The value of the ExecuteIfOff bit is 0.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.11
-             */
-            options: Options;
+        /**
+         * Indicates a bitmap that determines the default behavior of some cluster commands. Each command that is
+         * dependent on the Options attribute shall first construct a temporary Options bitmap that is in effect during
+         * the command processing. The temporary Options bitmap has the same format and meaning as the Options
+         * attribute, but includes any bits that may be overridden by command fields.
+         *
+         * This attribute is meant to be changed only during commissioning.
+         *
+         * Below is the format and description of the Options attribute and temporary Options bitmap and the effect on
+         * dependent commands.
+         *
+         * Command execution shall NOT continue beyond the Options processing if all of these criteria are true:
+         *
+         *   - The On/Off cluster exists on the same endpoint as this cluster.
+         *
+         *   - The OnOff attribute of the On/Off cluster, on this endpoint, is FALSE.
+         *
+         *   - The value of the ExecuteIfOff bit is 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.11
+         */
+        options: Options;
 
-            /**
-             * Indicates the number of color primaries implemented on this device. A value of null shall indicate that
-             * the number of primaries is unknown.
-             *
-             * Where this attribute is implemented, the attributes below for indicating the “x” and “y” color values of
-             * the primaries shall also be implemented for each of the primaries from 1 to NumberOfPrimaries, without
-             * leaving gaps. Implementation of the Primary1Intensity attribute and subsequent intensity attributes is
-             * optional.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.24
-             */
-            readonly numberOfPrimaries: number | null;
+        /**
+         * Indicates the number of color primaries implemented on this device. A value of null shall indicate that the
+         * number of primaries is unknown.
+         *
+         * Where this attribute is implemented, the attributes below for indicating the “x” and “y” color values of the
+         * primaries shall also be implemented for each of the primaries from 1 to NumberOfPrimaries, without leaving
+         * gaps. Implementation of the Primary1Intensity attribute and subsequent intensity attributes is optional.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.24
+         */
+        numberOfPrimaries: number | null;
 
-            /**
-             * Indicates which attributes are currently determining the color of the device.
-             *
-             * To provide compatibility with clients not supporting EHUE, the original ColorMode attribute shall
-             * indicate CurrentHue and CurrentSaturation when the light uses the EnhancedCurrentHue attribute. If the
-             * ColorMode attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.13
-             */
-            readonly enhancedColorMode: EnhancedColorMode;
+        /**
+         * Indicates which attributes are currently determining the color of the device.
+         *
+         * To provide compatibility with clients not supporting EHUE, the original ColorMode attribute shall indicate
+         * CurrentHue and CurrentSaturation when the light uses the EnhancedCurrentHue attribute. If the ColorMode
+         * attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.13
+         */
+        enhancedColorMode: EnhancedColorMode;
 
-            /**
-             * Indicates the color control capabilities of the device.
-             *
-             * Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of the
-             * FeatureMap attribute. All other bits in ColorCapabilities shall be 0.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.19
-             */
-            readonly colorCapabilities: ColorCapabilities;
+        /**
+         * Indicates the color control capabilities of the device.
+         *
+         * Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of the
+         * FeatureMap attribute. All other bits in ColorCapabilities shall be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.19
+         */
+        colorCapabilities: ColorCapabilities;
 
-            /**
-             * Indicates the time remaining, in 1/10ths of a second, until transitions due to the currently active
-             * command will be complete.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - When it changes from 0 to any value higher than 10, or
-             *
-             *   - When it changes, with a delta larger than 10, caused by the invoke of a command, or
-             *
-             *   - When it changes to 0.
-             *
-             * For commands with a transition time or changes to the transition time less than 1 second, changes to this
-             * attribute shall NOT be reported.
-             *
-             * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
-             * reporting of this attribute in order to keep track of the remaining duration.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.4
-             */
-            readonly remainingTime?: number;
+        /**
+         * Indicates the time remaining, in 1/10ths of a second, until transitions due to the currently active command
+         * will be complete.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - When it changes from 0 to any value higher than 10, or
+         *
+         *   - When it changes, with a delta larger than 10, caused by the invoke of a command, or
+         *
+         *   - When it changes to 0.
+         *
+         * For commands with a transition time or changes to the transition time less than 1 second, changes to this
+         * attribute shall NOT be reported.
+         *
+         * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
+         * of this attribute in order to keep track of the remaining duration.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.4
+         */
+        remainingTime?: number;
 
-            /**
-             * Indicates what mechanism, if any, is in use for compensation for color/intensity drift over time.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.7
-             */
-            readonly driftCompensation?: DriftCompensation;
+        /**
+         * Indicates what mechanism, if any, is in use for compensation for color/intensity drift over time.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.7
+         */
+        driftCompensation?: DriftCompensation;
 
-            /**
-             * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
-             * color/intensity drift over time.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.8
-             */
-            readonly compensationText?: string;
+        /**
+         * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
+         * color/intensity drift over time.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.8
+         */
+        compensationText?: string;
 
-            /**
-             * Indicates the normalized chromaticity value x for this primary, as defined in the CIE xyY Color Space.
-             *
-             * The value of x shall be related to the Primary1X attribute by the relationship
-             *
-             * x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.25
-             */
-            readonly primary1X?: number;
+        /**
+         * Indicates the normalized chromaticity value x for this primary, as defined in the CIE xyY Color Space.
+         *
+         * The value of x shall be related to the Primary1X attribute by the relationship
+         *
+         * x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.25
+         */
+        primary1X?: number;
 
-            /**
-             * Indicates the normalized chromaticity value y for this primary, as defined in the CIE xyY Color Space.
-             *
-             * The value of y shall be related to the Primary1Y attribute by the relationship
-             *
-             * y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.26
-             */
-            readonly primary1Y?: number;
+        /**
+         * Indicates the normalized chromaticity value y for this primary, as defined in the CIE xyY Color Space.
+         *
+         * The value of y shall be related to the Primary1Y attribute by the relationship
+         *
+         * y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.26
+         */
+        primary1Y?: number;
 
-            /**
-             * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, “The
-             * Dimming Light Curve”, normalized such that the primary with the highest maximum intensity contains the
-             * value 254.
-             *
-             * A value of null shall indicate that this primary is not available.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.27
-             */
-            readonly primary1Intensity?: number | null;
+        /**
+         * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, “The Dimming
+         * Light Curve”, normalized such that the primary with the highest maximum intensity contains the value 254.
+         *
+         * A value of null shall indicate that this primary is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.27
+         */
+        primary1Intensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary2X?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary2X?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary2Y?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary2Y?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary2Intensity?: number | null;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary2Intensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary3X?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary3X?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary3Y?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary3Y?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary3Intensity?: number | null;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary3Intensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary4X?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary4X?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary4Y?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary4Y?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary4Intensity?: number | null;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary4Intensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary5X?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary5X?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary5Y?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary5Y?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary5Intensity?: number | null;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary5Intensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary6X?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary6X?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary6Y?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary6Y?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            readonly primary6Intensity?: number | null;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary6Intensity?: number | null;
 
-            /**
-             * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the current
-             * white point of the device.
-             *
-             * The value of x shall be related to the WhitePointX attribute by the relationship
-             *
-             * x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.29
-             */
-            whitePointX?: number;
+        /**
+         * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the current white
+         * point of the device.
+         *
+         * The value of x shall be related to the WhitePointX attribute by the relationship
+         *
+         * x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.29
+         */
+        whitePointX?: number;
 
-            /**
-             * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the current
-             * white point of the device.
-             *
-             * The value of y shall be related to the WhitePointY attribute by the relationship
-             *
-             * y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.30
-             */
-            whitePointY?: number;
+        /**
+         * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the current white
+         * point of the device.
+         *
+         * The value of y shall be related to the WhitePointY attribute by the relationship
+         *
+         * y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.30
+         */
+        whitePointY?: number;
 
-            /**
-             * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the red color
-             * point of the device.
-             *
-             * The value of x shall be related to the ColorPointRX attribute by the relationship
-             *
-             * x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.31
-             */
-            colorPointRx?: number;
+        /**
+         * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the red color point
+         * of the device.
+         *
+         * The value of x shall be related to the ColorPointRX attribute by the relationship
+         *
+         * x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.31
+         */
+        colorPointRx?: number;
 
-            /**
-             * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the red color
-             * point of the device.
-             *
-             * The value of y shall be related to the ColorPointRY attribute by the relationship
-             *
-             * y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.32
-             */
-            colorPointRy?: number;
+        /**
+         * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the red color point
+         * of the device.
+         *
+         * The value of y shall be related to the ColorPointRY attribute by the relationship
+         *
+         * y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.32
+         */
+        colorPointRy?: number;
 
-            /**
-             * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3,
-             * “The Dimming Light Curve”, normalized such that the color point with the highest relative intensity
-             * contains the value 254.
-             *
-             * A value of null shall indicate an invalid value.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.33
-             */
-            colorPointRIntensity?: number | null;
+        /**
+         * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3, “The
+         * Dimming Light Curve”, normalized such that the color point with the highest relative intensity contains the
+         * value 254.
+         *
+         * A value of null shall indicate an invalid value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.33
+         */
+        colorPointRIntensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            colorPointGx?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointGx?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            colorPointGy?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointGy?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            colorPointGIntensity?: number | null;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointGIntensity?: number | null;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            colorPointBx?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointBx?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            colorPointBy?: number;
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointBy?: number;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
-             */
-            colorPointBIntensity?: number | null;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointBIntensity?: number | null;
     }
 
     /**
      * {@link ColorControl} supports these elements if it supports feature "HueSaturation".
      */
-    export namespace HueSaturationComponent {
-        export interface Attributes {
-            /**
-             * The CurrentHue attribute contains the current hue value of the light. It is updated as fast as practical
-             * during commands that change the hue.
-             *
-             * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
-             *
-             * Hue = "CurrentHue" * 360 / 254
-             *
-             * where CurrentHue is in the range from 0 to 254 inclusive.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once per second or
-             *
-             *   - At the end of the movement/transition.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.2
-             */
-            readonly currentHue: number;
+    export interface HueSaturationAttributes {
+        /**
+         * The CurrentHue attribute contains the current hue value of the light. It is updated as fast as practical
+         * during commands that change the hue.
+         *
+         * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
+         *
+         * Hue = "CurrentHue" * 360 / 254
+         *
+         * where CurrentHue is in the range from 0 to 254 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.2
+         */
+        currentHue: number;
 
-            /**
-             * Indicates the current saturation value of the light. It is updated as fast as practical during commands
-             * that change the saturation.
-             *
-             * The saturation (on a scale from 0.0 to 1.0) shall be related to the CurrentSaturation attribute by the
-             * relationship:
-             *
-             * Saturation = "CurrentSaturation" / 254
-             *
-             * where CurrentSaturation is in the range from 0 to 254 inclusive.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once per second or
-             *
-             *   - At the end of the movement/transition.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.3
-             */
-            readonly currentSaturation: number;
-        }
-
-        export interface Commands {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
-             */
-            moveToHue(request: MoveToHueRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
-             */
-            moveHue(request: MoveHueRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
-             */
-            stepHue(request: StepHueRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
-             */
-            moveToSaturation(request: MoveToSaturationRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
-             */
-            moveSaturation(request: MoveSaturationRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
-             */
-            stepSaturation(request: StepSaturationRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
-             */
-            moveToHueAndSaturation(request: MoveToHueAndSaturationRequest): MaybePromise;
-        }
+        /**
+         * Indicates the current saturation value of the light. It is updated as fast as practical during commands that
+         * change the saturation.
+         *
+         * The saturation (on a scale from 0.0 to 1.0) shall be related to the CurrentSaturation attribute by the
+         * relationship:
+         *
+         * Saturation = "CurrentSaturation" / 254
+         *
+         * where CurrentSaturation is in the range from 0 to 254 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.3
+         */
+        currentSaturation: number;
     }
 
     /**
      * {@link ColorControl} supports these elements if it supports feature "Xy".
      */
-    export namespace XyComponent {
-        export interface Attributes {
-            /**
-             * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color
-             * Space. It is updated as fast as practical during commands that change the color.
-             *
-             * The value of x shall be related to the CurrentX attribute by the relationship
-             *
-             * x = "CurrentX" / 65536
-             *
-             * where CurrentX is in the range from 0 to 65279 inclusive.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once per second or
-             *
-             *   - At the end of the movement/transition.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.5
-             */
-            readonly currentX: number;
+    export interface XyAttributes {
+        /**
+         * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color Space. It
+         * is updated as fast as practical during commands that change the color.
+         *
+         * The value of x shall be related to the CurrentX attribute by the relationship
+         *
+         * x = "CurrentX" / 65536
+         *
+         * where CurrentX is in the range from 0 to 65279 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.5
+         */
+        currentX: number;
 
-            /**
-             * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color
-             * Space. It is updated as fast as practical during commands that change the color.
-             *
-             * The value of y shall be related to the CurrentY attribute by the relationship
-             *
-             * y = "CurrentY" / 65536
-             *
-             * where CurrentY is in the range from 0 to 65279 inclusive.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once per second or
-             *
-             *   - At the end of the movement/transition.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.6
-             */
-            readonly currentY: number;
-        }
-
-        export interface Commands {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
-             */
-            moveToColor(request: MoveToColorRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
-             */
-            moveColor(request: MoveColorRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
-             */
-            stepColor(request: StepColorRequest): MaybePromise;
-        }
+        /**
+         * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color Space. It
+         * is updated as fast as practical during commands that change the color.
+         *
+         * The value of y shall be related to the CurrentY attribute by the relationship
+         *
+         * y = "CurrentY" / 65536
+         *
+         * where CurrentY is in the range from 0 to 65279 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.6
+         */
+        currentY: number;
     }
 
     /**
      * {@link ColorControl} supports these elements if it supports feature "ColorTemperature".
      */
-    export namespace ColorTemperatureComponent {
-        export interface Attributes {
-            /**
-             * Indicates a scaled inverse of the current value of the color temperature. The unit of
-             * ColorTemperatureMireds is the mired (micro reciprocal degree), a.k.a. mirek (micro reciprocal kelvin). It
-             * is updated as fast as practical during commands that change the color.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once per second or
-             *
-             *   - At the end of the movement/transition.
-             *
-             * The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in mired
-             * by the relationship
-             *
-             * "Color temperature [K]" = "1,000,000" / "ColorTemperatureMireds"
-             *
-             * where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color temperature range
-             * from 1,000,000 K to 15.32 K.
-             *
-             * If this attribute is implemented then the ColorMode attribute shall also be implemented.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.9
-             */
-            readonly colorTemperatureMireds: number;
+    export interface ColorTemperatureAttributes {
+        /**
+         * Indicates a scaled inverse of the current value of the color temperature. The unit of ColorTemperatureMireds
+         * is the mired (micro reciprocal degree), a.k.a. mirek (micro reciprocal kelvin). It is updated as fast as
+         * practical during commands that change the color.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in mired by
+         * the relationship
+         *
+         * "Color temperature [K]" = "1,000,000" / "ColorTemperatureMireds"
+         *
+         * where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color temperature range from
+         * 1,000,000 K to 15.32 K.
+         *
+         * If this attribute is implemented then the ColorMode attribute shall also be implemented.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.9
+         */
+        colorTemperatureMireds: number;
 
-            /**
-             * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to
-             * the maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <=
-             * ColorTemperatureMireds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.20
-             */
-            readonly colorTempPhysicalMinMireds: number;
+        /**
+         * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to the
+         * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <=
+         * ColorTemperatureMireds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.20
+         */
+        colorTempPhysicalMinMireds: number;
 
-            /**
-             * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to
-             * the minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <=
-             * ColorTempPhysicalMaxMireds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.21
-             */
-            readonly colorTempPhysicalMaxMireds: number;
+        /**
+         * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to the
+         * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <=
+         * ColorTempPhysicalMaxMireds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.21
+         */
+        colorTempPhysicalMaxMireds: number;
 
-            /**
-             * Indicates a lower bound on the value of the ColorTemperatureMireds attribute for the purposes of coupling
-             * the ColorTemperatureMireds attribute to the CurrentLevel attribute when the CoupleColorTempToLevel bit of
-             * the Options attribute of the Level Control cluster is equal to 1. When coupling the
-             * ColorTemperatureMireds attribute to the CurrentLevel attribute, this value shall correspond to a
-             * CurrentLevel value of 254 (100%).
-             *
-             * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds <=
-             * CoupleColorTempToLevelMinMireds <= ColorTemperatureMireds
-             *
-             * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color
-             * temperature in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the
-             * CoupleColorTempToLevelMinMireds attribute corresponds to an upper bound on the value of the color
-             * temperature in kelvins supported by the device.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.22
-             */
-            readonly coupleColorTempToLevelMinMireds?: number;
+        /**
+         * Indicates a lower bound on the value of the ColorTemperatureMireds attribute for the purposes of coupling the
+         * ColorTemperatureMireds attribute to the CurrentLevel attribute when the CoupleColorTempToLevel bit of the
+         * Options attribute of the Level Control cluster is equal to 1. When coupling the ColorTemperatureMireds
+         * attribute to the CurrentLevel attribute, this value shall correspond to a CurrentLevel value of 254 (100%).
+         *
+         * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds <=
+         * CoupleColorTempToLevelMinMireds <= ColorTemperatureMireds
+         *
+         * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color temperature
+         * in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the CoupleColorTempToLevelMinMireds attribute
+         * corresponds to an upper bound on the value of the color temperature in kelvins supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.22
+         */
+        coupleColorTempToLevelMinMireds?: number;
 
-            /**
-             * Indicates the desired startup color temperature value the light shall use when it is supplied with power
-             * and this value shall be reflected in the ColorTemperatureMireds attribute. In addition, the ColorMode and
-             * EnhancedColorMode attributes shall be set to 2 (ColorTemperatureMireds). The values of the
-             * StartUpColorTemperatureMireds attribute are listed in the table below,
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.23
-             */
-            startUpColorTemperatureMireds?: number | null;
-        }
-
-        export interface Commands {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
-             */
-            moveToColorTemperature(request: MoveToColorTemperatureRequest): MaybePromise;
-
-            /**
-             * This command allows the color temperature of the light to be moved at a specified rate.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.21
-             */
-            moveColorTemperature(request: MoveColorTemperatureRequest): MaybePromise;
-
-            /**
-             * This command allows the color temperature of the light to be stepped with a specified step size.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.22
-             */
-            stepColorTemperature(request: StepColorTemperatureRequest): MaybePromise;
-        }
+        /**
+         * Indicates the desired startup color temperature value the light shall use when it is supplied with power and
+         * this value shall be reflected in the ColorTemperatureMireds attribute. In addition, the ColorMode and
+         * EnhancedColorMode attributes shall be set to 2 (ColorTemperatureMireds). The values of the
+         * StartUpColorTemperatureMireds attribute are listed in the table below,
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.23
+         */
+        startUpColorTemperatureMireds?: number | null;
     }
 
     /**
      * {@link ColorControl} supports these elements if it supports feature "EnhancedHue".
      */
-    export namespace EnhancedHueComponent {
-        export interface Attributes {
-            /**
-             * Indicates the non-equidistant steps along the CIE 1931 color triangle, and it provides 16-bits precision.
-             *
-             * The upper 8 bits of this attribute shall be used as an index in the implementation specific XY lookup
-             * table to provide the non-equidistant steps. The lower 8 bits shall be used to interpolate between these
-             * steps in a linear way in order to provide color zoom for the user.
-             *
-             * To provide compatibility with clients not supporting EHUE, the CurrentHue attribute shall contain a hue
-             * value in the range 0 to 254, calculated from the EnhancedCurrentHue attribute.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once per second or
-             *
-             *   - At the end of the movement/transition.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.12
-             */
-            readonly enhancedCurrentHue: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command allows the light to be moved in a smooth continuous transition from their current hue to a
-             * target hue.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.15
-             */
-            enhancedMoveToHue(request: EnhancedMoveToHueRequest): MaybePromise;
-
-            /**
-             * This command allows the light to start a continuous transition starting from their current hue.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.16
-             */
-            enhancedMoveHue(request: EnhancedMoveHueRequest): MaybePromise;
-
-            /**
-             * This command allows the light to be moved in a stepped transition from their current hue, resulting in a
-             * linear transition through XY space.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.17
-             */
-            enhancedStepHue(request: EnhancedStepHueRequest): MaybePromise;
-
-            /**
-             * This command allows the light to be moved in a smooth continuous transition from their current hue to a
-             * target hue and from their current saturation to a target saturation.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.18
-             */
-            enhancedMoveToHueAndSaturation(request: EnhancedMoveToHueAndSaturationRequest): MaybePromise;
-        }
+    export interface EnhancedHueAttributes {
+        /**
+         * Indicates the non-equidistant steps along the CIE 1931 color triangle, and it provides 16-bits precision.
+         *
+         * The upper 8 bits of this attribute shall be used as an index in the implementation specific XY lookup table
+         * to provide the non-equidistant steps. The lower 8 bits shall be used to interpolate between these steps in a
+         * linear way in order to provide color zoom for the user.
+         *
+         * To provide compatibility with clients not supporting EHUE, the CurrentHue attribute shall contain a hue value
+         * in the range 0 to 254, calculated from the EnhancedCurrentHue attribute.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.12
+         */
+        enhancedCurrentHue: number;
     }
 
     /**
      * {@link ColorControl} supports these elements if it supports feature "ColorLoop".
      */
-    export namespace ColorLoopComponent {
-        export interface Attributes {
-            /**
-             * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop
-             * shall NOT be active. If this attribute has the value 1, the color loop shall be active.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.14
-             */
-            readonly colorLoopActive: ColorLoopActive;
+    export interface ColorLoopAttributes {
+        /**
+         * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop
+         * shall NOT be active. If this attribute has the value 1, the color loop shall be active.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.14
+         */
+        colorLoopActive: ColorLoopActive;
 
-            /**
-             * Indicates the current direction of the color loop. If this attribute has the value Decrement, the
-             * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value Increment, the
-             * EnhancedCurrentHue attribute shall be incremented.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.15
-             */
-            readonly colorLoopDirection: ColorLoopDirection;
+        /**
+         * Indicates the current direction of the color loop. If this attribute has the value Decrement, the
+         * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value Increment, the
+         * EnhancedCurrentHue attribute shall be incremented.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.15
+         */
+        colorLoopDirection: ColorLoopDirection;
 
-            /**
-             * Indicates the number of seconds it shall take to perform a full color loop, i.e., to cycle all values of
-             * the EnhancedCurrentHue attribute (between 0 and 65534).
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.16
-             */
-            readonly colorLoopTime: number;
+        /**
+         * Indicates the number of seconds it shall take to perform a full color loop, i.e., to cycle all values of the
+         * EnhancedCurrentHue attribute (between 0 and 65534).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.16
+         */
+        colorLoopTime: number;
 
-            /**
-             * Indicates the value of the EnhancedCurrentHue attribute from which the color loop shall be started.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.17
-             */
-            readonly colorLoopStartEnhancedHue: number;
+        /**
+         * Indicates the value of the EnhancedCurrentHue attribute from which the color loop shall be started.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.17
+         */
+        colorLoopStartEnhancedHue: number;
 
-            /**
-             * Indicates the value of the EnhancedCurrentHue attribute before the color loop was started. Once the color
-             * loop is complete, the EnhancedCurrentHue attribute shall be restored to this value.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.18
-             */
-            readonly colorLoopStoredEnhancedHue: number;
-        }
+        /**
+         * Indicates the value of the EnhancedCurrentHue attribute before the color loop was started. Once the color
+         * loop is complete, the EnhancedCurrentHue attribute shall be restored to this value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.18
+         */
+        colorLoopStoredEnhancedHue: number;
+    }
 
-        export interface Commands {
-            /**
-             * This command allows a color loop to be activated such that the color light cycles through its range of
-             * hues.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.19
-             */
-            colorLoopSet(request: ColorLoopSetRequest): MaybePromise;
-        }
+    /**
+     * Attributes that may appear in {@link ColorControl}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates which attributes are currently determining the color of the device.
+         *
+         * The value of the ColorMode attribute cannot be written directly - it is set upon reception of any command in
+         * section Commands to the appropriate mode for that command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.10
+         */
+        colorMode: ColorMode;
+
+        /**
+         * Indicates a bitmap that determines the default behavior of some cluster commands. Each command that is
+         * dependent on the Options attribute shall first construct a temporary Options bitmap that is in effect during
+         * the command processing. The temporary Options bitmap has the same format and meaning as the Options
+         * attribute, but includes any bits that may be overridden by command fields.
+         *
+         * This attribute is meant to be changed only during commissioning.
+         *
+         * Below is the format and description of the Options attribute and temporary Options bitmap and the effect on
+         * dependent commands.
+         *
+         * Command execution shall NOT continue beyond the Options processing if all of these criteria are true:
+         *
+         *   - The On/Off cluster exists on the same endpoint as this cluster.
+         *
+         *   - The OnOff attribute of the On/Off cluster, on this endpoint, is FALSE.
+         *
+         *   - The value of the ExecuteIfOff bit is 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.11
+         */
+        options: Options;
+
+        /**
+         * Indicates the number of color primaries implemented on this device. A value of null shall indicate that the
+         * number of primaries is unknown.
+         *
+         * Where this attribute is implemented, the attributes below for indicating the “x” and “y” color values of the
+         * primaries shall also be implemented for each of the primaries from 1 to NumberOfPrimaries, without leaving
+         * gaps. Implementation of the Primary1Intensity attribute and subsequent intensity attributes is optional.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.24
+         */
+        numberOfPrimaries: number | null;
+
+        /**
+         * Indicates which attributes are currently determining the color of the device.
+         *
+         * To provide compatibility with clients not supporting EHUE, the original ColorMode attribute shall indicate
+         * CurrentHue and CurrentSaturation when the light uses the EnhancedCurrentHue attribute. If the ColorMode
+         * attribute is changed, its new value shall be copied to the EnhancedColorMode attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.13
+         */
+        enhancedColorMode: EnhancedColorMode;
+
+        /**
+         * Indicates the color control capabilities of the device.
+         *
+         * Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of the
+         * FeatureMap attribute. All other bits in ColorCapabilities shall be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.19
+         */
+        colorCapabilities: ColorCapabilities;
+
+        /**
+         * Indicates the time remaining, in 1/10ths of a second, until transitions due to the currently active command
+         * will be complete.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - When it changes from 0 to any value higher than 10, or
+         *
+         *   - When it changes, with a delta larger than 10, caused by the invoke of a command, or
+         *
+         *   - When it changes to 0.
+         *
+         * For commands with a transition time or changes to the transition time less than 1 second, changes to this
+         * attribute shall NOT be reported.
+         *
+         * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
+         * of this attribute in order to keep track of the remaining duration.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.4
+         */
+        remainingTime: number;
+
+        /**
+         * Indicates what mechanism, if any, is in use for compensation for color/intensity drift over time.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.7
+         */
+        driftCompensation: DriftCompensation;
+
+        /**
+         * This attribute shall contain a textual indication of what mechanism, if any, is in use to compensate for
+         * color/intensity drift over time.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.8
+         */
+        compensationText: string;
+
+        /**
+         * Indicates the normalized chromaticity value x for this primary, as defined in the CIE xyY Color Space.
+         *
+         * The value of x shall be related to the Primary1X attribute by the relationship
+         *
+         * x = Primary1X / 65536 (Primary1X in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.25
+         */
+        primary1X: number;
+
+        /**
+         * Indicates the normalized chromaticity value y for this primary, as defined in the CIE xyY Color Space.
+         *
+         * The value of y shall be related to the Primary1Y attribute by the relationship
+         *
+         * y = Primary1Y / 65536 (Primary1Y in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.26
+         */
+        primary1Y: number;
+
+        /**
+         * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, “The Dimming
+         * Light Curve”, normalized such that the primary with the highest maximum intensity contains the value 254.
+         *
+         * A value of null shall indicate that this primary is not available.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.27
+         */
+        primary1Intensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary2X: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary2Y: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary2Intensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary3X: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary3Y: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary3Intensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary4X: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary4Y: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary4Intensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary5X: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary5Y: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary5Intensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary6X: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary6Y: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        primary6Intensity: number | null;
+
+        /**
+         * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the current white
+         * point of the device.
+         *
+         * The value of x shall be related to the WhitePointX attribute by the relationship
+         *
+         * x = WhitePointX / 65536 (WhitePointX in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.29
+         */
+        whitePointX: number;
+
+        /**
+         * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the current white
+         * point of the device.
+         *
+         * The value of y shall be related to the WhitePointY attribute by the relationship
+         *
+         * y = WhitePointY / 65536 (WhitePointY in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.30
+         */
+        whitePointY: number;
+
+        /**
+         * Indicates the normalized chromaticity value x, as defined in the CIE xyY Color Space, of the red color point
+         * of the device.
+         *
+         * The value of x shall be related to the ColorPointRX attribute by the relationship
+         *
+         * x = ColorPointRX / 65536 (ColorPointRX in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.31
+         */
+        colorPointRx: number;
+
+        /**
+         * Indicates the normalized chromaticity value y, as defined in the CIE xyY Color Space, of the red color point
+         * of the device.
+         *
+         * The value of y shall be related to the ColorPointRY attribute by the relationship
+         *
+         * y = ColorPointRY / 65536 (ColorPointRY in the range 0 to 65279 inclusive)
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.32
+         */
+        colorPointRy: number;
+
+        /**
+         * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3, “The
+         * Dimming Light Curve”, normalized such that the color point with the highest relative intensity contains the
+         * value 254.
+         *
+         * A value of null shall indicate an invalid value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.33
+         */
+        colorPointRIntensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointGx: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointGy: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointGIntensity: number | null;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointBx: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointBy: number;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7
+         */
+        colorPointBIntensity: number | null;
+
+        /**
+         * The CurrentHue attribute contains the current hue value of the light. It is updated as fast as practical
+         * during commands that change the hue.
+         *
+         * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
+         *
+         * Hue = "CurrentHue" * 360 / 254
+         *
+         * where CurrentHue is in the range from 0 to 254 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.2
+         */
+        currentHue: number;
+
+        /**
+         * Indicates the current saturation value of the light. It is updated as fast as practical during commands that
+         * change the saturation.
+         *
+         * The saturation (on a scale from 0.0 to 1.0) shall be related to the CurrentSaturation attribute by the
+         * relationship:
+         *
+         * Saturation = "CurrentSaturation" / 254
+         *
+         * where CurrentSaturation is in the range from 0 to 254 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.3
+         */
+        currentSaturation: number;
+
+        /**
+         * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color Space. It
+         * is updated as fast as practical during commands that change the color.
+         *
+         * The value of x shall be related to the CurrentX attribute by the relationship
+         *
+         * x = "CurrentX" / 65536
+         *
+         * where CurrentX is in the range from 0 to 65279 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.5
+         */
+        currentX: number;
+
+        /**
+         * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color Space. It
+         * is updated as fast as practical during commands that change the color.
+         *
+         * The value of y shall be related to the CurrentY attribute by the relationship
+         *
+         * y = "CurrentY" / 65536
+         *
+         * where CurrentY is in the range from 0 to 65279 inclusive.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.6
+         */
+        currentY: number;
+
+        /**
+         * Indicates a scaled inverse of the current value of the color temperature. The unit of ColorTemperatureMireds
+         * is the mired (micro reciprocal degree), a.k.a. mirek (micro reciprocal kelvin). It is updated as fast as
+         * practical during commands that change the color.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in mired by
+         * the relationship
+         *
+         * "Color temperature [K]" = "1,000,000" / "ColorTemperatureMireds"
+         *
+         * where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color temperature range from
+         * 1,000,000 K to 15.32 K.
+         *
+         * If this attribute is implemented then the ColorMode attribute shall also be implemented.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.9
+         */
+        colorTemperatureMireds: number;
+
+        /**
+         * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to the
+         * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <=
+         * ColorTemperatureMireds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.20
+         */
+        colorTempPhysicalMinMireds: number;
+
+        /**
+         * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to the
+         * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <=
+         * ColorTempPhysicalMaxMireds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.21
+         */
+        colorTempPhysicalMaxMireds: number;
+
+        /**
+         * Indicates a lower bound on the value of the ColorTemperatureMireds attribute for the purposes of coupling the
+         * ColorTemperatureMireds attribute to the CurrentLevel attribute when the CoupleColorTempToLevel bit of the
+         * Options attribute of the Level Control cluster is equal to 1. When coupling the ColorTemperatureMireds
+         * attribute to the CurrentLevel attribute, this value shall correspond to a CurrentLevel value of 254 (100%).
+         *
+         * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds <=
+         * CoupleColorTempToLevelMinMireds <= ColorTemperatureMireds
+         *
+         * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color temperature
+         * in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the CoupleColorTempToLevelMinMireds attribute
+         * corresponds to an upper bound on the value of the color temperature in kelvins supported by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.22
+         */
+        coupleColorTempToLevelMinMireds: number;
+
+        /**
+         * Indicates the desired startup color temperature value the light shall use when it is supplied with power and
+         * this value shall be reflected in the ColorTemperatureMireds attribute. In addition, the ColorMode and
+         * EnhancedColorMode attributes shall be set to 2 (ColorTemperatureMireds). The values of the
+         * StartUpColorTemperatureMireds attribute are listed in the table below,
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.23
+         */
+        startUpColorTemperatureMireds: number | null;
+
+        /**
+         * Indicates the non-equidistant steps along the CIE 1931 color triangle, and it provides 16-bits precision.
+         *
+         * The upper 8 bits of this attribute shall be used as an index in the implementation specific XY lookup table
+         * to provide the non-equidistant steps. The lower 8 bits shall be used to interpolate between these steps in a
+         * linear way in order to provide color zoom for the user.
+         *
+         * To provide compatibility with clients not supporting EHUE, the CurrentHue attribute shall contain a hue value
+         * in the range 0 to 254, calculated from the EnhancedCurrentHue attribute.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once per second or
+         *
+         *   - At the end of the movement/transition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.12
+         */
+        enhancedCurrentHue: number;
+
+        /**
+         * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop
+         * shall NOT be active. If this attribute has the value 1, the color loop shall be active.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.14
+         */
+        colorLoopActive: ColorLoopActive;
+
+        /**
+         * Indicates the current direction of the color loop. If this attribute has the value Decrement, the
+         * EnhancedCurrentHue attribute shall be decremented. If this attribute has the value Increment, the
+         * EnhancedCurrentHue attribute shall be incremented.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.15
+         */
+        colorLoopDirection: ColorLoopDirection;
+
+        /**
+         * Indicates the number of seconds it shall take to perform a full color loop, i.e., to cycle all values of the
+         * EnhancedCurrentHue attribute (between 0 and 65534).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.16
+         */
+        colorLoopTime: number;
+
+        /**
+         * Indicates the value of the EnhancedCurrentHue attribute from which the color loop shall be started.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.17
+         */
+        colorLoopStartEnhancedHue: number;
+
+        /**
+         * Indicates the value of the EnhancedCurrentHue attribute before the color loop was started. Once the color
+         * loop is complete, the EnhancedCurrentHue attribute shall be restored to this value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.18
+         */
+        colorLoopStoredEnhancedHue: number;
+    }
+
+    /**
+     * {@link ColorControl} supports these elements if it supports feature "HueSaturation".
+     */
+    export interface HueSaturationCommands {
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
+         */
+        moveToHue(request: MoveToHueRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
+         */
+        moveHue(request: MoveHueRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
+         */
+        stepHue(request: StepHueRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
+         */
+        moveToSaturation(request: MoveToSaturationRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
+         */
+        moveSaturation(request: MoveSaturationRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
+         */
+        stepSaturation(request: StepSaturationRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
+         */
+        moveToHueAndSaturation(request: MoveToHueAndSaturationRequest): MaybePromise;
+    }
+
+    /**
+     * {@link ColorControl} supports these elements if it supports feature "Xy".
+     */
+    export interface XyCommands {
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
+         */
+        moveToColor(request: MoveToColorRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
+         */
+        moveColor(request: MoveColorRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
+         */
+        stepColor(request: StepColorRequest): MaybePromise;
+    }
+
+    /**
+     * {@link ColorControl} supports these elements if it supports feature "ColorTemperature".
+     */
+    export interface ColorTemperatureCommands {
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
+         */
+        moveToColorTemperature(request: MoveToColorTemperatureRequest): MaybePromise;
+
+        /**
+         * This command allows the color temperature of the light to be moved at a specified rate.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.21
+         */
+        moveColorTemperature(request: MoveColorTemperatureRequest): MaybePromise;
+
+        /**
+         * This command allows the color temperature of the light to be stepped with a specified step size.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.22
+         */
+        stepColorTemperature(request: StepColorTemperatureRequest): MaybePromise;
+    }
+
+    /**
+     * {@link ColorControl} supports these elements if it supports feature "EnhancedHue".
+     */
+    export interface EnhancedHueCommands {
+        /**
+         * This command allows the light to be moved in a smooth continuous transition from their current hue to a
+         * target hue.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.15
+         */
+        enhancedMoveToHue(request: EnhancedMoveToHueRequest): MaybePromise;
+
+        /**
+         * This command allows the light to start a continuous transition starting from their current hue.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.16
+         */
+        enhancedMoveHue(request: EnhancedMoveHueRequest): MaybePromise;
+
+        /**
+         * This command allows the light to be moved in a stepped transition from their current hue, resulting in a
+         * linear transition through XY space.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.17
+         */
+        enhancedStepHue(request: EnhancedStepHueRequest): MaybePromise;
+
+        /**
+         * This command allows the light to be moved in a smooth continuous transition from their current hue to a
+         * target hue and from their current saturation to a target saturation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.18
+         */
+        enhancedMoveToHueAndSaturation(request: EnhancedMoveToHueAndSaturationRequest): MaybePromise;
+    }
+
+    /**
+     * {@link ColorControl} supports these elements if it supports feature "ColorLoop".
+     */
+    export interface ColorLoopCommands {
+        /**
+         * This command allows a color loop to be activated such that the color light cycles through its range of hues.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.19
+         */
+        colorLoopSet(request: ColorLoopSetRequest): MaybePromise;
     }
 
     /**
      * {@link ColorControl} supports these elements if it supports feature "HueSaturationOrXyOrColorTemperature".
      */
-    export namespace HueSaturationOrXyOrColorTemperatureComponent {
-        export interface Commands {
-            /**
-             * This command is provided to allow MoveTo and Step commands to be stopped.
-             *
-             * > [!NOTE]
-             *
-             * > This automatically provides symmetry to the Level Control cluster.
-             *
-             * > [!NOTE]
-             *
-             * > The StopMoveStep command has no effect on an active color loop.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.20
-             */
-            stopMoveStep(request: StopMoveStepRequest): MaybePromise;
-        }
+    export interface HueSaturationOrXyOrColorTemperatureCommands {
+        /**
+         * This command is provided to allow MoveTo and Step commands to be stopped.
+         *
+         * > [!NOTE]
+         *
+         * > This automatically provides symmetry to the Level Control cluster.
+         *
+         * > [!NOTE]
+         *
+         * > The StopMoveStep command has no effect on an active color loop.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.20
+         */
+        stopMoveStep(request: StopMoveStepRequest): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<HueSaturationComponent.Attributes>, Partial<XyComponent.Attributes>, Partial<ColorTemperatureComponent.Attributes>, Partial<EnhancedHueComponent.Attributes>, Partial<ColorLoopComponent.Attributes> {}
-    export interface Commands extends HueSaturationComponent.Commands, XyComponent.Commands, ColorTemperatureComponent.Commands, EnhancedHueComponent.Commands, ColorLoopComponent.Commands, HueSaturationOrXyOrColorTemperatureComponent.Commands {}
+    /**
+     * Commands that may appear in {@link ColorControl}.
+     */
+    export interface Commands extends
+        HueSaturationCommands,
+        XyCommands,
+        ColorTemperatureCommands,
+        EnhancedHueCommands,
+        ColorLoopCommands,
+        HueSaturationOrXyOrColorTemperatureCommands
+    {}
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
-        {
-            flags: { hueSaturation: true },
-            attributes: HueSaturationComponent.Attributes,
-            commands: HueSaturationComponent.Commands
-        },
-        { flags: { xy: true }, attributes: XyComponent.Attributes, commands: XyComponent.Commands },
+        { flags: {}, attributes: BaseAttributes },
+        { flags: { hueSaturation: true }, attributes: HueSaturationAttributes, commands: HueSaturationCommands },
+        { flags: { xy: true }, attributes: XyAttributes, commands: XyCommands },
         {
             flags: { colorTemperature: true },
-            attributes: ColorTemperatureComponent.Attributes,
-            commands: ColorTemperatureComponent.Commands
+            attributes: ColorTemperatureAttributes,
+            commands: ColorTemperatureCommands
         },
-        {
-            flags: { enhancedHue: true },
-            attributes: EnhancedHueComponent.Attributes,
-            commands: EnhancedHueComponent.Commands
-        },
-        {
-            flags: { colorLoop: true },
-            attributes: ColorLoopComponent.Attributes,
-            commands: ColorLoopComponent.Commands
-        },
-        { flags: { hueSaturation: true }, commands: HueSaturationOrXyOrColorTemperatureComponent.Commands },
-        { flags: { xy: true }, commands: HueSaturationOrXyOrColorTemperatureComponent.Commands },
-        { flags: { colorTemperature: true }, commands: HueSaturationOrXyOrColorTemperatureComponent.Commands }
+        { flags: { enhancedHue: true }, attributes: EnhancedHueAttributes, commands: EnhancedHueCommands },
+        { flags: { colorLoop: true }, attributes: ColorLoopAttributes, commands: ColorLoopCommands },
+        { flags: { hueSaturation: true }, commands: HueSaturationOrXyOrColorTemperatureCommands },
+        { flags: { xy: true }, commands: HueSaturationOrXyOrColorTemperatureCommands },
+        { flags: { colorTemperature: true }, commands: HueSaturationOrXyOrColorTemperatureCommands }
     ];
 
     export type Features = "HueSaturation" | "EnhancedHue" | "ColorLoop" | "Xy" | "ColorTemperature";
@@ -908,6 +1454,32 @@ export declare namespace ColorControl {
          * The compensation is based on optical color monitoring and feedback.
          */
         OpticalColorMonitoringAndFeedback = 4
+    }
+
+    /**
+     * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop shall
+     * NOT be active. If this attribute has the value 1, the color loop shall be active.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.14
+     */
+    export enum ColorLoopActive {
+        Inactive = 0,
+        Active = 1
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.11
+     */
+    export enum ColorLoopDirection {
+        /**
+         * Decrement the hue in the color loop.
+         */
+        Decrement = 0,
+
+        /**
+         * Increment the hue in the color loop.
+         */
+        Increment = 1
     }
 
     /**
@@ -1384,32 +1956,6 @@ export declare namespace ColorControl {
     }
 
     /**
-     * Indicates the current active status of the color loop. If this attribute has the value 0, the color loop shall
-     * NOT be active. If this attribute has the value 1, the color loop shall be active.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.14
-     */
-    export enum ColorLoopActive {
-        Inactive = 0,
-        Active = 1
-    }
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.11
-     */
-    export enum ColorLoopDirection {
-        /**
-         * Decrement the hue in the color loop.
-         */
-        Decrement = 0,
-
-        /**
-         * Increment the hue in the color loop.
-         */
-        Increment = 1
-    }
-
-    /**
      * This command allows a color loop to be activated such that the color light cycles through its range of hues.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.19
@@ -1608,24 +2154,42 @@ export declare namespace ColorControl {
         ActivateFromEnhancedCurrentHue = 2
     }
 
-    export const id: ClusterId;
-    export const name: "ColorControl";
-    export const revision: 7;
-    export const schema: typeof ColorControlModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link ColorControl}.
+     */
     export const Cluster: typeof ColorControl;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ColorControl` instead of `ColorControl.Complete`)
+     * @deprecated Use {@link ColorControl}.
      */
     export const Complete: typeof ColorControl;
 
     export const Typing: ColorControl;
 }
 
+/**
+ * @deprecated Use {@link ColorControl}.
+ */
 export declare const ColorControlCluster: typeof ColorControl;
-export interface ColorControl extends ClusterTyping { Attributes: ColorControl.Attributes; Commands: ColorControl.Commands; Features: ColorControl.Features; Components: ColorControl.Components }
+
+export interface ColorControl extends ClusterTyping {
+    Attributes: ColorControl.Attributes;
+    Commands: ColorControl.Commands;
+    Features: ColorControl.Features;
+    Components: ColorControl.Components;
+}

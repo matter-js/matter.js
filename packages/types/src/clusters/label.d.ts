@@ -7,28 +7,59 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { Label as LabelModel } from "@matter/model";
+import type { ClusterModel } from "@matter/model";
 
 /**
  * Definitions for the Label cluster.
+ *
+ * This cluster provides a feature to tag an endpoint with zero or more labels. This is a base cluster that requires a
+ * derived cluster to create an instance.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 9.7
  */
 export declare namespace Label {
     /**
+     * Textual cluster identifier.
+     */
+    export const name: "Label";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the Label cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link Label} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This is a list of string tuples. Each entry is a LabelStruct.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.7.5.1
-             */
-            labelList: LabelStruct[];
-        }
+    export interface BaseAttributes {
+        /**
+         * This is a list of string tuples. Each entry is a LabelStruct.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.7.5.1
+         */
+        labelList: LabelStruct[];
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes }];
+    /**
+     * Attributes that may appear in {@link Label}.
+     */
+    export interface Attributes {
+        /**
+         * This is a list of string tuples. Each entry is a LabelStruct.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.7.5.1
+         */
+        labelList: LabelStruct[];
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
      * This is a string tuple with strings that are user defined.
@@ -56,18 +87,20 @@ export declare namespace Label {
         value: string;
     }
 
-    export const name: "Label";
-    export const revision: 1;
-    export const schema: typeof LabelModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `Label` instead of `Label.Complete`)
+     * @deprecated Use {@link Label}.
      */
     export const Complete: typeof Label;
 
     export const Typing: Label;
 }
 
-export interface Label extends ClusterTyping { Attributes: Label.Attributes; Components: Label.Components }
+export interface Label extends ClusterTyping {
+    Attributes: Label.Attributes;
+    Components: Label.Components;
+}

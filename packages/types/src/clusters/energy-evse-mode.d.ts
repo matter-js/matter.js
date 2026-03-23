@@ -6,58 +6,117 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { ModeBase } from "./mode-base.js";
 import type { VendorId } from "../datatype/VendorId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { EnergyEvseMode as EnergyEvseModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the EnergyEvseMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for EVSE devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 9.4
  */
 export declare namespace EnergyEvseMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x009d;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "EnergyEvseMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the EnergyEvseMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link EnergyEvseMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags
-             * field list.
-             *
-             * Modes with entries in the SupportedModes attribute which contain multiple mode tags permitting charging
-             * or discharging under different conditions shall permit the charging or discharging to occur if any of the
-             * conditions are satisfied.
-             *
-             * Modes shall NOT have both the Manual tag and the TimeOfUse or SolarCharging tags defined in the
-             * SupportedModes attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 9.4.6.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags field
+         * list.
+         *
+         * Modes with entries in the SupportedModes attribute which contain multiple mode tags permitting charging or
+         * discharging under different conditions shall permit the charging or discharging to occur if any of the
+         * conditions are satisfied.
+         *
+         * Modes shall NOT have both the Manual tag and the TimeOfUse or SolarCharging tags defined in the
+         * SupportedModes attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.4.6.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 9.4.6
-             */
-            readonly currentMode: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 9.4.6
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link EnergyEvseMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Manual mode tag in the ModeTags field
+         * list.
+         *
+         * Modes with entries in the SupportedModes attribute which contain multiple mode tags permitting charging or
+         * discharging under different conditions shall permit the charging or discharging to occur if any of the
+         * conditions are satisfied.
+         *
+         * Modes shall NOT have both the Manual tag and the TimeOfUse or SolarCharging tags defined in the
+         * SupportedModes attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 9.4.6.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 9.4.6
+         */
+        currentMode: number;
+    }
+
+    /**
+     * {@link EnergyEvseMode} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to change device modes.
+         *
+         * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         */
+        changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link EnergyEvseMode}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "OnOff";
 
     /**
@@ -261,24 +320,42 @@ export declare namespace EnergyEvseMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "EnergyEvseMode";
-    export const revision: 2;
-    export const schema: typeof EnergyEvseModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link EnergyEvseMode}.
+     */
     export const Cluster: typeof EnergyEvseMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `EnergyEvseMode` instead of `EnergyEvseMode.Complete`)
+     * @deprecated Use {@link EnergyEvseMode}.
      */
     export const Complete: typeof EnergyEvseMode;
 
     export const Typing: EnergyEvseMode;
 }
 
+/**
+ * @deprecated Use {@link EnergyEvseMode}.
+ */
 export declare const EnergyEvseModeCluster: typeof EnergyEvseMode;
-export interface EnergyEvseMode extends ClusterTyping { Attributes: EnergyEvseMode.Attributes; Commands: EnergyEvseMode.Commands; Features: EnergyEvseMode.Features; Components: EnergyEvseMode.Components }
+
+export interface EnergyEvseMode extends ClusterTyping {
+    Attributes: EnergyEvseMode.Attributes;
+    Commands: EnergyEvseMode.Commands;
+    Features: EnergyEvseMode.Features;
+    Components: EnergyEvseMode.Components;
+}

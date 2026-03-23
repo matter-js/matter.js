@@ -6,117 +6,182 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ApplicationLauncher as ApplicationLauncherModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the ApplicationLauncher cluster.
+ *
+ * This cluster provides an interface for launching applications on a Video Player device such as a TV.
+ *
+ * This cluster is supported on endpoints that can launch Applications, such as a Casting Video Player device with a
+ * Content App Platform. It supports identifying an Application by global identifier from a given catalog, and launching
+ * it. It also supports tracking the currently in-focus Application.
+ *
+ * Depending on the support for the Application Platform feature, the cluster can either support launching the
+ * application corresponding to the endpoint on which the cluster is supported (AP feature not supported) or it can
+ * support launching any application (AP feature supported).
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.4
  */
 export declare namespace ApplicationLauncher {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x050c;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ApplicationLauncher";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the ApplicationLauncher cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ApplicationLauncher} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute shall specify the current in-focus application, identified using an Application ID,
-             * catalog vendor ID and the corresponding endpoint number when the application is represented by a Content
-             * App endpoint. A null shall be used to indicate there is no current in-focus application.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
-             */
-            readonly currentApp?: ApplicationEp | null;
-        }
-
-        export interface Commands {
-            /**
-             * Upon receipt of this command, the server shall launch the application with optional data. The application
-             * shall be either
-             *
-             *   - the specified application, if the Application Platform feature is supported;
-             *
-             *   - otherwise the application corresponding to the endpoint.
-             *
-             * The endpoint shall launch and bring to foreground the requisite application if the application is not
-             * already launched and in foreground. The Status attribute shall be updated to ActiveVisibleFocus on the
-             * Application Basic cluster of the Endpoint corresponding to the launched application. The Status attribute
-             * shall be updated on any other application whose Status may have changed as a result of this command. The
-             * CurrentApp attribute, if supported, shall be updated to reflect the new application in the foreground.
-             *
-             * This command returns a Launcher Response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
-             */
-            launchApp(request: LaunchAppRequest): MaybePromise<LauncherResponse>;
-
-            /**
-             * Upon receipt of this command, the server shall stop the application if it is running. The application
-             * shall be either
-             *
-             *   - the specified application, if the Application Platform feature is supported;
-             *
-             *   - otherwise the application corresponding to the endpoint.
-             *
-             * The Status attribute shall be updated to Stopped on the Application Basic cluster of the Endpoint
-             * corresponding to the stopped application. The Status attribute shall be updated on any other application
-             * whose Status may have changed as a result of this command.
-             *
-             * This command returns a Launcher Response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
-             */
-            stopApp(request: StopAppRequest): MaybePromise<LauncherResponse>;
-
-            /**
-             * Upon receipt of this command, the server shall hide the application. The application shall be either
-             *
-             *   - the specified application, if the Application Platform feature is supported;
-             *
-             *   - otherwise the application corresponding to the endpoint.
-             *
-             * The endpoint may decide to stop the application based on manufacturer specific behavior or resource
-             * constraints if any. The Status attribute shall be updated to ActiveHidden or Stopped, depending on the
-             * action taken, on the Application Basic cluster of the Endpoint corresponding to the application on which
-             * the action was taken. The Status attribute shall be updated on any other application whose Status may
-             * have changed as a result of this command.
-             *
-             * This command returns a Launcher Response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
-             */
-            hideApp(request: HideAppRequest): MaybePromise<LauncherResponse>;
-        }
+    export interface BaseAttributes {
+        /**
+         * This attribute shall specify the current in-focus application, identified using an Application ID, catalog
+         * vendor ID and the corresponding endpoint number when the application is represented by a Content App
+         * endpoint. A null shall be used to indicate there is no current in-focus application.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
+         */
+        currentApp?: ApplicationEp | null;
     }
 
     /**
      * {@link ApplicationLauncher} supports these elements if it supports feature "ApplicationPlatform".
      */
-    export namespace ApplicationPlatformComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall specify the list of supported application catalogs, where each entry in the list is
-             * the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL
-             * Registry]) shall use value 0x0000.
-             *
-             * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their
-             * own Vendor ID) and will assign an ApplicationID to each Content App.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
-             */
-            readonly catalogList: number[];
-        }
+    export interface ApplicationPlatformAttributes {
+        /**
+         * This attribute shall specify the list of supported application catalogs, where each entry in the list is the
+         * Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL Registry])
+         * shall use value 0x0000.
+         *
+         * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their own
+         * Vendor ID) and will assign an ApplicationID to each Content App.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
+         */
+        catalogList: number[];
     }
 
-    export interface Attributes extends Base.Attributes, Partial<ApplicationPlatformComponent.Attributes> {}
-    export interface Commands extends Base.Commands {}
+    /**
+     * Attributes that may appear in {@link ApplicationLauncher}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall specify the current in-focus application, identified using an Application ID, catalog
+         * vendor ID and the corresponding endpoint number when the application is represented by a Content App
+         * endpoint. A null shall be used to indicate there is no current in-focus application.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
+         */
+        currentApp: ApplicationEp | null;
+
+        /**
+         * This attribute shall specify the list of supported application catalogs, where each entry in the list is the
+         * Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL registry (see [DIAL Registry])
+         * shall use value 0x0000.
+         *
+         * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their own
+         * Vendor ID) and will assign an ApplicationID to each Content App.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
+         */
+        catalogList: number[];
+    }
+
+    /**
+     * {@link ApplicationLauncher} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * Upon receipt of this command, the server shall launch the application with optional data. The application
+         * shall be either
+         *
+         *   - the specified application, if the Application Platform feature is supported;
+         *
+         *   - otherwise the application corresponding to the endpoint.
+         *
+         * The endpoint shall launch and bring to foreground the requisite application if the application is not already
+         * launched and in foreground. The Status attribute shall be updated to ActiveVisibleFocus on the Application
+         * Basic cluster of the Endpoint corresponding to the launched application. The Status attribute shall be
+         * updated on any other application whose Status may have changed as a result of this command. The CurrentApp
+         * attribute, if supported, shall be updated to reflect the new application in the foreground.
+         *
+         * This command returns a Launcher Response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
+         */
+        launchApp(request: LaunchAppRequest): MaybePromise<LauncherResponse>;
+
+        /**
+         * Upon receipt of this command, the server shall stop the application if it is running. The application shall
+         * be either
+         *
+         *   - the specified application, if the Application Platform feature is supported;
+         *
+         *   - otherwise the application corresponding to the endpoint.
+         *
+         * The Status attribute shall be updated to Stopped on the Application Basic cluster of the Endpoint
+         * corresponding to the stopped application. The Status attribute shall be updated on any other application
+         * whose Status may have changed as a result of this command.
+         *
+         * This command returns a Launcher Response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
+         */
+        stopApp(request: StopAppRequest): MaybePromise<LauncherResponse>;
+
+        /**
+         * Upon receipt of this command, the server shall hide the application. The application shall be either
+         *
+         *   - the specified application, if the Application Platform feature is supported;
+         *
+         *   - otherwise the application corresponding to the endpoint.
+         *
+         * The endpoint may decide to stop the application based on manufacturer specific behavior or resource
+         * constraints if any. The Status attribute shall be updated to ActiveHidden or Stopped, depending on the action
+         * taken, on the Application Basic cluster of the Endpoint corresponding to the application on which the action
+         * was taken. The Status attribute shall be updated on any other application whose Status may have changed as a
+         * result of this command.
+         *
+         * This command returns a Launcher Response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
+         */
+        hideApp(request: HideAppRequest): MaybePromise<LauncherResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link ApplicationLauncher}.
+     */
+    export interface Commands extends BaseCommands {}
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
-        { flags: { applicationPlatform: true }, attributes: ApplicationPlatformComponent.Attributes }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { applicationPlatform: true }, attributes: ApplicationPlatformAttributes }
     ];
     export type Features = "ApplicationPlatform";
 
@@ -366,25 +431,42 @@ export declare namespace ApplicationLauncher {
         applicationId: string;
     }
 
-    export const id: ClusterId;
-    export const name: "ApplicationLauncher";
-    export const revision: 2;
-    export const schema: typeof ApplicationLauncherModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link ApplicationLauncher}.
+     */
     export const Cluster: typeof ApplicationLauncher;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ApplicationLauncher` instead of
-     * `ApplicationLauncher.Complete`)
+     * @deprecated Use {@link ApplicationLauncher}.
      */
     export const Complete: typeof ApplicationLauncher;
 
     export const Typing: ApplicationLauncher;
 }
 
+/**
+ * @deprecated Use {@link ApplicationLauncher}.
+ */
 export declare const ApplicationLauncherCluster: typeof ApplicationLauncher;
-export interface ApplicationLauncher extends ClusterTyping { Attributes: ApplicationLauncher.Attributes; Commands: ApplicationLauncher.Commands; Features: ApplicationLauncher.Features; Components: ApplicationLauncher.Components }
+
+export interface ApplicationLauncher extends ClusterTyping {
+    Attributes: ApplicationLauncher.Attributes;
+    Commands: ApplicationLauncher.Commands;
+    Features: ApplicationLauncher.Features;
+    Components: ApplicationLauncher.Components;
+}

@@ -6,205 +6,337 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ElectricalEnergyMeasurement as ElectricalEnergyMeasurementModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
 
 /**
  * Definitions for the ElectricalEnergyMeasurement cluster.
+ *
+ * This cluster provides a mechanism for querying data about the electrical energy imported or provided by the server.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 2.12
  */
 export declare namespace ElectricalEnergyMeasurement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0091;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ElectricalEnergyMeasurement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the ElectricalEnergyMeasurement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ElectricalEnergyMeasurement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on
-             * this MeasurementAccuracyStruct shall be ElectricalEnergy.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
-             */
-            readonly accuracy: MeasurementAccuracy;
-        }
+    export interface BaseAttributes {
+        /**
+         * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on this
+         * MeasurementAccuracyStruct shall be ElectricalEnergy.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
+         */
+        accuracy: MeasurementAccuracy;
     }
 
     /**
      * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
      * "ImportedEnergyAndCumulativeEnergy".
      */
-    export namespace ImportedEnergyAndCumulativeEnergyComponent {
-        export interface Attributes {
-            /**
-             * Indicates the most recent measurement of cumulative energy imported by the server over the lifetime of
-             * the device, and the timestamp of when the measurement was recorded.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
-             */
-            readonly cumulativeEnergyImported: EnergyMeasurement | null;
-        }
+    export interface ImportedEnergyAndCumulativeEnergyAttributes {
+        /**
+         * Indicates the most recent measurement of cumulative energy imported by the server over the lifetime of the
+         * device, and the timestamp of when the measurement was recorded.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
+         */
+        cumulativeEnergyImported: EnergyMeasurement | null;
     }
 
     /**
      * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
      * "ExportedEnergyAndCumulativeEnergy".
      */
-    export namespace ExportedEnergyAndCumulativeEnergyComponent {
-        export interface Attributes {
-            /**
-             * Indicates the most recent measurement of cumulative energy exported by the server over the lifetime of
-             * the device, and the timestamp of when the measurement was recorded.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
-             */
-            readonly cumulativeEnergyExported: EnergyMeasurement | null;
-        }
+    export interface ExportedEnergyAndCumulativeEnergyAttributes {
+        /**
+         * Indicates the most recent measurement of cumulative energy exported by the server over the lifetime of the
+         * device, and the timestamp of when the measurement was recorded.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
+         */
+        cumulativeEnergyExported: EnergyMeasurement | null;
     }
 
     /**
      * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
      * "ImportedEnergyAndPeriodicEnergy".
      */
-    export namespace ImportedEnergyAndPeriodicEnergyComponent {
-        export interface Attributes {
-            /**
-             * Indicates the most recent measurement of energy imported by the server and the period during which it was
-             * measured.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
-             */
-            readonly periodicEnergyImported: EnergyMeasurement | null;
-        }
+    export interface ImportedEnergyAndPeriodicEnergyAttributes {
+        /**
+         * Indicates the most recent measurement of energy imported by the server and the period during which it was
+         * measured.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
+         */
+        periodicEnergyImported: EnergyMeasurement | null;
     }
 
     /**
      * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature
      * "ExportedEnergyAndPeriodicEnergy".
      */
-    export namespace ExportedEnergyAndPeriodicEnergyComponent {
-        export interface Attributes {
-            /**
-             * Indicates the most recent measurement of energy exported by the server and the period during which it was
-             * measured.
-             *
-             * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
-             * publication of deltas considered not meaningful.
-             *
-             * The server shall NOT mark this attribute ready for report if the last time this was done was more
-             * recently than 1 second ago.
-             *
-             * The server may delay marking this attribute ready for report for longer periods if needed, however the
-             * server shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
-             *
-             * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
-             */
-            readonly periodicEnergyExported: EnergyMeasurement | null;
-        }
+    export interface ExportedEnergyAndPeriodicEnergyAttributes {
+        /**
+         * Indicates the most recent measurement of energy exported by the server and the period during which it was
+         * measured.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
+         */
+        periodicEnergyExported: EnergyMeasurement | null;
     }
 
     /**
      * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature "CumulativeEnergy".
      */
-    export namespace CumulativeEnergyComponent {
-        export interface Attributes {
-            /**
-             * Indicates when cumulative measurements were most recently zero.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
-             */
-            readonly cumulativeEnergyReset?: CumulativeEnergyReset | null;
-        }
+    export interface CumulativeEnergyAttributes {
+        /**
+         * Indicates when cumulative measurements were most recently zero.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
+         */
+        cumulativeEnergyReset?: CumulativeEnergyReset | null;
+    }
 
-        export interface Events {
-            /**
-             * This event shall be generated when the server takes a snapshot of the cumulative energy imported by the
-             * server, exported from the server, or both, but not more frequently than the rate mentioned in the
-             * description above of the related attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
-             */
-            cumulativeEnergyMeasured: CumulativeEnergyMeasuredEvent;
-        }
+    /**
+     * Attributes that may appear in {@link ElectricalEnergyMeasurement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the accuracy of energy measurement by this server. The value of the MeasurementType field on this
+         * MeasurementAccuracyStruct shall be ElectricalEnergy.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.1
+         */
+        accuracy: MeasurementAccuracy;
+
+        /**
+         * Indicates the most recent measurement of cumulative energy imported by the server over the lifetime of the
+         * device, and the timestamp of when the measurement was recorded.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the cumulative energy imported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.2
+         */
+        cumulativeEnergyImported: EnergyMeasurement | null;
+
+        /**
+         * Indicates the most recent measurement of cumulative energy exported by the server over the lifetime of the
+         * device, and the timestamp of when the measurement was recorded.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the cumulative energy exported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.3
+         */
+        cumulativeEnergyExported: EnergyMeasurement | null;
+
+        /**
+         * Indicates the most recent measurement of energy imported by the server and the period during which it was
+         * measured.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the periodic energy imported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.4
+         */
+        periodicEnergyImported: EnergyMeasurement | null;
+
+        /**
+         * Indicates the most recent measurement of energy exported by the server and the period during which it was
+         * measured.
+         *
+         * The reporting interval of this attribute shall be manufacturer dependent. The server may choose to omit
+         * publication of deltas considered not meaningful.
+         *
+         * The server shall NOT mark this attribute ready for report if the last time this was done was more recently
+         * than 1 second ago.
+         *
+         * The server may delay marking this attribute ready for report for longer periods if needed, however the server
+         * shall NOT delay marking this attribute as ready for report for longer than 60 seconds.
+         *
+         * If the periodic energy exported cannot currently be determined, a value of null shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.5
+         */
+        periodicEnergyExported: EnergyMeasurement | null;
+
+        /**
+         * Indicates when cumulative measurements were most recently zero.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.6.6
+         */
+        cumulativeEnergyReset: CumulativeEnergyReset | null;
+    }
+
+    /**
+     * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature "CumulativeEnergy".
+     */
+    export interface CumulativeEnergyEvents {
+        /**
+         * This event shall be generated when the server takes a snapshot of the cumulative energy imported by the
+         * server, exported from the server, or both, but not more frequently than the rate mentioned in the description
+         * above of the related attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
+         */
+        cumulativeEnergyMeasured: CumulativeEnergyMeasuredEvent;
     }
 
     /**
      * {@link ElectricalEnergyMeasurement} supports these elements if it supports feature "PeriodicEnergy".
      */
-    export namespace PeriodicEnergyComponent {
-        export interface Events {
-            /**
-             * This event shall be generated when the server reaches the end of a reporting period for imported energy,
-             * exported energy, or both.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
-             */
-            periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
-        }
+    export interface PeriodicEnergyEvents {
+        /**
+         * This event shall be generated when the server reaches the end of a reporting period for imported energy,
+         * exported energy, or both.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
+         */
+        periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<ImportedEnergyAndCumulativeEnergyComponent.Attributes>, Partial<ExportedEnergyAndCumulativeEnergyComponent.Attributes>, Partial<ImportedEnergyAndPeriodicEnergyComponent.Attributes>, Partial<ExportedEnergyAndPeriodicEnergyComponent.Attributes>, Partial<CumulativeEnergyComponent.Attributes> {}
-    export interface Events extends CumulativeEnergyComponent.Events, PeriodicEnergyComponent.Events {}
+    /**
+     * Events that may appear in {@link ElectricalEnergyMeasurement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated when the server takes a snapshot of the cumulative energy imported by the
+         * server, exported from the server, or both, but not more frequently than the rate mentioned in the description
+         * above of the related attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
+         */
+        cumulativeEnergyMeasured: CumulativeEnergyMeasuredEvent;
+
+        /**
+         * This event shall be generated when the server reaches the end of a reporting period for imported energy,
+         * exported energy, or both.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
+         */
+        periodicEnergyMeasured: PeriodicEnergyMeasuredEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
+        { flags: {}, attributes: BaseAttributes },
         {
             flags: { importedEnergy: true, cumulativeEnergy: true },
-            attributes: ImportedEnergyAndCumulativeEnergyComponent.Attributes
+            attributes: ImportedEnergyAndCumulativeEnergyAttributes
         },
         {
             flags: { exportedEnergy: true, cumulativeEnergy: true },
-            attributes: ExportedEnergyAndCumulativeEnergyComponent.Attributes
+            attributes: ExportedEnergyAndCumulativeEnergyAttributes
         },
         {
             flags: { importedEnergy: true, periodicEnergy: true },
-            attributes: ImportedEnergyAndPeriodicEnergyComponent.Attributes
+            attributes: ImportedEnergyAndPeriodicEnergyAttributes
         },
         {
             flags: { exportedEnergy: true, periodicEnergy: true },
-            attributes: ExportedEnergyAndPeriodicEnergyComponent.Attributes
+            attributes: ExportedEnergyAndPeriodicEnergyAttributes
         },
-        {
-            flags: { cumulativeEnergy: true },
-            attributes: CumulativeEnergyComponent.Attributes,
-            events: CumulativeEnergyComponent.Events
-        },
-        { flags: { periodicEnergy: true }, events: PeriodicEnergyComponent.Events }
+        { flags: { cumulativeEnergy: true }, attributes: CumulativeEnergyAttributes, events: CumulativeEnergyEvents },
+        { flags: { periodicEnergy: true }, events: PeriodicEnergyEvents }
     ];
 
     export type Features = "ImportedEnergy" | "ExportedEnergy" | "CumulativeEnergy" | "PeriodicEnergy";
@@ -562,25 +694,42 @@ export declare namespace ElectricalEnergyMeasurement {
         ApparentEnergy = 16
     }
 
-    export const id: ClusterId;
-    export const name: "ElectricalEnergyMeasurement";
-    export const revision: 1;
-    export const schema: typeof ElectricalEnergyMeasurementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link ElectricalEnergyMeasurement}.
+     */
     export const Cluster: typeof ElectricalEnergyMeasurement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ElectricalEnergyMeasurement` instead of
-     * `ElectricalEnergyMeasurement.Complete`)
+     * @deprecated Use {@link ElectricalEnergyMeasurement}.
      */
     export const Complete: typeof ElectricalEnergyMeasurement;
 
     export const Typing: ElectricalEnergyMeasurement;
 }
 
+/**
+ * @deprecated Use {@link ElectricalEnergyMeasurement}.
+ */
 export declare const ElectricalEnergyMeasurementCluster: typeof ElectricalEnergyMeasurement;
-export interface ElectricalEnergyMeasurement extends ClusterTyping { Attributes: ElectricalEnergyMeasurement.Attributes; Events: ElectricalEnergyMeasurement.Events; Features: ElectricalEnergyMeasurement.Features; Components: ElectricalEnergyMeasurement.Components }
+
+export interface ElectricalEnergyMeasurement extends ClusterTyping {
+    Attributes: ElectricalEnergyMeasurement.Attributes;
+    Events: ElectricalEnergyMeasurement.Events;
+    Features: ElectricalEnergyMeasurement.Features;
+    Components: ElectricalEnergyMeasurement.Components;
+}

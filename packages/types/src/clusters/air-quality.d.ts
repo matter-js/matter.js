@@ -7,29 +7,67 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { AirQuality as AirQualityModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 
 /**
  * Definitions for the AirQuality cluster.
+ *
+ * This cluster provides an interface to air quality classification using distinct levels with human-readable labels.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 2.9
  */
 export declare namespace AirQuality {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x005b;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "AirQuality";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the AirQuality cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link AirQuality} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
-             */
-            readonly airQuality: AirQualityEnum;
-        }
+    export interface BaseAttributes {
+        /**
+         * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
+         */
+        airQuality: AirQualityEnum;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes }];
+    /**
+     * Attributes that may appear in {@link AirQuality}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates a value from AirQualityEnum that is indicative of the currently measured air quality.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 2.9.6.1
+         */
+        airQuality: AirQualityEnum;
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes }];
     export type Features = "Fair" | "Moderate" | "VeryPoor" | "ExtremelyPoor";
 
     /**
@@ -110,22 +148,36 @@ export declare namespace AirQuality {
         ExtremelyPoor = 6
     }
 
-    export const id: ClusterId;
-    export const name: "AirQuality";
-    export const revision: 1;
-    export const schema: typeof AirQualityModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link AirQuality}.
+     */
     export const Cluster: typeof AirQuality;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `AirQuality` instead of `AirQuality.Complete`)
+     * @deprecated Use {@link AirQuality}.
      */
     export const Complete: typeof AirQuality;
 
     export const Typing: AirQuality;
 }
 
+/**
+ * @deprecated Use {@link AirQuality}.
+ */
 export declare const AirQualityCluster: typeof AirQuality;
-export interface AirQuality extends ClusterTyping { Attributes: AirQuality.Attributes; Features: AirQuality.Features; Components: AirQuality.Components }
+
+export interface AirQuality extends ClusterTyping {
+    Attributes: AirQuality.Attributes;
+    Features: AirQuality.Features;
+    Components: AirQuality.Components;
+}

@@ -6,446 +6,834 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { PowerSource as PowerSourceModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 
 /**
  * Definitions for the PowerSource cluster.
+ *
+ * This cluster is used to describe the configuration and capabilities of a physical power source that provides power to
+ * one or more endpoints on a node. In case the node has multiple power sources, each shall be described by its own
+ * cluster instance. Each instance of this cluster may be associated with one or more endpoints or the entire node.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.7
  */
 export declare namespace PowerSource {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x002f;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "PowerSource";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the PowerSource cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link PowerSource} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the participation of this power source in providing power to the Node as specified in
-             * PowerSourceStatusEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.1
-             */
-            readonly status: PowerSourceStatus;
+    export interface BaseAttributes {
+        /**
+         * Indicates the participation of this power source in providing power to the Node as specified in
+         * PowerSourceStatusEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.1
+         */
+        status: PowerSourceStatus;
 
-            /**
-             * Indicates the relative preference with which the Node will select this source to provide power. A source
-             * with a lower order shall be selected by the Node to provide power before any other source with a higher
-             * order, if the lower order source is available (see Section 11.7.7.1, “Status Attribute”).
-             *
-             * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.2
-             */
-            readonly order: number;
+        /**
+         * Indicates the relative preference with which the Node will select this source to provide power. A source with
+         * a lower order shall be selected by the Node to provide power before any other source with a higher order, if
+         * the lower order source is available (see Section 11.7.7.1, “Status Attribute”).
+         *
+         * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.2
+         */
+        order: number;
 
-            /**
-             * This attribute shall provide a user-facing description of this source, used to distinguish it from other
-             * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used
-             * to convey information such as battery form factor, or chemistry.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.3
-             */
-            readonly description: string;
+        /**
+         * This attribute shall provide a user-facing description of this source, used to distinguish it from other
+         * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to
+         * convey information such as battery form factor, or chemistry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.3
+         */
+        description: string;
 
-            /**
-             * Indicates a list of endpoints that are powered by the source defined by this cluster. Multiple instances
-             * of this cluster may list the same endpoint, because it is possible for power for an endpoint to come from
-             * multiple sources. In that case the Order attribute indicates their priority.
-             *
-             * For each power source on a node, there shall only be one instance of this cluster.
-             *
-             * A cluster instance with an empty list shall indicate that the power source is for the entire node, which
-             * includes all endpoints.
-             *
-             * A cluster instance with a non-empty list shall include the endpoint, upon which the cluster instance
-             * resides.
-             *
-             * The above rules allow that some endpoints can have an unknown power source, and therefore would not be
-             * indicated by any instance of this cluster.
-             *
-             * ### Legacy Implementations
-             *
-             * Legacy implementations of this cluster before revision 2, before this attribute was defined, would have
-             * implemented this cluster on an application endpoint without indicating it in EndpointList (since that
-             * attribute did not exist in revision 1), because it represented a power source for the endpoint, not the
-             * entire node.
-             *
-             * For example: Bridge implementations support endpoints for bridged devices that have different power
-             * sources.
-             *
-             * Such implementations followed device type requirements and semantics outside of this cluster, because
-             * this attribute did not exist.
-             *
-             * Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be an
-             * entry in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the cluster
-             * instance exists.
-             *
-             * Typically, there is one power source for the node. Also common is mains power for the node with battery
-             * backup power for the node. In both these common cases, for each cluster instance described, the list is
-             * empty.
-             *
-             * A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
-             * battery back up source with Order as 1, which means this list is empty for the Power Source cluster
-             * associated with the mains power, because it indicates the entire node, but the Power Source cluster
-             * instance associated with the battery backup would list the endpoints that have a battery backup.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.32
-             */
-            readonly endpointList: EndpointNumber[];
-        }
+        /**
+         * Indicates a list of endpoints that are powered by the source defined by this cluster. Multiple instances of
+         * this cluster may list the same endpoint, because it is possible for power for an endpoint to come from
+         * multiple sources. In that case the Order attribute indicates their priority.
+         *
+         * For each power source on a node, there shall only be one instance of this cluster.
+         *
+         * A cluster instance with an empty list shall indicate that the power source is for the entire node, which
+         * includes all endpoints.
+         *
+         * A cluster instance with a non-empty list shall include the endpoint, upon which the cluster instance resides.
+         *
+         * The above rules allow that some endpoints can have an unknown power source, and therefore would not be
+         * indicated by any instance of this cluster.
+         *
+         * ### Legacy Implementations
+         *
+         * Legacy implementations of this cluster before revision 2, before this attribute was defined, would have
+         * implemented this cluster on an application endpoint without indicating it in EndpointList (since that
+         * attribute did not exist in revision 1), because it represented a power source for the endpoint, not the
+         * entire node.
+         *
+         * For example: Bridge implementations support endpoints for bridged devices that have different power sources.
+         *
+         * Such implementations followed device type requirements and semantics outside of this cluster, because this
+         * attribute did not exist.
+         *
+         * Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be an entry
+         * in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the cluster instance
+         * exists.
+         *
+         * Typically, there is one power source for the node. Also common is mains power for the node with battery
+         * backup power for the node. In both these common cases, for each cluster instance described, the list is
+         * empty.
+         *
+         * A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
+         * battery back up source with Order as 1, which means this list is empty for the Power Source cluster
+         * associated with the mains power, because it indicates the entire node, but the Power Source cluster instance
+         * associated with the battery backup would list the endpoints that have a battery backup.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.32
+         */
+        endpointList: EndpointNumber[];
     }
 
     /**
      * {@link PowerSource} supports these elements if it supports feature "Wired".
      */
-    export namespace WiredComponent {
-        export interface Attributes {
-            /**
-             * Indicates the type of current the Node expects to be provided by the hard-wired source as specified in
-             * WiredCurrentTypeEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.6
-             */
-            readonly wiredCurrentType: WiredCurrentType;
+    export interface WiredAttributes {
+        /**
+         * Indicates the type of current the Node expects to be provided by the hard-wired source as specified in
+         * WiredCurrentTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.6
+         */
+        wiredCurrentType: WiredCurrentType;
 
-            /**
-             * Indicates the assessed RMS or DC voltage currently provided by the hard-wired source, in mV (millivolts).
-             * A value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is
-             * not connected, but the Node is still able to assess a value, then the assessed value may be reported.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.4
-             */
-            readonly wiredAssessedInputVoltage?: number | null;
+        /**
+         * Indicates the assessed RMS or DC voltage currently provided by the hard-wired source, in mV (millivolts). A
+         * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
+         * connected, but the Node is still able to assess a value, then the assessed value may be reported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.4
+         */
+        wiredAssessedInputVoltage?: number | null;
 
-            /**
-             * Indicates the assessed frequency of the voltage, currently provided by the hard-wired source, in Hz. A
-             * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
-             * connected, but the Node is still able to assess a value, then the assessed value may be reported.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.5
-             */
-            readonly wiredAssessedInputFrequency?: number | null;
+        /**
+         * Indicates the assessed frequency of the voltage, currently provided by the hard-wired source, in Hz. A value
+         * of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
+         * connected, but the Node is still able to assess a value, then the assessed value may be reported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.5
+         */
+        wiredAssessedInputFrequency?: number | null;
 
-            /**
-             * Indicates the assessed instantaneous current draw of the Node on the hard-wired source, in mA
-             * (milliamps). A value of NULL shall indicate the Node is currently unable to assess the value. If the
-             * wired source is not connected, but the Node is still able to assess a value, then the assessed value may
-             * be reported.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.7
-             */
-            readonly wiredAssessedCurrent?: number | null;
+        /**
+         * Indicates the assessed instantaneous current draw of the Node on the hard-wired source, in mA (milliamps). A
+         * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
+         * connected, but the Node is still able to assess a value, then the assessed value may be reported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.7
+         */
+        wiredAssessedCurrent?: number | null;
 
-            /**
-             * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV
-             * (millivolts), expected to be provided by the hard-wired source.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.8
-             */
-            readonly wiredNominalVoltage?: number;
+        /**
+         * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV (millivolts),
+         * expected to be provided by the hard-wired source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.8
+         */
+        wiredNominalVoltage?: number;
 
-            /**
-             * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA
-             * (milliamps), expected to be provided by the hard-wired source.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.9
-             */
-            readonly wiredMaximumCurrent?: number;
+        /**
+         * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA (milliamps),
+         * expected to be provided by the hard-wired source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.9
+         */
+        wiredMaximumCurrent?: number;
 
-            /**
-             * Indicates if the Node detects that the hard-wired power source is properly connected.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.10
-             */
-            readonly wiredPresent?: boolean;
+        /**
+         * Indicates if the Node detects that the hard-wired power source is properly connected.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.10
+         */
+        wiredPresent?: boolean;
 
-            /**
-             * Indicates the set of wired faults currently detected by the Node on this power source. This set is
-             * represented as a list of WiredFaultEnum. When the Node detects a fault has been raised, the appropriate
-             * WiredFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
-             * contain more than one instance of a specific WiredFaultEnum value. When the Node detects all conditions
-             * contributing to a fault have been cleared, the corresponding WiredFaultEnum value shall be removed from
-             * this list. An empty list shall indicate there are currently no active faults. The order of this list
-             * SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
-             * this attribute, or they may subscribe to WiredFaultChange.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
-             */
-            readonly activeWiredFaults?: WiredFault[];
-        }
-
-        export interface Events {
-            /**
-             * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node
-             * on this wired power source changes. This event shall correspond to a change in value of
-             * ActiveWiredFaults.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
-             */
-            wiredFaultChange?: WiredFaultChangeEvent;
-        }
+        /**
+         * Indicates the set of wired faults currently detected by the Node on this power source. This set is
+         * represented as a list of WiredFaultEnum. When the Node detects a fault has been raised, the appropriate
+         * WiredFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
+         * contain more than one instance of a specific WiredFaultEnum value. When the Node detects all conditions
+         * contributing to a fault have been cleared, the corresponding WiredFaultEnum value shall be removed from this
+         * list. An empty list shall indicate there are currently no active faults. The order of this list SHOULD have
+         * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
+         * or they may subscribe to WiredFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
+         */
+        activeWiredFaults?: WiredFault[];
     }
 
     /**
      * {@link PowerSource} supports these elements if it supports feature "Battery".
      */
-    export namespace BatteryComponent {
-        export interface Attributes {
-            /**
-             * Indicates a coarse ranking of the charge level of the battery, used to indicate when intervention is
-             * required as specified in BatChargeLevelEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.15
-             */
-            readonly batChargeLevel: BatChargeLevel;
+    export interface BatteryAttributes {
+        /**
+         * Indicates a coarse ranking of the charge level of the battery, used to indicate when intervention is required
+         * as specified in BatChargeLevelEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.15
+         */
+        batChargeLevel: BatChargeLevel;
 
-            /**
-             * Indicates if the battery needs to be replaced. Replacement may be simple routine maintenance, such as
-             * with a single use, non-rechargeable cell. Replacement, however, may also indicate end of life, or serious
-             * fault with a rechargeable or even non-replaceable cell.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.16
-             */
-            readonly batReplacementNeeded: boolean;
+        /**
+         * Indicates if the battery needs to be replaced. Replacement may be simple routine maintenance, such as with a
+         * single use, non-rechargeable cell. Replacement, however, may also indicate end of life, or serious fault with
+         * a rechargeable or even non-replaceable cell.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.16
+         */
+        batReplacementNeeded: boolean;
 
-            /**
-             * Indicates the replaceability of the battery as specified in BatReplaceabilityEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.17
-             */
-            readonly batReplaceability: BatReplaceability;
+        /**
+         * Indicates the replaceability of the battery as specified in BatReplaceabilityEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.17
+         */
+        batReplaceability: BatReplaceability;
 
-            /**
-             * Indicates the currently measured output voltage of the battery in mV (millivolts). A value of NULL shall
-             * indicate the Node is currently unable to assess the value.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.12
-             */
-            readonly batVoltage?: number | null;
+        /**
+         * Indicates the currently measured output voltage of the battery in mV (millivolts). A value of NULL shall
+         * indicate the Node is currently unable to assess the value.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.12
+         */
+        batVoltage?: number | null;
 
-            /**
-             * Indicates the estimated percentage of battery charge remaining until the battery will no longer be able
-             * to provide power to the Node. Values are expressed in half percent units, ranging from 0 to 200. E.g. a
-             * value of 48 is equivalent to 24%. A value of NULL shall indicate the Node is currently unable to assess
-             * the value.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once every 10 seconds, or
-             *
-             *   - When it changes from null to any other value and vice versa.
-             *
-             * Since reporting consumes power, devices SHOULD be careful not to over-report.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.13
-             */
-            readonly batPercentRemaining?: number | null;
+        /**
+         * Indicates the estimated percentage of battery charge remaining until the battery will no longer be able to
+         * provide power to the Node. Values are expressed in half percent units, ranging from 0 to 200. E.g. a value of
+         * 48 is equivalent to 24%. A value of NULL shall indicate the Node is currently unable to assess the value.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * Since reporting consumes power, devices SHOULD be careful not to over-report.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.13
+         */
+        batPercentRemaining?: number | null;
 
-            /**
-             * Indicates the estimated time in seconds before the battery will no longer be able to provide power to the
-             * Node. A value of NULL shall indicate the Node is currently unable to assess the value.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once every 10 seconds, or
-             *
-             *   - When it changes from null to any other value and vice versa.
-             *
-             * Since reporting consumes power, devices SHOULD be careful not to over-report.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.14
-             */
-            readonly batTimeRemaining?: number | null;
+        /**
+         * Indicates the estimated time in seconds before the battery will no longer be able to provide power to the
+         * Node. A value of NULL shall indicate the Node is currently unable to assess the value.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * Since reporting consumes power, devices SHOULD be careful not to over-report.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.14
+         */
+        batTimeRemaining?: number | null;
 
-            /**
-             * Indicates whether the Node detects that the batteries are properly installed.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.18
-             */
-            readonly batPresent?: boolean;
+        /**
+         * Indicates whether the Node detects that the batteries are properly installed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.18
+         */
+        batPresent?: boolean;
 
-            /**
-             * Indicates the set of battery faults currently detected by the Node on this power source. This set is
-             * represented as a list of BatFaultEnum. When the Node detects a fault has been raised, the appropriate
-             * BatFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
-             * contain more than one instance of a specific BatFaultEnum value. When the Node detects all conditions
-             * contributing to a fault have been cleared, the corresponding BatFaultEnum value shall be removed from
-             * this list. An empty list shall indicate there are currently no active faults. The order of this list
-             * SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
-             * this attribute, or they may subscribe to BatFaultChange.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
-             */
-            readonly activeBatFaults?: BatFault[];
-        }
-
-        export interface Events {
-            /**
-             * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node
-             * on this battery power source changes. This event shall correspond to a change in value of
-             * ActiveBatFaults.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
-             */
-            batFaultChange?: BatFaultChangeEvent;
-        }
+        /**
+         * Indicates the set of battery faults currently detected by the Node on this power source. This set is
+         * represented as a list of BatFaultEnum. When the Node detects a fault has been raised, the appropriate
+         * BatFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
+         * contain more than one instance of a specific BatFaultEnum value. When the Node detects all conditions
+         * contributing to a fault have been cleared, the corresponding BatFaultEnum value shall be removed from this
+         * list. An empty list shall indicate there are currently no active faults. The order of this list SHOULD have
+         * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
+         * or they may subscribe to BatFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
+         */
+        activeBatFaults?: BatFault[];
     }
 
     /**
      * {@link PowerSource} supports these elements if it supports feature "Replaceable".
      */
-    export namespace ReplaceableComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
-             * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.20
-             */
-            readonly batReplacementDescription: string;
+    export interface ReplaceableAttributes {
+        /**
+         * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
+         * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.20
+         */
+        batReplacementDescription: string;
 
-            /**
-             * Indicates the quantity of individual, user- or factory-serviceable battery cells or packs in the battery
-             * source.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.26
-             */
-            readonly batQuantity: number;
+        /**
+         * Indicates the quantity of individual, user- or factory-serviceable battery cells or packs in the battery
+         * source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.26
+         */
+        batQuantity: number;
 
-            /**
-             * Indicates the ID of the common or colloquial designation of the battery, as specified in
-             * BatCommonDesignationEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.21
-             */
-            readonly batCommonDesignation?: BatCommonDesignation;
+        /**
+         * Indicates the ID of the common or colloquial designation of the battery, as specified in
+         * BatCommonDesignationEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.21
+         */
+        batCommonDesignation?: BatCommonDesignation;
 
-            /**
-             * Indicates the string representing the ANSI designation for the battery as specified in ANSI C18.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.22
-             */
-            readonly batAnsiDesignation?: string;
+        /**
+         * Indicates the string representing the ANSI designation for the battery as specified in ANSI C18.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.22
+         */
+        batAnsiDesignation?: string;
 
-            /**
-             * Indicates the string representing the IEC designation for the battery as specified in IEC 60086.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.23
-             */
-            readonly batIecDesignation?: string;
+        /**
+         * Indicates the string representing the IEC designation for the battery as specified in IEC 60086.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.23
+         */
+        batIecDesignation?: string;
 
-            /**
-             * Indicates the ID of the preferred chemistry of the battery source as specified in
-             * BatApprovedChemistryEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.24
-             */
-            readonly batApprovedChemistry?: BatApprovedChemistry;
-        }
+        /**
+         * Indicates the ID of the preferred chemistry of the battery source as specified in BatApprovedChemistryEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.24
+         */
+        batApprovedChemistry?: BatApprovedChemistry;
     }
 
     /**
      * {@link PowerSource} supports these elements if it supports feature "ReplaceableOrRechargeable".
      */
-    export namespace ReplaceableOrRechargeableComponent {
-        export interface Attributes {
-            /**
-             * Indicates the preferred minimum charge capacity rating in mAh of individual, user- or factory-serviceable
-             * battery cells or packs in the battery source.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.25
-             */
-            readonly batCapacity?: number;
-        }
+    export interface ReplaceableOrRechargeableAttributes {
+        /**
+         * Indicates the preferred minimum charge capacity rating in mAh of individual, user- or factory-serviceable
+         * battery cells or packs in the battery source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.25
+         */
+        batCapacity?: number;
     }
 
     /**
      * {@link PowerSource} supports these elements if it supports feature "Rechargeable".
      */
-    export namespace RechargeableComponent {
-        export interface Attributes {
-            /**
-             * Indicates the current state of the battery source with respect to charging as specified in
-             * BatChargeStateEnum.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.27
-             */
-            readonly batChargeState: BatChargeState;
+    export interface RechargeableAttributes {
+        /**
+         * Indicates the current state of the battery source with respect to charging as specified in
+         * BatChargeStateEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.27
+         */
+        batChargeState: BatChargeState;
 
-            /**
-             * Indicates whether the Node can remain operational while the battery source is charging.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.29
-             */
-            readonly batFunctionalWhileCharging: boolean;
+        /**
+         * Indicates whether the Node can remain operational while the battery source is charging.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.29
+         */
+        batFunctionalWhileCharging: boolean;
 
-            /**
-             * Indicates the estimated time in seconds before the battery source will be at full charge. A value of NULL
-             * shall indicate the Node is currently unable to assess the value.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - At most once every 10 seconds, or
-             *
-             *   - When it changes from null to any other value and vice versa.
-             *
-             * Since reporting consumes power, devices SHOULD be careful not to over-report.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.28
-             */
-            readonly batTimeToFullCharge?: number | null;
+        /**
+         * Indicates the estimated time in seconds before the battery source will be at full charge. A value of NULL
+         * shall indicate the Node is currently unable to assess the value.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * Since reporting consumes power, devices SHOULD be careful not to over-report.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.28
+         */
+        batTimeToFullCharge?: number | null;
 
-            /**
-             * Indicates assessed current in mA (milliamps) presently supplied to charge the battery source. A value of
-             * NULL shall indicate the Node is currently unable to assess the value.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.30
-             */
-            readonly batChargingCurrent?: number | null;
+        /**
+         * Indicates assessed current in mA (milliamps) presently supplied to charge the battery source. A value of NULL
+         * shall indicate the Node is currently unable to assess the value.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.30
+         */
+        batChargingCurrent?: number | null;
 
-            /**
-             * Indicates the set of charge faults currently detected by the Node on this power source. This set is
-             * represented as a list of BatChargeFaultEnum. When the Node detects a fault has been raised, the
-             * appropriate BatChargeFaultEnum value shall be added to this list, provided it is not already present.
-             * This list shall NOT contain more than one instance of a specific BatChargeFaultEnum value. When the Node
-             * detects all conditions contributing to a fault have been cleared, the corresponding BatChargeFaultEnum
-             * value shall be removed from this list. An empty list shall indicate there are currently no active faults.
-             * The order of this list SHOULD have no significance. Clients interested in monitoring changes in active
-             * faults may subscribe to this attribute, or they may subscribe to the BatFaultChange event.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.7.31
-             */
-            readonly activeBatChargeFaults?: BatChargeFault[];
-        }
-
-        export interface Events {
-            /**
-             * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the
-             * Node on this battery power source changes. This event shall correspond to a change in value of
-             * ActiveBatChargeFaults.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
-             */
-            batChargeFaultChange?: BatChargeFaultChangeEvent;
-        }
+        /**
+         * Indicates the set of charge faults currently detected by the Node on this power source. This set is
+         * represented as a list of BatChargeFaultEnum. When the Node detects a fault has been raised, the appropriate
+         * BatChargeFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
+         * contain more than one instance of a specific BatChargeFaultEnum value. When the Node detects all conditions
+         * contributing to a fault have been cleared, the corresponding BatChargeFaultEnum value shall be removed from
+         * this list. An empty list shall indicate there are currently no active faults. The order of this list SHOULD
+         * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
+         * attribute, or they may subscribe to the BatFaultChange event.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.31
+         */
+        activeBatChargeFaults?: BatChargeFault[];
     }
 
-    export interface Attributes extends Base.Attributes, Partial<WiredComponent.Attributes>, Partial<BatteryComponent.Attributes>, Partial<ReplaceableComponent.Attributes>, Partial<ReplaceableOrRechargeableComponent.Attributes>, Partial<RechargeableComponent.Attributes> {}
-    export interface Events extends WiredComponent.Events, BatteryComponent.Events, RechargeableComponent.Events {}
+    /**
+     * Attributes that may appear in {@link PowerSource}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the participation of this power source in providing power to the Node as specified in
+         * PowerSourceStatusEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.1
+         */
+        status: PowerSourceStatus;
+
+        /**
+         * Indicates the relative preference with which the Node will select this source to provide power. A source with
+         * a lower order shall be selected by the Node to provide power before any other source with a higher order, if
+         * the lower order source is available (see Section 11.7.7.1, “Status Attribute”).
+         *
+         * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.2
+         */
+        order: number;
+
+        /**
+         * This attribute shall provide a user-facing description of this source, used to distinguish it from other
+         * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to
+         * convey information such as battery form factor, or chemistry.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.3
+         */
+        description: string;
+
+        /**
+         * Indicates a list of endpoints that are powered by the source defined by this cluster. Multiple instances of
+         * this cluster may list the same endpoint, because it is possible for power for an endpoint to come from
+         * multiple sources. In that case the Order attribute indicates their priority.
+         *
+         * For each power source on a node, there shall only be one instance of this cluster.
+         *
+         * A cluster instance with an empty list shall indicate that the power source is for the entire node, which
+         * includes all endpoints.
+         *
+         * A cluster instance with a non-empty list shall include the endpoint, upon which the cluster instance resides.
+         *
+         * The above rules allow that some endpoints can have an unknown power source, and therefore would not be
+         * indicated by any instance of this cluster.
+         *
+         * ### Legacy Implementations
+         *
+         * Legacy implementations of this cluster before revision 2, before this attribute was defined, would have
+         * implemented this cluster on an application endpoint without indicating it in EndpointList (since that
+         * attribute did not exist in revision 1), because it represented a power source for the endpoint, not the
+         * entire node.
+         *
+         * For example: Bridge implementations support endpoints for bridged devices that have different power sources.
+         *
+         * Such implementations followed device type requirements and semantics outside of this cluster, because this
+         * attribute did not exist.
+         *
+         * Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be an entry
+         * in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the cluster instance
+         * exists.
+         *
+         * Typically, there is one power source for the node. Also common is mains power for the node with battery
+         * backup power for the node. In both these common cases, for each cluster instance described, the list is
+         * empty.
+         *
+         * A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
+         * battery back up source with Order as 1, which means this list is empty for the Power Source cluster
+         * associated with the mains power, because it indicates the entire node, but the Power Source cluster instance
+         * associated with the battery backup would list the endpoints that have a battery backup.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.32
+         */
+        endpointList: EndpointNumber[];
+
+        /**
+         * Indicates the type of current the Node expects to be provided by the hard-wired source as specified in
+         * WiredCurrentTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.6
+         */
+        wiredCurrentType: WiredCurrentType;
+
+        /**
+         * Indicates the assessed RMS or DC voltage currently provided by the hard-wired source, in mV (millivolts). A
+         * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
+         * connected, but the Node is still able to assess a value, then the assessed value may be reported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.4
+         */
+        wiredAssessedInputVoltage: number | null;
+
+        /**
+         * Indicates the assessed frequency of the voltage, currently provided by the hard-wired source, in Hz. A value
+         * of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
+         * connected, but the Node is still able to assess a value, then the assessed value may be reported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.5
+         */
+        wiredAssessedInputFrequency: number | null;
+
+        /**
+         * Indicates the assessed instantaneous current draw of the Node on the hard-wired source, in mA (milliamps). A
+         * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
+         * connected, but the Node is still able to assess a value, then the assessed value may be reported.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.7
+         */
+        wiredAssessedCurrent: number | null;
+
+        /**
+         * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV (millivolts),
+         * expected to be provided by the hard-wired source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.8
+         */
+        wiredNominalVoltage: number;
+
+        /**
+         * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA (milliamps),
+         * expected to be provided by the hard-wired source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.9
+         */
+        wiredMaximumCurrent: number;
+
+        /**
+         * Indicates if the Node detects that the hard-wired power source is properly connected.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.10
+         */
+        wiredPresent: boolean;
+
+        /**
+         * Indicates the set of wired faults currently detected by the Node on this power source. This set is
+         * represented as a list of WiredFaultEnum. When the Node detects a fault has been raised, the appropriate
+         * WiredFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
+         * contain more than one instance of a specific WiredFaultEnum value. When the Node detects all conditions
+         * contributing to a fault have been cleared, the corresponding WiredFaultEnum value shall be removed from this
+         * list. An empty list shall indicate there are currently no active faults. The order of this list SHOULD have
+         * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
+         * or they may subscribe to WiredFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
+         */
+        activeWiredFaults: WiredFault[];
+
+        /**
+         * Indicates a coarse ranking of the charge level of the battery, used to indicate when intervention is required
+         * as specified in BatChargeLevelEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.15
+         */
+        batChargeLevel: BatChargeLevel;
+
+        /**
+         * Indicates if the battery needs to be replaced. Replacement may be simple routine maintenance, such as with a
+         * single use, non-rechargeable cell. Replacement, however, may also indicate end of life, or serious fault with
+         * a rechargeable or even non-replaceable cell.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.16
+         */
+        batReplacementNeeded: boolean;
+
+        /**
+         * Indicates the replaceability of the battery as specified in BatReplaceabilityEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.17
+         */
+        batReplaceability: BatReplaceability;
+
+        /**
+         * Indicates the currently measured output voltage of the battery in mV (millivolts). A value of NULL shall
+         * indicate the Node is currently unable to assess the value.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.12
+         */
+        batVoltage: number | null;
+
+        /**
+         * Indicates the estimated percentage of battery charge remaining until the battery will no longer be able to
+         * provide power to the Node. Values are expressed in half percent units, ranging from 0 to 200. E.g. a value of
+         * 48 is equivalent to 24%. A value of NULL shall indicate the Node is currently unable to assess the value.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * Since reporting consumes power, devices SHOULD be careful not to over-report.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.13
+         */
+        batPercentRemaining: number | null;
+
+        /**
+         * Indicates the estimated time in seconds before the battery will no longer be able to provide power to the
+         * Node. A value of NULL shall indicate the Node is currently unable to assess the value.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * Since reporting consumes power, devices SHOULD be careful not to over-report.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.14
+         */
+        batTimeRemaining: number | null;
+
+        /**
+         * Indicates whether the Node detects that the batteries are properly installed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.18
+         */
+        batPresent: boolean;
+
+        /**
+         * Indicates the set of battery faults currently detected by the Node on this power source. This set is
+         * represented as a list of BatFaultEnum. When the Node detects a fault has been raised, the appropriate
+         * BatFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
+         * contain more than one instance of a specific BatFaultEnum value. When the Node detects all conditions
+         * contributing to a fault have been cleared, the corresponding BatFaultEnum value shall be removed from this
+         * list. An empty list shall indicate there are currently no active faults. The order of this list SHOULD have
+         * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
+         * or they may subscribe to BatFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
+         */
+        activeBatFaults: BatFault[];
+
+        /**
+         * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
+         * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.20
+         */
+        batReplacementDescription: string;
+
+        /**
+         * Indicates the quantity of individual, user- or factory-serviceable battery cells or packs in the battery
+         * source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.26
+         */
+        batQuantity: number;
+
+        /**
+         * Indicates the ID of the common or colloquial designation of the battery, as specified in
+         * BatCommonDesignationEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.21
+         */
+        batCommonDesignation: BatCommonDesignation;
+
+        /**
+         * Indicates the string representing the ANSI designation for the battery as specified in ANSI C18.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.22
+         */
+        batAnsiDesignation: string;
+
+        /**
+         * Indicates the string representing the IEC designation for the battery as specified in IEC 60086.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.23
+         */
+        batIecDesignation: string;
+
+        /**
+         * Indicates the ID of the preferred chemistry of the battery source as specified in BatApprovedChemistryEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.24
+         */
+        batApprovedChemistry: BatApprovedChemistry;
+
+        /**
+         * Indicates the preferred minimum charge capacity rating in mAh of individual, user- or factory-serviceable
+         * battery cells or packs in the battery source.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.25
+         */
+        batCapacity: number;
+
+        /**
+         * Indicates the current state of the battery source with respect to charging as specified in
+         * BatChargeStateEnum.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.27
+         */
+        batChargeState: BatChargeState;
+
+        /**
+         * Indicates whether the Node can remain operational while the battery source is charging.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.29
+         */
+        batFunctionalWhileCharging: boolean;
+
+        /**
+         * Indicates the estimated time in seconds before the battery source will be at full charge. A value of NULL
+         * shall indicate the Node is currently unable to assess the value.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - At most once every 10 seconds, or
+         *
+         *   - When it changes from null to any other value and vice versa.
+         *
+         * Since reporting consumes power, devices SHOULD be careful not to over-report.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.28
+         */
+        batTimeToFullCharge: number | null;
+
+        /**
+         * Indicates assessed current in mA (milliamps) presently supplied to charge the battery source. A value of NULL
+         * shall indicate the Node is currently unable to assess the value.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.30
+         */
+        batChargingCurrent: number | null;
+
+        /**
+         * Indicates the set of charge faults currently detected by the Node on this power source. This set is
+         * represented as a list of BatChargeFaultEnum. When the Node detects a fault has been raised, the appropriate
+         * BatChargeFaultEnum value shall be added to this list, provided it is not already present. This list shall NOT
+         * contain more than one instance of a specific BatChargeFaultEnum value. When the Node detects all conditions
+         * contributing to a fault have been cleared, the corresponding BatChargeFaultEnum value shall be removed from
+         * this list. An empty list shall indicate there are currently no active faults. The order of this list SHOULD
+         * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
+         * attribute, or they may subscribe to the BatFaultChange event.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.7.31
+         */
+        activeBatChargeFaults: BatChargeFault[];
+    }
+
+    /**
+     * {@link PowerSource} supports these elements if it supports feature "Wired".
+     */
+    export interface WiredEvents {
+        /**
+         * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on
+         * this wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
+         */
+        wiredFaultChange?: WiredFaultChangeEvent;
+    }
+
+    /**
+     * {@link PowerSource} supports these elements if it supports feature "Battery".
+     */
+    export interface BatteryEvents {
+        /**
+         * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on
+         * this battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
+         */
+        batFaultChange?: BatFaultChangeEvent;
+    }
+
+    /**
+     * {@link PowerSource} supports these elements if it supports feature "Rechargeable".
+     */
+    export interface RechargeableEvents {
+        /**
+         * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the
+         * Node on this battery power source changes. This event shall correspond to a change in value of
+         * ActiveBatChargeFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
+         */
+        batChargeFaultChange?: BatChargeFaultChangeEvent;
+    }
+
+    /**
+     * Events that may appear in {@link PowerSource}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on
+         * this wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
+         */
+        wiredFaultChange: WiredFaultChangeEvent;
+
+        /**
+         * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on
+         * this battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
+         */
+        batFaultChange: BatFaultChangeEvent;
+
+        /**
+         * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the
+         * Node on this battery power source changes. This event shall correspond to a change in value of
+         * ActiveBatChargeFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
+         */
+        batChargeFaultChange: BatChargeFaultChangeEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes },
-        { flags: { wired: true }, attributes: WiredComponent.Attributes, events: WiredComponent.Events },
-        { flags: { battery: true }, attributes: BatteryComponent.Attributes, events: BatteryComponent.Events },
-        { flags: { replaceable: true }, attributes: ReplaceableComponent.Attributes },
-        { flags: { replaceable: true }, attributes: ReplaceableOrRechargeableComponent.Attributes },
-        { flags: { rechargeable: true }, attributes: ReplaceableOrRechargeableComponent.Attributes },
-        {
-            flags: { rechargeable: true },
-            attributes: RechargeableComponent.Attributes,
-            events: RechargeableComponent.Events
-        }
+        { flags: {}, attributes: BaseAttributes },
+        { flags: { wired: true }, attributes: WiredAttributes, events: WiredEvents },
+        { flags: { battery: true }, attributes: BatteryAttributes, events: BatteryEvents },
+        { flags: { replaceable: true }, attributes: ReplaceableAttributes },
+        { flags: { replaceable: true }, attributes: ReplaceableOrRechargeableAttributes },
+        { flags: { rechargeable: true }, attributes: ReplaceableOrRechargeableAttributes },
+        { flags: { rechargeable: true }, attributes: RechargeableAttributes, events: RechargeableEvents }
     ];
 
     export type Features = "Wired" | "Battery" | "Rechargeable" | "Replaceable";
@@ -546,28 +934,6 @@ export declare namespace PowerSource {
     }
 
     /**
-     * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on this
-     * wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
-     */
-    export interface WiredFaultChangeEvent {
-        /**
-         * This field shall represent the set of faults currently detected, as per ActiveWiredFaults.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.1
-         */
-        current: WiredFault[];
-
-        /**
-         * This field shall represent the set of faults detected prior to this change event, as per ActiveWiredFaults.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.2
-         */
-        previous: WiredFault[];
-    }
-
-    /**
      * @see {@link MatterSpecification.v142.Core} § 11.7.6.6
      */
     export enum BatChargeLevel {
@@ -630,28 +996,6 @@ export declare namespace PowerSource {
          * The Node detects the temperature of this battery power source is below ideal operating conditions.
          */
         UnderTemp = 2
-    }
-
-    /**
-     * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on this
-     * battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
-     */
-    export interface BatFaultChangeEvent {
-        /**
-         * This field shall represent the set of faults currently detected, as per ActiveBatFaults.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.1
-         */
-        current: BatFault[];
-
-        /**
-         * This field shall represent the set of faults detected prior to this change event, as per ActiveBatFaults.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.2
-         */
-        previous: BatFault[];
     }
 
     /**
@@ -1295,6 +1639,50 @@ export declare namespace PowerSource {
     }
 
     /**
+     * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on this
+     * wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
+     */
+    export interface WiredFaultChangeEvent {
+        /**
+         * This field shall represent the set of faults currently detected, as per ActiveWiredFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.1
+         */
+        current: WiredFault[];
+
+        /**
+         * This field shall represent the set of faults detected prior to this change event, as per ActiveWiredFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.2
+         */
+        previous: WiredFault[];
+    }
+
+    /**
+     * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on this
+     * battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
+     */
+    export interface BatFaultChangeEvent {
+        /**
+         * This field shall represent the set of faults currently detected, as per ActiveBatFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.1
+         */
+        current: BatFault[];
+
+        /**
+         * This field shall represent the set of faults detected prior to this change event, as per ActiveBatFaults.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.2
+         */
+        previous: BatFault[];
+    }
+
+    /**
      * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the Node on
      * this battery power source changes. This event shall correspond to a change in value of ActiveBatChargeFaults.
      *
@@ -1317,24 +1705,42 @@ export declare namespace PowerSource {
         previous: BatChargeFault[];
     }
 
-    export const id: ClusterId;
-    export const name: "PowerSource";
-    export const revision: 3;
-    export const schema: typeof PowerSourceModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link PowerSource}.
+     */
     export const Cluster: typeof PowerSource;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `PowerSource` instead of `PowerSource.Complete`)
+     * @deprecated Use {@link PowerSource}.
      */
     export const Complete: typeof PowerSource;
 
     export const Typing: PowerSource;
 }
 
+/**
+ * @deprecated Use {@link PowerSource}.
+ */
 export declare const PowerSourceCluster: typeof PowerSource;
-export interface PowerSource extends ClusterTyping { Attributes: PowerSource.Attributes; Events: PowerSource.Events; Features: PowerSource.Features; Components: PowerSource.Components }
+
+export interface PowerSource extends ClusterTyping {
+    Attributes: PowerSource.Attributes;
+    Events: PowerSource.Events;
+    Features: PowerSource.Features;
+    Components: PowerSource.Components;
+}

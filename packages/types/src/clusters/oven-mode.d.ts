@@ -6,51 +6,103 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { ModeBase } from "./mode-base.js";
 import type { VendorId } from "../datatype/VendorId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { OvenMode as OvenModeModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the OvenMode cluster.
+ *
+ * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
+ * for oven devices.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 8.11
  */
 export declare namespace OvenMode {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0049;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "OvenMode";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the OvenMode cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link OvenMode} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
-             * list.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
-             */
-            readonly supportedModes: ModeOption[];
+    export interface BaseAttributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
+         * list.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
+         */
+        supportedModes: ModeOption[];
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
-             */
-            readonly currentMode: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to change device modes.
-             *
-             * On receipt of this command the device shall respond with a ChangeToModeResponse command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
-             */
-            changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
+         */
+        currentMode: number;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link OvenMode}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
+         * list.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
+         */
+        supportedModes: ModeOption[];
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
+         */
+        currentMode: number;
+    }
+
+    /**
+     * {@link OvenMode} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to change device modes.
+         *
+         * On receipt of this command the device shall respond with a ChangeToModeResponse command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         */
+        changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link OvenMode}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "OnOff";
 
     /**
@@ -279,24 +331,42 @@ export declare namespace OvenMode {
         value: ModeTag | ModeBase.ModeTag;
     }
 
-    export const id: ClusterId;
-    export const name: "OvenMode";
-    export const revision: 2;
-    export const schema: typeof OvenModeModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link OvenMode}.
+     */
     export const Cluster: typeof OvenMode;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `OvenMode` instead of `OvenMode.Complete`)
+     * @deprecated Use {@link OvenMode}.
      */
     export const Complete: typeof OvenMode;
 
     export const Typing: OvenMode;
 }
 
+/**
+ * @deprecated Use {@link OvenMode}.
+ */
 export declare const OvenModeCluster: typeof OvenMode;
-export interface OvenMode extends ClusterTyping { Attributes: OvenMode.Attributes; Commands: OvenMode.Commands; Features: OvenMode.Features; Components: OvenMode.Components }
+
+export interface OvenMode extends ClusterTyping {
+    Attributes: OvenMode.Attributes;
+    Commands: OvenMode.Commands;
+    Features: OvenMode.Features;
+    Components: OvenMode.Components;
+}

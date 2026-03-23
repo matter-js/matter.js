@@ -6,37 +6,101 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ContentAppObserver as ContentAppObserverModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the ContentAppObserver cluster.
+ *
+ * This cluster provides an interface for sending targeted commands to an Observer of a Content App on a Video Player
+ * device such as a Streaming Media Player, Smart TV or Smart Screen.
+ *
+ * The cluster server for Content App Observer is implemented by an endpoint that communicates with a Content App, such
+ * as a Casting Video Client.
+ *
+ * The cluster client for Content App Observer is implemented by a Content App endpoint.
+ *
+ * A Content App is informed of the NodeId of an Observer when a binding is set on the Content App. For a Content App
+ * Platform, the binding is set by the platform when a CastingVideoClient is granted access to the Content App, and the
+ * CastingVideoClient supports the Content App Observer cluster. The Content App can then send the ContentAppMessage to
+ * the Observer (server cluster), and the Observer responds with a ContentAppMessageResponse.
+ *
+ * The Data and EncodingHint fields of the ContentAppMessage and ContentAppMessageResponse contain content app-specific
+ * values, the format and interpretation of which is defined by the Content App vendor, analogous to the custom message
+ * features offered by other popular casting protocols. Standardized cluster and commands are used here rather than
+ * manufacturer-specific cluster and commands because of the role that the Content App Platform plays in creating the
+ * ACLs and Bindings on both sides of the communication between the Content App Observer endpoint and the Content App
+ * endpoint.
+ *
+ * By using standard cluster and commands:
+ *
+ *   1. The Content App Platform is able to easily determine that a binding is needed on the Content App endpoint
+ *      because it can recognize the Content App Observer cluster implemented by a client node.
+ *
+ *   2. The Content App Platform is able to easily identify commands that are allowed to be sent by the Content App to a
+ *      client node because those commands use the Content App Observer cluster.
+ *
+ *   3. The Content App is able to easily determine that a node supports the Content App Observer cluster because it has
+ *      received a binding which specifies the Content App Observer cluster.
+ *
+ *   4. The Casting Video Client is able to support a single cluster for receiving commands from any Content App and
+ *      does not need to explicitly list every Content App it understands.
+ *
+ * A Content App Observer SHOULD ignore the Data and EncodingHint field values in commands from a Content App it does
+ * not recognize. A Content App SHOULD ignore the Data field values in responses when the EncodingHint value is blank or
+ * not recognized.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.12
  */
 export declare namespace ContentAppObserver {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0510;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ContentAppObserver";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the ContentAppObserver cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ContentAppObserver} always supports these elements.
      */
-    export namespace Base {
-        export interface Commands {
-            /**
-             * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content
-             * App. A Content App may when possible read attributes from the Basic Information Cluster on the Observer
-             * and use this to determine the Message encoding.
-             *
-             * This command returns a ContentAppMessage Response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
-             */
-            contentAppMessage(request: ContentAppMessageRequest): MaybePromise<ContentAppMessageResponse>;
-        }
+    export interface BaseCommands {
+        /**
+         * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content App.
+         * A Content App may when possible read attributes from the Basic Information Cluster on the Observer and use
+         * this to determine the Message encoding.
+         *
+         * This command returns a ContentAppMessage Response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.12.5.1
+         */
+        contentAppMessage(request: ContentAppMessageRequest): MaybePromise<ContentAppMessageResponse>;
     }
 
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, commands: Base.Commands }];
+    /**
+     * Commands that may appear in {@link ContentAppObserver}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, commands: BaseCommands }];
 
     /**
      * Upon receipt, the data field may be parsed and interpreted. Message encoding is specific to the Content App. A
@@ -115,22 +179,30 @@ export declare namespace ContentAppObserver {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
     }
 
-    export const id: ClusterId;
-    export const name: "ContentAppObserver";
-    export const revision: 1;
-    export const schema: typeof ContentAppObserverModel;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * @deprecated Use {@link ContentAppObserver}.
+     */
     export const Cluster: typeof ContentAppObserver;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ContentAppObserver` instead of
-     * `ContentAppObserver.Complete`)
+     * @deprecated Use {@link ContentAppObserver}.
      */
     export const Complete: typeof ContentAppObserver;
 
     export const Typing: ContentAppObserver;
 }
 
+/**
+ * @deprecated Use {@link ContentAppObserver}.
+ */
 export declare const ContentAppObserverCluster: typeof ContentAppObserver;
-export interface ContentAppObserver extends ClusterTyping { Commands: ContentAppObserver.Commands; Components: ContentAppObserver.Components }
+
+export interface ContentAppObserver extends ClusterTyping {
+    Commands: ContentAppObserver.Commands;
+    Components: ContentAppObserver.Components;
+}

@@ -7,49 +7,107 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ThermostatUserInterfaceConfiguration as ThermostatUserInterfaceConfigurationModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 
 /**
  * Definitions for the ThermostatUserInterfaceConfiguration cluster.
+ *
+ * This cluster provides an interface to allow configuration of the user interface for a thermostat, or a thermostat
+ * controller device, that supports a keypad and LCD screen.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 4.5
  */
 export declare namespace ThermostatUserInterfaceConfiguration {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0204;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ThermostatUserInterfaceConfiguration";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the ThermostatUserInterfaceConfiguration cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ThermostatUserInterfaceConfiguration} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the units of the temperature displayed on the thermostat screen.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
-             */
-            temperatureDisplayMode: TemperatureDisplayMode;
+    export interface BaseAttributes {
+        /**
+         * Indicates the units of the temperature displayed on the thermostat screen.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
+         */
+        temperatureDisplayMode: TemperatureDisplayMode;
 
-            /**
-             * Indicates the level of functionality that is available to the user via the keypad.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
-             */
-            keypadLockout: KeypadLockout;
+        /**
+         * Indicates the level of functionality that is available to the user via the keypad.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
+         */
+        keypadLockout: KeypadLockout;
 
-            /**
-             * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from
-             * a user to prevent local user programming of the weekly schedule. The schedule programming may still be
-             * performed via a remote interface, and the thermostat may operate in schedule programming mode.
-             *
-             * This attribute is designed to prevent local tampering with or disabling of schedules that may have been
-             * programmed by users or service providers via a more capable remote interface. The programming schedule
-             * shall continue to run even though it is not visible to the user locally at the thermostat.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
-             */
-            scheduleProgrammingVisibility?: ScheduleProgrammingVisibility;
-        }
+        /**
+         * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
+         * user to prevent local user programming of the weekly schedule. The schedule programming may still be
+         * performed via a remote interface, and the thermostat may operate in schedule programming mode.
+         *
+         * This attribute is designed to prevent local tampering with or disabling of schedules that may have been
+         * programmed by users or service providers via a more capable remote interface. The programming schedule shall
+         * continue to run even though it is not visible to the user locally at the thermostat.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
+         */
+        scheduleProgrammingVisibility?: ScheduleProgrammingVisibility;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes }];
+    /**
+     * Attributes that may appear in {@link ThermostatUserInterfaceConfiguration}.
+     *
+     * Some properties may be optional if device support is not mandatory.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the units of the temperature displayed on the thermostat screen.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.1
+         */
+        temperatureDisplayMode: TemperatureDisplayMode;
+
+        /**
+         * Indicates the level of functionality that is available to the user via the keypad.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.2
+         */
+        keypadLockout: KeypadLockout;
+
+        /**
+         * This attribute is used to hide the weekly schedule programming functionality or menu on a thermostat from a
+         * user to prevent local user programming of the weekly schedule. The schedule programming may still be
+         * performed via a remote interface, and the thermostat may operate in schedule programming mode.
+         *
+         * This attribute is designed to prevent local tampering with or disabling of schedules that may have been
+         * programmed by users or service providers via a more capable remote interface. The programming schedule shall
+         * continue to run even though it is not visible to the user locally at the thermostat.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.5.6.3
+         */
+        scheduleProgrammingVisibility: ScheduleProgrammingVisibility;
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.5.5.1
@@ -118,22 +176,30 @@ export declare namespace ThermostatUserInterfaceConfiguration {
         ScheduleProgrammingDenied = 1
     }
 
-    export const id: ClusterId;
-    export const name: "ThermostatUserInterfaceConfiguration";
-    export const revision: 2;
-    export const schema: typeof ThermostatUserInterfaceConfigurationModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * @deprecated Use {@link ThermostatUserInterfaceConfiguration}.
+     */
     export const Cluster: typeof ThermostatUserInterfaceConfiguration;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ThermostatUserInterfaceConfiguration` instead of
-     * `ThermostatUserInterfaceConfiguration.Complete`)
+     * @deprecated Use {@link ThermostatUserInterfaceConfiguration}.
      */
     export const Complete: typeof ThermostatUserInterfaceConfiguration;
 
     export const Typing: ThermostatUserInterfaceConfiguration;
 }
 
+/**
+ * @deprecated Use {@link ThermostatUserInterfaceConfiguration}.
+ */
 export declare const ThermostatUserInterfaceConfigurationCluster: typeof ThermostatUserInterfaceConfiguration;
-export interface ThermostatUserInterfaceConfiguration extends ClusterTyping { Attributes: ThermostatUserInterfaceConfiguration.Attributes; Components: ThermostatUserInterfaceConfiguration.Components }
+
+export interface ThermostatUserInterfaceConfiguration extends ClusterTyping {
+    Attributes: ThermostatUserInterfaceConfiguration.Attributes;
+    Components: ThermostatUserInterfaceConfiguration.Components;
+}

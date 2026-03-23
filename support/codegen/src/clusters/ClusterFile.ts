@@ -41,7 +41,11 @@ export class ClusterFile extends ScopeFile {
         this.clusterName = `${cluster.name}Cluster`;
         this.typesName = cluster.name;
         this.ns = this.statements(`export declare namespace ${this.typesName} {`, "}");
-        this.ns.document(`Definitions for the ${cluster.name} cluster.`);
+        this.ns.document({
+            description: cluster.description ?? `Definitions for the ${cluster.name} cluster.`,
+            details: cluster.details,
+            xref: cluster.xref,
+        });
         this.interfaces = this.ns.section();
         this.featureEnum = this.ns.section();
         this.components = this.ns.section();

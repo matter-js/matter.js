@@ -6,119 +6,214 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { TemperatureControl as TemperatureControlModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the TemperatureControl cluster.
+ *
+ * This cluster provides an interface to the setpoint temperature on devices such as washers, refrigerators, and water
+ * heaters. The setpoint temperature is the temperature to which a device using this cluster would attempt to control
+ * to. This cluster does not provide access to the actual or physical temperature associated with any device using this
+ * cluster. Access to the physical temperature associated with a device using this cluster would be provided by other
+ * clusters as part of that devices device type definition.
+ *
+ * The values and constraints of the attributes communicated to clients SHOULD match the controls on any physical
+ * interface on a device implementing this server. For example, the value of the Step attribute SHOULD match the
+ * incremental value by which the temperature setpoint can be changed on the physical device.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 8.2
  */
 export declare namespace TemperatureControl {
     /**
-     * {@link TemperatureControl} always supports these elements.
+     * The Matter protocol cluster identifier.
      */
-    export namespace Base {
-        export interface Commands {
-            /**
-             * This command is used to set the temperature setpoint.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
-             */
-            setTemperature(request: SetTemperatureRequest): MaybePromise;
-        }
-    }
+    export const id: ClusterId & 0x0056;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "TemperatureControl";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the TemperatureControl cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
 
     /**
      * {@link TemperatureControl} supports these elements if it supports feature "TemperatureNumber".
      */
-    export namespace TemperatureNumberComponent {
-        export interface Attributes {
-            /**
-             * Indicates the desired Temperature Setpoint on the device.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.1
-             */
-            readonly temperatureSetpoint: number;
+    export interface TemperatureNumberAttributes {
+        /**
+         * Indicates the desired Temperature Setpoint on the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.1
+         */
+        temperatureSetpoint: number;
 
-            /**
-             * Indicates the minimum temperature to which the TemperatureSetpoint attribute may be set.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.2
-             */
-            readonly minTemperature: number;
+        /**
+         * Indicates the minimum temperature to which the TemperatureSetpoint attribute may be set.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.2
+         */
+        minTemperature: number;
 
-            /**
-             * Indicates the maximum temperature to which the TemperatureSetpoint attribute may be set.
-             *
-             * If the Step attribute is supported, this attribute shall be such that MaxTemperature = MinTemperature +
-             * (Step * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall
-             * be such that MaxTemperature > MinTemperature.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.3
-             */
-            readonly maxTemperature: number;
-        }
+        /**
+         * Indicates the maximum temperature to which the TemperatureSetpoint attribute may be set.
+         *
+         * If the Step attribute is supported, this attribute shall be such that MaxTemperature = MinTemperature + (Step
+         * * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall be such
+         * that MaxTemperature > MinTemperature.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.3
+         */
+        maxTemperature: number;
     }
 
     /**
      * {@link TemperatureControl} supports these elements if it supports feature "TemperatureStep".
      */
-    export namespace TemperatureStepComponent {
-        export interface Attributes {
-            /**
-             * Indicates the discrete value by which the TemperatureSetpoint attribute can be changed via the
-             * SetTemperature command.
-             *
-             * For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid
-             * values of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C
-             * (2600), 26.50C (2650), etc.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.4
-             */
-            readonly step: number;
-        }
+    export interface TemperatureStepAttributes {
+        /**
+         * Indicates the discrete value by which the TemperatureSetpoint attribute can be changed via the SetTemperature
+         * command.
+         *
+         * For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid values
+         * of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C (2600), 26.50C
+         * (2650), etc.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.4
+         */
+        step: number;
     }
 
     /**
      * {@link TemperatureControl} supports these elements if it supports feature "TemperatureLevel".
      */
-    export namespace TemperatureLevelComponent {
-        export interface Attributes {
-            /**
-             * Indicates the currently selected temperature level setting of the server. This attribute shall be the
-             * positional index of the list item in the SupportedTemperatureLevels list that represents the currently
-             * selected temperature level setting of the server.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.5
-             */
-            readonly selectedTemperatureLevel: number;
+    export interface TemperatureLevelAttributes {
+        /**
+         * Indicates the currently selected temperature level setting of the server. This attribute shall be the
+         * positional index of the list item in the SupportedTemperatureLevels list that represents the currently
+         * selected temperature level setting of the server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.5
+         */
+        selectedTemperatureLevel: number;
 
-            /**
-             * Indicates the list of supported temperature level settings that may be selected via the
-             * TargetTemperatureLevel field in the SetTemperature command. Each string is readable text that describes
-             * each temperature level setting in a way that can be easily understood by humans. For example, a washing
-             * machine can have temperature levels like "Cold", "Warm", and "Hot". Each string is specified by the
-             * manufacturer.
-             *
-             * Each item in this list shall represent a unique temperature level. Each entry in this list shall have a
-             * unique value. The entries in this list shall appear in order of increasing temperature level with list
-             * item 0 being the setting with the lowest temperature level.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.6
-             */
-            readonly supportedTemperatureLevels: string[];
-        }
+        /**
+         * Indicates the list of supported temperature level settings that may be selected via the
+         * TargetTemperatureLevel field in the SetTemperature command. Each string is readable text that describes each
+         * temperature level setting in a way that can be easily understood by humans. For example, a washing machine
+         * can have temperature levels like "Cold", "Warm", and "Hot". Each string is specified by the manufacturer.
+         *
+         * Each item in this list shall represent a unique temperature level. Each entry in this list shall have a
+         * unique value. The entries in this list shall appear in order of increasing temperature level with list item 0
+         * being the setting with the lowest temperature level.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.6
+         */
+        supportedTemperatureLevels: string[];
     }
 
-    export interface Attributes extends Partial<TemperatureNumberComponent.Attributes>, Partial<TemperatureStepComponent.Attributes>, Partial<TemperatureLevelComponent.Attributes> {}
-    export interface Commands extends Base.Commands {}
+    /**
+     * Attributes that may appear in {@link TemperatureControl}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the desired Temperature Setpoint on the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.1
+         */
+        temperatureSetpoint: number;
+
+        /**
+         * Indicates the minimum temperature to which the TemperatureSetpoint attribute may be set.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.2
+         */
+        minTemperature: number;
+
+        /**
+         * Indicates the maximum temperature to which the TemperatureSetpoint attribute may be set.
+         *
+         * If the Step attribute is supported, this attribute shall be such that MaxTemperature = MinTemperature + (Step
+         * * n), where n is an integer and n > 0. If the Step attribute is not supported, this attribute shall be such
+         * that MaxTemperature > MinTemperature.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.3
+         */
+        maxTemperature: number;
+
+        /**
+         * Indicates the discrete value by which the TemperatureSetpoint attribute can be changed via the SetTemperature
+         * command.
+         *
+         * For example, if the value of MinTemperature is 25.00C (2500) and the Step value is 0.50C (50), valid values
+         * of the TargetTemperature field of the SetTemperature command would be 25.50C (2550), 26.00C (2600), 26.50C
+         * (2650), etc.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.4
+         */
+        step: number;
+
+        /**
+         * Indicates the currently selected temperature level setting of the server. This attribute shall be the
+         * positional index of the list item in the SupportedTemperatureLevels list that represents the currently
+         * selected temperature level setting of the server.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.5
+         */
+        selectedTemperatureLevel: number;
+
+        /**
+         * Indicates the list of supported temperature level settings that may be selected via the
+         * TargetTemperatureLevel field in the SetTemperature command. Each string is readable text that describes each
+         * temperature level setting in a way that can be easily understood by humans. For example, a washing machine
+         * can have temperature levels like "Cold", "Warm", and "Hot". Each string is specified by the manufacturer.
+         *
+         * Each item in this list shall represent a unique temperature level. Each entry in this list shall have a
+         * unique value. The entries in this list shall appear in order of increasing temperature level with list item 0
+         * being the setting with the lowest temperature level.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.5.6
+         */
+        supportedTemperatureLevels: string[];
+    }
+
+    /**
+     * {@link TemperatureControl} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to set the temperature setpoint.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
+         */
+        setTemperature(request: SetTemperatureRequest): MaybePromise;
+    }
+
+    /**
+     * Commands that may appear in {@link TemperatureControl}.
+     */
+    export interface Commands extends BaseCommands {}
 
     export type Components = [
-        { flags: {}, commands: Base.Commands },
-        { flags: { temperatureNumber: true }, attributes: TemperatureNumberComponent.Attributes },
-        { flags: { temperatureStep: true }, attributes: TemperatureStepComponent.Attributes },
-        { flags: { temperatureLevel: true }, attributes: TemperatureLevelComponent.Attributes }
+        { flags: {}, commands: BaseCommands },
+        { flags: { temperatureNumber: true }, attributes: TemperatureNumberAttributes },
+        { flags: { temperatureStep: true }, attributes: TemperatureStepAttributes },
+        { flags: { temperatureLevel: true }, attributes: TemperatureLevelAttributes }
     ];
 
     export type Features = "TemperatureNumber" | "TemperatureLevel" | "TemperatureStep";
@@ -187,25 +282,42 @@ export declare namespace TemperatureControl {
         targetTemperatureLevel?: number;
     }
 
-    export const id: ClusterId;
-    export const name: "TemperatureControl";
-    export const revision: 1;
-    export const schema: typeof TemperatureControlModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link TemperatureControl}.
+     */
     export const Cluster: typeof TemperatureControl;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `TemperatureControl` instead of
-     * `TemperatureControl.Complete`)
+     * @deprecated Use {@link TemperatureControl}.
      */
     export const Complete: typeof TemperatureControl;
 
     export const Typing: TemperatureControl;
 }
 
+/**
+ * @deprecated Use {@link TemperatureControl}.
+ */
 export declare const TemperatureControlCluster: typeof TemperatureControl;
-export interface TemperatureControl extends ClusterTyping { Attributes: TemperatureControl.Attributes; Commands: TemperatureControl.Commands; Features: TemperatureControl.Features; Components: TemperatureControl.Components }
+
+export interface TemperatureControl extends ClusterTyping {
+    Attributes: TemperatureControl.Attributes;
+    Commands: TemperatureControl.Commands;
+    Features: TemperatureControl.Features;
+    Components: TemperatureControl.Components;
+}

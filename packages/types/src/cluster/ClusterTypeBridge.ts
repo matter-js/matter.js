@@ -5,12 +5,6 @@
  */
 
 import type { TlvSchema } from "../tlv/TlvSchema.js";
-import type {
-    OptionalWritableAttribute,
-    OptionalWritableFabricScopedAttribute,
-    WritableAttribute,
-    WritableFabricScopedAttribute,
-} from "./Cluster.js";
 import type { ClusterNamespace, ClusterTyping } from "./ClusterNamespace.js";
 import type { ClusterType } from "./ClusterType.js";
 
@@ -36,8 +30,8 @@ export type ClusterTypeBridge<C extends ClusterType, I extends ClusterTyping> = 
         [
             {
                 flags: {};
-                attributes: MandatoryAttrs<C["attributes"]> & OptionalAttrs<C["attributes"]>;
-                events: MandatoryEvents<C["events"]> & OptionalEvents<C["events"]>;
+                attributes: AttrInterfaceOf<C["attributes"]>;
+                events: EventInterfaceOf<C["events"]>;
             },
             ...ExtComponents<ExtensionsOf<C>>,
         ],
@@ -107,47 +101,33 @@ type AttrValuesOf<R> = { [K in keyof R]: AttrValueOf<R[K]> };
 
 type EventValuesOf<R> = { [K in keyof R]: AttrValueOf<R[K]> };
 
-type WritableAttrKeys<R> = {
-    [K in keyof R]: R[K] extends
-        | WritableAttribute<any, any>
-        | OptionalWritableAttribute<any, any>
-        | WritableFabricScopedAttribute<any, any>
-        | OptionalWritableFabricScopedAttribute<any, any>
-        ? K
-        : never;
-}[keyof R];
+/**
+ * Attribute keys that are mandatory (not optional).
+ */
+type MandatoryAttrKeys<R> = { [K in keyof R & string]: R[K] extends { optional: true } ? never : K }[keyof R & string];
 
-type ReadonlyAttrKeys<R> = Exclude<keyof R, WritableAttrKeys<R>>;
+/**
+ * Attribute keys that are optional.
+ */
+type OptionalAttrKeys<R> = { [K in keyof R & string]: R[K] extends { optional: true } ? K : never }[keyof R & string];
 
-type MandatoryAttrs<R> = {
-    readonly [K in MandatoryKeysOf<R> & ReadonlyAttrKeys<R>]: AttrValueOf<R[K]>;
-} & {
-    [K in MandatoryKeysOf<R> & WritableAttrKeys<R>]: AttrValueOf<R[K]>;
+/**
+ * Build a per-component attribute interface from ClusterType attributes.
+ *
+ * Mandatory attributes are required; optional attributes use `?`.
+ */
+type AttrInterfaceOf<R> = { [K in MandatoryAttrKeys<R>]: AttrValueOf<R[K]> } & {
+    [K in OptionalAttrKeys<R>]?: AttrValueOf<R[K]>;
 };
 
-type OptionalAttrs<R> = {
-    readonly [K in OptionalKeysOf<R> & ReadonlyAttrKeys<R>]?: AttrValueOf<R[K]>;
-} & {
-    [K in OptionalKeysOf<R> & WritableAttrKeys<R>]?: AttrValueOf<R[K]>;
+/**
+ * Build a per-component event interface from ClusterType events.
+ *
+ * Mandatory events are required; optional events use `?`.
+ */
+type EventInterfaceOf<R> = { [K in MandatoryAttrKeys<R>]: AttrValueOf<R[K]> } & {
+    [K in OptionalAttrKeys<R>]?: AttrValueOf<R[K]>;
 };
-
-type MandatoryEvents<R> = {
-    [K in MandatoryKeysOf<R>]: AttrValueOf<R[K]>;
-};
-
-type OptionalEvents<R> = {
-    [K in OptionalKeysOf<R>]?: AttrValueOf<R[K]>;
-};
-
-type MandatoryKeysOf<R> = {
-    [K in keyof R]: R[K] extends { optional: true } ? never : K;
-}[keyof R] &
-    string;
-
-type OptionalKeysOf<R> = {
-    [K in keyof R]: R[K] extends { optional: true } ? K : never;
-}[keyof R] &
-    string;
 
 type FeatureNamesOf<F> = Capitalize<keyof F & string>;
 
@@ -166,8 +146,8 @@ type ExtComponents<Exts extends readonly ClusterType.Extension[]> = Exts extends
 
 type ExtComponentEntry<E extends ClusterType.Extension> = {
     flags: ExtFlags<E>;
-} & (E["component"] extends { attributes: infer A } ? { attributes: MandatoryAttrs<A> & OptionalAttrs<A> } : {}) &
-    (E["component"] extends { events: infer Ev } ? { events: MandatoryEvents<Ev> & OptionalEvents<Ev> } : {});
+} & (E["component"] extends { attributes: infer A } ? { attributes: AttrInterfaceOf<A> } : {}) &
+    (E["component"] extends { events: infer Ev } ? { events: EventInterfaceOf<Ev> } : {});
 
 type ExtAttrValuesOf<Exts extends readonly ClusterType.Extension[]> = Exts extends readonly [
     infer E extends ClusterType.Extension,

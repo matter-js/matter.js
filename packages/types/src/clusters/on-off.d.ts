@@ -6,147 +6,250 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { OnOff as OnOffModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the OnOff cluster.
+ *
+ * Attributes and commands for turning devices on and off.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 1.5
  */
 export declare namespace OnOff {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0006;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "OnOff";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 6;
+
+    /**
+     * Canonical metadata for the OnOff cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link OnOff} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on,
-             * in these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.2
-             */
-            readonly onOff: boolean;
-        }
-
-        export interface Commands {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.1
-             */
-            off(): MaybePromise;
-        }
+    export interface BaseAttributes {
+        /**
+         * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on, in
+         * these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.2
+         */
+        onOff: boolean;
     }
 
     /**
      * {@link OnOff} supports these elements if it supports feature "Lighting".
      */
-    export namespace LightingComponent {
-        export interface Attributes {
-            /**
-             * In order to support the use case where the user gets back the last setting of a set of devices (e.g.
-             * level settings for lights), a global scene is introduced which is stored when the devices are turned off
-             * and recalled when the devices are turned on. The global scene is defined as the scene that is stored with
-             * group identifier 0 and scene identifier 0.
-             *
-             * This attribute is defined in order to prevent a second Off command storing the all-devices-off situation
-             * as a global scene, and to prevent a second On command destroying the current settings by going back to
-             * the global scene.
-             *
-             * This attribute shall be set to TRUE after the reception of a command which causes the OnOff attribute to
-             * be set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or
-             * a OnWithRecallGlobalScene command.
-             *
-             * This attribute is set to FALSE after reception of a OffWithEffect command.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.3
-             */
-            readonly globalSceneControl: boolean;
+    export interface LightingAttributes {
+        /**
+         * In order to support the use case where the user gets back the last setting of a set of devices (e.g. level
+         * settings for lights), a global scene is introduced which is stored when the devices are turned off and
+         * recalled when the devices are turned on. The global scene is defined as the scene that is stored with group
+         * identifier 0 and scene identifier 0.
+         *
+         * This attribute is defined in order to prevent a second Off command storing the all-devices-off situation as a
+         * global scene, and to prevent a second On command destroying the current settings by going back to the global
+         * scene.
+         *
+         * This attribute shall be set to TRUE after the reception of a command which causes the OnOff attribute to be
+         * set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or a
+         * OnWithRecallGlobalScene command.
+         *
+         * This attribute is set to FALSE after reception of a OffWithEffect command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.3
+         */
+        globalSceneControl: boolean;
 
-            /**
-             * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained
-             * before automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute
-             * can be written at any time, but writing a value only has effect when in the Timed On state. See
-             * OnWithTimedOff for more details.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.4
-             */
-            onTime: number;
+        /**
+         * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
+         * automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute can be
+         * written at any time, but writing a value only has effect when in the Timed On state. See OnWithTimedOff for
+         * more details.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.4
+         */
+        onTime: number;
 
-            /**
-             * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
-             * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a
-             * room, the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn
-             * the lights back on). This attribute can be written at any time, but writing a value only has an effect
-             * when in the Timed On state followed by a transition to the Delayed Off state, or in the Delayed Off
-             * state. See OnWithTimedOff for more details.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.5
-             */
-            offWaitTime: number;
+        /**
+         * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
+         * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
+         * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
+         * back on). This attribute can be written at any time, but writing a value only has an effect when in the Timed
+         * On state followed by a transition to the Delayed Off state, or in the Delayed Off state. See OnWithTimedOff
+         * for more details.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.5
+         */
+        offWaitTime: number;
 
-            /**
-             * This attribute shall define the desired startup behavior of a device when it is supplied with power and
-             * this state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to
-             * its previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
-             *
-             * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute
-             * shall return to its value prior to the restart.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.6
-             */
-            startUpOnOff: StartUpOnOff | null;
-        }
+        /**
+         * This attribute shall define the desired startup behavior of a device when it is supplied with power and this
+         * state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its
+         * previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
+         *
+         * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute shall
+         * return to its value prior to the restart.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.6
+         */
+        startUpOnOff: StartUpOnOff | null;
+    }
 
-        export interface Commands {
-            /**
-             * The OffWithEffect command allows devices to be turned off using enhanced ways of fading.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4
-             */
-            offWithEffect(request: OffWithEffectRequest): MaybePromise;
+    /**
+     * Attributes that may appear in {@link OnOff}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute indicates whether the device type implemented on the endpoint is turned off or turned on, in
+         * these cases the value of the OnOff attribute equals FALSE, or TRUE respectively.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.2
+         */
+        onOff: boolean;
 
-            /**
-             * This command allows the recall of the settings when the device was turned off.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.5
-             */
-            onWithRecallGlobalScene(): MaybePromise;
+        /**
+         * In order to support the use case where the user gets back the last setting of a set of devices (e.g. level
+         * settings for lights), a global scene is introduced which is stored when the devices are turned off and
+         * recalled when the devices are turned on. The global scene is defined as the scene that is stored with group
+         * identifier 0 and scene identifier 0.
+         *
+         * This attribute is defined in order to prevent a second Off command storing the all-devices-off situation as a
+         * global scene, and to prevent a second On command destroying the current settings by going back to the global
+         * scene.
+         *
+         * This attribute shall be set to TRUE after the reception of a command which causes the OnOff attribute to be
+         * set to TRUE, such as a standard On command, a MoveToLevel(WithOnOff) command, a RecallScene command or a
+         * OnWithRecallGlobalScene command.
+         *
+         * This attribute is set to FALSE after reception of a OffWithEffect command.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.3
+         */
+        globalSceneControl: boolean;
 
-            /**
-             * This command allows devices to be turned on for a specific duration with a guarded off duration so that
-             * SHOULD the device be subsequently turned off, further OnWithTimedOff commands, received during this time,
-             * are prevented from turning the devices back on. Further OnWithTimedOff commands received while the server
-             * is turned on, will update the period that the device is turned on.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6
-             */
-            onWithTimedOff(request: OnWithTimedOffRequest): MaybePromise;
-        }
+        /**
+         * This attribute specifies the length of time (in 1/10ths second) that the On state shall be maintained before
+         * automatically transitioning to the Off state when using the OnWithTimedOff command. This attribute can be
+         * written at any time, but writing a value only has effect when in the Timed On state. See OnWithTimedOff for
+         * more details.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.4
+         */
+        onTime: number;
+
+        /**
+         * This attribute specifies the length of time (in 1/10ths second) that the Off state shall be guarded to
+         * prevent another OnWithTimedOff command turning the server back to its On state (e.g., when leaving a room,
+         * the lights are turned off but an occupancy sensor detects the leaving person and attempts to turn the lights
+         * back on). This attribute can be written at any time, but writing a value only has an effect when in the Timed
+         * On state followed by a transition to the Delayed Off state, or in the Delayed Off state. See OnWithTimedOff
+         * for more details.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.5
+         */
+        offWaitTime: number;
+
+        /**
+         * This attribute shall define the desired startup behavior of a device when it is supplied with power and this
+         * state shall be reflected in the OnOff attribute. If the value is null, the OnOff attribute is set to its
+         * previous value. Otherwise, the behavior is defined in the table defining StartUpOnOffEnum.
+         *
+         * This behavior does not apply to reboots associated with OTA. After an OTA restart, the OnOff attribute shall
+         * return to its value prior to the restart.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.6.6
+         */
+        startUpOnOff: StartUpOnOff | null;
+    }
+
+    /**
+     * {@link OnOff} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.1
+         */
+        off(): MaybePromise;
+    }
+
+    /**
+     * {@link OnOff} supports these elements if it supports feature "Lighting".
+     */
+    export interface LightingCommands {
+        /**
+         * The OffWithEffect command allows devices to be turned off using enhanced ways of fading.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4
+         */
+        offWithEffect(request: OffWithEffectRequest): MaybePromise;
+
+        /**
+         * This command allows the recall of the settings when the device was turned off.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.5
+         */
+        onWithRecallGlobalScene(): MaybePromise;
+
+        /**
+         * This command allows devices to be turned on for a specific duration with a guarded off duration so that
+         * SHOULD the device be subsequently turned off, further OnWithTimedOff commands, received during this time, are
+         * prevented from turning the devices back on. Further OnWithTimedOff commands received while the server is
+         * turned on, will update the period that the device is turned on.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6
+         */
+        onWithTimedOff(request: OnWithTimedOffRequest): MaybePromise;
     }
 
     /**
      * {@link OnOff} supports these elements if it supports feature "NotOffOnly".
      */
-    export namespace NotOffOnlyComponent {
-        export interface Commands {
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.2
-             */
-            on(): MaybePromise;
+    export interface NotOffOnlyCommands {
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.2
+         */
+        on(): MaybePromise;
 
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.3
-             */
-            toggle(): MaybePromise;
-        }
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.3
+         */
+        toggle(): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<LightingComponent.Attributes> {}
-    export interface Commands extends Base.Commands, LightingComponent.Commands, NotOffOnlyComponent.Commands {}
+    /**
+     * Commands that may appear in {@link OnOff}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        LightingCommands,
+        NotOffOnlyCommands
+    {}
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
-        { flags: { lighting: true }, attributes: LightingComponent.Attributes, commands: LightingComponent.Commands },
-        { flags: { offOnly: false }, commands: NotOffOnlyComponent.Commands }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { lighting: true }, attributes: LightingAttributes, commands: LightingCommands },
+        { flags: { offOnly: false }, commands: NotOffOnlyCommands }
     ];
     export type Features = "Lighting" | "DeadFrontBehavior" | "OffOnly";
 
@@ -354,24 +457,42 @@ export declare namespace OnOff {
         DyingLightFadeOff = 0
     }
 
-    export const id: ClusterId;
-    export const name: "OnOff";
-    export const revision: 6;
-    export const schema: typeof OnOffModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link OnOff}.
+     */
     export const Cluster: typeof OnOff;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `OnOff` instead of `OnOff.Complete`)
+     * @deprecated Use {@link OnOff}.
      */
     export const Complete: typeof OnOff;
 
     export const Typing: OnOff;
 }
 
+/**
+ * @deprecated Use {@link OnOff}.
+ */
 export declare const OnOffCluster: typeof OnOff;
-export interface OnOff extends ClusterTyping { Attributes: OnOff.Attributes; Commands: OnOff.Commands; Features: OnOff.Features; Components: OnOff.Components }
+
+export interface OnOff extends ClusterTyping {
+    Attributes: OnOff.Attributes;
+    Commands: OnOff.Commands;
+    Features: OnOff.Features;
+    Components: OnOff.Components;
+}

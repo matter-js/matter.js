@@ -6,102 +6,164 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { GroupId } from "../datatype/GroupId.js";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
 import type { Status } from "../globals/Status.js";
 import type { AttributeId } from "../datatype/AttributeId.js";
-import type { ClusterId } from "../datatype/ClusterId.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ScenesManagement as ScenesManagementModel } from "@matter/model";
 
 /**
  * Definitions for the ScenesManagement cluster.
+ *
+ * The Scenes Management cluster provides attributes and commands for setting up and recalling scenes. Each scene
+ * corresponds to a set of stored values of specified attributes for one or more clusters on the same end point as the
+ * Scenes Management cluster.
+ *
+ * In most cases scenes are associated with a particular group identifier. Scenes may also exist without a group, in
+ * which case the value 0 replaces the group identifier. Note that extra care is required in these cases to avoid a
+ * scene identifier collision, and that commands related to scenes without a group may only be unicast, i.e., they shall
+ * NOT be multicast or broadcast.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 1.4
  */
 export declare namespace ScenesManagement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0062;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ScenesManagement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the ScenesManagement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ScenesManagement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all
-             * fabrics; note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The
-             * minimum size of this table, (i.e., the minimum number of scenes to support across all fabrics per
-             * endpoint) shall be 16, unless a device type in which this cluster is used, defines a larger value in the
-             * device type definition.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
-             */
-            readonly sceneTableSize: number;
+    export interface BaseAttributes {
+        /**
+         * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all fabrics;
+         * note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The minimum size of
+         * this table, (i.e., the minimum number of scenes to support across all fabrics per endpoint) shall be 16,
+         * unless a device type in which this cluster is used, defines a larger value in the device type definition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
+         */
+        sceneTableSize: number;
 
-            /**
-             * Indicates a list of fabric scoped information about scenes on this endpoint.
-             *
-             * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the
-             * device.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
-             */
-            readonly fabricSceneInfo: SceneInfo[];
-        }
-
-        export interface Commands {
-            /**
-             * It is not mandatory for an extension field set to be included in the command for every cluster on that
-             * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case
-             * of no extension field sets at all.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
-             */
-            addScene(request: AddSceneRequest): MaybePromise<AddSceneResponse>;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
-             */
-            viewScene(request: ViewSceneRequest): MaybePromise<ViewSceneResponse>;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
-             */
-            removeScene(request: RemoveSceneRequest): MaybePromise<RemoveSceneResponse>;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
-             */
-            removeAllScenes(request: RemoveAllScenesRequest): MaybePromise<RemoveAllScenesResponse>;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
-             */
-            storeScene(request: StoreSceneRequest): MaybePromise<StoreSceneResponse>;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
-             */
-            recallScene(request: RecallSceneRequest): MaybePromise;
-
-            /**
-             * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
-             * implements this cluster.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
-             */
-            getSceneMembership(request: GetSceneMembershipRequest): MaybePromise<GetSceneMembershipResponse>;
-
-            /**
-             * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
-             * group/scene identifier pair.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
-             */
-            copyScene(request: CopySceneRequest): MaybePromise<CopySceneResponse>;
-        }
+        /**
+         * Indicates a list of fabric scoped information about scenes on this endpoint.
+         *
+         * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
+         */
+        fabricSceneInfo: SceneInfo[];
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link ScenesManagement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the number of entries in the Scene Table on this endpoint. This is the total across all fabrics;
+         * note that a single fabric cannot use all those entries (see Handling of fabric-scoping). The minimum size of
+         * this table, (i.e., the minimum number of scenes to support across all fabrics per endpoint) shall be 16,
+         * unless a device type in which this cluster is used, defines a larger value in the device type definition.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.1
+         */
+        sceneTableSize: number;
+
+        /**
+         * Indicates a list of fabric scoped information about scenes on this endpoint.
+         *
+         * The number of list entries for this attribute shall NOT exceed the number of supported fabrics by the device.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.8.2
+         */
+        fabricSceneInfo: SceneInfo[];
+    }
+
+    /**
+     * {@link ScenesManagement} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * It is not mandatory for an extension field set to be included in the command for every cluster on that
+         * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case of
+         * no extension field sets at all.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
+         */
+        addScene(request: AddSceneRequest): MaybePromise<AddSceneResponse>;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
+         */
+        viewScene(request: ViewSceneRequest): MaybePromise<ViewSceneResponse>;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
+         */
+        removeScene(request: RemoveSceneRequest): MaybePromise<RemoveSceneResponse>;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
+         */
+        removeAllScenes(request: RemoveAllScenesRequest): MaybePromise<RemoveAllScenesResponse>;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
+         */
+        storeScene(request: StoreSceneRequest): MaybePromise<StoreSceneResponse>;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
+         */
+        recallScene(request: RecallSceneRequest): MaybePromise;
+
+        /**
+         * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
+         * implements this cluster.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
+         */
+        getSceneMembership(request: GetSceneMembershipRequest): MaybePromise<GetSceneMembershipResponse>;
+
+        /**
+         * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
+         * group/scene identifier pair.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
+         */
+        copyScene(request: CopySceneRequest): MaybePromise<CopySceneResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link ScenesManagement}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
     export type Features = "SceneNames";
 
     /**
@@ -719,24 +781,42 @@ export declare namespace ScenesManagement {
         extensionFields: ExtensionFieldSet[];
     }
 
-    export const id: ClusterId;
-    export const name: "ScenesManagement";
-    export const revision: 1;
-    export const schema: typeof ScenesManagementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link ScenesManagement}.
+     */
     export const Cluster: typeof ScenesManagement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ScenesManagement` instead of `ScenesManagement.Complete`)
+     * @deprecated Use {@link ScenesManagement}.
      */
     export const Complete: typeof ScenesManagement;
 
     export const Typing: ScenesManagement;
 }
 
+/**
+ * @deprecated Use {@link ScenesManagement}.
+ */
 export declare const ScenesManagementCluster: typeof ScenesManagement;
-export interface ScenesManagement extends ClusterTyping { Attributes: ScenesManagement.Attributes; Commands: ScenesManagement.Commands; Features: ScenesManagement.Features; Components: ScenesManagement.Components }
+
+export interface ScenesManagement extends ClusterTyping {
+    Attributes: ScenesManagement.Attributes;
+    Commands: ScenesManagement.Commands;
+    Features: ScenesManagement.Features;
+    Components: ScenesManagement.Components;
+}

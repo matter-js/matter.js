@@ -6,107 +6,197 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { Bytes, MaybePromise } from "@matter/general";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { Messages as MessagesModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the Messages cluster.
+ *
+ * This cluster provides an interface for passing messages to be presented by a device.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 1.16
  */
 export declare namespace Messages {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0097;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "Messages";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the Messages cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link Messages} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates a list of queued messages.
-             *
-             * In addition to filtering based upon fabric, to preserve user privacy, the server may further limit the
-             * set of messages returned in a read request. At minimum, the server shall return to a client those
-             * messages that the client itself created/submitted.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
-             */
-            readonly messages: Message[];
+    export interface BaseAttributes {
+        /**
+         * Indicates a list of queued messages.
+         *
+         * In addition to filtering based upon fabric, to preserve user privacy, the server may further limit the set of
+         * messages returned in a read request. At minimum, the server shall return to a client those messages that the
+         * client itself created/submitted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
+         */
+        messages: Message[];
 
-            /**
-             * Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, no
-             * messages are currently being presented.
-             *
-             * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no
-             * matter what fabric the client that queued them is on.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
-             */
-            readonly activeMessageIDs: Bytes[];
-        }
-
-        export interface Commands {
-            /**
-             * Upon receipt, this shall cause the message in the passed fields to be appended to the Messages attribute.
-             *
-             * If appending the message would cause the number of messages to be greater than the capacity of the list,
-             * the device shall NOT append any message to Messages, and shall return a status code of
-             * RESOURCE_EXHAUSTED.
-             *
-             * When displaying a message in response to this command, an indication (ex. visual) of the origin node of
-             * the command shall be provided. This could be in the form of a friendly name label which uniquely
-             * identifies the node to the user. This friendly name label is typically assigned by the Matter Admin at
-             * the time of commissioning and, when it’s a device, is often editable by the user. It might be a
-             * combination of a company name and friendly name, for example, ”Acme” or “Acme Streaming Service on
-             * Alice’s Phone”.
-             *
-             * > [!NOTE]
-             *
-             * > It is currently not specified where the friendly name label can be found on the node, meaning that
-             *   clients SHOULD NOT rely on a certain method they happen to observe in a particular server instance,
-             *   since other instances could employ a different method.
-             *
-             * The device SHOULD make it possible for the user to view which nodes have access to this cluster and to
-             * individually remove privileges for each node.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
-             */
-            presentMessagesRequest(request: PresentMessagesRequest): MaybePromise;
-
-            /**
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
-             */
-            cancelMessagesRequest(request: CancelMessagesRequest): MaybePromise;
-        }
-
-        export interface Events {
-            /**
-             * This event shall be generated when a message is added to the messages attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
-             */
-            messageQueued: MessageQueuedEvent;
-
-            /**
-             * This event shall be generated when the message is presented to the user.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
-             */
-            messagePresented: MessagePresentedEvent;
-
-            /**
-             * This event shall be generated when the message is confirmed by the user, or when the Duration field of
-             * the message has elapsed without confirmation.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
-             */
-            messageComplete: MessageCompleteEvent;
-        }
+        /**
+         * Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, no
+         * messages are currently being presented.
+         *
+         * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no matter
+         * what fabric the client that queued them is on.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
+         */
+        activeMessageIDs: Bytes[];
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export interface Events extends Base.Events {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events }];
+    /**
+     * Attributes that may appear in {@link Messages}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates a list of queued messages.
+         *
+         * In addition to filtering based upon fabric, to preserve user privacy, the server may further limit the set of
+         * messages returned in a read request. At minimum, the server shall return to a client those messages that the
+         * client itself created/submitted.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.1
+         */
+        messages: Message[];
+
+        /**
+         * Indicates a list of the MessageIDs of the Messages currently being presented. If this list is empty, no
+         * messages are currently being presented.
+         *
+         * This list shall NOT be fabric-scoped; it shall contain MessageIDs for all Messages being presented, no matter
+         * what fabric the client that queued them is on.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.6.2
+         */
+        activeMessageIDs: Bytes[];
+    }
+
+    /**
+     * {@link Messages} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * Upon receipt, this shall cause the message in the passed fields to be appended to the Messages attribute.
+         *
+         * If appending the message would cause the number of messages to be greater than the capacity of the list, the
+         * device shall NOT append any message to Messages, and shall return a status code of RESOURCE_EXHAUSTED.
+         *
+         * When displaying a message in response to this command, an indication (ex. visual) of the origin node of the
+         * command shall be provided. This could be in the form of a friendly name label which uniquely identifies the
+         * node to the user. This friendly name label is typically assigned by the Matter Admin at the time of
+         * commissioning and, when it’s a device, is often editable by the user. It might be a combination of a company
+         * name and friendly name, for example, ”Acme” or “Acme Streaming Service on Alice’s Phone”.
+         *
+         * > [!NOTE]
+         *
+         * > It is currently not specified where the friendly name label can be found on the node, meaning that clients
+         *   SHOULD NOT rely on a certain method they happen to observe in a particular server instance, since other
+         *   instances could employ a different method.
+         *
+         * The device SHOULD make it possible for the user to view which nodes have access to this cluster and to
+         * individually remove privileges for each node.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
+         */
+        presentMessagesRequest(request: PresentMessagesRequest): MaybePromise;
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
+         */
+        cancelMessagesRequest(request: CancelMessagesRequest): MaybePromise;
+    }
+
+    /**
+     * Commands that may appear in {@link Messages}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    /**
+     * {@link Messages} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * This event shall be generated when a message is added to the messages attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
+         */
+        messageQueued: MessageQueuedEvent;
+
+        /**
+         * This event shall be generated when the message is presented to the user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
+         */
+        messagePresented: MessagePresentedEvent;
+
+        /**
+         * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
+         * message has elapsed without confirmation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
+         */
+        messageComplete: MessageCompleteEvent;
+    }
+
+    /**
+     * Events that may appear in {@link Messages}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * This event shall be generated when a message is added to the messages attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
+         */
+        messageQueued: MessageQueuedEvent;
+
+        /**
+         * This event shall be generated when the message is presented to the user.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
+         */
+        messagePresented: MessagePresentedEvent;
+
+        /**
+         * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
+         * message has elapsed without confirmation.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
+         */
+        messageComplete: MessageCompleteEvent;
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
     export type Features = "ReceivedConfirmation" | "ConfirmationResponse" | "ConfirmationReply" | "ProtectedMessages";
 
     /**
@@ -527,26 +617,48 @@ export declare namespace Messages {
         label: string;
     }
 
-    export const id: ClusterId;
-    export const name: "Messages";
-    export const revision: 3;
-    export const schema: typeof MessagesModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link Messages}.
+     */
     export const Cluster: typeof Messages;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `Messages` instead of `Messages.Complete`)
+     * @deprecated Use {@link Messages}.
      */
     export const Complete: typeof Messages;
 
     export const Typing: Messages;
 }
 
+/**
+ * @deprecated Use {@link Messages}.
+ */
 export declare const MessagesCluster: typeof Messages;
-export interface Messages extends ClusterTyping { Attributes: Messages.Attributes; Commands: Messages.Commands; Events: Messages.Events; Features: Messages.Features; Components: Messages.Components }
+
+export interface Messages extends ClusterTyping {
+    Attributes: Messages.Attributes;
+    Commands: Messages.Commands;
+    Events: Messages.Events;
+    Features: Messages.Features;
+    Components: Messages.Components;
+}

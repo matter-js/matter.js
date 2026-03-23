@@ -6,264 +6,424 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { NodeId } from "../datatype/NodeId.js";
 import type { SubjectId } from "../datatype/SubjectId.js";
 import type { FabricIndex } from "../datatype/FabricIndex.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { IcdManagement as IcdManagementModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the IcdManagement cluster.
+ *
+ * ICD Management Cluster enables configuration of the ICD’s behavior and ensuring that listed clients can be notified
+ * when an intermittently connected device, ICD, is available for communication.
+ *
+ * The cluster implements the requirements of the Check-In Protocol that enables the ICD Check-In use case.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 9.16
  */
 export declare namespace IcdManagement {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0046;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "IcdManagement";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 3;
+
+    /**
+     * Canonical metadata for the IcdManagement cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link IcdManagement} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the maximum interval in seconds the server can stay in idle mode. The IdleModeDuration shall
-             * NOT be smaller than the ActiveModeDuration.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
-             */
-            readonly idleModeDuration: number;
+    export interface BaseAttributes {
+        /**
+         * Indicates the maximum interval in seconds the server can stay in idle mode. The IdleModeDuration shall NOT be
+         * smaller than the ActiveModeDuration.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
+         */
+        idleModeDuration: number;
 
-            /**
-             * Indicates the minimum interval in milliseconds the server typically will stay in active mode after
-             * initial transition out of idle mode. The ActiveModeDuration does not include the ActiveModeThreshold.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
-             */
-            readonly activeModeDuration: number;
+        /**
+         * Indicates the minimum interval in milliseconds the server typically will stay in active mode after initial
+         * transition out of idle mode. The ActiveModeDuration does not include the ActiveModeThreshold.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
+         */
+        activeModeDuration: number;
 
-            /**
-             * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
-             * activity when in active mode.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
-             */
-            readonly activeModeThreshold: number;
+        /**
+         * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
+         * activity when in active mode.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
+         */
+        activeModeThreshold: number;
 
-            /**
-             * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
-             * conformance is in indicated in the "dependency" column in UserActiveModeTriggerHint table. The
-             * UserActiveModeTriggerInstruction attribute may give additional information on how to transition the
-             * device to Active Mode. If the attribute is present, the value shall be encoded as a valid UTF-8 string
-             * with a maximum length of 128 bytes. If the UserActiveModeTriggerHint has the ActuateSensorSeconds,
-             * ActuateSensorTimes, ResetButtonSeconds, ResetButtonTimes, SetupButtonSeconds or SetupButtonTimes set, the
-             * string shall consist solely of an encoding of N as a decimal unsigned integer using the ASCII digits 0-9,
-             * and without leading zeros.
-             *
-             * For example, given UserActiveModeTriggerHint="1024", ResetButtonSeconds is set which indicates "Press
-             * Reset Button for N seconds". Therefore, a value of UserActiveModeTriggerInstruction="6" would indicate
-             * that N is 6 in that context.
-             *
-             * When CustomInstruction is set by the UserActiveModeTriggerHint attribute, indicating presence of a custom
-             * string, the ICD SHOULD perform localization (translation to user’s preferred language, as indicated in
-             * the Device’s currently configured locale). The Custom Instruction option SHOULD NOT be used by an ICD
-             * that does not have knowledge of the user’s language preference.
-             *
-             * When the UserActiveModeTriggerHint key indicates a light to blink (ActuateSensorLightsBlink,
-             * ResetButtonLightsBlink or SetupButtonLightsBlink), information on color of light may be made available
-             * via the UserActiveModeTriggerInstruction attribute. When using such color indication in the
-             * UserActiveModeTriggerInstruction attribute, the string shall consist of exactly 6 hexadecimal digits
-             * using the ASCII characters 0-F and encoding the RGB color value as used in HTML encodings.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
-             */
-            readonly userActiveModeTriggerInstruction?: string;
-        }
-
-        export interface Commands {
-            /**
-             * This command allows a client to request that the server stays in active mode for at least a given time
-             * duration (in milliseconds) from when this command is received.
-             *
-             * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by
-             * the client to request the server to stay active and responsive for this period to allow a sequence of
-             * message exchanges during that period. The client may slightly overestimate the duration it wants the ICD
-             * to be active for, in order to account for network delays.
-             *
-             * ### Effect on Receipt
-             *
-             * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
-             * it can remain active as the greater of the following two values:
-             *
-             *   - StayActiveDuration: Specified in the received command by the client.
-             *
-             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
-             *     and its internal resources and power budget.
-             *
-             * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
-             *
-             * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
-             * account both the requested duration and the server’s capabilities.
-             *
-             * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
-             * client.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
-             */
-            stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
-        }
+        /**
+         * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
+         * conformance is in indicated in the "dependency" column in UserActiveModeTriggerHint table. The
+         * UserActiveModeTriggerInstruction attribute may give additional information on how to transition the device to
+         * Active Mode. If the attribute is present, the value shall be encoded as a valid UTF-8 string with a maximum
+         * length of 128 bytes. If the UserActiveModeTriggerHint has the ActuateSensorSeconds, ActuateSensorTimes,
+         * ResetButtonSeconds, ResetButtonTimes, SetupButtonSeconds or SetupButtonTimes set, the string shall consist
+         * solely of an encoding of N as a decimal unsigned integer using the ASCII digits 0-9, and without leading
+         * zeros.
+         *
+         * For example, given UserActiveModeTriggerHint="1024", ResetButtonSeconds is set which indicates "Press Reset
+         * Button for N seconds". Therefore, a value of UserActiveModeTriggerInstruction="6" would indicate that N is 6
+         * in that context.
+         *
+         * When CustomInstruction is set by the UserActiveModeTriggerHint attribute, indicating presence of a custom
+         * string, the ICD SHOULD perform localization (translation to user’s preferred language, as indicated in the
+         * Device’s currently configured locale). The Custom Instruction option SHOULD NOT be used by an ICD that does
+         * not have knowledge of the user’s language preference.
+         *
+         * When the UserActiveModeTriggerHint key indicates a light to blink (ActuateSensorLightsBlink,
+         * ResetButtonLightsBlink or SetupButtonLightsBlink), information on color of light may be made available via
+         * the UserActiveModeTriggerInstruction attribute. When using such color indication in the
+         * UserActiveModeTriggerInstruction attribute, the string shall consist of exactly 6 hexadecimal digits using
+         * the ASCII characters 0-F and encoding the RGB color value as used in HTML encodings.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
+         */
+        userActiveModeTriggerInstruction?: string;
     }
 
     /**
      * {@link IcdManagement} supports these elements if it supports feature "CheckInProtocolSupport".
      */
-    export namespace CheckInProtocolSupportComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall contain all clients registered to receive notification if their subscription is
-             * lost. The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each
-             * fabric supported on the server, as indicated by the value of the SupportedFabrics attribute in the
-             * Operational Credentials cluster.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
-             */
-            readonly registeredClients: MonitoringRegistration[];
+    export interface CheckInProtocolSupportAttributes {
+        /**
+         * This attribute shall contain all clients registered to receive notification if their subscription is lost.
+         * The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric
+         * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
+         * Credentials cluster.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
+         */
+        registeredClients: MonitoringRegistration[];
 
-            /**
-             * This attribute returns the value of the ICD Counter.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
-             */
-            readonly icdCounter: number;
+        /**
+         * This attribute returns the value of the ICD Counter.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
+         */
+        icdCounter: number;
 
-            /**
-             * Indicates the maximum number of entries that the server is able to store for each fabric in the
-             * RegisteredClients attribute.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
-             */
-            readonly clientsSupportedPerFabric: number;
+        /**
+         * Indicates the maximum number of entries that the server is able to store for each fabric in the
+         * RegisteredClients attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
+         */
+        clientsSupportedPerFabric: number;
 
-            /**
-             * Indicates the maximum time in seconds between two Check-In messages when back-off is active. The
-             * MaximumCheckInBackoff shall NOT be smaller than the IdleModeDuration.
-             *
-             * If the MaximumCheckInBackoff is equal to the IdleModeDuration, it means the ICD does not back-off.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
-             */
-            readonly maximumCheckInBackoff: number;
-        }
-
-        export interface Commands {
-            /**
-             * This command allows a client to register itself with the ICD to be notified when the device is available
-             * for communication.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
-             */
-            registerClient(request: RegisterClientRequest): MaybePromise<RegisterClientResponse>;
-
-            /**
-             * This command allows a client to unregister itself with the ICD. Example: a client that is leaving the
-             * network (e.g. running on a phone which is leaving the home) can (and should) remove its subscriptions and
-             * send this UnregisterClient command before leaving to prevent the burden on the ICD of an absent client.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
-             */
-            unregisterClient(request: UnregisterClientRequest): MaybePromise;
-        }
+        /**
+         * Indicates the maximum time in seconds between two Check-In messages when back-off is active. The
+         * MaximumCheckInBackoff shall NOT be smaller than the IdleModeDuration.
+         *
+         * If the MaximumCheckInBackoff is equal to the IdleModeDuration, it means the ICD does not back-off.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
+         */
+        maximumCheckInBackoff: number;
     }
 
     /**
      * {@link IcdManagement} supports these elements if it supports feature "UserActiveModeTrigger".
      */
-    export namespace UserActiveModeTriggerComponent {
-        export interface Attributes {
-            /**
-             * Indicates which user action(s) will trigger the ICD to switch to Active mode. If the attribute indicates
-             * support for a trigger that is dependent on the UserActiveModeTriggerInstruction in the
-             * UserActiveModeTriggerHint table, the UserActiveModeTriggerInstruction attribute shall be implemented and
-             * shall provide the required information, unless specified otherwise in the requirement column of the
-             * UserActiveModeTriggerHint table.
-             *
-             * ActuateSensorLightsBlink, ResetButtonLightsBlink and SetupButtonLightsBlink (i.e. bits 7, 9 and 14) have
-             * a dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute to be
-             * present.
-             *
-             * An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the bitmap at
-             * the same time. However, a device shall NOT set more than one bit which has a dependency on the
-             * UserActiveModeTriggerInstruction attribute.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
-             */
-            readonly userActiveModeTriggerHint: UserActiveModeTrigger;
-        }
+    export interface UserActiveModeTriggerAttributes {
+        /**
+         * Indicates which user action(s) will trigger the ICD to switch to Active mode. If the attribute indicates
+         * support for a trigger that is dependent on the UserActiveModeTriggerInstruction in the
+         * UserActiveModeTriggerHint table, the UserActiveModeTriggerInstruction attribute shall be implemented and
+         * shall provide the required information, unless specified otherwise in the requirement column of the
+         * UserActiveModeTriggerHint table.
+         *
+         * ActuateSensorLightsBlink, ResetButtonLightsBlink and SetupButtonLightsBlink (i.e. bits 7, 9 and 14) have a
+         * dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute to be present.
+         *
+         * An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the bitmap at the
+         * same time. However, a device shall NOT set more than one bit which has a dependency on the
+         * UserActiveModeTriggerInstruction attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
+         */
+        userActiveModeTriggerHint: UserActiveModeTrigger;
     }
 
     /**
      * {@link IcdManagement} supports these elements if it supports feature "LongIdleTimeSupport".
      */
-    export namespace LongIdleTimeSupportComponent {
-        export interface Attributes {
-            /**
-             * Indicates the operating mode of the ICD as specified in the OperatingModeEnum.
-             *
-             *   - If the ICD is operating as a LIT ICD, OperatingMode shall be LIT.
-             *
-             *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
-             */
-            readonly operatingMode: OperatingMode;
-        }
-
-        export interface Commands {
-            /**
-             * This command allows a client to request that the server stays in active mode for at least a given time
-             * duration (in milliseconds) from when this command is received.
-             *
-             * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by
-             * the client to request the server to stay active and responsive for this period to allow a sequence of
-             * message exchanges during that period. The client may slightly overestimate the duration it wants the ICD
-             * to be active for, in order to account for network delays.
-             *
-             * ### Effect on Receipt
-             *
-             * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration
-             * it can remain active as the greater of the following two values:
-             *
-             *   - StayActiveDuration: Specified in the received command by the client.
-             *
-             *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold
-             *     and its internal resources and power budget.
-             *
-             * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
-             *
-             * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
-             * account both the requested duration and the server’s capabilities.
-             *
-             * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
-             * client.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
-             */
-            stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
-        }
+    export interface LongIdleTimeSupportAttributes {
+        /**
+         * Indicates the operating mode of the ICD as specified in the OperatingModeEnum.
+         *
+         *   - If the ICD is operating as a LIT ICD, OperatingMode shall be LIT.
+         *
+         *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
+         */
+        operatingMode: OperatingMode;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<CheckInProtocolSupportComponent.Attributes>, Partial<UserActiveModeTriggerComponent.Attributes>, Partial<LongIdleTimeSupportComponent.Attributes> {}
-    export interface Commands extends Base.Commands, CheckInProtocolSupportComponent.Commands, LongIdleTimeSupportComponent.Commands {}
+    /**
+     * Attributes that may appear in {@link IcdManagement}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the maximum interval in seconds the server can stay in idle mode. The IdleModeDuration shall NOT be
+         * smaller than the ActiveModeDuration.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
+         */
+        idleModeDuration: number;
+
+        /**
+         * Indicates the minimum interval in milliseconds the server typically will stay in active mode after initial
+         * transition out of idle mode. The ActiveModeDuration does not include the ActiveModeThreshold.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
+         */
+        activeModeDuration: number;
+
+        /**
+         * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
+         * activity when in active mode.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
+         */
+        activeModeThreshold: number;
+
+        /**
+         * The meaning of the attribute is dependent upon the UserActiveModeTriggerHint attribute value, and the
+         * conformance is in indicated in the "dependency" column in UserActiveModeTriggerHint table. The
+         * UserActiveModeTriggerInstruction attribute may give additional information on how to transition the device to
+         * Active Mode. If the attribute is present, the value shall be encoded as a valid UTF-8 string with a maximum
+         * length of 128 bytes. If the UserActiveModeTriggerHint has the ActuateSensorSeconds, ActuateSensorTimes,
+         * ResetButtonSeconds, ResetButtonTimes, SetupButtonSeconds or SetupButtonTimes set, the string shall consist
+         * solely of an encoding of N as a decimal unsigned integer using the ASCII digits 0-9, and without leading
+         * zeros.
+         *
+         * For example, given UserActiveModeTriggerHint="1024", ResetButtonSeconds is set which indicates "Press Reset
+         * Button for N seconds". Therefore, a value of UserActiveModeTriggerInstruction="6" would indicate that N is 6
+         * in that context.
+         *
+         * When CustomInstruction is set by the UserActiveModeTriggerHint attribute, indicating presence of a custom
+         * string, the ICD SHOULD perform localization (translation to user’s preferred language, as indicated in the
+         * Device’s currently configured locale). The Custom Instruction option SHOULD NOT be used by an ICD that does
+         * not have knowledge of the user’s language preference.
+         *
+         * When the UserActiveModeTriggerHint key indicates a light to blink (ActuateSensorLightsBlink,
+         * ResetButtonLightsBlink or SetupButtonLightsBlink), information on color of light may be made available via
+         * the UserActiveModeTriggerInstruction attribute. When using such color indication in the
+         * UserActiveModeTriggerInstruction attribute, the string shall consist of exactly 6 hexadecimal digits using
+         * the ASCII characters 0-F and encoding the RGB color value as used in HTML encodings.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
+         */
+        userActiveModeTriggerInstruction: string;
+
+        /**
+         * This attribute shall contain all clients registered to receive notification if their subscription is lost.
+         * The maximum number of entries that can be in the list shall be ClientsSupportedPerFabric for each fabric
+         * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
+         * Credentials cluster.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
+         */
+        registeredClients: MonitoringRegistration[];
+
+        /**
+         * This attribute returns the value of the ICD Counter.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
+         */
+        icdCounter: number;
+
+        /**
+         * Indicates the maximum number of entries that the server is able to store for each fabric in the
+         * RegisteredClients attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
+         */
+        clientsSupportedPerFabric: number;
+
+        /**
+         * Indicates the maximum time in seconds between two Check-In messages when back-off is active. The
+         * MaximumCheckInBackoff shall NOT be smaller than the IdleModeDuration.
+         *
+         * If the MaximumCheckInBackoff is equal to the IdleModeDuration, it means the ICD does not back-off.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
+         */
+        maximumCheckInBackoff: number;
+
+        /**
+         * Indicates which user action(s) will trigger the ICD to switch to Active mode. If the attribute indicates
+         * support for a trigger that is dependent on the UserActiveModeTriggerInstruction in the
+         * UserActiveModeTriggerHint table, the UserActiveModeTriggerInstruction attribute shall be implemented and
+         * shall provide the required information, unless specified otherwise in the requirement column of the
+         * UserActiveModeTriggerHint table.
+         *
+         * ActuateSensorLightsBlink, ResetButtonLightsBlink and SetupButtonLightsBlink (i.e. bits 7, 9 and 14) have a
+         * dependency on the UserActiveModeTriggerInstruction attribute but do not require the attribute to be present.
+         *
+         * An ICD can indicate multiple ways of being put into Active Mode by setting multiple bits in the bitmap at the
+         * same time. However, a device shall NOT set more than one bit which has a dependency on the
+         * UserActiveModeTriggerInstruction attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
+         */
+        userActiveModeTriggerHint: UserActiveModeTrigger;
+
+        /**
+         * Indicates the operating mode of the ICD as specified in the OperatingModeEnum.
+         *
+         *   - If the ICD is operating as a LIT ICD, OperatingMode shall be LIT.
+         *
+         *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
+         */
+        operatingMode: OperatingMode;
+    }
+
+    /**
+     * {@link IcdManagement} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command allows a client to request that the server stays in active mode for at least a given time
+         * duration (in milliseconds) from when this command is received.
+         *
+         * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by the
+         * client to request the server to stay active and responsive for this period to allow a sequence of message
+         * exchanges during that period. The client may slightly overestimate the duration it wants the ICD to be active
+         * for, in order to account for network delays.
+         *
+         * ### Effect on Receipt
+         *
+         * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration it
+         * can remain active as the greater of the following two values:
+         *
+         *   - StayActiveDuration: Specified in the received command by the client.
+         *
+         *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold and
+         *     its internal resources and power budget.
+         *
+         * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
+         *
+         * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
+         * account both the requested duration and the server’s capabilities.
+         *
+         * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
+         * client.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+         */
+        stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
+    }
+
+    /**
+     * {@link IcdManagement} supports these elements if it supports feature "CheckInProtocolSupport".
+     */
+    export interface CheckInProtocolSupportCommands {
+        /**
+         * This command allows a client to register itself with the ICD to be notified when the device is available for
+         * communication.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
+         */
+        registerClient(request: RegisterClientRequest): MaybePromise<RegisterClientResponse>;
+
+        /**
+         * This command allows a client to unregister itself with the ICD. Example: a client that is leaving the network
+         * (e.g. running on a phone which is leaving the home) can (and should) remove its subscriptions and send this
+         * UnregisterClient command before leaving to prevent the burden on the ICD of an absent client.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
+         */
+        unregisterClient(request: UnregisterClientRequest): MaybePromise;
+    }
+
+    /**
+     * {@link IcdManagement} supports these elements if it supports feature "LongIdleTimeSupport".
+     */
+    export interface LongIdleTimeSupportCommands {
+        /**
+         * This command allows a client to request that the server stays in active mode for at least a given time
+         * duration (in milliseconds) from when this command is received.
+         *
+         * This StayActiveDuration may be longer than the ActiveModeThreshold value and would, typically, be used by the
+         * client to request the server to stay active and responsive for this period to allow a sequence of message
+         * exchanges during that period. The client may slightly overestimate the duration it wants the ICD to be active
+         * for, in order to account for network delays.
+         *
+         * ### Effect on Receipt
+         *
+         * When receiving a StayActiveRequest command, the server shall calculate the maximum PromisedActiveDuration it
+         * can remain active as the greater of the following two values:
+         *
+         *   - StayActiveDuration: Specified in the received command by the client.
+         *
+         *   - Remaining Active Time: The server’s planned remaining active time based on the ActiveModeThreshold and
+         *     its internal resources and power budget.
+         *
+         * A server may replace StayActiveDuration with Minimum Active Duration in the above calculation.
+         *
+         * PromisedActiveDuration represents the guaranteed minimum time the server will remain active, taking into
+         * account both the requested duration and the server’s capabilities.
+         *
+         * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
+         * client.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+         */
+        stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
+    }
+
+    /**
+     * Commands that may appear in {@link IcdManagement}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        CheckInProtocolSupportCommands,
+        LongIdleTimeSupportCommands
+    {}
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
         {
             flags: { checkInProtocolSupport: true },
-            attributes: CheckInProtocolSupportComponent.Attributes,
-            commands: CheckInProtocolSupportComponent.Commands
+            attributes: CheckInProtocolSupportAttributes,
+            commands: CheckInProtocolSupportCommands
         },
-        { flags: { userActiveModeTrigger: true }, attributes: UserActiveModeTriggerComponent.Attributes },
+        { flags: { userActiveModeTrigger: true }, attributes: UserActiveModeTriggerAttributes },
         {
             flags: { longIdleTimeSupport: true },
-            attributes: LongIdleTimeSupportComponent.Attributes,
-            commands: LongIdleTimeSupportComponent.Commands
+            attributes: LongIdleTimeSupportAttributes,
+            commands: LongIdleTimeSupportCommands
         }
     ];
 
@@ -312,6 +472,160 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v142.Core} § 9.16.4.4
          */
         DynamicSitLitSupport = "DynamicSitLitSupport"
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 9.16.5.3
+     */
+    export interface MonitoringRegistration {
+        /**
+         * This field shall indicate the NodeID of the Node to which Check-In messages will be sent when the
+         * MonitoredSubject is not subscribed.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.1
+         */
+        checkInNodeId: NodeId;
+
+        /**
+         * This field shall indicate the monitored Subject ID. This field shall be used to determine if a particular
+         * client has an active subscription for the given entry. The MonitoredSubject, when it is a NodeID, may be the
+         * same as the CheckInNodeID. The MonitoredSubject gives the registering client the flexibility of having a
+         * different CheckInNodeID from the MonitoredSubject. A subscription shall count as an active subscription for
+         * this entry if:
+         *
+         *   - It is on the associated fabric of this entry, and
+         *
+         *   - The subject of this entry matches the ISD of the SubscriptionRequest message that created the
+         *     subscription. Matching shall be determined using the subject_matches function defined in the Access
+         *     Control Privilege Granting Algorithm.
+         *
+         * For example, if the MonitoredSubject is Node ID 0x1111_2222_3333_AAAA, and one of the subscribers to the
+         * server on the entry’s associated fabric bears that Node ID, then the entry matches.
+         *
+         * Another example is if the MonitoredSubject has the value 0xFFFF_FFFD_AA12_0002, and one of the subscribers to
+         * the server on the entry’s associated fabric bears the CASE Authenticated TAG value 0xAA12 and the version
+         * 0x0002 or higher within its NOC, then the entry matches.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.2
+         */
+        monitoredSubject: SubjectId;
+
+        /**
+         * This field shall indicate the client’s type to inform the ICD of the availability for communication of the
+         * client.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.4
+         */
+        clientType: ClientType;
+
+        fabricIndex: FabricIndex;
+    }
+
+    /**
+     * See the UserActiveModeTriggerHint table for requirements associated to each bit.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 9.16.5.1
+     */
+    export interface UserActiveModeTrigger {
+        /**
+         * Power Cycle to transition the device to ActiveMode
+         */
+        powerCycle?: boolean;
+
+        /**
+         * Settings menu on the device informs how to transition the device to ActiveMode
+         */
+        settingsMenu?: boolean;
+
+        /**
+         * Custom Instruction on how to transition the device to ActiveMode
+         */
+        customInstruction?: boolean;
+
+        /**
+         * Device Manual informs how to transition the device to ActiveMode
+         */
+        deviceManual?: boolean;
+
+        /**
+         * Actuate Sensor to transition the device to ActiveMode
+         */
+        actuateSensor?: boolean;
+
+        /**
+         * Actuate Sensor for N seconds to transition the device to ActiveMode
+         */
+        actuateSensorSeconds?: boolean;
+
+        /**
+         * Actuate Sensor N times to transition the device to ActiveMode
+         */
+        actuateSensorTimes?: boolean;
+
+        /**
+         * Actuate Sensor until light blinks to transition the device to ActiveMode
+         */
+        actuateSensorLightsBlink?: boolean;
+
+        /**
+         * Press Reset Button to transition the device to ActiveMode
+         */
+        resetButton?: boolean;
+
+        /**
+         * Press Reset Button until light blinks to transition the device to ActiveMode
+         */
+        resetButtonLightsBlink?: boolean;
+
+        /**
+         * Press Reset Button for N seconds to transition the device to ActiveMode
+         */
+        resetButtonSeconds?: boolean;
+
+        /**
+         * Press Reset Button N times to transition the device to ActiveMode
+         */
+        resetButtonTimes?: boolean;
+
+        /**
+         * Press Setup Button to transition the device to ActiveMode
+         */
+        setupButton?: boolean;
+
+        /**
+         * Press Setup Button for N seconds to transition the device to ActiveMode
+         */
+        setupButtonSeconds?: boolean;
+
+        /**
+         * Press Setup Button until light blinks to transition the device to ActiveMode
+         */
+        setupButtonLightsBlink?: boolean;
+
+        /**
+         * Press Setup Button N times to transition the device to ActiveMode
+         */
+        setupButtonTimes?: boolean;
+
+        /**
+         * Press the N Button to transition the device to ActiveMode
+         */
+        appDefinedButton?: boolean;
+    }
+
+    /**
+     * @see {@link MatterSpecification.v142.Core} § 9.16.5.2
+     */
+    export enum OperatingMode {
+        /**
+         * ICD is operating as a Short Idle Time ICD.
+         */
+        Sit = 0,
+
+        /**
+         * ICD is operating as a Long Idle Time ICD.
+         */
+        Lit = 1
     }
 
     /**
@@ -377,53 +691,6 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v142.Core} § 9.16.7.5.1
          */
         promisedActiveDuration: number;
-    }
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.3
-     */
-    export interface MonitoringRegistration {
-        /**
-         * This field shall indicate the NodeID of the Node to which Check-In messages will be sent when the
-         * MonitoredSubject is not subscribed.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.1
-         */
-        checkInNodeId: NodeId;
-
-        /**
-         * This field shall indicate the monitored Subject ID. This field shall be used to determine if a particular
-         * client has an active subscription for the given entry. The MonitoredSubject, when it is a NodeID, may be the
-         * same as the CheckInNodeID. The MonitoredSubject gives the registering client the flexibility of having a
-         * different CheckInNodeID from the MonitoredSubject. A subscription shall count as an active subscription for
-         * this entry if:
-         *
-         *   - It is on the associated fabric of this entry, and
-         *
-         *   - The subject of this entry matches the ISD of the SubscriptionRequest message that created the
-         *     subscription. Matching shall be determined using the subject_matches function defined in the Access
-         *     Control Privilege Granting Algorithm.
-         *
-         * For example, if the MonitoredSubject is Node ID 0x1111_2222_3333_AAAA, and one of the subscribers to the
-         * server on the entry’s associated fabric bears that Node ID, then the entry matches.
-         *
-         * Another example is if the MonitoredSubject has the value 0xFFFF_FFFD_AA12_0002, and one of the subscribers to
-         * the server on the entry’s associated fabric bears the CASE Authenticated TAG value 0xAA12 and the version
-         * 0x0002 or higher within its NOC, then the entry matches.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.2
-         */
-        monitoredSubject: SubjectId;
-
-        /**
-         * This field shall indicate the client’s type to inform the ICD of the availability for communication of the
-         * client.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.4
-         */
-        clientType: ClientType;
-
-        fabricIndex: FabricIndex;
     }
 
     /**
@@ -630,113 +897,6 @@ export declare namespace IcdManagement {
     }
 
     /**
-     * See the UserActiveModeTriggerHint table for requirements associated to each bit.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.1
-     */
-    export interface UserActiveModeTrigger {
-        /**
-         * Power Cycle to transition the device to ActiveMode
-         */
-        powerCycle?: boolean;
-
-        /**
-         * Settings menu on the device informs how to transition the device to ActiveMode
-         */
-        settingsMenu?: boolean;
-
-        /**
-         * Custom Instruction on how to transition the device to ActiveMode
-         */
-        customInstruction?: boolean;
-
-        /**
-         * Device Manual informs how to transition the device to ActiveMode
-         */
-        deviceManual?: boolean;
-
-        /**
-         * Actuate Sensor to transition the device to ActiveMode
-         */
-        actuateSensor?: boolean;
-
-        /**
-         * Actuate Sensor for N seconds to transition the device to ActiveMode
-         */
-        actuateSensorSeconds?: boolean;
-
-        /**
-         * Actuate Sensor N times to transition the device to ActiveMode
-         */
-        actuateSensorTimes?: boolean;
-
-        /**
-         * Actuate Sensor until light blinks to transition the device to ActiveMode
-         */
-        actuateSensorLightsBlink?: boolean;
-
-        /**
-         * Press Reset Button to transition the device to ActiveMode
-         */
-        resetButton?: boolean;
-
-        /**
-         * Press Reset Button until light blinks to transition the device to ActiveMode
-         */
-        resetButtonLightsBlink?: boolean;
-
-        /**
-         * Press Reset Button for N seconds to transition the device to ActiveMode
-         */
-        resetButtonSeconds?: boolean;
-
-        /**
-         * Press Reset Button N times to transition the device to ActiveMode
-         */
-        resetButtonTimes?: boolean;
-
-        /**
-         * Press Setup Button to transition the device to ActiveMode
-         */
-        setupButton?: boolean;
-
-        /**
-         * Press Setup Button for N seconds to transition the device to ActiveMode
-         */
-        setupButtonSeconds?: boolean;
-
-        /**
-         * Press Setup Button until light blinks to transition the device to ActiveMode
-         */
-        setupButtonLightsBlink?: boolean;
-
-        /**
-         * Press Setup Button N times to transition the device to ActiveMode
-         */
-        setupButtonTimes?: boolean;
-
-        /**
-         * Press the N Button to transition the device to ActiveMode
-         */
-        appDefinedButton?: boolean;
-    }
-
-    /**
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.2
-     */
-    export enum OperatingMode {
-        /**
-         * ICD is operating as a Short Idle Time ICD.
-         */
-        Sit = 0,
-
-        /**
-         * ICD is operating as a Long Idle Time ICD.
-         */
-        Lit = 1
-    }
-
-    /**
      * @see {@link MatterSpecification.v142.Core} § 9.16.5.1.1
      */
     export enum ClientType {
@@ -751,24 +911,42 @@ export declare namespace IcdManagement {
         Ephemeral = 1
     }
 
-    export const id: ClusterId;
-    export const name: "IcdManagement";
-    export const revision: 3;
-    export const schema: typeof IcdManagementModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link IcdManagement}.
+     */
     export const Cluster: typeof IcdManagement;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `IcdManagement` instead of `IcdManagement.Complete`)
+     * @deprecated Use {@link IcdManagement}.
      */
     export const Complete: typeof IcdManagement;
 
     export const Typing: IcdManagement;
 }
 
+/**
+ * @deprecated Use {@link IcdManagement}.
+ */
 export declare const IcdManagementCluster: typeof IcdManagement;
-export interface IcdManagement extends ClusterTyping { Attributes: IcdManagement.Attributes; Commands: IcdManagement.Commands; Features: IcdManagement.Features; Components: IcdManagement.Components }
+
+export interface IcdManagement extends ClusterTyping {
+    Attributes: IcdManagement.Attributes;
+    Commands: IcdManagement.Commands;
+    Features: IcdManagement.Features;
+    Components: IcdManagement.Components;
+}

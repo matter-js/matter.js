@@ -6,91 +6,151 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
 import type { MediaPlayback } from "./media-playback.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { ContentLauncher as ContentLauncherModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the ContentLauncher cluster.
+ *
+ * This cluster provides an interface for launching content on a Video Player device such as a Streaming Media Player,
+ * Smart TV or Smart Screen.
+ *
+ * This cluster would be supported on a Video Player device or devices that can playback content, such as a Streaming
+ * Media Player, Smart TV or Smart Screen. This cluster supports playing back content referenced by URL. It supports
+ * finding content by type and global identifier, and either playing the content or displaying the search results.
+ *
+ * The cluster server for Content Launcher is implemented by an endpoint that can launch content, such as a Video
+ * Player, or an endpoint representing a Content App on such a device.
+ *
+ * When this cluster is implemented for an Content App Endpoint (Endpoint with type “Content App” and having an
+ * Application Basic cluster), the Video Player device shall launch the application when a client invokes the
+ * LaunchContent or LaunchURL commands.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.7
  */
 export declare namespace ContentLauncher {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x050a;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "ContentLauncher";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the ContentLauncher cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link ContentLauncher} supports these elements if it supports feature "UrlPlayback".
      */
-    export namespace UrlPlaybackComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall provide a list of content types supported by the Video Player or Content App in the
-             * form of entries in the HTTP "Accept" request header.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
-             */
-            readonly acceptHeader: string[];
+    export interface UrlPlaybackAttributes {
+        /**
+         * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
+         * of entries in the HTTP "Accept" request header.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+         */
+        acceptHeader: string[];
 
-            /**
-             * This attribute shall provide information about supported streaming protocols.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
-             */
-            readonly supportedStreamingProtocols: SupportedProtocols;
-        }
+        /**
+         * This attribute shall provide information about supported streaming protocols.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+         */
+        supportedStreamingProtocols: SupportedProtocols;
+    }
 
-        export interface Commands {
-            /**
-             * Upon receipt, this shall launch content from the specified URL.
-             *
-             * The content types supported include those identified in the AcceptHeader and SupportedStreamingProtocols
-             * attributes.
-             *
-             * A check shall be made to ensure the URL is secure (uses HTTPS).
-             *
-             * When playing a video stream in response to this command, an indication (ex. visual) of the identity of
-             * the origin node of the video stream shall be provided. This could be in the form of a friendly name label
-             * which uniquely identifies the node to the user. This friendly name label is typically assigned by the
-             * Matter Admin (ex. TV) at the time of commissioning and, when it’s a device, is often editable by the
-             * user. It might be a combination of a company name and friendly name, for example, ”Acme” or “Acme
-             * Streaming Service on Alice’s Phone”.
-             *
-             * This command returns a Launch Response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
-             */
-            launchUrl(request: LaunchUrlRequest): MaybePromise<LauncherResponse>;
-        }
+    /**
+     * Attributes that may appear in {@link ContentLauncher}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
+         * of entries in the HTTP "Accept" request header.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+         */
+        acceptHeader: string[];
+
+        /**
+         * This attribute shall provide information about supported streaming protocols.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+         */
+        supportedStreamingProtocols: SupportedProtocols;
+    }
+
+    /**
+     * {@link ContentLauncher} supports these elements if it supports feature "UrlPlayback".
+     */
+    export interface UrlPlaybackCommands {
+        /**
+         * Upon receipt, this shall launch content from the specified URL.
+         *
+         * The content types supported include those identified in the AcceptHeader and SupportedStreamingProtocols
+         * attributes.
+         *
+         * A check shall be made to ensure the URL is secure (uses HTTPS).
+         *
+         * When playing a video stream in response to this command, an indication (ex. visual) of the identity of the
+         * origin node of the video stream shall be provided. This could be in the form of a friendly name label which
+         * uniquely identifies the node to the user. This friendly name label is typically assigned by the Matter Admin
+         * (ex. TV) at the time of commissioning and, when it’s a device, is often editable by the user. It might be a
+         * combination of a company name and friendly name, for example, ”Acme” or “Acme Streaming Service on Alice’s
+         * Phone”.
+         *
+         * This command returns a Launch Response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
+         */
+        launchUrl(request: LaunchUrlRequest): MaybePromise<LauncherResponse>;
     }
 
     /**
      * {@link ContentLauncher} supports these elements if it supports feature "ContentSearch".
      */
-    export namespace ContentSearchComponent {
-        export interface Commands {
-            /**
-             * Upon receipt, this shall launch the specified content with optional search criteria.
-             *
-             * This command returns a Launch Response.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
-             */
-            launchContent(request: LaunchContentRequest): MaybePromise<LauncherResponse>;
-        }
+    export interface ContentSearchCommands {
+        /**
+         * Upon receipt, this shall launch the specified content with optional search criteria.
+         *
+         * This command returns a Launch Response.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
+         */
+        launchContent(request: LaunchContentRequest): MaybePromise<LauncherResponse>;
     }
 
-    export interface Attributes extends Partial<UrlPlaybackComponent.Attributes> {}
-    export interface Commands extends UrlPlaybackComponent.Commands, ContentSearchComponent.Commands {}
+    /**
+     * Commands that may appear in {@link ContentLauncher}.
+     */
+    export interface Commands extends
+        UrlPlaybackCommands,
+        ContentSearchCommands
+    {}
 
     export type Components = [
-        {
-            flags: { urlPlayback: true },
-            attributes: UrlPlaybackComponent.Attributes,
-            commands: UrlPlaybackComponent.Commands
-        },
-        { flags: { contentSearch: true }, commands: ContentSearchComponent.Commands }
+        { flags: { urlPlayback: true }, attributes: UrlPlaybackAttributes, commands: UrlPlaybackCommands },
+        { flags: { contentSearch: true }, commands: ContentSearchCommands }
     ];
-
     export type Features = "ContentSearch" | "UrlPlayback" | "AdvancedSeek" | "TextTracks" | "AudioTracks";
 
     /**
@@ -740,24 +800,42 @@ export declare namespace ContentLauncher {
         audioOutputIndex?: number | null;
     }
 
-    export const id: ClusterId;
-    export const name: "ContentLauncher";
-    export const revision: 2;
-    export const schema: typeof ContentLauncherModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link ContentLauncher}.
+     */
     export const Cluster: typeof ContentLauncher;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `ContentLauncher` instead of `ContentLauncher.Complete`)
+     * @deprecated Use {@link ContentLauncher}.
      */
     export const Complete: typeof ContentLauncher;
 
     export const Typing: ContentLauncher;
 }
 
+/**
+ * @deprecated Use {@link ContentLauncher}.
+ */
 export declare const ContentLauncherCluster: typeof ContentLauncher;
-export interface ContentLauncher extends ClusterTyping { Attributes: ContentLauncher.Attributes; Commands: ContentLauncher.Commands; Features: ContentLauncher.Features; Components: ContentLauncher.Components }
+
+export interface ContentLauncher extends ClusterTyping {
+    Attributes: ContentLauncher.Attributes;
+    Commands: ContentLauncher.Commands;
+    Features: ContentLauncher.Features;
+    Components: ContentLauncher.Components;
+}

@@ -6,160 +6,221 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { ContentLauncher } from "./content-launcher.js";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { Channel as ChannelModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the Channel cluster.
+ *
+ * This cluster provides an interface for controlling the current Channel on a device or endpoint.
+ *
+ * This cluster server would be supported on Video Player devices or endpoints that allow Channel control such as a
+ * Content App. This cluster provides a list of available channels and provides commands for absolute and relative
+ * channel changes. Some of these commands and/or their responses may be large (see Large Message Quality under Data
+ * Model section in [MatterCore]), but they do not have the Large quality indicator (L) because they can also be
+ * transferred over MRP (see Message Reliability Protocol in [MatterCore]) in pages that fit within the MRP MTU limit.
+ * However, an implementation may leverage a transport like TCP that allows large payloads, if available, to minimize
+ * the number of messages required to transfer the corresponding payload.
+ *
+ * The cluster server for Channel is implemented by an endpoint that controls the current Channel.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.6
  */
 export declare namespace Channel {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0504;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "Channel";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the Channel cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link Channel} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * This attribute shall contain the current channel. When supported but a channel is not currently tuned to
-             * (if a content application is in foreground), the value of the field shall be null.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.3
-             */
-            readonly currentChannel?: ChannelInfo | null;
-        }
-
-        export interface Commands {
-            /**
-             * Change the channel to the channel with the given Number in the ChannelList attribute.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.3
-             */
-            changeChannelByNumber(request: ChangeChannelByNumberRequest): MaybePromise;
-
-            /**
-             * This command provides channel up and channel down functionality, but allows channel index jumps of size
-             * Count.
-             *
-             * Jumps are relative to the available list of channels. For example, when the current channel is 100.0 and
-             * the list of available channels is [100.0, 200.0, 201.0, 305.1], a SkipChannel command with jump value of
-             * 2 shall change the channel to 201.0.
-             *
-             * When the value of the increase or decrease is larger than the number of channels remaining in the given
-             * direction, then the behavior shall be to return to the beginning (or end) of the channel list and
-             * continue. For example, if the current channel is at index 0 and count value of -1 is given, then the
-             * current channel should change to the last channel.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.4
-             */
-            skipChannel(request: SkipChannelRequest): MaybePromise;
-        }
+    export interface BaseAttributes {
+        /**
+         * This attribute shall contain the current channel. When supported but a channel is not currently tuned to (if
+         * a content application is in foreground), the value of the field shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.3
+         */
+        currentChannel?: ChannelInfo | null;
     }
 
     /**
      * {@link Channel} supports these elements if it supports feature "ChannelList".
      */
-    export namespace ChannelListComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall provide the list of supported channels.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.1
-             */
-            readonly channelList: ChannelInfo[];
-        }
+    export interface ChannelListAttributes {
+        /**
+         * This attribute shall provide the list of supported channels.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.1
+         */
+        channelList: ChannelInfo[];
     }
 
     /**
      * {@link Channel} supports these elements if it supports feature "LineupInfo".
      */
-    export namespace LineupInfoComponent {
-        export interface Attributes {
-            /**
-             * This attribute shall identify the channel lineup using external data sources.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.2
-             */
-            readonly lineup: LineupInfo | null;
-        }
+    export interface LineupInfoAttributes {
+        /**
+         * This attribute shall identify the channel lineup using external data sources.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.2
+         */
+        lineup: LineupInfo | null;
+    }
+
+    /**
+     * Attributes that may appear in {@link Channel}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * This attribute shall contain the current channel. When supported but a channel is not currently tuned to (if
+         * a content application is in foreground), the value of the field shall be null.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.3
+         */
+        currentChannel: ChannelInfo | null;
+
+        /**
+         * This attribute shall provide the list of supported channels.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.1
+         */
+        channelList: ChannelInfo[];
+
+        /**
+         * This attribute shall identify the channel lineup using external data sources.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.6.2
+         */
+        lineup: LineupInfo | null;
+    }
+
+    /**
+     * {@link Channel} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * Change the channel to the channel with the given Number in the ChannelList attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.3
+         */
+        changeChannelByNumber(request: ChangeChannelByNumberRequest): MaybePromise;
+
+        /**
+         * This command provides channel up and channel down functionality, but allows channel index jumps of size
+         * Count.
+         *
+         * Jumps are relative to the available list of channels. For example, when the current channel is 100.0 and the
+         * list of available channels is [100.0, 200.0, 201.0, 305.1], a SkipChannel command with jump value of 2 shall
+         * change the channel to 201.0.
+         *
+         * When the value of the increase or decrease is larger than the number of channels remaining in the given
+         * direction, then the behavior shall be to return to the beginning (or end) of the channel list and continue.
+         * For example, if the current channel is at index 0 and count value of -1 is given, then the current channel
+         * should change to the last channel.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.4
+         */
+        skipChannel(request: SkipChannelRequest): MaybePromise;
     }
 
     /**
      * {@link Channel} supports these elements if it supports feature "ChannelListOrLineupInfo".
      */
-    export namespace ChannelListOrLineupInfoComponent {
-        export interface Commands {
-            /**
-             * Change the channel to the channel case-insensitive exact matching the value passed as an argument.
-             *
-             * The match priority order shall be: Identifier, AffiliateCallSign, CallSign, Name, Number. In the match
-             * string, the Channel number should be presented in the "Major.Minor" format, such as "13.1".
-             *
-             * Upon receipt, this shall generate a ChangeChannelResponse command.
-             *
-             * Upon success, the CurrentChannel attribute, if supported, shall be updated to reflect the change.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.1
-             */
-            changeChannel(request: ChangeChannelRequest): MaybePromise<ChangeChannelResponse>;
-        }
+    export interface ChannelListOrLineupInfoCommands {
+        /**
+         * Change the channel to the channel case-insensitive exact matching the value passed as an argument.
+         *
+         * The match priority order shall be: Identifier, AffiliateCallSign, CallSign, Name, Number. In the match
+         * string, the Channel number should be presented in the "Major.Minor" format, such as "13.1".
+         *
+         * Upon receipt, this shall generate a ChangeChannelResponse command.
+         *
+         * Upon success, the CurrentChannel attribute, if supported, shall be updated to reflect the change.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.1
+         */
+        changeChannel(request: ChangeChannelRequest): MaybePromise<ChangeChannelResponse>;
     }
 
     /**
      * {@link Channel} supports these elements if it supports feature "ElectronicGuide".
      */
-    export namespace ElectronicGuideComponent {
-        export interface Commands {
-            /**
-             * This command retrieves the program guide. It accepts several filter parameters to return specific
-             * schedule and program information from a content app. The command shall receive in response a
-             * ProgramGuideResponse. Standard error codes shall be used when arguments provided are not valid. For
-             * example, if StartTime is greater than EndTime, the status code INVALID_ACTION shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5
-             */
-            getProgramGuide(request: GetProgramGuideRequest): MaybePromise<ProgramGuideResponse>;
-        }
+    export interface ElectronicGuideCommands {
+        /**
+         * This command retrieves the program guide. It accepts several filter parameters to return specific schedule
+         * and program information from a content app. The command shall receive in response a ProgramGuideResponse.
+         * Standard error codes shall be used when arguments provided are not valid. For example, if StartTime is
+         * greater than EndTime, the status code INVALID_ACTION shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5
+         */
+        getProgramGuide(request: GetProgramGuideRequest): MaybePromise<ProgramGuideResponse>;
     }
 
     /**
      * {@link Channel} supports these elements if it supports feature "RecordProgramAndElectronicGuide".
      */
-    export namespace RecordProgramAndElectronicGuideComponent {
-        export interface Commands {
-            /**
-             * Record a specific program or series when it goes live. This functionality enables DVR recording features.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.7
-             */
-            recordProgram(request: RecordProgramRequest): MaybePromise;
+    export interface RecordProgramAndElectronicGuideCommands {
+        /**
+         * Record a specific program or series when it goes live. This functionality enables DVR recording features.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.7
+         */
+        recordProgram(request: RecordProgramRequest): MaybePromise;
 
-            /**
-             * Cancel recording for a specific program or series.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.8
-             */
-            cancelRecordProgram(request: CancelRecordProgramRequest): MaybePromise;
-        }
+        /**
+         * Cancel recording for a specific program or series.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.8
+         */
+        cancelRecordProgram(request: CancelRecordProgramRequest): MaybePromise;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<ChannelListComponent.Attributes>, Partial<LineupInfoComponent.Attributes> {}
-    export interface Commands extends Base.Commands, ChannelListOrLineupInfoComponent.Commands, ElectronicGuideComponent.Commands, RecordProgramAndElectronicGuideComponent.Commands {}
+    /**
+     * Commands that may appear in {@link Channel}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        ChannelListOrLineupInfoCommands,
+        ElectronicGuideCommands,
+        RecordProgramAndElectronicGuideCommands
+    {}
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands },
-        { flags: { channelList: true }, attributes: ChannelListComponent.Attributes },
-        { flags: { lineupInfo: true }, attributes: LineupInfoComponent.Attributes },
-        { flags: { channelList: true }, commands: ChannelListOrLineupInfoComponent.Commands },
-        { flags: { lineupInfo: true }, commands: ChannelListOrLineupInfoComponent.Commands },
-        { flags: { electronicGuide: true }, commands: ElectronicGuideComponent.Commands },
-        {
-            flags: { recordProgram: true, electronicGuide: true },
-            commands: RecordProgramAndElectronicGuideComponent.Commands
-        }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
+        { flags: { channelList: true }, attributes: ChannelListAttributes },
+        { flags: { lineupInfo: true }, attributes: LineupInfoAttributes },
+        { flags: { channelList: true }, commands: ChannelListOrLineupInfoCommands },
+        { flags: { lineupInfo: true }, commands: ChannelListOrLineupInfoCommands },
+        { flags: { electronicGuide: true }, commands: ElectronicGuideCommands },
+        { flags: { recordProgram: true, electronicGuide: true }, commands: RecordProgramAndElectronicGuideCommands }
     ];
 
     export type Features = "ChannelList" | "LineupInfo" | "ElectronicGuide" | "RecordProgram";
@@ -270,6 +331,44 @@ export declare namespace Channel {
     }
 
     /**
+     * The Lineup Info allows references to external lineup sources like Gracenote. The combination of OperatorName,
+     * LineupName, and PostalCode MUST uniquely identify a lineup.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6
+     */
+    export interface LineupInfo {
+        /**
+         * This field shall indicate the name of the operator, for example “Comcast”.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.1
+         */
+        operatorName: string;
+
+        /**
+         * This field shall indicate the name of the provider lineup, for example "Comcast King County". This field is
+         * optional, but SHOULD be provided when known.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.2
+         */
+        lineupName?: string;
+
+        /**
+         * This field shall indicate the postal code (zip code) for the location of the device, such as "98052". This
+         * field is optional, but SHOULD be provided when known.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.3
+         */
+        postalCode?: string;
+
+        /**
+         * This field shall indicate the type of lineup. This field is optional, but SHOULD be provided when known.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.4
+         */
+        lineupInfoType: LineupInfoType;
+    }
+
+    /**
      * Change the channel to the channel with the given Number in the ChannelList attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.3
@@ -312,44 +411,6 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.4.1
          */
         count: number;
-    }
-
-    /**
-     * The Lineup Info allows references to external lineup sources like Gracenote. The combination of OperatorName,
-     * LineupName, and PostalCode MUST uniquely identify a lineup.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6
-     */
-    export interface LineupInfo {
-        /**
-         * This field shall indicate the name of the operator, for example “Comcast”.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.1
-         */
-        operatorName: string;
-
-        /**
-         * This field shall indicate the name of the provider lineup, for example "Comcast King County". This field is
-         * optional, but SHOULD be provided when known.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.2
-         */
-        lineupName?: string;
-
-        /**
-         * This field shall indicate the postal code (zip code) for the location of the device, such as "98052". This
-         * field is optional, but SHOULD be provided when known.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.3
-         */
-        postalCode?: string;
-
-        /**
-         * This field shall indicate the type of lineup. This field is optional, but SHOULD be provided when known.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.4
-         */
-        lineupInfoType: LineupInfoType;
     }
 
     /**
@@ -931,24 +992,42 @@ export declare namespace Channel {
         nextToken?: PageToken | null;
     }
 
-    export const id: ClusterId;
-    export const name: "Channel";
-    export const revision: 2;
-    export const schema: typeof ChannelModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link Channel}.
+     */
     export const Cluster: typeof Channel;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `Channel` instead of `Channel.Complete`)
+     * @deprecated Use {@link Channel}.
      */
     export const Complete: typeof Channel;
 
     export const Typing: Channel;
 }
 
+/**
+ * @deprecated Use {@link Channel}.
+ */
 export declare const ChannelCluster: typeof Channel;
-export interface Channel extends ClusterTyping { Attributes: Channel.Attributes; Commands: Channel.Commands; Features: Channel.Features; Components: Channel.Components }
+
+export interface Channel extends ClusterTyping {
+    Attributes: Channel.Attributes;
+    Commands: Channel.Commands;
+    Features: Channel.Features;
+    Components: Channel.Components;
+}

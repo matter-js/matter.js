@@ -6,205 +6,382 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise, Bytes } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { GeneralDiagnostics as GeneralDiagnosticsModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise, Bytes } from "@matter/general";
 
 /**
  * Definitions for the GeneralDiagnostics cluster.
+ *
+ * The General Diagnostics Cluster, along with other diagnostics clusters, provide a means to acquire standardized
+ * diagnostics metrics that may be used by a Node to assist a user or Administrator in diagnosing potential problems.
+ * The General Diagnostics Cluster attempts to centralize all metrics that are broadly relevant to the majority of
+ * Nodes.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.12
  */
 export declare namespace GeneralDiagnostics {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0033;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "GeneralDiagnostics";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the GeneralDiagnostics cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link GeneralDiagnostics} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * The NetworkInterfaces attribute shall be a list of NetworkInterface structs. Each logical network
-             * interface on the Node shall be represented by a single entry within the NetworkInterfaces attribute.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.1
-             */
-            readonly networkInterfaces: NetworkInterface[];
+    export interface BaseAttributes {
+        /**
+         * The NetworkInterfaces attribute shall be a list of NetworkInterface structs. Each logical network interface
+         * on the Node shall be represented by a single entry within the NetworkInterfaces attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.1
+         */
+        networkInterfaces: NetworkInterface[];
 
-            /**
-             * The RebootCount attribute shall indicate a best-effort count of the number of times the Node has
-             * rebooted. The RebootCount attribute SHOULD be incremented each time the Node reboots. The RebootCount
-             * attribute shall NOT be incremented when a Node wakes from a low-power or sleep state. The RebootCount
-             * attribute shall only be reset to 0 upon a factory reset of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.2
-             */
-            readonly rebootCount: number;
+        /**
+         * The RebootCount attribute shall indicate a best-effort count of the number of times the Node has rebooted.
+         * The RebootCount attribute SHOULD be incremented each time the Node reboots. The RebootCount attribute shall
+         * NOT be incremented when a Node wakes from a low-power or sleep state. The RebootCount attribute shall only be
+         * reset to 0 upon a factory reset of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.2
+         */
+        rebootCount: number;
 
-            /**
-             * The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, since the
-             * Node’s last reboot. This attribute SHOULD be incremented to account for the periods of time that a Node
-             * is in a low-power or sleep state. This attribute shall only be reset upon a device reboot. This attribute
-             * shall be based on the same System Time source as those used to fulfill any usage of the systime-us and
-             * systime-ms data types within the server.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.3
-             */
-            readonly upTime: number | bigint;
+        /**
+         * The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, since the
+         * Node’s last reboot. This attribute SHOULD be incremented to account for the periods of time that a Node is in
+         * a low-power or sleep state. This attribute shall only be reset upon a device reboot. This attribute shall be
+         * based on the same System Time source as those used to fulfill any usage of the systime-us and systime-ms data
+         * types within the server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.3
+         */
+        upTime: number | bigint;
 
-            /**
-             * The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger
-             * configured. When this attribute is true, the Node has been configured with one or more test event
-             * triggers by virtue of the internally programmed EnableKey value (see Section 11.12.7.1, “TestEventTrigger
-             * Command”) being set to a non-zero value. This attribute can be used by Administrators to detect if a
-             * device was inadvertently commissioned with test event trigger mode enabled, and take appropriate action
-             * (e.g. warn the user and/or offer to remove all fabrics on the Node).
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.9
-             */
-            readonly testEventTriggersEnabled: boolean;
+        /**
+         * The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger configured.
+         * When this attribute is true, the Node has been configured with one or more test event triggers by virtue of
+         * the internally programmed EnableKey value (see Section 11.12.7.1, “TestEventTrigger Command”) being set to a
+         * non-zero value. This attribute can be used by Administrators to detect if a device was inadvertently
+         * commissioned with test event trigger mode enabled, and take appropriate action (e.g. warn the user and/or
+         * offer to remove all fabrics on the Node).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.9
+         */
+        testEventTriggersEnabled: boolean;
 
-            /**
-             * The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of time,
-             * in hours, that the Node has been operational. The TotalOperationalHours attribute SHOULD be incremented
-             * to account for the periods of time that a Node is in a low-power or sleep state. The
-             * TotalOperationalHours attribute shall only be reset upon a factory reset of the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.4
-             */
-            readonly totalOperationalHours?: number;
+        /**
+         * The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of time, in
+         * hours, that the Node has been operational. The TotalOperationalHours attribute SHOULD be incremented to
+         * account for the periods of time that a Node is in a low-power or sleep state. The TotalOperationalHours
+         * attribute shall only be reset upon a factory reset of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.4
+         */
+        totalOperationalHours?: number;
 
-            /**
-             * The BootReason attribute shall indicate the reason for the Node’s most recent boot.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.5
-             */
-            readonly bootReason?: BootReason;
+        /**
+         * The BootReason attribute shall indicate the reason for the Node’s most recent boot.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.5
+         */
+        bootReason?: BootReason;
 
-            /**
-             * The ActiveHardwareFaults attribute shall indicate the set of faults currently detected by the Node. When
-             * the Node detects a fault has been raised, the appropriate HardwareFaultEnum value shall be added to this
-             * list. This list shall NOT contain more than one instance of a specific HardwareFaultEnum value. When the
-             * Node detects that all conditions contributing to a fault has been cleared, the corresponding
-             * HardwareFaultEnum value shall be removed from this list. An empty list shall indicate there are currently
-             * no active faults. The order of this list SHOULD have no significance. Clients interested in monitoring
-             * changes in active faults may subscribe to this attribute, or they may subscribe to HardwareFaultChange.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.6
-             */
-            readonly activeHardwareFaults?: HardwareFault[];
+        /**
+         * The ActiveHardwareFaults attribute shall indicate the set of faults currently detected by the Node. When the
+         * Node detects a fault has been raised, the appropriate HardwareFaultEnum value shall be added to this list.
+         * This list shall NOT contain more than one instance of a specific HardwareFaultEnum value. When the Node
+         * detects that all conditions contributing to a fault has been cleared, the corresponding HardwareFaultEnum
+         * value shall be removed from this list. An empty list shall indicate there are currently no active faults. The
+         * order of this list SHOULD have no significance. Clients interested in monitoring changes in active faults may
+         * subscribe to this attribute, or they may subscribe to HardwareFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.6
+         */
+        activeHardwareFaults?: HardwareFault[];
 
-            /**
-             * The ActiveRadioFaults attribute shall indicate the set of faults currently detected by the Node. When the
-             * Node detects a fault has been raised, the appropriate RadioFaultEnum value shall be added to this list.
-             * This list shall NOT contain more than one instance of a specific RadioFaultEnum value. When the Node
-             * detects that all conditions contributing to a fault has been cleared, the corresponding RadioFaultEnum
-             * value shall be removed from this list. An empty list shall indicate there are currently no active faults.
-             * The order of this list SHOULD have no significance. Clients interested in monitoring changes in active
-             * faults may subscribe to this attribute, or they may subscribe to RadioFaultChange.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.7
-             */
-            readonly activeRadioFaults?: RadioFault[];
+        /**
+         * The ActiveRadioFaults attribute shall indicate the set of faults currently detected by the Node. When the
+         * Node detects a fault has been raised, the appropriate RadioFaultEnum value shall be added to this list. This
+         * list shall NOT contain more than one instance of a specific RadioFaultEnum value. When the Node detects that
+         * all conditions contributing to a fault has been cleared, the corresponding RadioFaultEnum value shall be
+         * removed from this list. An empty list shall indicate there are currently no active faults. The order of this
+         * list SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
+         * this attribute, or they may subscribe to RadioFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.7
+         */
+        activeRadioFaults?: RadioFault[];
 
-            /**
-             * The ActiveNetworkFaults attribute shall indicate the set of faults currently detected by the Node. When
-             * the Node detects a fault has been raised, the appropriate NetworkFaultEnum value shall be added to this
-             * list. This list shall NOT contain more than one instance of a specific NetworkFaultEnum value. When the
-             * Node detects that all conditions contributing to a fault has been cleared, the corresponding
-             * NetworkFaultEnum value shall be removed from this list. An empty list shall indicate there are currently
-             * no active faults. The order of this list SHOULD have no significance. Clients interested in monitoring
-             * changes in active faults may subscribe to this attribute, or they may subscribe to NetworkFaultChange.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.6.8
-             */
-            readonly activeNetworkFaults?: NetworkFault[];
-        }
+        /**
+         * The ActiveNetworkFaults attribute shall indicate the set of faults currently detected by the Node. When the
+         * Node detects a fault has been raised, the appropriate NetworkFaultEnum value shall be added to this list.
+         * This list shall NOT contain more than one instance of a specific NetworkFaultEnum value. When the Node
+         * detects that all conditions contributing to a fault has been cleared, the corresponding NetworkFaultEnum
+         * value shall be removed from this list. An empty list shall indicate there are currently no active faults. The
+         * order of this list SHOULD have no significance. Clients interested in monitoring changes in active faults may
+         * subscribe to this attribute, or they may subscribe to NetworkFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.8
+         */
+        activeNetworkFaults?: NetworkFault[];
+    }
 
-        export interface Commands {
-            /**
-             * This command shall be supported to provide a means for certification tests to trigger some
-             * test-plan-specific events, necessary to assist in automation of device interactions for some
-             * certification test cases. This command shall NOT cause any changes to the state of the device that
-             * persist after the last fabric is removed.
-             *
-             * The fields for the TestEventTrigger command are as follows:
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.7.1
-             */
-            testEventTrigger(request: TestEventTriggerRequest): MaybePromise;
+    /**
+     * Attributes that may appear in {@link GeneralDiagnostics}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * The NetworkInterfaces attribute shall be a list of NetworkInterface structs. Each logical network interface
+         * on the Node shall be represented by a single entry within the NetworkInterfaces attribute.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.1
+         */
+        networkInterfaces: NetworkInterface[];
 
-            /**
-             * This command may be used by a client to obtain a correlated view of both System Time, and, if currently
-             * synchronized and supported, "wall clock time" of the server. This can help clients establish time
-             * correlation between their concept of time and the server’s concept of time. This is especially useful
-             * when processing event histories where some events only contain System Time.
-             *
-             * Upon command invocation, the server shall respond with a TimeSnapshotResponse.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.7.2
-             */
-            timeSnapshot(): MaybePromise<TimeSnapshotResponse>;
-        }
+        /**
+         * The RebootCount attribute shall indicate a best-effort count of the number of times the Node has rebooted.
+         * The RebootCount attribute SHOULD be incremented each time the Node reboots. The RebootCount attribute shall
+         * NOT be incremented when a Node wakes from a low-power or sleep state. The RebootCount attribute shall only be
+         * reset to 0 upon a factory reset of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.2
+         */
+        rebootCount: number;
 
-        export interface Events {
-            /**
-             * The BootReason Event shall indicate the reason that caused the device to start-up.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
-             */
-            bootReason: BootReasonEvent;
+        /**
+         * The UpTime attribute shall indicate a best-effort assessment of the length of time, in seconds, since the
+         * Node’s last reboot. This attribute SHOULD be incremented to account for the periods of time that a Node is in
+         * a low-power or sleep state. This attribute shall only be reset upon a device reboot. This attribute shall be
+         * based on the same System Time source as those used to fulfill any usage of the systime-us and systime-ms data
+         * types within the server.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.3
+         */
+        upTime: number | bigint;
 
-            /**
-             * The HardwareFaultChange Event shall indicate a change in the set of hardware faults currently detected by
-             * the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
-             */
-            hardwareFaultChange?: HardwareFaultChangeEvent;
+        /**
+         * The TestEventTriggersEnabled attribute shall indicate whether the Node has any TestEventTrigger configured.
+         * When this attribute is true, the Node has been configured with one or more test event triggers by virtue of
+         * the internally programmed EnableKey value (see Section 11.12.7.1, “TestEventTrigger Command”) being set to a
+         * non-zero value. This attribute can be used by Administrators to detect if a device was inadvertently
+         * commissioned with test event trigger mode enabled, and take appropriate action (e.g. warn the user and/or
+         * offer to remove all fabrics on the Node).
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.9
+         */
+        testEventTriggersEnabled: boolean;
 
-            /**
-             * The RadioFaultChange Event shall indicate a change in the set of radio faults currently detected by the
-             * Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
-             */
-            radioFaultChange?: RadioFaultChangeEvent;
+        /**
+         * The TotalOperationalHours attribute shall indicate a best-effort attempt at tracking the length of time, in
+         * hours, that the Node has been operational. The TotalOperationalHours attribute SHOULD be incremented to
+         * account for the periods of time that a Node is in a low-power or sleep state. The TotalOperationalHours
+         * attribute shall only be reset upon a factory reset of the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.4
+         */
+        totalOperationalHours: number;
 
-            /**
-             * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by
-             * the Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
-             */
-            networkFaultChange?: NetworkFaultChangeEvent;
-        }
+        /**
+         * The BootReason attribute shall indicate the reason for the Node’s most recent boot.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.5
+         */
+        bootReason: BootReason;
+
+        /**
+         * The ActiveHardwareFaults attribute shall indicate the set of faults currently detected by the Node. When the
+         * Node detects a fault has been raised, the appropriate HardwareFaultEnum value shall be added to this list.
+         * This list shall NOT contain more than one instance of a specific HardwareFaultEnum value. When the Node
+         * detects that all conditions contributing to a fault has been cleared, the corresponding HardwareFaultEnum
+         * value shall be removed from this list. An empty list shall indicate there are currently no active faults. The
+         * order of this list SHOULD have no significance. Clients interested in monitoring changes in active faults may
+         * subscribe to this attribute, or they may subscribe to HardwareFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.6
+         */
+        activeHardwareFaults: HardwareFault[];
+
+        /**
+         * The ActiveRadioFaults attribute shall indicate the set of faults currently detected by the Node. When the
+         * Node detects a fault has been raised, the appropriate RadioFaultEnum value shall be added to this list. This
+         * list shall NOT contain more than one instance of a specific RadioFaultEnum value. When the Node detects that
+         * all conditions contributing to a fault has been cleared, the corresponding RadioFaultEnum value shall be
+         * removed from this list. An empty list shall indicate there are currently no active faults. The order of this
+         * list SHOULD have no significance. Clients interested in monitoring changes in active faults may subscribe to
+         * this attribute, or they may subscribe to RadioFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.7
+         */
+        activeRadioFaults: RadioFault[];
+
+        /**
+         * The ActiveNetworkFaults attribute shall indicate the set of faults currently detected by the Node. When the
+         * Node detects a fault has been raised, the appropriate NetworkFaultEnum value shall be added to this list.
+         * This list shall NOT contain more than one instance of a specific NetworkFaultEnum value. When the Node
+         * detects that all conditions contributing to a fault has been cleared, the corresponding NetworkFaultEnum
+         * value shall be removed from this list. An empty list shall indicate there are currently no active faults. The
+         * order of this list SHOULD have no significance. Clients interested in monitoring changes in active faults may
+         * subscribe to this attribute, or they may subscribe to NetworkFaultChange.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.6.8
+         */
+        activeNetworkFaults: NetworkFault[];
+    }
+
+    /**
+     * {@link GeneralDiagnostics} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command shall be supported to provide a means for certification tests to trigger some test-plan-specific
+         * events, necessary to assist in automation of device interactions for some certification test cases. This
+         * command shall NOT cause any changes to the state of the device that persist after the last fabric is removed.
+         *
+         * The fields for the TestEventTrigger command are as follows:
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.1
+         */
+        testEventTrigger(request: TestEventTriggerRequest): MaybePromise;
+
+        /**
+         * This command may be used by a client to obtain a correlated view of both System Time, and, if currently
+         * synchronized and supported, "wall clock time" of the server. This can help clients establish time correlation
+         * between their concept of time and the server’s concept of time. This is especially useful when processing
+         * event histories where some events only contain System Time.
+         *
+         * Upon command invocation, the server shall respond with a TimeSnapshotResponse.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.2
+         */
+        timeSnapshot(): MaybePromise<TimeSnapshotResponse>;
     }
 
     /**
      * {@link GeneralDiagnostics} supports these elements if it supports feature "DataModelTest".
      */
-    export namespace DataModelTestComponent {
-        export interface Commands {
-            /**
-             * This command provides a means for certification tests or manufacturer’s internal tests to validate
-             * particular command handling and encoding constraints by generating a response of a given size.
-             *
-             * This command shall use the same EnableKey behavior as the TestEventTrigger command, whereby processing of
-             * the command is only enabled when the TestEventTriggersEnabled field is true, which shall NOT be true
-             * outside of certification testing or manufacturer’s internal tests.
-             *
-             * The fields for the PayloadTestRequest command are as follows:
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
-             */
-            payloadTestRequest(request: PayloadTestRequest): MaybePromise<PayloadTestResponse>;
-        }
+    export interface DataModelTestCommands {
+        /**
+         * This command provides a means for certification tests or manufacturer’s internal tests to validate particular
+         * command handling and encoding constraints by generating a response of a given size.
+         *
+         * This command shall use the same EnableKey behavior as the TestEventTrigger command, whereby processing of the
+         * command is only enabled when the TestEventTriggersEnabled field is true, which shall NOT be true outside of
+         * certification testing or manufacturer’s internal tests.
+         *
+         * The fields for the PayloadTestRequest command are as follows:
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
+         */
+        payloadTestRequest(request: PayloadTestRequest): MaybePromise<PayloadTestResponse>;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands, DataModelTestComponent.Commands {}
-    export interface Events extends Base.Events {}
+    /**
+     * Commands that may appear in {@link GeneralDiagnostics}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        DataModelTestCommands
+    {}
+
+    /**
+     * {@link GeneralDiagnostics} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * The BootReason Event shall indicate the reason that caused the device to start-up.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
+         */
+        bootReason: BootReasonEvent;
+
+        /**
+         * The HardwareFaultChange Event shall indicate a change in the set of hardware faults currently detected by the
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
+         */
+        hardwareFaultChange?: HardwareFaultChangeEvent;
+
+        /**
+         * The RadioFaultChange Event shall indicate a change in the set of radio faults currently detected by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
+         */
+        radioFaultChange?: RadioFaultChangeEvent;
+
+        /**
+         * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by the
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
+         */
+        networkFaultChange?: NetworkFaultChangeEvent;
+    }
+
+    /**
+     * Events that may appear in {@link GeneralDiagnostics}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * The BootReason Event shall indicate the reason that caused the device to start-up.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
+         */
+        bootReason: BootReasonEvent;
+
+        /**
+         * The HardwareFaultChange Event shall indicate a change in the set of hardware faults currently detected by the
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
+         */
+        hardwareFaultChange: HardwareFaultChangeEvent;
+
+        /**
+         * The RadioFaultChange Event shall indicate a change in the set of radio faults currently detected by the Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
+         */
+        radioFaultChange: RadioFaultChangeEvent;
+
+        /**
+         * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by the
+         * Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
+         */
+        networkFaultChange: NetworkFaultChangeEvent;
+    }
+
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events },
-        { flags: { dataModelTest: true }, commands: DataModelTestComponent.Commands }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents },
+        { flags: { dataModelTest: true }, commands: DataModelTestCommands }
     ];
     export type Features = "DataModelTest";
 
@@ -561,6 +738,76 @@ export declare namespace GeneralDiagnostics {
     }
 
     /**
+     * This command provides a means for certification tests or manufacturer’s internal tests to validate particular
+     * command handling and encoding constraints by generating a response of a given size.
+     *
+     * This command shall use the same EnableKey behavior as the TestEventTrigger command, whereby processing of the
+     * command is only enabled when the TestEventTriggersEnabled field is true, which shall NOT be true outside of
+     * certification testing or manufacturer’s internal tests.
+     *
+     * The fields for the PayloadTestRequest command are as follows:
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
+     */
+    export interface PayloadTestRequest {
+        /**
+         * This field shall have the same meaning and usage as the TestEventTrigger EnableKey field.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.1
+         */
+        enableKey: Bytes;
+
+        /**
+         * This field shall indicate the value to use in every byte of the PayloadTestResponse’s Payload field.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.2
+         */
+        value: number;
+
+        /**
+         * This field shall indicate the number of times to repeat the Value in the PayloadTestResponse’s Payload field.
+         *
+         * ### Effect upon receipt
+         *
+         * This command shall respond with a response status of CONSTRAINT_ERROR if either:
+         *
+         *   - The EnableKey field does not match the a-priori value configured on the device.
+         *
+         *   - The TestEventTriggersEnabled field is currently false.
+         *
+         * Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value containing
+         * Count instances of the Value byte. If the response is too large to send, the server shall fail the command
+         * and respond with a response status of RESOURCE_EXHAUSTED.
+         *
+         * For example:
+         *
+         *   - If Value is 0x55 and the Count is zero, then the PayloadTestResponse would have the Payload field set to
+         *     an empty octet string.
+         *
+         *   - If Value is 0xA5 and the Count is 10, the PayloadTestResponse would have the Payload field set to a
+         *     content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 representation would
+         *     be paWlpaWlpaWlpQ==.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.3
+         */
+        count: number;
+    }
+
+    /**
+     * This command is sent by the server on receipt of the PayloadTestRequest command.
+     *
+     * @see {@link MatterSpecification.v142.Core} § 11.12.7.5
+     */
+    export interface PayloadTestResponse {
+        /**
+         * This field shall contain the computed response of the PayloadTestRequest command.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.12.7.5.1
+         */
+        payload: Bytes;
+    }
+
+    /**
      * The BootReason Event shall indicate the reason that caused the device to start-up.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
@@ -639,76 +886,6 @@ export declare namespace GeneralDiagnostics {
     }
 
     /**
-     * This command provides a means for certification tests or manufacturer’s internal tests to validate particular
-     * command handling and encoding constraints by generating a response of a given size.
-     *
-     * This command shall use the same EnableKey behavior as the TestEventTrigger command, whereby processing of the
-     * command is only enabled when the TestEventTriggersEnabled field is true, which shall NOT be true outside of
-     * certification testing or manufacturer’s internal tests.
-     *
-     * The fields for the PayloadTestRequest command are as follows:
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
-     */
-    export interface PayloadTestRequest {
-        /**
-         * This field shall have the same meaning and usage as the TestEventTrigger EnableKey field.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.1
-         */
-        enableKey: Bytes;
-
-        /**
-         * This field shall indicate the value to use in every byte of the PayloadTestResponse’s Payload field.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.2
-         */
-        value: number;
-
-        /**
-         * This field shall indicate the number of times to repeat the Value in the PayloadTestResponse’s Payload field.
-         *
-         * ### Effect upon receipt
-         *
-         * This command shall respond with a response status of CONSTRAINT_ERROR if either:
-         *
-         *   - The EnableKey field does not match the a-priori value configured on the device.
-         *
-         *   - The TestEventTriggersEnabled field is currently false.
-         *
-         * Otherwise, the server shall respond with a PayloadTestResponse command with a Payload field value containing
-         * Count instances of the Value byte. If the response is too large to send, the server shall fail the command
-         * and respond with a response status of RESOURCE_EXHAUSTED.
-         *
-         * For example:
-         *
-         *   - If Value is 0x55 and the Count is zero, then the PayloadTestResponse would have the Payload field set to
-         *     an empty octet string.
-         *
-         *   - If Value is 0xA5 and the Count is 10, the PayloadTestResponse would have the Payload field set to a
-         *     content whose hexadecimal representation would be A5A5A5A5A5A5A5A5A5A5, and base64 representation would
-         *     be paWlpaWlpaWlpQ==.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.3
-         */
-        count: number;
-    }
-
-    /**
-     * This command is sent by the server on receipt of the PayloadTestRequest command.
-     *
-     * @see {@link MatterSpecification.v142.Core} § 11.12.7.5
-     */
-    export interface PayloadTestResponse {
-        /**
-         * This field shall contain the computed response of the PayloadTestRequest command.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.12.7.5.1
-         */
-        payload: Bytes;
-    }
-
-    /**
      * @see {@link MatterSpecification.v142.Core} § 11.12.5.4
      */
     export enum InterfaceType {
@@ -738,27 +915,48 @@ export declare namespace GeneralDiagnostics {
         Thread = 4
     }
 
-    export const id: ClusterId;
-    export const name: "GeneralDiagnostics";
-    export const revision: 2;
-    export const schema: typeof GeneralDiagnosticsModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link GeneralDiagnostics}.
+     */
     export const Cluster: typeof GeneralDiagnostics;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `GeneralDiagnostics` instead of
-     * `GeneralDiagnostics.Complete`)
+     * @deprecated Use {@link GeneralDiagnostics}.
      */
     export const Complete: typeof GeneralDiagnostics;
 
     export const Typing: GeneralDiagnostics;
 }
 
+/**
+ * @deprecated Use {@link GeneralDiagnostics}.
+ */
 export declare const GeneralDiagnosticsCluster: typeof GeneralDiagnostics;
-export interface GeneralDiagnostics extends ClusterTyping { Attributes: GeneralDiagnostics.Attributes; Commands: GeneralDiagnostics.Commands; Events: GeneralDiagnostics.Events; Features: GeneralDiagnostics.Features; Components: GeneralDiagnostics.Components }
+
+export interface GeneralDiagnostics extends ClusterTyping {
+    Attributes: GeneralDiagnostics.Attributes;
+    Commands: GeneralDiagnostics.Commands;
+    Events: GeneralDiagnostics.Events;
+    Features: GeneralDiagnostics.Features;
+    Components: GeneralDiagnostics.Components;
+}

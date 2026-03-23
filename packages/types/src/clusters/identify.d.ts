@@ -6,82 +6,159 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { MaybePromise } from "@matter/general";
 import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { Identify as IdentifyModel } from "@matter/model";
 import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
+import type { MaybePromise } from "@matter/general";
 
 /**
  * Definitions for the Identify cluster.
+ *
+ * This cluster supports an endpoint identification state (e.g., flashing a light), that indicates to an observer (e.g.,
+ * an installer) which of several nodes and/or endpoints it is. It also supports a multicast request that any endpoint
+ * that is identifying itself to respond to the initiator.
+ *
+ * The state of this cluster may be shared on more than one endpoint on a node.
+ *
+ * For Example: Two endpoints on a single node, one a temperature sensor, and one a humidity sensor, may both share the
+ * same cluster instance and therefore identification state (e.g. single LED on the node).
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 1.2
  */
 export declare namespace Identify {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0003;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "Identify";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 6;
+
+    /**
+     * Canonical metadata for the Identify cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link Identify} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the remaining length of time, in seconds, that the endpoint will continue to identify itself.
-             *
-             * If this attribute is set to a value other than 0 then the device shall enter its identification state, in
-             * order to indicate to an observer which of several nodes and/or endpoints it is. It is recommended that
-             * this state consists of flashing a light with a period of 0.5 seconds. The IdentifyTime attribute shall be
-             * decremented every second while in this state.
-             *
-             * If this attribute reaches or is set to the value 0 then the device shall terminate its identification
-             * state.
-             *
-             * Changes to this attribute shall only be marked as reportable in the following cases:
-             *
-             *   - When it changes from 0 to any other value and vice versa, or
-             *
-             *   - When it is written by a client, or
-             *
-             *   - When the value is set by an Identify command.
-             *
-             * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
-             * reporting of this attribute in order to keep track of the remaining duration.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.1
-             */
-            identifyTime: number;
+    export interface BaseAttributes {
+        /**
+         * Indicates the remaining length of time, in seconds, that the endpoint will continue to identify itself.
+         *
+         * If this attribute is set to a value other than 0 then the device shall enter its identification state, in
+         * order to indicate to an observer which of several nodes and/or endpoints it is. It is recommended that this
+         * state consists of flashing a light with a period of 0.5 seconds. The IdentifyTime attribute shall be
+         * decremented every second while in this state.
+         *
+         * If this attribute reaches or is set to the value 0 then the device shall terminate its identification state.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - When it changes from 0 to any other value and vice versa, or
+         *
+         *   - When it is written by a client, or
+         *
+         *   - When the value is set by an Identify command.
+         *
+         * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
+         * reporting of this attribute in order to keep track of the remaining duration.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.1
+         */
+        identifyTime: number;
 
-            /**
-             * Indicates how the identification state is presented to the user.
-             *
-             * This attribute shall contain one of the values defined in IdentifyTypeEnum. The value None shall NOT be
-             * used if the device is capable of presenting its identification state using one of the other methods
-             * defined in IdentifyTypeEnum.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.2
-             */
-            readonly identifyType: IdentifyType;
-        }
-
-        export interface Commands {
-            /**
-             * This command starts or stops the receiving device identifying itself.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.1
-             */
-            identify(request: IdentifyRequest): MaybePromise;
-
-            /**
-             * This command allows the support of feedback to the user, such as a certain light effect. It is used to
-             * allow an implementation to provide visual feedback to the user under certain circumstances such as a
-             * color light turning green when it has successfully connected to a network. The use of this command and
-             * the effects themselves are entirely up to the implementer to use whenever a visual feedback is useful but
-             * it is not the same as and does not replace the identify mechanism used during commissioning.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2
-             */
-            triggerEffect(request: TriggerEffectRequest): MaybePromise;
-        }
+        /**
+         * Indicates how the identification state is presented to the user.
+         *
+         * This attribute shall contain one of the values defined in IdentifyTypeEnum. The value None shall NOT be used
+         * if the device is capable of presenting its identification state using one of the other methods defined in
+         * IdentifyTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.2
+         */
+        identifyType: IdentifyType;
     }
 
-    export interface Attributes extends Base.Attributes {}
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, attributes: Base.Attributes, commands: Base.Commands }];
+    /**
+     * Attributes that may appear in {@link Identify}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the remaining length of time, in seconds, that the endpoint will continue to identify itself.
+         *
+         * If this attribute is set to a value other than 0 then the device shall enter its identification state, in
+         * order to indicate to an observer which of several nodes and/or endpoints it is. It is recommended that this
+         * state consists of flashing a light with a period of 0.5 seconds. The IdentifyTime attribute shall be
+         * decremented every second while in this state.
+         *
+         * If this attribute reaches or is set to the value 0 then the device shall terminate its identification state.
+         *
+         * Changes to this attribute shall only be marked as reportable in the following cases:
+         *
+         *   - When it changes from 0 to any other value and vice versa, or
+         *
+         *   - When it is written by a client, or
+         *
+         *   - When the value is set by an Identify command.
+         *
+         * Since this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the
+         * reporting of this attribute in order to keep track of the remaining duration.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.1
+         */
+        identifyTime: number;
+
+        /**
+         * Indicates how the identification state is presented to the user.
+         *
+         * This attribute shall contain one of the values defined in IdentifyTypeEnum. The value None shall NOT be used
+         * if the device is capable of presenting its identification state using one of the other methods defined in
+         * IdentifyTypeEnum.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.5.2
+         */
+        identifyType: IdentifyType;
+    }
+
+    /**
+     * {@link Identify} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command starts or stops the receiving device identifying itself.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.1
+         */
+        identify(request: IdentifyRequest): MaybePromise;
+
+        /**
+         * This command allows the support of feedback to the user, such as a certain light effect. It is used to allow
+         * an implementation to provide visual feedback to the user under certain circumstances such as a color light
+         * turning green when it has successfully connected to a network. The use of this command and the effects
+         * themselves are entirely up to the implementer to use whenever a visual feedback is useful but it is not the
+         * same as and does not replace the identify mechanism used during commissioning.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2
+         */
+        triggerEffect(request: TriggerEffectRequest): MaybePromise;
+    }
+
+    /**
+     * Commands that may appear in {@link Identify}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.2.4.1
@@ -203,23 +280,36 @@ export declare namespace Identify {
         Default = 0
     }
 
-    export const id: ClusterId;
-    export const name: "Identify";
-    export const revision: 6;
-    export const schema: typeof IdentifyModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * @deprecated Use {@link Identify}.
+     */
     export const Cluster: typeof Identify;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `Identify` instead of `Identify.Complete`)
+     * @deprecated Use {@link Identify}.
      */
     export const Complete: typeof Identify;
 
     export const Typing: Identify;
 }
 
+/**
+ * @deprecated Use {@link Identify}.
+ */
 export declare const IdentifyCluster: typeof Identify;
-export interface Identify extends ClusterTyping { Attributes: Identify.Attributes; Commands: Identify.Commands; Components: Identify.Components }
+
+export interface Identify extends ClusterTyping {
+    Attributes: Identify.Attributes;
+    Commands: Identify.Commands;
+    Components: Identify.Components;
+}

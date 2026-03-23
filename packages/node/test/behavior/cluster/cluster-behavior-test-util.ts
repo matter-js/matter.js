@@ -167,58 +167,65 @@ export namespace My {
     export const schema = MySchema;
     export declare const Typing: My;
 
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export declare const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export declare const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export declare const events: EventObjects;
+    export declare const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+    export declare const commands: ClusterNamespace.CommandObjects<Commands>;
+    export declare const events: ClusterNamespace.EventObjects<Events>;
     export declare const features: ClusterNamespace.Features<Features>;
 
     export type Features = "Awesome";
 
-    export namespace BaseComponent {
-        export interface Attributes {
-            reqAttr: string;
-            optAttr?: boolean;
-            condAttr?: number;
-            condOptAttr1?: number;
-            condOptAttr2?: number;
-            optList?: Uint8Array[];
-        }
-        export interface Events {
-            reqEv: string;
-            optEv?: string;
-        }
+    export interface BaseAttributes {
+        reqAttr: string;
+        optAttr?: boolean;
+        condAttr?: number;
+        condOptAttr1?: number;
+        condOptAttr2?: number;
+        optList?: Uint8Array[];
     }
 
-    export namespace AwesomeFeatureComponent {
-        export interface Attributes {
-            awesomeSauce: number;
-        }
-        export interface Events {
-            becameAwesome: number;
-        }
+    export interface AwesomeAttributes {
+        awesomeSauce: number;
     }
 
-    export interface Attributes extends BaseComponent.Attributes, Partial<AwesomeFeatureComponent.Attributes> {}
+    export interface Attributes {
+        reqAttr: string;
+        optAttr: boolean;
+        condAttr: number;
+        condOptAttr1: number;
+        condOptAttr2: number;
+        optList: Uint8Array[];
+        awesomeSauce: number;
+    }
 
     export interface Commands extends MyClusterBaseInterface, MyClusterAwesomeInterface {}
 
-    export interface Events extends BaseComponent.Events, AwesomeFeatureComponent.Events {}
+    export interface BaseEvents {
+        reqEv: string;
+        optEv?: string;
+    }
+
+    export interface AwesomeEvents {
+        becameAwesome: number;
+    }
+
+    export interface Events {
+        reqEv: string;
+        optEv: string;
+        becameAwesome: number;
+    }
 
     export type Components = [
         {
             flags: {};
-            attributes: BaseComponent.Attributes;
+            attributes: BaseAttributes;
             commands: MyClusterBaseInterface;
-            events: BaseComponent.Events;
+            events: BaseEvents;
         },
         {
             flags: { awesome: true };
-            attributes: AwesomeFeatureComponent.Attributes;
+            attributes: AwesomeAttributes;
             commands: MyClusterAwesomeInterface;
-            events: AwesomeFeatureComponent.Events;
+            events: AwesomeEvents;
         },
     ];
 }

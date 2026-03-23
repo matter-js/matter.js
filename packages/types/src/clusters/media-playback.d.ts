@@ -6,389 +6,579 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { MediaPlayback as MediaPlaybackModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the MediaPlayback cluster.
+ *
+ * This cluster provides an interface for controlling Media Playback (PLAY, PAUSE, etc) on a media device such as a TV,
+ * Set-top Box, or Smart Speaker.
+ *
+ * This cluster server would be supported on Video Player devices or endpoints that provide media playback, such as a
+ * Content App. This cluster provides an interface for controlling Media Playback.
+ *
+ * @see {@link MatterSpecification.v142.Cluster} § 6.10
  */
 export declare namespace MediaPlayback {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0506;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "MediaPlayback";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 2;
+
+    /**
+     * Canonical metadata for the MediaPlayback cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link MediaPlayback} always supports these elements.
      */
-    export namespace Base {
-        export interface Attributes {
-            /**
-             * Indicates the current playback state of media.
-             *
-             * During fast-forward, rewind, and other seek operations; this attribute shall be set to PLAYING.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.1
-             */
-            readonly currentState: PlaybackState;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to start playback of the media.
-             *
-             * Upon receipt, this shall play media. If content is currently in a FastForward or Rewind state. Play shall
-             * return media to normal playback speed.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.1
-             */
-            play(): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to pause playback of the media.
-             *
-             * Upon receipt, this shall pause playback of the media.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.2
-             */
-            pause(): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to stop playback of the media.
-             *
-             * Upon receipt, this shall stop playback of the media. User-visible outcome is context-specific. This may
-             * navigate the user back to the location from where the media was originally launched.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.3
-             */
-            stop(): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to start playback of the media from the beginning.
-             *
-             * Upon receipt, this shall Start Over with the current media playback item.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.4
-             */
-            startOver(): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to go back to the previous media playback item.
-             *
-             * Upon receipt, this shall cause the handler to be invoked for "Previous". User experience is
-             * context-specific. This will often Go back to the previous media playback item.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.5
-             */
-            previous(): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to go to the next media playback item.
-             *
-             * Upon receipt, this shall cause the handler to be invoked for "Next". User experience is context-specific.
-             * This will often Go forward to the next media playback item.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.6
-             */
-            next(): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to skip forward in the media.
-             *
-             * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9
-             */
-            skipForward(request: SkipForwardRequest): MaybePromise<PlaybackResponse>;
-
-            /**
-             * This command is used to skip backward in the media.
-             *
-             * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10
-             */
-            skipBackward(request: SkipBackwardRequest): MaybePromise<PlaybackResponse>;
-        }
-
-        export interface Events {
-            /**
-             * If supported, this event shall be generated when there is a change in any of the supported attributes of
-             * the Media Playback cluster.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
-             */
-            stateChanged?: StateChangedEvent;
-        }
+    export interface BaseAttributes {
+        /**
+         * Indicates the current playback state of media.
+         *
+         * During fast-forward, rewind, and other seek operations; this attribute shall be set to PLAYING.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.1
+         */
+        currentState: PlaybackState;
     }
 
     /**
      * {@link MediaPlayback} supports these elements if it supports feature "AdvancedSeek".
      */
-    export namespace AdvancedSeekComponent {
-        export interface Attributes {
-            /**
-             * Indicates the start time of the media, in case the media has a fixed start time (for example, live stream
-             * or television broadcast), or null when start time does not apply to the current media (for example,
-             * video-on-demand). This time is a UTC time. The client needs to handle conversion to local time, as
-             * required, taking in account time zone and possible local DST offset.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.2
-             */
-            readonly startTime: number | bigint | null;
+    export interface AdvancedSeekAttributes {
+        /**
+         * Indicates the start time of the media, in case the media has a fixed start time (for example, live stream or
+         * television broadcast), or null when start time does not apply to the current media (for example,
+         * video-on-demand). This time is a UTC time. The client needs to handle conversion to local time, as required,
+         * taking in account time zone and possible local DST offset.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.2
+         */
+        startTime: number | bigint | null;
 
-            /**
-             * Indicates the duration, in milliseconds, of the current media being played back or null when duration is
-             * not applicable (for example, in live streaming content with no known duration). This attribute shall
-             * never be 0.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.3
-             */
-            readonly duration: number | bigint | null;
+        /**
+         * Indicates the duration, in milliseconds, of the current media being played back or null when duration is not
+         * applicable (for example, in live streaming content with no known duration). This attribute shall never be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.3
+         */
+        duration: number | bigint | null;
 
-            /**
-             * Indicates the position of playback (Position field) at the time (UpdateAt field) specified in the
-             * attribute. The client may use the SampledPosition attribute to compute the current position within the
-             * media stream based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and
-             * PlaybackPositionStruct.Position fields. To enable this, the SampledPosition attribute shall be updated
-             * whenever a change in either the playback speed or the playback position is triggered outside the normal
-             * playback of the media. The events which may cause this to happen include:
-             *
-             *   - Starting or resumption of playback
-             *
-             *   - Seeking
-             *
-             *   - Skipping forward or backward
-             *
-             *   - Fast-forwarding or rewinding
-             *
-             *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
-             */
-            readonly sampledPosition: PlaybackPosition | null;
+        /**
+         * Indicates the position of playback (Position field) at the time (UpdateAt field) specified in the attribute.
+         * The client may use the SampledPosition attribute to compute the current position within the media stream
+         * based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and PlaybackPositionStruct.Position fields. To
+         * enable this, the SampledPosition attribute shall be updated whenever a change in either the playback speed or
+         * the playback position is triggered outside the normal playback of the media. The events which may cause this
+         * to happen include:
+         *
+         *   - Starting or resumption of playback
+         *
+         *   - Seeking
+         *
+         *   - Skipping forward or backward
+         *
+         *   - Fast-forwarding or rewinding
+         *
+         *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
+         */
+        sampledPosition: PlaybackPosition | null;
 
-            /**
-             * Indicates the speed at which the current media is being played. The new PlaybackSpeed shall be reflected
-             * in this attribute whenever any of the following occurs:
-             *
-             *   - Starting of playback
-             *
-             *   - Resuming of playback
-             *
-             *   - Fast-forwarding
-             *
-             *   - Rewinding
-             *
-             * The PlaybackSpeed shall reflect the ratio of time elapsed in the media to the actual time taken for the
-             * playback assuming no changes to media playback (for example buffering events or requests to
-             * pause/rewind/forward).
-             *
-             *   - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1
-             *     second causes the media to advance by 1 second within the duration of the media.
-             *
-             *   - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the
-             *     media is currently advancing in time within the duration of the media.
-             *
-             *   - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media
-             *     is currently going back in time within the duration of the media.
-             *
-             *   - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
-             *     CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed shall be
-             *     set to 0 to reflect that the media is not playing.
-             *
-             * Following examples illustrate the PlaybackSpeed attribute values in various conditions.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.5
-             */
-            readonly playbackSpeed: number;
+        /**
+         * Indicates the speed at which the current media is being played. The new PlaybackSpeed shall be reflected in
+         * this attribute whenever any of the following occurs:
+         *
+         *   - Starting of playback
+         *
+         *   - Resuming of playback
+         *
+         *   - Fast-forwarding
+         *
+         *   - Rewinding
+         *
+         * The PlaybackSpeed shall reflect the ratio of time elapsed in the media to the actual time taken for the
+         * playback assuming no changes to media playback (for example buffering events or requests to
+         * pause/rewind/forward).
+         *
+         *   - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1 second
+         *     causes the media to advance by 1 second within the duration of the media.
+         *
+         *   - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the media
+         *     is currently advancing in time within the duration of the media.
+         *
+         *   - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media is
+         *     currently going back in time within the duration of the media.
+         *
+         *   - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
+         *     CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed shall be set
+         *     to 0 to reflect that the media is not playing.
+         *
+         * Following examples illustrate the PlaybackSpeed attribute values in various conditions.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.5
+         */
+        playbackSpeed: number;
 
-            /**
-             * Indicates the furthest forward valid position to which a client may seek forward, in milliseconds from
-             * the start of the media. When the media has an associated StartTime, a value of null shall indicate that a
-             * seek forward is valid only until the current time within the media, using a position computed from the
-             * difference between the current time offset and StartTime, in milliseconds from start of the media,
-             * truncating fractional milliseconds towards 0. A value of NULL when StartTime is not specified shall
-             * indicate that seeking forward is not allowed.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.7
-             */
-            readonly seekRangeEnd: number | bigint | null;
+        /**
+         * Indicates the furthest forward valid position to which a client may seek forward, in milliseconds from the
+         * start of the media. When the media has an associated StartTime, a value of null shall indicate that a seek
+         * forward is valid only until the current time within the media, using a position computed from the difference
+         * between the current time offset and StartTime, in milliseconds from start of the media, truncating fractional
+         * milliseconds towards 0. A value of NULL when StartTime is not specified shall indicate that seeking forward
+         * is not allowed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.7
+         */
+        seekRangeEnd: number | bigint | null;
 
-            /**
-             * Indicates the earliest valid position to which a client may seek back, in milliseconds from start of the
-             * media. A value of NULL shall indicate that seeking backwards is not allowed.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.6
-             */
-            readonly seekRangeStart: number | bigint | null;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to seek to a specific position in the media.
-             *
-             * Upon receipt, this shall change the playback position in the media to the given position.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11
-             */
-            seek(request: SeekRequest): MaybePromise<PlaybackResponse>;
-        }
+        /**
+         * Indicates the earliest valid position to which a client may seek back, in milliseconds from start of the
+         * media. A value of NULL shall indicate that seeking backwards is not allowed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.6
+         */
+        seekRangeStart: number | bigint | null;
     }
 
     /**
      * {@link MediaPlayback} supports these elements if it supports feature "AudioTracks".
      */
-    export namespace AudioTracksComponent {
-        export interface Attributes {
-            /**
-             * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of
-             * null shall indicate that no Audio Track corresponding to the current media is currently being played.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.8
-             */
-            readonly activeAudioTrack: Track | null;
+    export interface AudioTracksAttributes {
+        /**
+         * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of null
+         * shall indicate that no Audio Track corresponding to the current media is currently being played.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.8
+         */
+        activeAudioTrack: Track | null;
 
-            /**
-             * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A
-             * value of null shall indicate that no Audio Tracks corresponding to the current media are selectable by
-             * the client.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.9
-             */
-            readonly availableAudioTracks: Track[] | null;
-        }
-
-        export interface Commands {
-            /**
-             * This command is used to activate a specific Audio Track for the media being played.
-             *
-             * Upon receipt, the server shall set the active Audio Track to the one identified by the TrackID in the
-             * Track catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not
-             * correspond to the streaming media OR no media is being streamed at the time of receipt of this command,
-             * the server will return an error status of INVALID_ARGUMENT.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13
-             */
-            activateAudioTrack(request: ActivateAudioTrackRequest): MaybePromise;
-        }
+        /**
+         * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A value
+         * of null shall indicate that no Audio Tracks corresponding to the current media are selectable by the client.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.9
+         */
+        availableAudioTracks: Track[] | null;
     }
 
     /**
      * {@link MediaPlayback} supports these elements if it supports feature "TextTracks".
      */
-    export namespace TextTracksComponent {
-        export interface Attributes {
-            /**
-             * ActiveTrack refers to the Text track currently set and being used for the streaming media. This can be
-             * nil. A value of null shall indicate that no Text Track corresponding to the current media is currently
-             * being displayed.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.10
-             */
-            readonly activeTextTrack: Track | null;
+    export interface TextTracksAttributes {
+        /**
+         * ActiveTrack refers to the Text track currently set and being used for the streaming media. This can be nil. A
+         * value of null shall indicate that no Text Track corresponding to the current media is currently being
+         * displayed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.10
+         */
+        activeTextTrack: Track | null;
 
-            /**
-             * AvailableTextTracks refers to the list of Text tracks available for the current title being played. This
-             * can be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current
-             * media are selectable by the client.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.11
-             */
-            readonly availableTextTracks: Track[] | null;
-        }
+        /**
+         * AvailableTextTracks refers to the list of Text tracks available for the current title being played. This can
+         * be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current media are
+         * selectable by the client.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.11
+         */
+        availableTextTracks: Track[] | null;
+    }
 
-        export interface Commands {
-            /**
-             * This command is used to activate a specific Text Track for the media being played.
-             *
-             * Upon receipt, the server shall set the active Text Track to the one identified by the TrackID in the
-             * Track catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not
-             * correspond to the streaming media OR no media is being streamed at the time of receipt of this command,
-             * the server shall return an error status of INVALID_ARGUMENT.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14
-             */
-            activateTextTrack(request: ActivateTextTrackRequest): MaybePromise;
+    /**
+     * Attributes that may appear in {@link MediaPlayback}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Attributes {
+        /**
+         * Indicates the current playback state of media.
+         *
+         * During fast-forward, rewind, and other seek operations; this attribute shall be set to PLAYING.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.1
+         */
+        currentState: PlaybackState;
 
-            /**
-             * This command is used to deactivate a specific Text Track for the media being played.
-             *
-             * If a Text Track is active (i.e. being displayed), upon receipt of this command, the server shall stop
-             * displaying it.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.15
-             */
-            deactivateTextTrack(): MaybePromise;
-        }
+        /**
+         * Indicates the start time of the media, in case the media has a fixed start time (for example, live stream or
+         * television broadcast), or null when start time does not apply to the current media (for example,
+         * video-on-demand). This time is a UTC time. The client needs to handle conversion to local time, as required,
+         * taking in account time zone and possible local DST offset.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.2
+         */
+        startTime: number | bigint | null;
+
+        /**
+         * Indicates the duration, in milliseconds, of the current media being played back or null when duration is not
+         * applicable (for example, in live streaming content with no known duration). This attribute shall never be 0.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.3
+         */
+        duration: number | bigint | null;
+
+        /**
+         * Indicates the position of playback (Position field) at the time (UpdateAt field) specified in the attribute.
+         * The client may use the SampledPosition attribute to compute the current position within the media stream
+         * based on the PlaybackSpeed, PlaybackPositionStruct.UpdatedAt and PlaybackPositionStruct.Position fields. To
+         * enable this, the SampledPosition attribute shall be updated whenever a change in either the playback speed or
+         * the playback position is triggered outside the normal playback of the media. The events which may cause this
+         * to happen include:
+         *
+         *   - Starting or resumption of playback
+         *
+         *   - Seeking
+         *
+         *   - Skipping forward or backward
+         *
+         *   - Fast-forwarding or rewinding
+         *
+         *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
+         */
+        sampledPosition: PlaybackPosition | null;
+
+        /**
+         * Indicates the speed at which the current media is being played. The new PlaybackSpeed shall be reflected in
+         * this attribute whenever any of the following occurs:
+         *
+         *   - Starting of playback
+         *
+         *   - Resuming of playback
+         *
+         *   - Fast-forwarding
+         *
+         *   - Rewinding
+         *
+         * The PlaybackSpeed shall reflect the ratio of time elapsed in the media to the actual time taken for the
+         * playback assuming no changes to media playback (for example buffering events or requests to
+         * pause/rewind/forward).
+         *
+         *   - A value for PlaybackSpeed of 1 shall indicate normal playback where, for example, playback for 1 second
+         *     causes the media to advance by 1 second within the duration of the media.
+         *
+         *   - A value for PlaybackSpeed which is greater than 0 shall indicate that as playback is happening the media
+         *     is currently advancing in time within the duration of the media.
+         *
+         *   - A value for PlaybackSpeed which is less than 0 shall indicate that as playback is happening the media is
+         *     currently going back in time within the duration of the media.
+         *
+         *   - A value for PlaybackSpeed of 0 shall indicate that the media is currently not playing back. When the
+         *     CurrentState attribute has the value of PAUSED, NOT_PLAYING or BUFFERING, the PlaybackSpeed shall be set
+         *     to 0 to reflect that the media is not playing.
+         *
+         * Following examples illustrate the PlaybackSpeed attribute values in various conditions.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.5
+         */
+        playbackSpeed: number;
+
+        /**
+         * Indicates the furthest forward valid position to which a client may seek forward, in milliseconds from the
+         * start of the media. When the media has an associated StartTime, a value of null shall indicate that a seek
+         * forward is valid only until the current time within the media, using a position computed from the difference
+         * between the current time offset and StartTime, in milliseconds from start of the media, truncating fractional
+         * milliseconds towards 0. A value of NULL when StartTime is not specified shall indicate that seeking forward
+         * is not allowed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.7
+         */
+        seekRangeEnd: number | bigint | null;
+
+        /**
+         * Indicates the earliest valid position to which a client may seek back, in milliseconds from start of the
+         * media. A value of NULL shall indicate that seeking backwards is not allowed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.6
+         */
+        seekRangeStart: number | bigint | null;
+
+        /**
+         * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of null
+         * shall indicate that no Audio Track corresponding to the current media is currently being played.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.8
+         */
+        activeAudioTrack: Track | null;
+
+        /**
+         * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A value
+         * of null shall indicate that no Audio Tracks corresponding to the current media are selectable by the client.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.9
+         */
+        availableAudioTracks: Track[] | null;
+
+        /**
+         * ActiveTrack refers to the Text track currently set and being used for the streaming media. This can be nil. A
+         * value of null shall indicate that no Text Track corresponding to the current media is currently being
+         * displayed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.10
+         */
+        activeTextTrack: Track | null;
+
+        /**
+         * AvailableTextTracks refers to the list of Text tracks available for the current title being played. This can
+         * be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current media are
+         * selectable by the client.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.11
+         */
+        availableTextTracks: Track[] | null;
+    }
+
+    /**
+     * {@link MediaPlayback} always supports these elements.
+     */
+    export interface BaseCommands {
+        /**
+         * This command is used to start playback of the media.
+         *
+         * Upon receipt, this shall play media. If content is currently in a FastForward or Rewind state. Play shall
+         * return media to normal playback speed.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.1
+         */
+        play(): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to pause playback of the media.
+         *
+         * Upon receipt, this shall pause playback of the media.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.2
+         */
+        pause(): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to stop playback of the media.
+         *
+         * Upon receipt, this shall stop playback of the media. User-visible outcome is context-specific. This may
+         * navigate the user back to the location from where the media was originally launched.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.3
+         */
+        stop(): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to start playback of the media from the beginning.
+         *
+         * Upon receipt, this shall Start Over with the current media playback item.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.4
+         */
+        startOver(): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to go back to the previous media playback item.
+         *
+         * Upon receipt, this shall cause the handler to be invoked for "Previous". User experience is context-specific.
+         * This will often Go back to the previous media playback item.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.5
+         */
+        previous(): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to go to the next media playback item.
+         *
+         * Upon receipt, this shall cause the handler to be invoked for "Next". User experience is context-specific.
+         * This will often Go forward to the next media playback item.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.6
+         */
+        next(): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to skip forward in the media.
+         *
+         * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9
+         */
+        skipForward(request: SkipForwardRequest): MaybePromise<PlaybackResponse>;
+
+        /**
+         * This command is used to skip backward in the media.
+         *
+         * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10
+         */
+        skipBackward(request: SkipBackwardRequest): MaybePromise<PlaybackResponse>;
+    }
+
+    /**
+     * {@link MediaPlayback} supports these elements if it supports feature "AdvancedSeek".
+     */
+    export interface AdvancedSeekCommands {
+        /**
+         * This command is used to seek to a specific position in the media.
+         *
+         * Upon receipt, this shall change the playback position in the media to the given position.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11
+         */
+        seek(request: SeekRequest): MaybePromise<PlaybackResponse>;
+    }
+
+    /**
+     * {@link MediaPlayback} supports these elements if it supports feature "AudioTracks".
+     */
+    export interface AudioTracksCommands {
+        /**
+         * This command is used to activate a specific Audio Track for the media being played.
+         *
+         * Upon receipt, the server shall set the active Audio Track to the one identified by the TrackID in the Track
+         * catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not correspond
+         * to the streaming media OR no media is being streamed at the time of receipt of this command, the server will
+         * return an error status of INVALID_ARGUMENT.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13
+         */
+        activateAudioTrack(request: ActivateAudioTrackRequest): MaybePromise;
+    }
+
+    /**
+     * {@link MediaPlayback} supports these elements if it supports feature "TextTracks".
+     */
+    export interface TextTracksCommands {
+        /**
+         * This command is used to activate a specific Text Track for the media being played.
+         *
+         * Upon receipt, the server shall set the active Text Track to the one identified by the TrackID in the Track
+         * catalog for the streaming media. If the TrackID does not exist in the Track catalog, OR does not correspond
+         * to the streaming media OR no media is being streamed at the time of receipt of this command, the server shall
+         * return an error status of INVALID_ARGUMENT.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14
+         */
+        activateTextTrack(request: ActivateTextTrackRequest): MaybePromise;
+
+        /**
+         * This command is used to deactivate a specific Text Track for the media being played.
+         *
+         * If a Text Track is active (i.e. being displayed), upon receipt of this command, the server shall stop
+         * displaying it.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.15
+         */
+        deactivateTextTrack(): MaybePromise;
     }
 
     /**
      * {@link MediaPlayback} supports these elements if it supports feature "VariableSpeed".
      */
-    export namespace VariableSpeedComponent {
-        export interface Commands {
-            /**
-             * This command is used to rewind the media.
-             *
-             * Upon receipt, this shall start playback of the media backward in case the media is currently playing in
-             * the forward direction or is not playing. If the playback is already happening in the backwards direction
-             * receipt of this command shall increase the speed of the media playback backwards.
-             *
-             * Different "rewind" speeds may be reflected on the media playback device based upon the number of
-             * sequential calls to this function and the capability of the device. This is to avoid needing to define
-             * every speed (multiple fast, slow motion, etc). If the PlaybackSpeed attribute is supported it shall be
-             * updated to reflect the new speed of playback. If the playback speed cannot be changed for the media being
-             * played(for example, in live streaming content not supporting seek), the status of NOT_ALLOWED shall be
-             * returned. If the playback speed has reached the maximum supported speed for media playing backwards, the
-             * status of SPEED_OUT_OF_RANGE shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7
-             */
-            rewind(request: RewindRequest): MaybePromise<PlaybackResponse>;
+    export interface VariableSpeedCommands {
+        /**
+         * This command is used to rewind the media.
+         *
+         * Upon receipt, this shall start playback of the media backward in case the media is currently playing in the
+         * forward direction or is not playing. If the playback is already happening in the backwards direction receipt
+         * of this command shall increase the speed of the media playback backwards.
+         *
+         * Different "rewind" speeds may be reflected on the media playback device based upon the number of sequential
+         * calls to this function and the capability of the device. This is to avoid needing to define every speed
+         * (multiple fast, slow motion, etc). If the PlaybackSpeed attribute is supported it shall be updated to reflect
+         * the new speed of playback. If the playback speed cannot be changed for the media being played(for example, in
+         * live streaming content not supporting seek), the status of NOT_ALLOWED shall be returned. If the playback
+         * speed has reached the maximum supported speed for media playing backwards, the status of SPEED_OUT_OF_RANGE
+         * shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7
+         */
+        rewind(request: RewindRequest): MaybePromise<PlaybackResponse>;
 
-            /**
-             * This command is used to fast forward the media.
-             *
-             * Upon receipt, this shall start playback of the media in the forward direction in case the media is
-             * currently playing in the backward direction or is not playing. If the playback is already happening in
-             * the forward direction receipt of this command shall increase the speed of the media playback.
-             *
-             * Different "fast-forward" speeds may be reflected on the media playback device based upon the number of
-             * sequential calls to this function and the capability of the device. This is to avoid needing to define
-             * every speed (multiple fast, slow motion, etc). If the PlaybackSpeed attribute is supported it shall be
-             * updated to reflect the new speed of playback. If the playback speed cannot be changed for the media being
-             * played(for example, in live streaming content not supporting seek), the status of NOT_ALLOWED shall be
-             * returned. If the playback speed has reached the maximum supported speed for media playing forward, the
-             * status of SPEED_OUT_OF_RANGE shall be returned.
-             *
-             * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8
-             */
-            fastForward(request: FastForwardRequest): MaybePromise<PlaybackResponse>;
-        }
+        /**
+         * This command is used to fast forward the media.
+         *
+         * Upon receipt, this shall start playback of the media in the forward direction in case the media is currently
+         * playing in the backward direction or is not playing. If the playback is already happening in the forward
+         * direction receipt of this command shall increase the speed of the media playback.
+         *
+         * Different "fast-forward" speeds may be reflected on the media playback device based upon the number of
+         * sequential calls to this function and the capability of the device. This is to avoid needing to define every
+         * speed (multiple fast, slow motion, etc). If the PlaybackSpeed attribute is supported it shall be updated to
+         * reflect the new speed of playback. If the playback speed cannot be changed for the media being played(for
+         * example, in live streaming content not supporting seek), the status of NOT_ALLOWED shall be returned. If the
+         * playback speed has reached the maximum supported speed for media playing forward, the status of
+         * SPEED_OUT_OF_RANGE shall be returned.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8
+         */
+        fastForward(request: FastForwardRequest): MaybePromise<PlaybackResponse>;
     }
 
-    export interface Attributes extends Base.Attributes, Partial<AdvancedSeekComponent.Attributes>, Partial<AudioTracksComponent.Attributes>, Partial<TextTracksComponent.Attributes> {}
-    export interface Commands extends Base.Commands, AdvancedSeekComponent.Commands, AudioTracksComponent.Commands, TextTracksComponent.Commands, VariableSpeedComponent.Commands {}
-    export interface Events extends Base.Events {}
+    /**
+     * Commands that may appear in {@link MediaPlayback}.
+     */
+    export interface Commands extends
+        BaseCommands,
+        AdvancedSeekCommands,
+        AudioTracksCommands,
+        TextTracksCommands,
+        VariableSpeedCommands
+    {}
+
+    /**
+     * {@link MediaPlayback} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * If supported, this event shall be generated when there is a change in any of the supported attributes of the
+         * Media Playback cluster.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
+         */
+        stateChanged?: StateChangedEvent;
+    }
+
+    /**
+     * Events that may appear in {@link MediaPlayback}.
+     *
+     * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
+     * device's supported {@link Features}.
+     */
+    export interface Events {
+        /**
+         * If supported, this event shall be generated when there is a change in any of the supported attributes of the
+         * Media Playback cluster.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
+         */
+        stateChanged: StateChangedEvent;
+    }
 
     export type Components = [
-        { flags: {}, attributes: Base.Attributes, commands: Base.Commands, events: Base.Events },
-        {
-            flags: { advancedSeek: true },
-            attributes: AdvancedSeekComponent.Attributes,
-            commands: AdvancedSeekComponent.Commands
-        },
-        {
-            flags: { audioTracks: true },
-            attributes: AudioTracksComponent.Attributes,
-            commands: AudioTracksComponent.Commands
-        },
-        {
-            flags: { textTracks: true },
-            attributes: TextTracksComponent.Attributes,
-            commands: TextTracksComponent.Commands
-        },
-        { flags: { variableSpeed: true }, commands: VariableSpeedComponent.Commands }
+        { flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents },
+        { flags: { advancedSeek: true }, attributes: AdvancedSeekAttributes, commands: AdvancedSeekCommands },
+        { flags: { audioTracks: true }, attributes: AudioTracksAttributes, commands: AudioTracksCommands },
+        { flags: { textTracks: true }, attributes: TextTracksAttributes, commands: TextTracksCommands },
+        { flags: { variableSpeed: true }, commands: VariableSpeedCommands }
     ];
 
     export type Features = "AdvancedSeek" | "VariableSpeed" | "TextTracks" | "AudioTracks" | "AudioAdvance";
@@ -477,6 +667,55 @@ export declare namespace MediaPlayback {
     }
 
     /**
+     * This structure defines a playback position within a media stream being played.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4
+     */
+    export interface PlaybackPosition {
+        /**
+         * This field shall indicate the time when the position was last updated.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.1
+         */
+        updatedAt: number | bigint;
+
+        /**
+         * This field shall indicate the associated discrete position within the media stream, in milliseconds from the
+         * beginning of the stream, being associated with the time indicated by the UpdatedAt field. The Position shall
+         * NOT be greater than the duration of the media if duration is specified. The Position shall NOT be greater
+         * than the time difference between current time and start time of the media when start time is specified.
+         *
+         * A value of null shall indicate that playback position is not applicable for the current state of the media
+         * playback (For example : Live media with no known duration and where seek is not supported).
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.2
+         */
+        position: number | bigint | null;
+    }
+
+    /**
+     * This structure defines a uniquely identifiable Text Track or Audio Track.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5
+     */
+    export interface Track {
+        /**
+         * This field shall indicate the Identifier for the Track which is unique within the Track catalog. The Track
+         * catalog contains all the Text/Audio tracks corresponding to the main media content.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.1
+         */
+        id: string;
+
+        /**
+         * This field shall indicate the Attributes associated to the Track, like languageCode.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.2
+         */
+        trackAttributes: TrackAttributes;
+    }
+
+    /**
      * This command is used to indicate the status of the command that was issued by the client.
      *
      * This command shall be generated in response to various Playback Commands.
@@ -542,128 +781,6 @@ export declare namespace MediaPlayback {
     }
 
     /**
-     * If supported, this event shall be generated when there is a change in any of the supported attributes of the
-     * Media Playback cluster.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
-     */
-    export interface StateChangedEvent {
-        /**
-         * This field shall indicate the updated playback state as defined by the CurrentState attribute, and has the
-         * same constraint as that attribute.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.1
-         */
-        currentState: PlaybackState;
-
-        /**
-         * This field shall indicate the updated start time as defined by the StartTime attribute, and has the same
-         * constraint as that attribute.
-         *
-         * This field value shall be 0 when the value of the StartTime attribute is NULL.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.2
-         */
-        startTime?: number | bigint;
-
-        /**
-         * This field shall indicate the updated duration as defined by the Duration attribute, and has the same
-         * constraint as that attribute.
-         *
-         * This field value shall be 0 when the value of the Duration attribute is NULL.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.3
-         */
-        duration?: number | bigint;
-
-        /**
-         * This field shall indicate the updated position of playback as defined by the SampledPosition attribute, and
-         * has the same constraint as that attribute.
-         *
-         * The UpdatedAt field value of the PlaybackPositionStruct shall be 0, and the Position field value of the
-         * PlaybackPositionStruct shall be NULL, when the value of the SampledPosition attribute is NULL.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.4
-         */
-        sampledPosition?: PlaybackPosition;
-
-        /**
-         * This field shall indicate the updated speed at which the current media is being played as defined by the
-         * PlaybackSpeed attribute, and has the same constraint as that attribute.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.5
-         */
-        playbackSpeed?: number;
-
-        /**
-         * This field shall indicate the updated start of the seek range end as defined by the SeekRangeEnd attribute,
-         * and has the same constraint as that attribute.
-         *
-         * This field value shall be 0 when the value of the SeekRangeEnd attribute is NULL.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.7
-         */
-        seekRangeEnd?: number | bigint;
-
-        /**
-         * This field shall indicate the updated start of the seek range start as defined by the SeekRangeStart
-         * attribute, and has the same constraint as that attribute.
-         *
-         * This field value shall be 0 when the value of the SeekRangeStart attribute is NULL.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.6
-         */
-        seekRangeStart?: number | bigint;
-
-        /**
-         * This field shall indicate Optional app-specific data.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.8
-         */
-        data?: Bytes;
-
-        /**
-         * This field shall indicate whether audio is unmuted by the player due to a FF or REW command. This field is
-         * only meaningful when the PlaybackSpeed is present and not equal to 0 (paused) or 1 (normal playback).
-         * Typically the value will be false (muted), however, some players will play audio during certain fast forward
-         * and rewind speeds, and in these cases, the value will be true (not muted).
-         *
-         * A value of true does not guarantee that audio can be heard by the user since the speaker may be muted, turned
-         * down to a low level and/or unplugged.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.9
-         */
-        audioAdvanceUnmuted?: boolean;
-    }
-
-    /**
-     * This structure defines a playback position within a media stream being played.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4
-     */
-    export interface PlaybackPosition {
-        /**
-         * This field shall indicate the time when the position was last updated.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.1
-         */
-        updatedAt: number | bigint;
-
-        /**
-         * This field shall indicate the associated discrete position within the media stream, in milliseconds from the
-         * beginning of the stream, being associated with the time indicated by the UpdatedAt field. The Position shall
-         * NOT be greater than the duration of the media if duration is specified. The Position shall NOT be greater
-         * than the time difference between current time and start time of the media when start time is specified.
-         *
-         * A value of null shall indicate that playback position is not applicable for the current state of the media
-         * playback (For example : Live media with no known duration and where seek is not supported).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.2
-         */
-        position: number | bigint | null;
-    }
-
-    /**
      * This command is used to seek to a specific position in the media.
      *
      * Upon receipt, this shall change the playback position in the media to the given position.
@@ -682,28 +799,6 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11.1
          */
         position: number | bigint;
-    }
-
-    /**
-     * This structure defines a uniquely identifiable Text Track or Audio Track.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5
-     */
-    export interface Track {
-        /**
-         * This field shall indicate the Identifier for the Track which is unique within the Track catalog. The Track
-         * catalog contains all the Text/Audio tracks corresponding to the main media content.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.1
-         */
-        id: string;
-
-        /**
-         * This field shall indicate the Attributes associated to the Track, like languageCode.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.2
-         */
-        trackAttributes: TrackAttributes;
     }
 
     /**
@@ -806,6 +901,101 @@ export declare namespace MediaPlayback {
          * down to a low level and/or unplugged.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8.1
+         */
+        audioAdvanceUnmuted?: boolean;
+    }
+
+    /**
+     * If supported, this event shall be generated when there is a change in any of the supported attributes of the
+     * Media Playback cluster.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
+     */
+    export interface StateChangedEvent {
+        /**
+         * This field shall indicate the updated playback state as defined by the CurrentState attribute, and has the
+         * same constraint as that attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.1
+         */
+        currentState: PlaybackState;
+
+        /**
+         * This field shall indicate the updated start time as defined by the StartTime attribute, and has the same
+         * constraint as that attribute.
+         *
+         * This field value shall be 0 when the value of the StartTime attribute is NULL.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.2
+         */
+        startTime?: number | bigint;
+
+        /**
+         * This field shall indicate the updated duration as defined by the Duration attribute, and has the same
+         * constraint as that attribute.
+         *
+         * This field value shall be 0 when the value of the Duration attribute is NULL.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.3
+         */
+        duration?: number | bigint;
+
+        /**
+         * This field shall indicate the updated position of playback as defined by the SampledPosition attribute, and
+         * has the same constraint as that attribute.
+         *
+         * The UpdatedAt field value of the PlaybackPositionStruct shall be 0, and the Position field value of the
+         * PlaybackPositionStruct shall be NULL, when the value of the SampledPosition attribute is NULL.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.4
+         */
+        sampledPosition?: PlaybackPosition;
+
+        /**
+         * This field shall indicate the updated speed at which the current media is being played as defined by the
+         * PlaybackSpeed attribute, and has the same constraint as that attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.5
+         */
+        playbackSpeed?: number;
+
+        /**
+         * This field shall indicate the updated start of the seek range end as defined by the SeekRangeEnd attribute,
+         * and has the same constraint as that attribute.
+         *
+         * This field value shall be 0 when the value of the SeekRangeEnd attribute is NULL.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.7
+         */
+        seekRangeEnd?: number | bigint;
+
+        /**
+         * This field shall indicate the updated start of the seek range start as defined by the SeekRangeStart
+         * attribute, and has the same constraint as that attribute.
+         *
+         * This field value shall be 0 when the value of the SeekRangeStart attribute is NULL.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.6
+         */
+        seekRangeStart?: number | bigint;
+
+        /**
+         * This field shall indicate Optional app-specific data.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.8
+         */
+        data?: Bytes;
+
+        /**
+         * This field shall indicate whether audio is unmuted by the player due to a FF or REW command. This field is
+         * only meaningful when the PlaybackSpeed is present and not equal to 0 (paused) or 1 (normal playback).
+         * Typically the value will be false (muted), however, some players will play audio during certain fast forward
+         * and rewind speeds, and in these cases, the value will be true (not muted).
+         *
+         * A value of true does not guarantee that audio can be heard by the user since the speaker may be muted, turned
+         * down to a low level and/or unplugged.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.9
          */
         audioAdvanceUnmuted?: boolean;
     }
@@ -1030,26 +1220,48 @@ export declare namespace MediaPlayback {
         displayName?: string | null;
     }
 
-    export const id: ClusterId;
-    export const name: "MediaPlayback";
-    export const revision: 2;
-    export const schema: typeof MediaPlaybackModel;
-    export interface AttributeObjects extends ClusterNamespace.AttributeObjects<Attributes> {}
-    export const attributes: AttributeObjects;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
-    export interface EventObjects extends ClusterNamespace.EventObjects<Events> {}
-    export const events: EventObjects;
+    /**
+     * Attribute metadata objects keyed by name.
+     */
+    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterNamespace.EventObjects<Events>;
+
+    /**
+     * Feature metadata objects keyed by name.
+     */
     export const features: ClusterNamespace.Features<Features>;
+
+    /**
+     * @deprecated Use {@link MediaPlayback}.
+     */
     export const Cluster: typeof MediaPlayback;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `MediaPlayback` instead of `MediaPlayback.Complete`)
+     * @deprecated Use {@link MediaPlayback}.
      */
     export const Complete: typeof MediaPlayback;
 
     export const Typing: MediaPlayback;
 }
 
+/**
+ * @deprecated Use {@link MediaPlayback}.
+ */
 export declare const MediaPlaybackCluster: typeof MediaPlayback;
-export interface MediaPlayback extends ClusterTyping { Attributes: MediaPlayback.Attributes; Commands: MediaPlayback.Commands; Events: MediaPlayback.Events; Features: MediaPlayback.Features; Components: MediaPlayback.Components }
+
+export interface MediaPlayback extends ClusterTyping {
+    Attributes: MediaPlayback.Attributes;
+    Commands: MediaPlayback.Commands;
+    Events: MediaPlayback.Events;
+    Features: MediaPlayback.Features;
+    Components: MediaPlayback.Components;
+}

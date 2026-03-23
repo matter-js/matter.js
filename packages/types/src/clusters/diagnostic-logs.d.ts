@@ -6,33 +6,64 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterId } from "../datatype/ClusterId.js";
+import type { ClusterModel } from "@matter/model";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { StatusResponseError } from "../common/StatusResponseError.js";
 import type { Status as GlobalStatus } from "../globals/Status.js";
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
-import type { DiagnosticLogs as DiagnosticLogsModel } from "@matter/model";
-import type { ClusterId } from "../datatype/ClusterId.js";
 
 /**
  * Definitions for the DiagnosticLogs cluster.
+ *
+ * This Cluster supports an interface to a Node. It provides commands for retrieving unstructured diagnostic logs from a
+ * Node that may be used to aid in diagnostics. It will often be the case that unstructured diagnostic logs will be
+ * Node-wide and not specific to any subset of Endpoints. When present, this Cluster shall be implemented once for the
+ * Node. The Node SHOULD also implement the BDX Initiator and BDX Sender roles as defined in the BDX Protocol.
+ *
+ * @see {@link MatterSpecification.v142.Core} § 11.11
  */
 export declare namespace DiagnosticLogs {
     /**
+     * The Matter protocol cluster identifier.
+     */
+    export const id: ClusterId & 0x0032;
+
+    /**
+     * Textual cluster identifier.
+     */
+    export const name: "DiagnosticLogs";
+
+    /**
+     * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
+     */
+    export const revision: 1;
+
+    /**
+     * Canonical metadata for the DiagnosticLogs cluster.
+     *
+     * This is the exhaustive runtime metadata source that matter.js considers canonical.
+     */
+    export const schema: ClusterModel;
+
+    /**
      * {@link DiagnosticLogs} always supports these elements.
      */
-    export namespace Base {
-        export interface Commands {
-            /**
-             * Reception of this command starts the process of retrieving diagnostic logs from a Node.
-             *
-             * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
-             */
-            retrieveLogsRequest(request: RetrieveLogsRequest): MaybePromise<RetrieveLogsResponse>;
-        }
+    export interface BaseCommands {
+        /**
+         * Reception of this command starts the process of retrieving diagnostic logs from a Node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
+         */
+        retrieveLogsRequest(request: RetrieveLogsRequest): MaybePromise<RetrieveLogsResponse>;
     }
 
-    export interface Commands extends Base.Commands {}
-    export type Components = [{ flags: {}, commands: Base.Commands }];
+    /**
+     * Commands that may appear in {@link DiagnosticLogs}.
+     */
+    export interface Commands extends BaseCommands {}
+
+    export type Components = [{ flags: {}, commands: BaseCommands }];
 
     /**
      * Reception of this command starts the process of retrieving diagnostic logs from a Node.
@@ -286,21 +317,30 @@ export declare namespace DiagnosticLogs {
         Bdx = 1
     }
 
-    export const id: ClusterId;
-    export const name: "DiagnosticLogs";
-    export const revision: 1;
-    export const schema: typeof DiagnosticLogsModel;
-    export interface CommandObjects extends ClusterNamespace.CommandObjects<Commands> {}
-    export const commands: CommandObjects;
+    /**
+     * Command metadata objects keyed by name.
+     */
+    export const commands: ClusterNamespace.CommandObjects<Commands>;
+
+    /**
+     * @deprecated Use {@link DiagnosticLogs}.
+     */
     export const Cluster: typeof DiagnosticLogs;
 
     /**
-     * @deprecated Use the cluster namespace directly (e.g. `DiagnosticLogs` instead of `DiagnosticLogs.Complete`)
+     * @deprecated Use {@link DiagnosticLogs}.
      */
     export const Complete: typeof DiagnosticLogs;
 
     export const Typing: DiagnosticLogs;
 }
 
+/**
+ * @deprecated Use {@link DiagnosticLogs}.
+ */
 export declare const DiagnosticLogsCluster: typeof DiagnosticLogs;
-export interface DiagnosticLogs extends ClusterTyping { Commands: DiagnosticLogs.Commands; Components: DiagnosticLogs.Components }
+
+export interface DiagnosticLogs extends ClusterTyping {
+    Commands: DiagnosticLogs.Commands;
+    Components: DiagnosticLogs.Components;
+}
