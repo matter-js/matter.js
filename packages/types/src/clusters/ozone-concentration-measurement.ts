@@ -9,7 +9,6 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { OzoneConcentrationMeasurement as OzoneConcentrationMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -172,6 +171,5 @@ export namespace OzoneConcentrationMeasurement {
 
 export type OzoneConcentrationMeasurementCluster = OzoneConcentrationMeasurement.Cluster;
 export const OzoneConcentrationMeasurementCluster = OzoneConcentrationMeasurement.Cluster;
-ClusterRegistry.register(OzoneConcentrationMeasurement.Complete);
 ClusterNamespace.define(OzoneConcentrationMeasurement);
 export interface OzoneConcentrationMeasurement extends ClusterTyping { Attributes: OzoneConcentrationMeasurement.Attributes & { Components: OzoneConcentrationMeasurement.Attributes.Components }; Features: OzoneConcentrationMeasurement.Features }

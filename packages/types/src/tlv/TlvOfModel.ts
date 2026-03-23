@@ -60,6 +60,7 @@ import {
 import { TlvAny } from "./TlvAny.js";
 import { TlvArray } from "./TlvArray.js";
 import { TlvBoolean } from "./TlvBoolean.js";
+import { TlvNoArguments } from "./TlvNoArguments.js";
 import { TlvNullable } from "./TlvNullable.js";
 import {
     TlvBitmap,
@@ -245,8 +246,15 @@ function generateStruct(model: ClusterModel | ValueModel) {
     // TODO - opportunity to deduplicate struct schemas: when a model extends a defining model without changing
     // conformant fields, we could reuse the TlvSchema from the defining model via definingModel lookup
 
+    const properties = model.conformant.properties;
+
+    // Events and commands with no fields use TlvNoArguments which accepts both empty structs and void
+    if (!properties.length && model instanceof ValueModel) {
+        return TlvNoArguments;
+    }
+
     const fields = {} as Record<string, any>;
-    for (const p of model.conformant.properties) {
+    for (const p of properties) {
         const schema = TlvOfModel(p);
         const id = p.id ?? 0;
         fields[p.propertyName] = p.mandatory ? TlvField(id, schema) : TlvOptionalField(id, schema);

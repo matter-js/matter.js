@@ -24,7 +24,6 @@ import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ModeSelect as ModeSelectModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -501,6 +500,5 @@ export namespace ModeSelect {
 
 export type ModeSelectCluster = ModeSelect.Cluster;
 export const ModeSelectCluster = ModeSelect.Cluster;
-ClusterRegistry.register(ModeSelect.Complete);
 ClusterNamespace.define(ModeSelect);
 export interface ModeSelect extends ClusterTyping { Attributes: ModeSelect.Attributes & { Components: ModeSelect.Attributes.Components }; Commands: ModeSelect.Commands & { Components: ModeSelect.Commands.Components }; Features: ModeSelect.Features }

@@ -19,7 +19,6 @@ import { ContentLauncher } from "./content-launcher.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { Channel as ChannelModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -1839,6 +1838,5 @@ export namespace Channel {
 
 export type ChannelCluster = Channel.Cluster;
 export const ChannelCluster = Channel.Cluster;
-ClusterRegistry.register(Channel.Complete);
 ClusterNamespace.define(Channel);
 export interface Channel extends ClusterTyping { Attributes: Channel.Attributes & { Components: Channel.Attributes.Components }; Commands: Channel.Commands & { Components: Channel.Commands.Components }; Features: Channel.Features }

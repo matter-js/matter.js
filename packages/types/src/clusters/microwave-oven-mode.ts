@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { MicrowaveOvenMode as MicrowaveOvenModeModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -392,6 +391,5 @@ export namespace MicrowaveOvenMode {
 
 export type MicrowaveOvenModeCluster = MicrowaveOvenMode.Cluster;
 export const MicrowaveOvenModeCluster = MicrowaveOvenMode.Cluster;
-ClusterRegistry.register(MicrowaveOvenMode.Complete);
 ClusterNamespace.define(MicrowaveOvenMode);
 export interface MicrowaveOvenMode extends ClusterTyping { Attributes: MicrowaveOvenMode.Attributes & { Components: MicrowaveOvenMode.Attributes.Components }; Features: MicrowaveOvenMode.Features }

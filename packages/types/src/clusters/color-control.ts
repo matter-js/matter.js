@@ -24,7 +24,6 @@ import { AccessLevel, ColorControl as ColorControlModel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -3219,6 +3218,5 @@ export namespace ColorControl {
 
 export type ColorControlCluster = ColorControl.Cluster;
 export const ColorControlCluster = ColorControl.Cluster;
-ClusterRegistry.register(ColorControl.Complete);
 ClusterNamespace.define(ColorControl);
 export interface ColorControl extends ClusterTyping { Attributes: ColorControl.Attributes & { Components: ColorControl.Attributes.Components }; Commands: ColorControl.Commands & { Components: ColorControl.Commands.Components }; Features: ColorControl.Features }

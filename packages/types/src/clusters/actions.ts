@@ -15,7 +15,6 @@ import { TlvString } from "../tlv/TlvString.js";
 import { TlvEndpointNumber, EndpointNumber } from "../datatype/EndpointNumber.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { Actions as ActionsModel } from "@matter/model";
@@ -1683,6 +1682,5 @@ export namespace Actions {
 
 export type ActionsCluster = Actions.Cluster;
 export const ActionsCluster = Actions.Cluster;
-ClusterRegistry.register(Actions.Complete);
 ClusterNamespace.define(Actions);
 export interface Actions extends ClusterTyping { Attributes: Actions.Attributes & { Components: Actions.Attributes.Components }; Commands: Actions.Commands & { Components: Actions.Commands.Components }; Events: Actions.Events & { Components: Actions.Events.Components } }

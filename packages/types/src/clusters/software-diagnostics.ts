@@ -17,7 +17,6 @@ import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvString, TlvByteString } from "../tlv/TlvString.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -463,6 +462,5 @@ export namespace SoftwareDiagnostics {
 
 export type SoftwareDiagnosticsCluster = SoftwareDiagnostics.Cluster;
 export const SoftwareDiagnosticsCluster = SoftwareDiagnostics.Cluster;
-ClusterRegistry.register(SoftwareDiagnostics.Complete);
 ClusterNamespace.define(SoftwareDiagnostics);
 export interface SoftwareDiagnostics extends ClusterTyping { Attributes: SoftwareDiagnostics.Attributes & { Components: SoftwareDiagnostics.Attributes.Components }; Commands: SoftwareDiagnostics.Commands & { Components: SoftwareDiagnostics.Commands.Components }; Events: SoftwareDiagnostics.Events & { Components: SoftwareDiagnostics.Events.Components }; Features: SoftwareDiagnostics.Features }

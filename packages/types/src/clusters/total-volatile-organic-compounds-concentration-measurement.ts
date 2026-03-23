@@ -9,7 +9,6 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import {
     TotalVolatileOrganicCompoundsConcentrationMeasurement as TotalVolatileOrganicCompoundsConcentrationMeasurementModel
@@ -180,6 +179,5 @@ export namespace TotalVolatileOrganicCompoundsConcentrationMeasurement {
 
 export type TotalVolatileOrganicCompoundsConcentrationMeasurementCluster = TotalVolatileOrganicCompoundsConcentrationMeasurement.Cluster;
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementCluster = TotalVolatileOrganicCompoundsConcentrationMeasurement.Cluster;
-ClusterRegistry.register(TotalVolatileOrganicCompoundsConcentrationMeasurement.Complete);
 ClusterNamespace.define(TotalVolatileOrganicCompoundsConcentrationMeasurement);
 export interface TotalVolatileOrganicCompoundsConcentrationMeasurement extends ClusterTyping { Attributes: TotalVolatileOrganicCompoundsConcentrationMeasurement.Attributes & { Components: TotalVolatileOrganicCompoundsConcentrationMeasurement.Attributes.Components }; Features: TotalVolatileOrganicCompoundsConcentrationMeasurement.Features }

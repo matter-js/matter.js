@@ -22,7 +22,6 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { ClusterType } from "../cluster/ClusterType.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -968,6 +967,5 @@ export namespace LevelControl {
 
 export type LevelControlCluster = LevelControl.Cluster;
 export const LevelControlCluster = LevelControl.Cluster;
-ClusterRegistry.register(LevelControl.Complete);
 ClusterNamespace.define(LevelControl);
 export interface LevelControl extends ClusterTyping { Attributes: LevelControl.Attributes & { Components: LevelControl.Attributes.Components }; Commands: LevelControl.Commands & { Components: LevelControl.Commands.Components }; Features: LevelControl.Features }

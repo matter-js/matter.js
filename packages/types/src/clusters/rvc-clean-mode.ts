@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { RvcCleanMode as RvcCleanModeModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -467,6 +466,5 @@ export namespace RvcCleanMode {
 
 export type RvcCleanModeCluster = RvcCleanMode.Cluster;
 export const RvcCleanModeCluster = RvcCleanMode.Cluster;
-ClusterRegistry.register(RvcCleanMode.Complete);
 ClusterNamespace.define(RvcCleanMode);
 export interface RvcCleanMode extends ClusterTyping { Attributes: RvcCleanMode.Attributes & { Components: RvcCleanMode.Attributes.Components }; Commands: RvcCleanMode.Commands & { Components: RvcCleanMode.Commands.Components }; Features: RvcCleanMode.Features }

@@ -5,4 +5,5 @@
  */
 
 export * from "./client/index.js";
+export * from "./ClusterTypeOfModel.js";
 export * from "./server/index.js";

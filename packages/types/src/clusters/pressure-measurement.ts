@@ -12,7 +12,6 @@ import { TlvInt16, TlvUInt16, TlvInt8 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { PressureMeasurement as PressureMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -319,6 +318,5 @@ export namespace PressureMeasurement {
 
 export type PressureMeasurementCluster = PressureMeasurement.Cluster;
 export const PressureMeasurementCluster = PressureMeasurement.Cluster;
-ClusterRegistry.register(PressureMeasurement.Complete);
 ClusterNamespace.define(PressureMeasurement);
 export interface PressureMeasurement extends ClusterTyping { Attributes: PressureMeasurement.Attributes & { Components: PressureMeasurement.Attributes.Components }; Features: PressureMeasurement.Features }

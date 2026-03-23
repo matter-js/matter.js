@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import {
     RefrigeratorAndTemperatureControlledCabinetMode as RefrigeratorAndTemperatureControlledCabinetModeModel
@@ -424,6 +423,5 @@ export namespace RefrigeratorAndTemperatureControlledCabinetMode {
 
 export type RefrigeratorAndTemperatureControlledCabinetModeCluster = RefrigeratorAndTemperatureControlledCabinetMode.Cluster;
 export const RefrigeratorAndTemperatureControlledCabinetModeCluster = RefrigeratorAndTemperatureControlledCabinetMode.Cluster;
-ClusterRegistry.register(RefrigeratorAndTemperatureControlledCabinetMode.Complete);
 ClusterNamespace.define(RefrigeratorAndTemperatureControlledCabinetMode);
 export interface RefrigeratorAndTemperatureControlledCabinetMode extends ClusterTyping { Attributes: RefrigeratorAndTemperatureControlledCabinetMode.Attributes & { Components: RefrigeratorAndTemperatureControlledCabinetMode.Attributes.Components }; Commands: RefrigeratorAndTemperatureControlledCabinetMode.Commands & { Components: RefrigeratorAndTemperatureControlledCabinetMode.Commands.Components }; Features: RefrigeratorAndTemperatureControlledCabinetMode.Features }

@@ -236,9 +236,6 @@ function generateClusterInterface(file: ClusterFile, extraDoc?: string) {
 function generateClusterExport(file: ClusterFile) {
     file.atom(`export type ${file.clusterName} = ${file.cluster.name}.Cluster`);
     file.atom(`export const ${file.clusterName} = ${file.cluster.name}.Cluster`);
-
-    file.addImport("!types/cluster/ClusterRegistry.js", "ClusterRegistry");
-    file.atom(`ClusterRegistry.register(${file.cluster.name}.Complete)`);
 }
 
 /**

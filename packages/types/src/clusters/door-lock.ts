@@ -34,7 +34,6 @@ import { BitFlag, BitField } from "../schema/BitmapSchema.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { ClusterType } from "../cluster/ClusterType.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -7852,6 +7851,5 @@ export namespace DoorLock {
 
 export type DoorLockCluster = DoorLock.Cluster;
 export const DoorLockCluster = DoorLock.Cluster;
-ClusterRegistry.register(DoorLock.Complete);
 ClusterNamespace.define(DoorLock);
 export interface DoorLock extends ClusterTyping { Attributes: DoorLock.Attributes & { Components: DoorLock.Attributes.Components }; Commands: DoorLock.Commands & { Components: DoorLock.Commands.Components }; Events: DoorLock.Events & { Components: DoorLock.Events.Components }; Features: DoorLock.Features }

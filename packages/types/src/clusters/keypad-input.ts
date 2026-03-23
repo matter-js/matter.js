@@ -14,7 +14,6 @@ import { TlvEnum } from "../tlv/TlvNumber.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { KeypadInput as KeypadInputModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -378,6 +377,5 @@ export namespace KeypadInput {
 
 export type KeypadInputCluster = KeypadInput.Cluster;
 export const KeypadInputCluster = KeypadInput.Cluster;
-ClusterRegistry.register(KeypadInput.Complete);
 ClusterNamespace.define(KeypadInput);
 export interface KeypadInput extends ClusterTyping { Commands: KeypadInput.Commands & { Components: KeypadInput.Commands.Components }; Features: KeypadInput.Features }

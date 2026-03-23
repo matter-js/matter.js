@@ -23,7 +23,6 @@ import { TlvField, TlvObject, TlvOptionalField } from "../tlv/TlvObject.js";
 import { Priority } from "../globals/Priority.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { BooleanStateConfiguration as BooleanStateConfigurationModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -778,6 +777,5 @@ export namespace BooleanStateConfiguration {
 
 export type BooleanStateConfigurationCluster = BooleanStateConfiguration.Cluster;
 export const BooleanStateConfigurationCluster = BooleanStateConfiguration.Cluster;
-ClusterRegistry.register(BooleanStateConfiguration.Complete);
 ClusterNamespace.define(BooleanStateConfiguration);
 export interface BooleanStateConfiguration extends ClusterTyping { Attributes: BooleanStateConfiguration.Attributes & { Components: BooleanStateConfiguration.Attributes.Components }; Commands: BooleanStateConfiguration.Commands & { Components: BooleanStateConfiguration.Commands.Components }; Events: BooleanStateConfiguration.Events & { Components: BooleanStateConfiguration.Events.Components }; Features: BooleanStateConfiguration.Features }

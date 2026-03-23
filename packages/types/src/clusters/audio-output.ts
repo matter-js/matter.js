@@ -15,7 +15,6 @@ import { AccessLevel, AudioOutput as AudioOutputModel } from "@matter/model";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -367,6 +366,5 @@ export namespace AudioOutput {
 
 export type AudioOutputCluster = AudioOutput.Cluster;
 export const AudioOutputCluster = AudioOutput.Cluster;
-ClusterRegistry.register(AudioOutput.Complete);
 ClusterNamespace.define(AudioOutput);
 export interface AudioOutput extends ClusterTyping { Attributes: AudioOutput.Attributes & { Components: AudioOutput.Attributes.Components }; Commands: AudioOutput.Commands & { Components: AudioOutput.Commands.Components }; Features: AudioOutput.Features }

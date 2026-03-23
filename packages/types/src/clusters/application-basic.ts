@@ -15,7 +15,6 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvArray } from "../tlv/TlvArray.js";
 import { AccessLevel, ApplicationBasic as ApplicationBasicModel } from "@matter/model";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -284,6 +283,5 @@ export namespace ApplicationBasic {
 
 export type ApplicationBasicCluster = ApplicationBasic.Cluster;
 export const ApplicationBasicCluster = ApplicationBasic.Cluster;
-ClusterRegistry.register(ApplicationBasic.Complete);
 ClusterNamespace.define(ApplicationBasic);
 export interface ApplicationBasic extends ClusterTyping { Attributes: ApplicationBasic.Attributes & { Components: ApplicationBasic.Attributes.Components } }

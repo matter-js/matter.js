@@ -14,7 +14,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { LaundryWasherControls as LaundryWasherControlsModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -297,6 +296,5 @@ export namespace LaundryWasherControls {
 
 export type LaundryWasherControlsCluster = LaundryWasherControls.Cluster;
 export const LaundryWasherControlsCluster = LaundryWasherControls.Cluster;
-ClusterRegistry.register(LaundryWasherControls.Complete);
 ClusterNamespace.define(LaundryWasherControls);
 export interface LaundryWasherControls extends ClusterTyping { Attributes: LaundryWasherControls.Attributes & { Components: LaundryWasherControls.Attributes.Components }; Features: LaundryWasherControls.Features }

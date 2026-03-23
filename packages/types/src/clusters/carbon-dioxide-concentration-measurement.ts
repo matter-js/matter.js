@@ -9,7 +9,6 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ConcentrationMeasurement } from "./concentration-measurement.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { CarbonDioxideConcentrationMeasurement as CarbonDioxideConcentrationMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -177,6 +176,5 @@ export namespace CarbonDioxideConcentrationMeasurement {
 
 export type CarbonDioxideConcentrationMeasurementCluster = CarbonDioxideConcentrationMeasurement.Cluster;
 export const CarbonDioxideConcentrationMeasurementCluster = CarbonDioxideConcentrationMeasurement.Cluster;
-ClusterRegistry.register(CarbonDioxideConcentrationMeasurement.Complete);
 ClusterNamespace.define(CarbonDioxideConcentrationMeasurement);
 export interface CarbonDioxideConcentrationMeasurement extends ClusterTyping { Attributes: CarbonDioxideConcentrationMeasurement.Attributes & { Components: CarbonDioxideConcentrationMeasurement.Attributes.Components }; Features: CarbonDioxideConcentrationMeasurement.Features }

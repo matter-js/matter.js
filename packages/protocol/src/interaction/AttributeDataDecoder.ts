@@ -5,22 +5,19 @@
  */
 
 import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
+import { Matter } from "@matter/model";
 import {
     ArraySchema,
-    Attribute,
-    AttributeError,
     AttributeId,
-    AttributeJsType,
     ClusterId,
     EndpointNumber,
-    getClusterAttributeById,
-    getClusterById,
     NodeId,
     Status,
     TlvAny,
     TlvAttributeData,
     TlvAttributeReport,
     TlvAttributeStatus,
+    TlvOfModel,
     TlvSchema,
     TlvType,
     TypeFromSchema,
@@ -189,9 +186,9 @@ export function normalizeAttributeStatus(
         if (endpointId === undefined || clusterId === undefined || attributeId === undefined) {
             throw new UnexpectedDataError(`Invalid attribute path ${endpointId}/${clusterId}/${attributeId}`);
         }
-        const cluster = getClusterById(clusterId);
-        const attributeDetail = getClusterAttributeById(cluster, attributeId);
-        if (attributeDetail === undefined) {
+        const clusterModel = Matter.clusters(clusterId);
+        const attributeModel = clusterModel?.attributes(attributeId);
+        if (attributeModel === undefined) {
             result.push({
                 path: {
                     nodeId,
@@ -207,7 +204,7 @@ export function normalizeAttributeStatus(
             return;
         }
         result.push({
-            path: { nodeId, endpointId, clusterId, attributeId, attributeName: attributeDetail.name },
+            path: { nodeId, endpointId, clusterId, attributeId, attributeName: attributeModel.propertyName },
             status: status.status,
             clusterStatus: status.clusterStatus,
         });
@@ -234,9 +231,9 @@ export function normalizeAndDecodeAttributeData(
             throw new UnexpectedDataError(`Invalid attribute path ${endpointId}/${clusterId}/${attributeId}`);
         }
         try {
-            const cluster = getClusterById(clusterId);
-            const attributeDetail = getClusterAttributeById(cluster, attributeId);
-            if (attributeDetail === undefined) {
+            const clusterModel = Matter.clusters(clusterId);
+            const attributeModel = clusterModel?.attributes(attributeId);
+            if (attributeModel === undefined) {
                 const attributeName = `Unknown (${Diagnostic.hex(attributeId)})`;
                 const value = decodeUnknownAttributeValue(values);
                 result.push({
@@ -247,10 +244,23 @@ export function normalizeAndDecodeAttributeData(
 
                 return;
             }
-            const { attribute, name } = attributeDetail;
-            const value = decodeValueForAttribute(attribute, values);
+            const attributeName = attributeModel.propertyName;
+            let schema;
+            try {
+                schema = TlvOfModel(attributeModel);
+            } catch {
+                // Attribute is known but has no schema (e.g. deprecated global attributes) — decode as unknown
+                const value = decodeUnknownAttributeValue(values);
+                result.push({
+                    path: { nodeId, endpointId, clusterId, attributeId, attributeName },
+                    version: dataVersion,
+                    value,
+                });
+                return;
+            }
+            const value = decodeAttributeValueWithSchema(schema, values);
             result.push({
-                path: { nodeId, endpointId, clusterId, attributeId, attributeName: name },
+                path: { nodeId, endpointId, clusterId, attributeId, attributeName },
                 version: dataVersion,
                 value,
             });
@@ -263,23 +273,6 @@ export function normalizeAndDecodeAttributeData(
         }
     });
     return result;
-}
-
-/** Decodes the data for one known attribute identified by its Attribute definition including array un-chunking. */
-function decodeValueForAttribute<A extends Attribute<any, any>>(
-    attribute: A,
-    values: TypeFromSchema<typeof TlvAttributeData>[],
-): AttributeJsType<A> | undefined {
-    const { schema, optional, default: conformanceValue } = attribute;
-
-    // No values, so use default value if available
-    if (!values.length) {
-        if (optional) return undefined;
-        if (conformanceValue === undefined) throw new AttributeError(`Attribute not found.`);
-        return conformanceValue;
-    }
-
-    return decodeAttributeValueWithSchema(schema, values);
 }
 
 export function decodeListAttributeValueWithSchema<T>(

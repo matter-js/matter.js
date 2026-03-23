@@ -17,7 +17,7 @@ import {
     ServerAddressUdp,
     UnexpectedDataError,
 } from "@matter/general";
-import { Specification } from "@matter/model";
+import { Matter, Specification } from "@matter/model";
 import type { ServerNode } from "@matter/node";
 import { ClientNodeInteraction } from "@matter/node";
 import {
@@ -55,9 +55,6 @@ import {
     Event,
     EventId,
     EventNumber,
-    getClusterAttributeById,
-    getClusterById,
-    getClusterEventById,
     NodeId,
     RequestType,
     resolveAttributeName,
@@ -472,27 +469,27 @@ export class InteractionClient {
     #convertAttributePath(entry: ReadResult.ConcreteAttributePath) {
         const { endpointId, clusterId, attributeId } = entry;
 
-        const cluster = getClusterById(clusterId);
-        const attribute = getClusterAttributeById(cluster, attributeId);
+        const clusterModel = Matter.clusters(clusterId);
+        const attribute = clusterModel?.attributes(attributeId);
 
         return {
             endpointId,
             clusterId,
             attributeId,
-            attributeName: attribute?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`,
+            attributeName: attribute ? attribute.propertyName : `Unknown (${Diagnostic.hex(attributeId)})`,
         };
     }
 
     #convertEventPath(entry: ReadResult.ConcreteEventPath) {
         const { endpointId, clusterId, eventId } = entry;
-        const cluster = getClusterById(clusterId);
-        const event = getClusterEventById(cluster, eventId);
+        const clusterModel = Matter.clusters(clusterId);
+        const event = clusterModel?.events(eventId);
 
         return {
             endpointId,
             clusterId,
             eventId,
-            eventName: event?.name ?? `Unknown (${Diagnostic.hex(eventId)})`,
+            eventName: event ? event.propertyName : `Unknown (${Diagnostic.hex(eventId)})`,
         };
     }
 
@@ -1088,7 +1085,8 @@ export class InteractionClient {
             suppressResponse = true;
         }
 
-        const cluster = getClusterById(clusterId);
+        const clusterModel = Matter.clusters(clusterId);
+        const cluster = { id: clusterId, name: clusterModel?.name ?? `Unknown (${Diagnostic.hex(clusterId)})` };
         const invoke = this.#interaction.invoke(
             Invoke({
                 commands: [

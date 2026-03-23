@@ -17,7 +17,6 @@ import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { StatusResponseError } from "../common/StatusResponseError.js";
 import { Status as GlobalStatus } from "../globals/Status.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { OtaSoftwareUpdateProvider as OtaSoftwareUpdateProviderModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -1095,6 +1094,5 @@ export namespace OtaSoftwareUpdateProvider {
 
 export type OtaSoftwareUpdateProviderCluster = OtaSoftwareUpdateProvider.Cluster;
 export const OtaSoftwareUpdateProviderCluster = OtaSoftwareUpdateProvider.Cluster;
-ClusterRegistry.register(OtaSoftwareUpdateProvider.Complete);
 ClusterNamespace.define(OtaSoftwareUpdateProvider);
 export interface OtaSoftwareUpdateProvider extends ClusterTyping { Commands: OtaSoftwareUpdateProvider.Commands & { Components: OtaSoftwareUpdateProvider.Commands.Components } }

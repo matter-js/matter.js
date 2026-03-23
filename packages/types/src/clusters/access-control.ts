@@ -29,7 +29,6 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvSubjectId, SubjectId } from "../datatype/SubjectId.js";
 import { TlvDeviceTypeId, DeviceTypeId } from "../datatype/DeviceTypeId.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 
 /**
@@ -2088,6 +2087,5 @@ export namespace AccessControl {
 
 export type AccessControlCluster = AccessControl.Cluster;
 export const AccessControlCluster = AccessControl.Cluster;
-ClusterRegistry.register(AccessControl.Complete);
 ClusterNamespace.define(AccessControl);
 export interface AccessControl extends ClusterTyping { Attributes: AccessControl.Attributes & { Components: AccessControl.Attributes.Components }; Commands: AccessControl.Commands & { Components: AccessControl.Commands.Components }; Events: AccessControl.Events & { Components: AccessControl.Events.Components }; Features: AccessControl.Features }

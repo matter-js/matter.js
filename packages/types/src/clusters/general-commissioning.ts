@@ -17,7 +17,6 @@ import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvString } from "../tlv/TlvString.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -1554,6 +1553,5 @@ export namespace GeneralCommissioning {
 
 export type GeneralCommissioningCluster = GeneralCommissioning.Cluster;
 export const GeneralCommissioningCluster = GeneralCommissioning.Cluster;
-ClusterRegistry.register(GeneralCommissioning.Complete);
 ClusterNamespace.define(GeneralCommissioning);
 export interface GeneralCommissioning extends ClusterTyping { Attributes: GeneralCommissioning.Attributes & { Components: GeneralCommissioning.Attributes.Components }; Commands: GeneralCommissioning.Commands & { Components: GeneralCommissioning.Commands.Components }; Features: GeneralCommissioning.Features }

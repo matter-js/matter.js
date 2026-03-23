@@ -13,7 +13,6 @@ import { TlvField, TlvObject } from "../tlv/TlvObject.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { RefrigeratorAlarm as RefrigeratorAlarmModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -394,6 +393,5 @@ export namespace RefrigeratorAlarm {
 
 export type RefrigeratorAlarmCluster = RefrigeratorAlarm.Cluster;
 export const RefrigeratorAlarmCluster = RefrigeratorAlarm.Cluster;
-ClusterRegistry.register(RefrigeratorAlarm.Complete);
 ClusterNamespace.define(RefrigeratorAlarm);
 export interface RefrigeratorAlarm extends ClusterTyping { Attributes: RefrigeratorAlarm.Attributes & { Components: RefrigeratorAlarm.Attributes.Components }; Commands: RefrigeratorAlarm.Commands & { Components: RefrigeratorAlarm.Commands.Components }; Events: RefrigeratorAlarm.Events & { Components: RefrigeratorAlarm.Events.Components }; Features: RefrigeratorAlarm.Features }

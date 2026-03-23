@@ -19,7 +19,6 @@ import { TlvArray } from "../tlv/TlvArray.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -679,6 +678,5 @@ export namespace Groups {
 
 export type GroupsCluster = Groups.Cluster;
 export const GroupsCluster = Groups.Cluster;
-ClusterRegistry.register(Groups.Complete);
 ClusterNamespace.define(Groups);
 export interface Groups extends ClusterTyping { Attributes: Groups.Attributes & { Components: Groups.Attributes.Components }; Commands: Groups.Commands & { Components: Groups.Commands.Components }; Features: Groups.Features }

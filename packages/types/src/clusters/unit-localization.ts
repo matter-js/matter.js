@@ -13,7 +13,6 @@ import { AccessLevel, UnitLocalization as UnitLocalizationModel } from "@matter/
 import { TlvArray } from "../tlv/TlvArray.js";
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -211,6 +210,5 @@ export namespace UnitLocalization {
 
 export type UnitLocalizationCluster = UnitLocalization.Cluster;
 export const UnitLocalizationCluster = UnitLocalization.Cluster;
-ClusterRegistry.register(UnitLocalization.Complete);
 ClusterNamespace.define(UnitLocalization);
 export interface UnitLocalization extends ClusterTyping { Attributes: UnitLocalization.Attributes & { Components: UnitLocalization.Attributes.Components }; Features: UnitLocalization.Features }

@@ -17,7 +17,6 @@ import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -555,6 +554,5 @@ export namespace ThreadBorderRouterManagement {
 
 export type ThreadBorderRouterManagementCluster = ThreadBorderRouterManagement.Cluster;
 export const ThreadBorderRouterManagementCluster = ThreadBorderRouterManagement.Cluster;
-ClusterRegistry.register(ThreadBorderRouterManagement.Complete);
 ClusterNamespace.define(ThreadBorderRouterManagement);
 export interface ThreadBorderRouterManagement extends ClusterTyping { Attributes: ThreadBorderRouterManagement.Attributes & { Components: ThreadBorderRouterManagement.Attributes.Components }; Commands: ThreadBorderRouterManagement.Commands & { Components: ThreadBorderRouterManagement.Commands.Components }; Features: ThreadBorderRouterManagement.Features }

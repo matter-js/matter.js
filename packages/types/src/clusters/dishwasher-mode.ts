@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { DishwasherMode as DishwasherModeModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -429,6 +428,5 @@ export namespace DishwasherMode {
 
 export type DishwasherModeCluster = DishwasherMode.Cluster;
 export const DishwasherModeCluster = DishwasherMode.Cluster;
-ClusterRegistry.register(DishwasherMode.Complete);
 ClusterNamespace.define(DishwasherMode);
 export interface DishwasherMode extends ClusterTyping { Attributes: DishwasherMode.Attributes & { Components: DishwasherMode.Attributes.Components }; Commands: DishwasherMode.Commands & { Components: DishwasherMode.Commands.Components }; Features: DishwasherMode.Features }

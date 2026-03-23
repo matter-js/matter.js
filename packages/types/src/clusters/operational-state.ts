@@ -16,7 +16,6 @@ import { TlvField, TlvOptionalField, TlvObject } from "../tlv/TlvObject.js";
 import { TlvNoArguments } from "../tlv/TlvNoArguments.js";
 import { Priority } from "../globals/Priority.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { OperationalState as OperationalStateModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -924,6 +923,5 @@ export namespace OperationalState {
 
 export type OperationalStateCluster = OperationalState.Cluster;
 export const OperationalStateCluster = OperationalState.Cluster;
-ClusterRegistry.register(OperationalState.Complete);
 ClusterNamespace.define(OperationalState);
 export interface OperationalState extends ClusterTyping { Attributes: OperationalState.Attributes & { Components: OperationalState.Attributes.Components }; Commands: OperationalState.Commands & { Components: OperationalState.Commands.Components }; Events: OperationalState.Events & { Components: OperationalState.Events.Components } }

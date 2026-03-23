@@ -9,7 +9,6 @@
 import { MutableCluster } from "../cluster/mutation/MutableCluster.js";
 import { ResourceMonitoring } from "./resource-monitoring.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { WaterTankLevelMonitoring as WaterTankLevelMonitoringModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -149,6 +148,5 @@ export namespace WaterTankLevelMonitoring {
 
 export type WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring.Cluster;
 export const WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring.Cluster;
-ClusterRegistry.register(WaterTankLevelMonitoring.Complete);
 ClusterNamespace.define(WaterTankLevelMonitoring);
 export interface WaterTankLevelMonitoring extends ClusterTyping { Attributes: WaterTankLevelMonitoring.Attributes & { Components: WaterTankLevelMonitoring.Attributes.Components }; Commands: WaterTankLevelMonitoring.Commands & { Components: WaterTankLevelMonitoring.Commands.Components }; Features: WaterTankLevelMonitoring.Features }

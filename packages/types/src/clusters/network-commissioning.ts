@@ -17,7 +17,6 @@ import { AccessLevel, NetworkCommissioning as NetworkCommissioningModel } from "
 import { BitFlag } from "../schema/BitmapSchema.js";
 import { TlvBoolean } from "../tlv/TlvBoolean.js";
 import { Identity, Bytes, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { ClusterId } from "../datatype/ClusterId.js";
 
@@ -2484,6 +2483,5 @@ export namespace NetworkCommissioning {
 
 export type NetworkCommissioningCluster = NetworkCommissioning.Cluster;
 export const NetworkCommissioningCluster = NetworkCommissioning.Cluster;
-ClusterRegistry.register(NetworkCommissioning.Complete);
 ClusterNamespace.define(NetworkCommissioning);
 export interface NetworkCommissioning extends ClusterTyping { Attributes: NetworkCommissioning.Attributes & { Components: NetworkCommissioning.Attributes.Components }; Commands: NetworkCommissioning.Commands & { Components: NetworkCommissioning.Commands.Components }; Features: NetworkCommissioning.Features }

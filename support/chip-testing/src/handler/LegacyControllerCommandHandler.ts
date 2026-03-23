@@ -23,7 +23,6 @@ import {
 import {
     Attribute,
     Command,
-    getClusterById,
     GroupId,
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
@@ -40,8 +39,9 @@ import {
     TlvVoid,
     VendorId,
 } from "@matter/main/types";
+import { Matter } from "@matter/model";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
-import { InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
+import { ClusterTypeOfModel, InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
 import {
     CommandHandler,
@@ -323,7 +323,11 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         const { nodeId, endpointId, clusterId, attributeName, value } = data;
 
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
-        const cluster = getClusterById(clusterId);
+        const clusterModel = Matter.clusters(clusterId);
+        if (clusterModel === undefined) {
+            throw new Error(`Unknown cluster ${clusterId}`);
+        }
+        const cluster = ClusterTypeOfModel(clusterModel);
 
         logger.info("Writing attribute", attributeName, "with value", value);
         await client.setAttribute({
@@ -374,13 +378,14 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                       forcedConnection: true,
                   });
         }
-        const cluster = getClusterById(clusterId);
+        const clusterModel = Matter.clusters(clusterId);
+        if (clusterModel === undefined) {
+            throw new Error("Cluster not found");
+        }
+        const cluster = ClusterTypeOfModel(clusterModel);
         const clusterCommand = Object.values(cluster.commands).find(
             command => (command as any).requestId === commandId,
         ) as Command<any, any, any> | undefined;
-        if (!cluster) {
-            throw new Error("Cluster not found");
-        }
         if (!clusterCommand) {
             throw new Error("Command for Cluster not found");
         }

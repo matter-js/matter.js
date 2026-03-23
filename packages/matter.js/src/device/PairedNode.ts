@@ -6,6 +6,7 @@
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
 import { InteractionClient, UnknownNodeError } from "#cluster/client/InteractionClient.js";
+import { ClusterTypeOfModel } from "#cluster/ClusterTypeOfModel.js";
 import {
     AsyncObservable,
     AtLeastOne,
@@ -24,7 +25,7 @@ import {
     Seconds,
     Time,
 } from "@matter/general";
-import { AcceptedCommandList, AggregatorDt, AttributeList, ClusterRevision, FeatureMap } from "@matter/model";
+import { AcceptedCommandList, AggregatorDt, AttributeList, ClusterRevision, FeatureMap, Matter } from "@matter/model";
 import {
     Behavior,
     ChangeNotificationService,
@@ -57,8 +58,6 @@ import {
     DiscoveryCapabilitiesSchema,
     EndpointNumber,
     EventId,
-    getClusterAttributeById,
-    getClusterById,
     ManualPairingCodeCodec,
     NodeId,
     QrPairingCodeCodec,
@@ -621,9 +620,9 @@ export class PairedNode {
                     // We need to determine the attribute name for the API
                     let attributeName = this.#attributeIdToNameMap.get(attrKey);
                     if (attributeName === undefined) {
-                        const clusterDef = getClusterById(clusterId);
-                        const attributeDef = getClusterAttributeById(clusterDef, attributeId as AttributeId);
-                        attributeName = attributeDef?.name ?? `Unknown (${Diagnostic.hex(attributeId)})`;
+                        const clusterModel = Matter.clusters(clusterId);
+                        const attrModel = clusterModel?.attributes(attributeId);
+                        attributeName = attrModel ? attrModel.propertyName : `Unknown (${Diagnostic.hex(attributeId)})`;
                         this.#attributeIdToNameMap.set(attrKey, attributeName);
                     }
                     const value = (state as Val.Struct)[attribute];
@@ -646,7 +645,7 @@ export class PairedNode {
                     }
                     logger.debug(
                         this.#peerAddress,
-                        `Trigger attribute update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${attributeId} to ${Diagnostic.json(value)}`,
+                        `Trigger attribute update for ${endpointId}.${cluster?.name ?? Matter.clusters(clusterId)?.name ?? Diagnostic.hex(clusterId)}.${attributeId} to ${Diagnostic.json(value)}`,
                     );
                     if (cluster !== undefined) {
                         asClusterClientInternal(cluster)._triggerAttributeUpdate(attributeId as AttributeId, value);
@@ -690,7 +689,7 @@ export class PairedNode {
                 }
                 logger.debug(
                     this.#peerAddress,
-                    `Trigger event update for ${endpointId}.${(cluster ?? getClusterById(clusterId)).name}.${eventId} for ${data.events.length} events`,
+                    `Trigger event update for ${endpointId}.${cluster?.name ?? Matter.clusters(clusterId)?.name ?? Diagnostic.hex(clusterId)}.${eventId} for ${data.events.length} events`,
                 );
                 if (cluster !== undefined) {
                     asClusterClientInternal(cluster)._triggerEventUpdate(eventId, data.events);
@@ -1182,12 +1181,14 @@ export class PairedNode {
 
         // Add ClusterClients for all server clusters of the device
         for (const clusterId of descriptorData.serverList) {
-            const cluster = getClusterById(clusterId);
-            let clusterName = cluster.name;
-            if (cluster.unknown) {
-                clusterName = `Cluster$${cluster.id.toString(16)}`;
+            const clusterModel = Matter.clusters(clusterId);
+            let cluster: ClusterType;
+            if (clusterModel === undefined) {
+                cluster = ClusterType({ id: clusterId, name: `Cluster$${clusterId.toString(16)}`, revision: 0 });
+            } else {
+                cluster = ClusterTypeOfModel(clusterModel);
             }
-            const data = (endpoint.state as any)[camelize(clusterName)];
+            const data = (endpoint.state as any)[camelize(cluster.name)];
             const clusterClient = ClusterClient(cluster, endpointId, interactionClient, data);
             endpointClusters.push(clusterClient);
         }
@@ -1195,7 +1196,11 @@ export class PairedNode {
         // TODO use the attributes attributeList, acceptedCommands, generatedCommands to create the ClusterClient/Server objects
         // Add ClusterServers for all client clusters of the device
         for (const clusterId of descriptorData.clientList) {
-            const cluster = getClusterById(clusterId);
+            const clusterModel = Matter.clusters(clusterId);
+            const cluster =
+                clusterModel !== undefined
+                    ? ClusterTypeOfModel(clusterModel)
+                    : ClusterType({ id: clusterId, name: `Cluster$${clusterId.toString(16)}`, revision: 0 });
             const clusterData = {} as AttributeInitialValues<Attributes>; // TODO correct typing
             // Todo add logic for Events
             endpointClusters.push(

@@ -16,7 +16,6 @@ import { TlvUInt8, TlvEnum } from "../tlv/TlvNumber.js";
 import { TlvVendorId, VendorId } from "../datatype/VendorId.js";
 import { ModeBase } from "./mode-base.js";
 import { Identity, MaybePromise } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { LaundryWasherMode as LaundryWasherModeModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -436,6 +435,5 @@ export namespace LaundryWasherMode {
 
 export type LaundryWasherModeCluster = LaundryWasherMode.Cluster;
 export const LaundryWasherModeCluster = LaundryWasherMode.Cluster;
-ClusterRegistry.register(LaundryWasherMode.Complete);
 ClusterNamespace.define(LaundryWasherMode);
 export interface LaundryWasherMode extends ClusterTyping { Attributes: LaundryWasherMode.Attributes & { Components: LaundryWasherMode.Attributes.Components }; Commands: LaundryWasherMode.Commands & { Components: LaundryWasherMode.Commands.Components }; Features: LaundryWasherMode.Features }

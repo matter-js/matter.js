@@ -11,7 +11,6 @@ import { Attribute, OptionalAttribute } from "../cluster/Cluster.js";
 import { TlvUInt16 } from "../tlv/TlvNumber.js";
 import { TlvNullable } from "../tlv/TlvNullable.js";
 import { Identity } from "@matter/general";
-import { ClusterRegistry } from "../cluster/ClusterRegistry.js";
 import { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
 import { FlowMeasurement as FlowMeasurementModel } from "@matter/model";
 import { ClusterId } from "../datatype/ClusterId.js";
@@ -139,6 +138,5 @@ export namespace FlowMeasurement {
 
 export type FlowMeasurementCluster = FlowMeasurement.Cluster;
 export const FlowMeasurementCluster = FlowMeasurement.Cluster;
-ClusterRegistry.register(FlowMeasurement.Complete);
 ClusterNamespace.define(FlowMeasurement);
 export interface FlowMeasurement extends ClusterTyping { Attributes: FlowMeasurement.Attributes & { Components: FlowMeasurement.Attributes.Components } }
