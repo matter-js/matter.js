@@ -7,7 +7,7 @@
 import { OnOffLightDevice } from "#devices/on-off-light";
 import { Endpoint } from "#endpoint/index.js";
 import { CommandInvokeResponse, Invoke, InvokeRequest, InvokeResult } from "@matter/protocol";
-import { OnOffCluster } from "@matter/types/clusters/on-off";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { MockServerNode } from "./mock-server-node.js";
 
 describe("CommandInvokeResponse", () => {
@@ -18,7 +18,7 @@ describe("CommandInvokeResponse", () => {
             node,
             Invoke.ConcreteCommandRequest({
                 endpoint: device,
-                cluster: OnOffCluster,
+                cluster: OnOff,
                 command: "on",
             }),
         );
@@ -42,7 +42,7 @@ describe("CommandInvokeResponse", () => {
         const response = await invokeCmd(
             node,
             Invoke.WildcardCommandRequest({
-                cluster: OnOffCluster,
+                cluster: OnOff,
                 command: "on",
             }),
         );
@@ -74,7 +74,7 @@ describe("CommandInvokeResponse", () => {
             suppressResponse: true,
             invokeRequests: [
                 Invoke.Command({
-                    cluster: OnOffCluster,
+                    cluster: OnOff,
                     command: "on",
                 }),
             ],
@@ -89,7 +89,7 @@ describe("CommandInvokeResponse", () => {
         const response = await invokeCmd(
             node,
             Invoke.WildcardCommandRequest({
-                cluster: OnOffCluster,
+                cluster: OnOff,
                 command: "on",
             }),
         );
@@ -104,7 +104,7 @@ describe("CommandInvokeResponse", () => {
             node,
             Invoke.ConcreteCommandRequest({
                 endpoint: node,
-                cluster: OnOffCluster,
+                cluster: OnOff,
                 command: "on",
             }),
         );

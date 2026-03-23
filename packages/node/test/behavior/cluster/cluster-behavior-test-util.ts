@@ -7,6 +7,7 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { MaybePromise } from "@matter/general";
 import { AttributeElement, ClusterModel, CommandElement, EventElement, FieldElement } from "@matter/model";
+import type { ClusterTyping } from "@matter/types";
 import {
     Attribute,
     BitFlag,
@@ -161,20 +162,58 @@ interface MyClusterAwesomeInterface {
     becomeAwesome(request: number): MaybePromise;
 }
 
-interface MyClusterInterface {
-    components: [
-        {
-            flags: {};
-            methods: MyClusterBaseInterface;
-        },
-
-        {
-            flags: { awesome: true };
-            methods: MyClusterAwesomeInterface;
-        },
-    ];
+export interface MyClusterTyping extends ClusterTyping {
+    Attributes: {
+        reqAttr: string;
+        optAttr: boolean;
+        condAttr: number;
+        condOptAttr1: number;
+        condOptAttr2: number;
+        optList: Uint8Array[];
+        awesomeSauce: number;
+        Components: [
+            {
+                flags: {};
+                mandatory: "reqAttr";
+                optional: "optAttr" | "condAttr" | "condOptAttr1" | "condOptAttr2" | "optList";
+            },
+            {
+                flags: { awesome: true };
+                mandatory: "awesomeSauce";
+            },
+        ];
+    };
+    Commands: {
+        Components: [
+            {
+                flags: {};
+                methods: MyClusterBaseInterface;
+            },
+            {
+                flags: { awesome: true };
+                methods: MyClusterAwesomeInterface;
+            },
+        ];
+    };
+    Events: {
+        reqEv: string;
+        optEv: string;
+        becameAwesome: number;
+        Components: [
+            {
+                flags: {};
+                mandatory: "reqEv";
+                optional: "optEv";
+            },
+            {
+                flags: { awesome: true };
+                mandatory: "becameAwesome";
+            },
+        ];
+    };
+    Features: "Awesome";
 }
 
-export const BaseBehavior = ClusterBehavior.withInterface<MyClusterInterface>().for(MyCluster, MySchema);
+export const BaseBehavior = ClusterBehavior.withInterface<MyClusterTyping>().for(MyCluster, MySchema);
 
 export class MyBehavior extends BaseBehavior {}
