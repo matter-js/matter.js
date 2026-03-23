@@ -33,6 +33,10 @@ describe("PeerConnection kick redesign", () => {
             expect(PeerTimingParameters.defaults.kickRestartCooldown.connect).equals(Minutes(10));
         });
 
+        it("has correct default for kickMinRetransmissions", () => {
+            expect(PeerTimingParameters.defaults.kickMinRetransmissions).equals(2);
+        });
+
         it("allows overriding kick restart cooldowns", () => {
             const custom = PeerTimingParameters({
                 kickRestartCooldown: {
