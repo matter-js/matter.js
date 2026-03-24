@@ -8,6 +8,7 @@ import {
     AttributeElement,
     AttributeModel,
     ClusterModel,
+    CommandModel,
     DatatypeModel,
     FieldModel,
     Matter,
@@ -292,6 +293,41 @@ describe("Model", () => {
             expect(Fixtures.cluster2Attr1.effectiveType).equal("byteAttr");
         });
     });
+
+    describe("resolve", () => {
+        it("resolves single segment", () => {
+            expect(Fixtures.cluster1.resolve("structAttr2")).equals(Fixtures.cluster1StructAttr);
+        });
+
+        it("resolves qualified path through nested fields", () => {
+            expect(Fixtures.cluster1.resolve("structAttr1.structField")).equals(Fixtures.cluster1StructField1);
+        });
+
+        it("stops at scope boundary", () => {
+            // Cluster1 is a sibling cluster, not reachable within the cluster boundary
+            const cluster2 = Fixtures.matter.clusters("Cluster2");
+            expect(cluster2?.resolve("Cluster1.structAttr2")).undefined;
+        });
+
+        it("falls back to outerResolve", () => {
+            // outerResolve provides a synthetic scope not in cluster1's natural hierarchy
+            const outerResolve = (path: string[]) => {
+                if (path[0] === "outerCommand") {
+                    return Fixtures.outerCommand.member(path[1]);
+                }
+            };
+            const result = Fixtures.cluster1.resolve("outerCommand.outerField", { outerResolve });
+            expect(result).equals(Fixtures.outerField);
+        });
+
+        it("returns undefined for unknown name", () => {
+            expect(Fixtures.cluster1.resolve("nonExistent")).undefined;
+        });
+
+        it("returns undefined for unknown qualified path", () => {
+            expect(Fixtures.cluster1.resolve("structAttr1.nonExistent")).undefined;
+        });
+    });
 });
 
 namespace Fixtures {
@@ -369,6 +405,13 @@ namespace Fixtures {
     });
 
     export const enumValue2 = new FieldModel({ name: "Value2" });
+
+    export const outerField = new FieldModel({ name: "outerField", type: "uint8" });
+    export const outerCommand = new CommandModel({
+        id: 1,
+        name: "outerCommand",
+        children: [outerField],
+    });
 
     export const matter = new MatterModel({
         name: "Fake Matter",
