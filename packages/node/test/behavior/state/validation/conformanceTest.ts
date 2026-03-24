@@ -642,6 +642,43 @@ const AllTests = Tests({
                 },
             },
         ),
+
+        "qualified field reference": Tests(
+            Fields(
+                {
+                    name: "Opts",
+                    type: "struct",
+                    children: [
+                        FieldElement({ name: "Enable", id: 0, type: "uint8" }),
+                        FieldElement({ name: "Mode", id: 1, type: "uint8" }),
+                    ],
+                },
+                { name: "Dependent", type: "uint8", conformance: "Opts.Enable" },
+            ),
+            {
+                "allows if qualified ref is present": {
+                    record: { opts: { enable: 1 }, dependent: 42 },
+                },
+
+                "requires if qualified ref is present": {
+                    record: { opts: { enable: 1 } },
+                    error: missing("Opts.Enable", "dependent"),
+                },
+
+                "disallows if qualified ref is absent": {
+                    record: { opts: { mode: 1 }, dependent: 42 },
+                    error: disallowed("Opts.Enable", "dependent"),
+                },
+
+                "allows omission if qualified ref is absent": {
+                    record: { opts: { mode: 1 } },
+                },
+
+                "allows omission if parent is absent": {
+                    record: {},
+                },
+            },
+        ),
     }),
 });
 

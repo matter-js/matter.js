@@ -217,6 +217,9 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             case Conformance.Flag.Mandatory:
                 return createMandatory();
 
+            case Conformance.Operator.DOT:
+                return createDotAccess(ast.param);
+
             case Conformance.Operator.AND:
             case Conformance.Operator.OR:
             case Conformance.Operator.XOR:
@@ -370,6 +373,50 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
         // Name references another value.  This results in a value node but must be evaluated at runtime against a
         // specific struct
         return createNameReference(param);
+    }
+
+    /**
+     * A DOT node represents a qualified field access like `Opts.Enable`.  Compile the LHS to get the parent value, then
+     * access the RHS property name on it.
+     */
+    function createDotAccess({ lhs, rhs }: Conformance.Ast.BinaryOperands): DynamicNode {
+        const compiledLhs = compile(lhs);
+
+        // RHS must be a name node
+        if (rhs.type !== Conformance.Special.Name) {
+            throw new SchemaImplementationError(
+                new DataModelPath(schema.path),
+                `DOT operator RHS must be a name, got ${rhs.type}`,
+            );
+        }
+        const propertyName = camelize(rhs.param);
+
+        // If LHS is static (e.g. undefined from unresolved name), the dot access is also static
+        if (compiledLhs.code === Code.Value) {
+            const lhsVal = compiledLhs.value;
+            if (lhsVal === undefined || lhsVal === null) {
+                return { code: Code.Value, value: undefined };
+            }
+            return { code: Code.Value, value: (lhsVal as Val.Struct)[propertyName] };
+        }
+
+        // LHS requires runtime evaluation — chain the property access
+        if (compiledLhs.code === Code.Evaluate) {
+            const { evaluate } = compiledLhs;
+            return {
+                code: Code.Evaluate,
+                evaluate: (value, options) => {
+                    const lhsResult = evaluate(value, options);
+                    if (lhsResult.code !== Code.Value || lhsResult.value === undefined || lhsResult.value === null) {
+                        return { code: Code.Value, value: undefined };
+                    }
+                    return { code: Code.Value, value: (lhsResult.value as Val.Struct)[propertyName] };
+                },
+            };
+        }
+
+        // Conformant/nonconformant/etc. — dot access doesn't apply
+        return { code: Code.Value, value: undefined };
     }
 
     /**
