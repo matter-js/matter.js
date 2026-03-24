@@ -331,12 +331,8 @@ export class ClientInteraction<
     /**
      * Invoke a single batch of commands (internal implementation).
      */
-    async *#invokeSingle(
-        request: ClientInvoke,
-        session?: SessionT,
-        transportPreference?: ChannelType,
-    ): DecodedInvokeResult {
-        await using context = await this.#begin("invoking", request, session, undefined, transportPreference);
+    async *#invokeSingle(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        await using context = await this.#begin("invoking", request, session);
         const { abort, messenger } = context;
 
         if (request.timedRequest) {
@@ -507,8 +503,8 @@ export class ClientInteraction<
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
         // Large Message Quality commands must not be batched and require TCP
-        if (request.requiresTcp) {
-            yield* this.#invokeSingle(request, session, ChannelType.TCP);
+        if (request.largeMessage) {
+            yield* this.#invokeSingle(request, session);
             return;
         }
 
@@ -950,7 +946,6 @@ export class ClientInteraction<
         request: ClientRead | ClientWrite | ClientInvoke | ClientSubscribe,
         session: InteractionSession | undefined,
         extraAbort?: AbortSignal,
-        transportPreference?: ChannelType,
     ) {
         using lifetime = this.#lifetime.join(what);
 
@@ -962,6 +957,9 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
+        // Large Message Quality commands require TCP transport
+        const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
+
         let messenger: InteractionClientMessenger;
         try {
             messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
@@ -969,7 +967,7 @@ export class ClientInteraction<
                 abort,
                 connectionTimeout: session?.connectionTimeout,
                 addressOverride: request.addressOverride,
-                transportPreference,
+                requiredTransport,
             });
         } catch (e) {
             abort[Symbol.dispose]();

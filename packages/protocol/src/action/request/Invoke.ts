@@ -51,8 +51,11 @@ export interface CommandDecodeDetails {
 export interface ClientInvoke extends Invoke, ClientRequest {
     commands: Map<number | undefined, Invoke.CommandRequest<any>>;
 
-    /** When true, this invoke requires TCP transport (Large Message Quality). */
-    requiresTcp?: boolean;
+    /**
+     * When true, the command has Large Message Quality — it may exceed the IPv6 MTU and
+     * requires TCP transport. Such commands are excluded from auto-batching.
+     */
+    largeMessage?: boolean;
 }
 
 /**

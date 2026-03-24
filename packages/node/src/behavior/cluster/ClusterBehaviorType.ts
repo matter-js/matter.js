@@ -9,6 +9,7 @@ import { AsyncObservable, camelize, EventEmitter, GeneratedClass, Implementation
 import {
     ClassSemantics,
     ClusterModel,
+    CommandModel,
     DecodedBitmap,
     DefaultValue,
     ElementTag,
@@ -168,7 +169,7 @@ export namespace ClusterBehaviorType {
     }
 
     export interface CommandFactory {
-        (name: string): (this: ClusterBehavior, fields?: {}) => unknown;
+        (name: string, commandModel?: CommandModel): (this: ClusterBehavior, fields?: {}) => unknown;
     }
 }
 
@@ -450,9 +451,9 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
     // We add functions for all commands, not just those that are conformant.  This ensures that the interface is
     // compatible with the "client" clusters.  Commands that are nonconformant will not appear in the type and if
     // somehow invoked will result in an "unimplemented" error
-    const names = new Set(
-        scope.membersOf(scope.owner, { tags: [ElementTag.Command] }).map(command => command.propertyName),
-    );
+    const commandModels = scope.membersOf(scope.owner, { tags: [ElementTag.Command] });
+    const names = new Set(commandModels.map(command => command.propertyName));
+    const commandsByName = new Map(commandModels.map(cmd => [cmd.propertyName, cmd as CommandModel]));
 
     const conformantNames = new Set(
         scope
@@ -475,7 +476,7 @@ function createDefaultCommandDescriptors({ scope, base, commandFactory }: Deriva
                 continue;
             }
 
-            implementation = commandFactory(name);
+            implementation = commandFactory(name, commandsByName.get(name));
 
             (implementation as MarkedCommand)[sourceFactory] = commandFactory;
         } else {

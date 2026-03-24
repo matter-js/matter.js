@@ -35,6 +35,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
         return this.#peer.address;
     }
 
+    /**
+     * The transport type of the current session. Returns the actual transport (TCP/UDP) of the
+     * newest active session, or UDP as default when no session is active.
+     */
     get channelType() {
         const session = this.#peer.newestSession;
         if (session && !session.isClosed) {
@@ -48,7 +52,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
             abort: options?.abort,
             network: options?.network,
             connectionTimeout: options?.connectionTimeout,
-            transportConstraint: options?.transportPreference,
+            transportConstraint: options?.requiredTransport,
         });
     }
 
@@ -62,7 +66,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                 // Probes skip connect because they verify liveness of the current session — calling
                 // connect would establish a new session if the current one is broken, defeating the
                 // purpose of a lightweight reachability check.
-                await this.#peer.connect(options);
+                await this.connect(options);
                 abort?.throwIfAborted();
             }
 
@@ -78,16 +82,16 @@ export class PeerExchangeProvider extends ExchangeProvider {
                         this.#peer.address,
                         this.#context.exchanges,
                     );
-                } else if (options?.transportPreference === ChannelType.TCP) {
-                    // Prefer a TCP session when Large Message Quality is requested
-                    session =
-                        [...this.#peer.sessions].find(
-                            s =>
-                                !s.isClosing &&
-                                !s.isPeerLost &&
-                                !s.isClosed &&
-                                s.channel.channel.type === ChannelType.TCP,
-                        ) ?? this.#peer.newestSession;
+                } else if (options?.requiredTransport === ChannelType.TCP) {
+                    // When TCP is required (e.g. Large Message Quality), only use a TCP session.
+                    // Do not fall back to UDP — the caller needs TCP or nothing.
+                    session = [...this.#peer.sessions].find(
+                        s =>
+                            !s.isClosing &&
+                            !s.isPeerLost &&
+                            !s.isClosed &&
+                            s.channel.channel.type === ChannelType.TCP,
+                    );
                 } else {
                     session = this.#peer.newestSession;
                 }

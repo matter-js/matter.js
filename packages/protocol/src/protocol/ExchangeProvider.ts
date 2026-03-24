@@ -44,8 +44,8 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
      */
     requireExistingSession?: boolean;
 
-    /** Preferred transport type for this exchange. */
-    transportPreference?: ChannelType;
+    /** Required transport type for this exchange. If set, only sessions of this transport type are used. */
+    requiredTransport?: ChannelType;
 }
 
 /**
