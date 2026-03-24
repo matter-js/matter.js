@@ -7,8 +7,10 @@
 import { ChannelType } from "#net/Channel.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NetworkError, NetworkInterface, NetworkInterfaceDetails } from "../Network.js";
+import type { TcpServerOptions, TcpServerSocket, TcpSocket } from "../tcp/TcpSocket.js";
 import { UdpChannelOptions } from "../udp/UdpChannel.js";
 import { MockRouter } from "./MockRouter.js";
+import { MockTcpServer } from "./MockTcpServer.js";
 import { MockUdpChannel } from "./MockUdpChannel.js";
 import type { NetworkSimulator } from "./NetworkSimulator.js";
 
@@ -19,6 +21,7 @@ export class MockNetwork extends Network {
     #defaultRoute?: string;
     readonly #ips: Set<string>;
     readonly #multicastIps = new Set<string>();
+    readonly #tcpServers = new Map<number, MockTcpServer>();
 
     constructor(simulator: NetworkSimulator, mac: string, ips: string[]) {
         super();
@@ -104,8 +107,36 @@ export class MockNetwork extends Network {
         return Promise.resolve(new MockUdpChannel(this, options));
     }
 
+    override createTcpServer(options: TcpServerOptions): Promise<TcpServerSocket> {
+        return Promise.resolve(new MockTcpServer(this, options));
+    }
+
+    override async connectTcp(host: string, port: number): Promise<TcpSocket> {
+        // Find the MockNetwork that owns the target address
+        const targetNetwork = this.#simulator.findNetwork(host);
+        if (!targetNetwork) {
+            throw new NetworkError(`No mock network hosts address ${host}`);
+        }
+
+        const server = targetNetwork.#tcpServers.get(port);
+        if (!server) {
+            throw new NetworkError(`No TCP server listening on ${host}:${port}`);
+        }
+
+        const clientPort = 1024 + Math.floor(Math.random() * 64511);
+        return server.accept(this.defaultRoute, clientPort);
+    }
+
+    registerTcpServer(server: MockTcpServer) {
+        this.#tcpServers.set(server.port, server);
+    }
+
+    unregisterTcpServer(port: number) {
+        this.#tcpServers.delete(port);
+    }
+
     supports(type: ChannelType, _address: string) {
-        return type === ChannelType.UDP;
+        return type === ChannelType.UDP || type === ChannelType.TCP;
     }
 
     override async close() {
