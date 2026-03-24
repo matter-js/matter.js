@@ -94,6 +94,7 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
+    const useTcp = options?.transportConstraint === ChannelType.TCP;
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -234,9 +235,21 @@ export async function PeerConnection(
     }
 
     /**
+     * When TCP transport is required, convert an IP address to TCP type.
+     * DNS-SD discovers UDP addresses but TCP uses the same IP:port.
+     */
+    function applyTransportConstraint(address: ServerAddressIp): ServerAddressIp {
+        if (useTcp && address.type !== "tcp") {
+            return { ...address, type: "tcp" };
+        }
+        return address;
+    }
+
+    /**
      * Enqueue an address if not already attempting.
      */
     function addAddress(address: ServerAddressIp) {
+        address = applyTransportConstraint(address);
         address = addresses.add(address);
 
         // Skip if we're already attempting connection to this address
@@ -262,7 +275,8 @@ export async function PeerConnection(
             return;
         }
 
-        attemptingFallback = peer.descriptor.operationalAddress;
+        const fallback = peer.descriptor.operationalAddress;
+        attemptingFallback = fallback ? applyTransportConstraint(fallback) : undefined;
         if (attemptingFallback) {
             pendingAddresses.add(attemptingFallback);
         }

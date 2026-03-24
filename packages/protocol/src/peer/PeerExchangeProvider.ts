@@ -48,11 +48,14 @@ export class PeerExchangeProvider extends ExchangeProvider {
     }
 
     override async connect(options?: NewExchangeOptions): Promise<void> {
+        // Use explicit requirement, or fall back to the peer's transport preference
+        const transportConstraint = options?.requiredTransport ?? this.#peer.transportPreference;
+
         await this.#peer.connect({
             abort: options?.abort,
             network: options?.network,
             connectionTimeout: options?.connectionTimeout,
-            transportConstraint: options?.requiredTransport,
+            transportConstraint,
         });
     }
 
@@ -82,9 +85,10 @@ export class PeerExchangeProvider extends ExchangeProvider {
                         this.#peer.address,
                         this.#context.exchanges,
                     );
-                } else if (options?.requiredTransport === ChannelType.TCP) {
-                    // When TCP is required (e.g. Large Message Quality), only use a TCP session.
-                    // Do not fall back to UDP — the caller needs TCP or nothing.
+                } else if ((options?.requiredTransport ?? this.#peer.transportPreference) === ChannelType.TCP) {
+                    // When TCP is required or preferred, select a TCP session.
+                    // For requiredTransport: no fallback — the caller needs TCP or nothing.
+                    // For preference: also no fallback here — connect() should have established TCP.
                     session = [...this.#peer.sessions].find(
                         s =>
                             !s.isClosing &&

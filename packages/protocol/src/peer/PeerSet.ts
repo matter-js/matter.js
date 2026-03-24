@@ -247,14 +247,20 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     async #openSocket(address: ServerAddressIp, abort: AbortSignal) {
-        const isIpv6Address = isIPv6(address.ip);
-        const operationalInterface = this.#peerContext.exchanges.interfaceFor(
-            ChannelType.UDP,
-            isIpv6Address ? "::" : "0.0.0.0",
-        );
+        const channelType = address.type === "tcp" ? ChannelType.TCP : ChannelType.UDP;
+
+        let lookupAddress: string | undefined;
+        if (channelType === ChannelType.UDP) {
+            // UDP transports are bound to specific interfaces (IPv4/IPv6)
+            lookupAddress = isIPv6(address.ip) ? "::" : "0.0.0.0";
+        }
+
+        const operationalInterface = this.#peerContext.exchanges.interfaceFor(channelType, lookupAddress);
 
         if (operationalInterface === undefined) {
-            throw new NetworkUnreachableError(`No interface available for IP address ${address.ip}`);
+            throw new NetworkUnreachableError(
+                `No ${address.type.toUpperCase()} interface available for address ${address.ip}`,
+            );
         }
 
         return await Abort.race(abort, operationalInterface.openChannel(address));

@@ -63,6 +63,12 @@ export class Peer {
     #protocol?: NodeProtocol;
     #physicalProperties?: PhysicalDeviceProperties;
     #abort = new Abort();
+
+    /**
+     * Preferred transport for outgoing connections to this peer. When set, influences whether
+     * TCP or UDP is preferred for new sessions. Set by the node layer from NetworkClient/NetworkServer config.
+     */
+    transportPreference?: ChannelType;
     #connecting?: ConnectionProcess;
     #service: IpService;
     #observers = new ObserverGroup();

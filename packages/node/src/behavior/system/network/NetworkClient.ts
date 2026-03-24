@@ -9,7 +9,7 @@ import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
+import { ChannelType, Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
@@ -53,6 +53,14 @@ export class NetworkClient extends NetworkBehavior {
             if (peer) {
                 peer.protocol = this.#node.protocol;
                 peer.physicalProperties = ClientNodePhysicalProperties(this.#node);
+
+                // Set transport preference: per-peer override from NetworkClient, or inherit
+                // from NetworkServer default. Maps "tcp"/"udp" string to ChannelType.
+                const pref = this.state.transportPreference
+                    ?? (this.#node.state as any).network?.transportPreference;
+                if (pref === "tcp") {
+                    peer.transportPreference = ChannelType.TCP;
+                }
             }
         }
 
