@@ -10,6 +10,12 @@ import { Transport } from "#net/Transport.js";
 /** Maximum Matter message size over TCP, excluding the 4-byte framing field. */
 export const DEFAULT_MAX_TCP_MESSAGE_SIZE = 64_000;
 
+/** Time to wait for a TCP connection to be established before giving up. */
+export const TCP_CONNECTION_TIMEOUT_MS = 10_000;
+
+/** Keep-alive initial delay for TCP connections — idle time before first keep-alive probe. */
+export const TCP_KEEP_ALIVE_INITIAL_DELAY_MS = 30_000;
+
 /** Options for creating a TCP server. */
 export interface TcpServerOptions {
     /**

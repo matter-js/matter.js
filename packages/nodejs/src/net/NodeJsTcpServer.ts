@@ -4,14 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, NetworkError, TcpServerOptions, TcpServerSocket, TcpSocket, Transport } from "@matter/general";
+import { Logger, NetworkError, TCP_KEEP_ALIVE_INITIAL_DELAY_MS, TcpServerOptions, TcpServerSocket, TcpSocket, Transport } from "@matter/general";
 import { createServer, type Server, type Socket } from "node:net";
 import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
 
 const logger = Logger.get("NodeJsTcpServer");
-
-/** Keep-alive initial delay for accepted connections. */
-const TCP_KEEP_ALIVE_INITIAL_DELAY_MS = 30_000;
 
 function serverPort(server: Server): number {
     const addr = server.address();

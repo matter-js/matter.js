@@ -15,6 +15,7 @@ import {
     NetworkInterface,
     NetworkInterfaceDetails,
     onSameNetwork,
+    TCP_CONNECTION_TIMEOUT_MS,
     TcpServerOptions,
     TcpServerSocket,
     TcpSocket,
@@ -28,9 +29,6 @@ import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
 import { NodeJsUdpChannel } from "./NodeJsUdpChannel.js";
 
 const logger = Logger.get("NetworkNode");
-
-/** Time to wait for a TCP connection to be established before giving up. */
-const TCP_CONNECTION_TIMEOUT_MS = 10_000;
 
 export class NodeJsNetwork extends Network {
     static getMulticastInterfaceIpv4(netInterface: string): string | undefined {

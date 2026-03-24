@@ -4,11 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, NetworkError, TcpSocket, Transport } from "@matter/general";
+import { Bytes, NetworkError, TCP_KEEP_ALIVE_INITIAL_DELAY_MS, TcpSocket, Transport } from "@matter/general";
 import type { Socket } from "node:net";
-
-/** Keep-alive initial delay for TCP connections. */
-const TCP_KEEP_ALIVE_INITIAL_DELAY_MS = 30_000;
 
 /**
  * Node.js implementation of the {@link TcpSocket} interface.
