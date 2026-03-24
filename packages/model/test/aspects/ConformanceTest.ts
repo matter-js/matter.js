@@ -40,6 +40,10 @@ const TEST_DEFINITIONS = [
 
     // Dot-field references (qualified field references)
     "SolicitOffer.VideoStreamID",
+    "Foo.Bar.Baz",
+    "[Foo.Bar]",
+    "Foo.Bar & FEAT",
+    "foo.barBaz",
 
     // Revision conformance (spec 1.5.1+)
     "Rev >= v3",
