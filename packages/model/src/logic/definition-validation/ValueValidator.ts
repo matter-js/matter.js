@@ -8,7 +8,8 @@ import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
-import { ClusterModel, Globals, Model, ValueModel } from "../../models/index.js";
+import { CommandElement } from "../../elements/index.js";
+import { ClusterModel, CommandModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -59,11 +60,32 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
     }
 
     /**
-     * Options for {@link Model.resolve} during reference validation.  Subclasses may override to provide
-     * outerResolve for cross-scope references.
+     * Options for {@link Model.resolve} during reference validation.
+     *
+     * Provides an {@link Model.ResolveOptions.outerResolve} that extends resolution beyond the normal scope boundary.
+     * Currently this enables response command fields to reference request command fields via qualified names (e.g.,
+     * "Foo.Bar" referencing field Bar in request command Foo).
      */
     protected resolveOptions(): Model.ResolveOptions | undefined {
-        return undefined;
+        return {
+            outerResolve: (path: string[], boundaryScope: Model | undefined) => {
+                const command = this.model.owner(CommandModel);
+                if (command?.direction !== CommandElement.Direction.Response) {
+                    return undefined;
+                }
+
+                const cluster = boundaryScope instanceof ClusterModel ? boundaryScope : undefined;
+                const request = cluster?.commands.find(c => c.effectiveResponse === command.name);
+                if (!request || camelize(path[0]) !== camelize(request.name)) {
+                    return undefined;
+                }
+
+                if (path.length < 2) {
+                    return request;
+                }
+                return request.resolve(path.slice(1));
+            },
+        };
     }
 
     #validateAspect(name: string) {

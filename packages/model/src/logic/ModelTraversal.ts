@@ -596,8 +596,8 @@ export class ModelTraversal {
      * are exhausted, {@link options.outerResolve} is called as a fallback.
      *
      * {@link options.outerResolve}, if provided, is the outermost fallback resolver — called after all natural scopes
-     * (within the boundary) are exhausted.  It receives the full path and should return the resolved model or
-     * undefined.
+     * (within the boundary) are exhausted.  It receives the full path and the boundary scope (the last scope searched
+     * before the walk stopped).
      */
     findQualified(
         scope: Model | undefined,
@@ -605,7 +605,7 @@ export class ModelTraversal {
         match: (name: string, parent: Model, isLeaf: boolean) => Model | undefined,
         options?: {
             boundary?: (scope: Model) => boolean;
-            outerResolve?: (path: string[]) => Model | undefined;
+            outerResolve?: (path: string[], boundaryScope: Model | undefined) => Model | undefined;
         },
     ): Model | undefined {
         if (!scope) {
@@ -644,12 +644,12 @@ export class ModelTraversal {
         const outerResolve = options?.outerResolve;
 
         return this.operation(() => {
-            let bounded = false;
+            let boundaryScope: Model | undefined;
             const queue = Array<Model>(scope as Model);
 
             for (scope = queue.shift(); scope; scope = queue.shift()) {
-                if (boundary?.(scope)) {
-                    bounded = true;
+                if (!boundaryScope && boundary?.(scope)) {
+                    boundaryScope = scope;
                 }
 
                 // First attempt to resolve in the current scope
@@ -665,7 +665,7 @@ export class ModelTraversal {
                 }
 
                 // Search parent scope once all inherited scope is searched (unless we hit the boundary)
-                if (!bounded) {
+                if (!boundaryScope) {
                     const parent = this.findParent(scope);
                     if (parent) {
                         queue.push(parent);
@@ -675,7 +675,7 @@ export class ModelTraversal {
 
             // outerResolve is the outermost fallback, called after all scopes within the boundary
             if (outerResolve) {
-                return outerResolve(path);
+                return outerResolve(path, boundaryScope);
             }
         });
     }

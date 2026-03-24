@@ -7,6 +7,7 @@
 import { Conformance } from "#aspects/Conformance.js";
 import {
     ClusterElement,
+    CommandElement,
     ConditionElement,
     DatatypeElement,
     DeviceTypeElement,
@@ -298,6 +299,56 @@ describe("Conformance", () => {
 
         it("reports unresolved qualified reference", () => {
             const badErrors = validate().filter(e => e.source?.endsWith(".BadRef"));
+            expect(badErrors.length).equal(1);
+        });
+    });
+
+    describe("command response outer scope", () => {
+        // Request command "Foo" with field "Bar", response "FooResponse" with field conformance "Foo.Bar"
+        const cluster = ClusterElement({
+            name: "OuterScopeCluster",
+            id: 0xfffc,
+            children: [
+                CommandElement({
+                    name: "Foo",
+                    id: 0,
+                    direction: CommandElement.Direction.Request,
+                    response: "FooResponse",
+                    children: [
+                        FieldElement({ name: "Bar", id: 0, type: "uint8" }),
+                        FieldElement({ name: "Baz", id: 1, type: "uint8" }),
+                    ],
+                }),
+                CommandElement({
+                    name: "FooResponse",
+                    id: 1,
+                    direction: CommandElement.Direction.Response,
+                    children: [
+                        FieldElement({ name: "ValidRef", id: 0, type: "uint8", conformance: "Foo.Bar" }),
+                        FieldElement({ name: "InvalidRef", id: 1, type: "uint8", conformance: "Foo.NonExistent" }),
+                    ],
+                }),
+            ],
+        });
+
+        const matter = new MatterModel({ name: "OuterScopeMatter", children: [cluster] });
+
+        let errors: ValidateModel.Result["errors"] | undefined;
+
+        function validate() {
+            if (!errors) {
+                errors = ValidateModel(matter).errors.filter(e => e.code?.includes("UNRESOLVED_CONFORMANCE"));
+            }
+            return errors;
+        }
+
+        it("resolves response field reference to request command field", () => {
+            const refErrors = validate().filter(e => e.source?.endsWith(".validRef"));
+            expect(refErrors).deep.equal([]);
+        });
+
+        it("reports unresolved response field reference", () => {
+            const badErrors = validate().filter(e => e.source?.endsWith(".invalidRef"));
             expect(badErrors.length).equal(1);
         });
     });

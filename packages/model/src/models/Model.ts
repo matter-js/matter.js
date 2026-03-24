@@ -848,9 +848,9 @@ export namespace Model {
 
         /**
          * Outermost fallback resolver, called after all scopes within the boundary are exhausted.  Receives
-         * the full path segments and should return the resolved model or undefined.
+         * the full path segments and the boundary scope (the last scope searched before the walk stopped).
          */
-        outerResolve?: (path: string[]) => Model | undefined;
+        outerResolve?: (path: string[], boundaryScope: Model | undefined) => Model | undefined;
     }
 
     export type LookupPredicate<T extends Model> = Type<T> | { type: Type<T>; test: (model: Model) => boolean };
