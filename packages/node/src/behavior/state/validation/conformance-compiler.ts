@@ -7,7 +7,15 @@
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { camelize } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Conformance, DataModelPath, FeatureSet, FieldValue, Metatype, ValueModel } from "@matter/model";
+import {
+    ClusterModel,
+    Conformance,
+    DataModelPath,
+    FeatureSet,
+    FieldValue,
+    Metatype,
+    ValueModel,
+} from "@matter/model";
 import {
     AccessControl,
     ConformanceError,
@@ -605,7 +613,11 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             // completeness
             if (lhs.type === Conformance.Special.Name) {
                 const name = camelize(lhs.param, false);
-                const field = supervisor.membersOf(schema).find(model => model.propertyName === name);
+                const siblingScope =
+                    schema.parent instanceof ValueModel || schema.parent instanceof ClusterModel
+                        ? schema.parent
+                        : undefined;
+                const field = siblingScope && supervisor.membersOf(siblingScope).find(model => model.propertyName === name);
                 if (field?.effectiveMetatype === Metatype.enum) {
                     let enumValues: undefined | Record<string, number | undefined>;
                     createNameReference = (name: string) => {

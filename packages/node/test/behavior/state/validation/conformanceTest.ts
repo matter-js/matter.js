@@ -543,6 +543,40 @@ const AllTests = Tests({
             },
         ),
 
+        "enum equality": Tests(
+            Fields(
+                {
+                    name: "Status",
+                    type: "enum8",
+                    children: [FieldElement({ id: 0, name: "Idle" }), FieldElement({ id: 1, name: "UpdateAvailable" })],
+                },
+                {
+                    name: "ImageUri",
+                    type: "string",
+                    conformance: "Status == UpdateAvailable",
+                },
+            ),
+            {
+                "allows if enum matches": {
+                    record: { status: 1, imageUri: "https://example.com" },
+                },
+
+                "requires if enum matches": {
+                    record: { status: 1 },
+                    error: missing("Status == UpdateAvailable", "imageUri"),
+                },
+
+                "disallows if enum does not match": {
+                    record: { status: 0, imageUri: "https://example.com" },
+                    error: disallowed("Status == UpdateAvailable", "imageUri"),
+                },
+
+                "allows omission if enum does not match": {
+                    record: { status: 0 },
+                },
+            },
+        ),
+
         "optional field dependency": Tests(
             Fields(
                 {
