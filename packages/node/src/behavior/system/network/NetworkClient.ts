@@ -203,6 +203,13 @@ export class NetworkClient extends NetworkBehavior {
                 quality: "N",
                 default: EventNumber(0),
             }),
+
+            FieldElement({
+                name: "transportPreference",
+                type: "string",
+                conformance: "O",
+                quality: "N",
+            }),
         ],
     });
 }
@@ -261,6 +268,12 @@ export namespace NetworkClient {
          * The highest event number seen from this node for the default read/subscription.
          */
         maxEventNumber = EventNumber(0);
+
+        /**
+         * Per-peer transport preference override. If set by the user, persisted.
+         * If not set, inherits from NetworkServer.transportPreference.
+         */
+        transportPreference?: "tcp" | "udp";
     }
 
     export class Events extends NetworkBehavior.Events {

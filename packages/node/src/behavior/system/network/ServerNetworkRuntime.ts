@@ -9,6 +9,7 @@ import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     Transport,
     TransportSet,
+    TcpTransport,
     Crypto,
     InterfaceType,
     Logger,
@@ -38,6 +39,7 @@ import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
+import { NetworkServer } from "./NetworkServer.js";
 import { ServerGroupNetworking } from "./ServerGroupNetworking.js";
 
 const logger = Logger.get("ServerNetworkRuntime");
@@ -58,6 +60,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     #mdnsAdvertiser?: MdnsAdvertiser;
     #bleAdvertiser?: BleAdvertiser;
     #bleTransport?: Transport;
+    #tcpTransport?: TcpTransport;
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
@@ -179,6 +182,19 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         if (netconf.ble) {
             interfaces.add(this.bleTransport);
+        }
+
+        const tcpConfig = NetworkServer.resolveTcpConfig(netconf.tcp);
+        if (tcpConfig.incoming || tcpConfig.outgoing) {
+            const operationalPort = this.owner.state.network.operationalPort;
+            this.#tcpTransport = await TcpTransport.create({
+                network: this.owner.env.get(Network),
+                listeningPort: tcpConfig.incoming ? operationalPort : undefined,
+            });
+            interfaces.add(this.#tcpTransport);
+            logger.info(
+                `TCP transport enabled (incoming=${tcpConfig.incoming}, outgoing=${tcpConfig.outgoing})`,
+            );
         }
     }
 
