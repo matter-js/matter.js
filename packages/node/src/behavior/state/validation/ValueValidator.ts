@@ -267,6 +267,7 @@ function createStructValidator(schema: Schema, supervisor: RootSupervisor): Valu
             path: location.path.at(""),
             siblings: struct,
             choices: {},
+            outerResolve: location.outerResolve,
         } as ValidationLocation;
 
         for (const name in validators) {

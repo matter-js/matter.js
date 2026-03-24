@@ -71,7 +71,8 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     // Name resolution scope may change as we visit the AST; the base version creates a name reference if the the name
     // is visible in scope.  Other nodes may temporarily override this though
     let createNameReference = (name: string): DynamicNode => {
-        const resolver = NameResolver(supervisor, schema.parent, camelize(name));
+        const camelized = camelize(name);
+        const resolver = NameResolver(supervisor, schema.parent, camelized);
         if (resolver) {
             return {
                 code: Code.Evaluate,
@@ -85,8 +86,17 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             };
         }
 
-        // Unresolved names are always undefined
-        return { code: Code.Value, value: undefined };
+        // Name not in schema hierarchy — fall back to outerResolve at runtime
+        return {
+            code: Code.Evaluate,
+
+            evaluate: (_value, options) => {
+                return {
+                    code: Code.Value,
+                    value: options?.outerResolve?.(camelized),
+                };
+            },
+        };
     };
 
     // Compile the AST

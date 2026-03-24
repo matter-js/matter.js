@@ -32,6 +32,12 @@ export interface ValidationLocation {
      * Path used to create fully-qualified name for diagnostic messages.
      */
     location?: string[];
+
+    /**
+     * Fallback resolver for cross-struct references.  When a name cannot be resolved in siblings or the ownership
+     * hierarchy, the validator calls this function.
+     */
+    outerResolve?: (name: string) => Val;
 }
 
 export namespace ValidationLocation {

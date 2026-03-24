@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FieldElement } from "@matter/model";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
+import { ClusterModel, DataModelPath, FeatureMap, FieldElement, FieldModel } from "@matter/model";
 import { ConformanceError, EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
 import { Features, Fields, Tests, testValidation } from "./validation-test-utils.js";
 
@@ -682,4 +684,47 @@ const AllTests = Tests({
     }),
 });
 
-testValidation("conformance", AllTests);
+describe("conformance", () => {
+    testValidation("conformance", AllTests);
+
+    describe("outerResolve", () => {
+        // Field "Dependent" has conformance "ExtValue" — ExtValue is not a sibling, but provided via outerResolve
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                FeatureMap.clone(),
+                new FieldModel({ name: "Dependent", type: "uint8", conformance: "ExtValue" }),
+            ],
+        });
+
+        const root = RootSupervisor.for(cluster);
+        const manager = root.get(cluster);
+
+        function validateWith(record: Record<string, unknown>, outerResolve?: (name: string) => unknown) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, {
+                path: new DataModelPath(cluster.path),
+                outerResolve,
+            });
+        }
+
+        it("resolves name via outerResolve when not in siblings", () => {
+            expect(() => validateWith({ dependent: 42 }, name => (name === "extValue" ? 1 : undefined))).not.throw();
+        });
+
+        it("requires field when outerResolve returns truthy", () => {
+            expect(() => validateWith({}, name => (name === "extValue" ? 1 : undefined))).throw(ConformanceError);
+        });
+
+        it("disallows field when outerResolve returns undefined", () => {
+            expect(() => validateWith({ dependent: 42 }, () => undefined)).throw(ConformanceError);
+        });
+
+        it("allows omission when outerResolve returns undefined", () => {
+            expect(() => validateWith({}, () => undefined)).not.throw();
+        });
+
+        it("allows omission without outerResolve", () => {
+            expect(() => validateWith({})).not.throw();
+        });
+    });
+});

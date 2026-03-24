@@ -34,12 +34,12 @@ export function createConstraintValidator(
             }
 
             if (name in nameResolvers) {
-                return nameResolvers[name]?.(location.siblings);
+                return nameResolvers[name]?.(location.siblings) ?? location.outerResolve?.(name);
             }
 
             const resolver = NameResolver(supervisor, schema.parent, name);
             nameResolvers[name] = resolver;
-            return resolver?.(location.siblings);
+            return resolver?.(location.siblings) ?? location.outerResolve?.(name);
         };
     };
 
