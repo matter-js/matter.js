@@ -35,11 +35,21 @@ export class PeerExchangeProvider extends ExchangeProvider {
         return this.#peer.address;
     }
 
-    // TODO - TCP support
-    readonly channelType = ChannelType.UDP;
+    get channelType() {
+        const session = this.#peer.newestSession;
+        if (session && !session.isClosed) {
+            return session.channel.channel.type;
+        }
+        return ChannelType.UDP;
+    }
 
     override async connect(options?: NewExchangeOptions): Promise<void> {
-        await this.#peer.connect(options);
+        await this.#peer.connect({
+            abort: options?.abort,
+            network: options?.network,
+            connectionTimeout: options?.connectionTimeout,
+            transportConstraint: options?.transportPreference,
+        });
     }
 
     override async initiateExchange(options?: NewExchangeOptions): Promise<MessageExchange> {
@@ -62,9 +72,25 @@ export class PeerExchangeProvider extends ExchangeProvider {
             try {
                 abort?.throwIfAborted();
 
-                const session = isGroup
-                    ? await this.#context.sessions.groupSessionForAddress(this.#peer.address, this.#context.exchanges)
-                    : this.#peer.newestSession;
+                let session;
+                if (isGroup) {
+                    session = await this.#context.sessions.groupSessionForAddress(
+                        this.#peer.address,
+                        this.#context.exchanges,
+                    );
+                } else if (options?.transportPreference === ChannelType.TCP) {
+                    // Prefer a TCP session when Large Message Quality is requested
+                    session =
+                        [...this.#peer.sessions].find(
+                            s =>
+                                !s.isClosing &&
+                                !s.isPeerLost &&
+                                !s.isClosed &&
+                                s.channel.channel.type === ChannelType.TCP,
+                        ) ?? this.#peer.newestSession;
+                } else {
+                    session = this.#peer.newestSession;
+                }
                 if (session === undefined) {
                     if (options?.requireExistingSession) {
                         // Slot will be closed when error is caught

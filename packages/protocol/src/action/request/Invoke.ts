@@ -50,6 +50,9 @@ export interface CommandDecodeDetails {
 
 export interface ClientInvoke extends Invoke, ClientRequest {
     commands: Map<number | undefined, Invoke.CommandRequest<any>>;
+
+    /** When true, this invoke requires TCP transport (Large Message Quality). */
+    requiresTcp?: boolean;
 }
 
 /**

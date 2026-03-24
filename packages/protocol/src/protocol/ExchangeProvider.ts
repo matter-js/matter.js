@@ -43,6 +43,9 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
      * The exchange creation fails if no active session is available.
      */
     requireExistingSession?: boolean;
+
+    /** Preferred transport type for this exchange. */
+    transportPreference?: ChannelType;
 }
 
 /**

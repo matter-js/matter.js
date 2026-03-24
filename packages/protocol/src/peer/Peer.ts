@@ -18,6 +18,7 @@ import {
     AsyncObservable,
     BasicMultiplex,
     BasicSet,
+    ChannelType,
     ClosedError,
     Diagnostic,
     DnssdNames,
@@ -427,6 +428,7 @@ export class Peer {
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
                 timing: options?.timing,
+                transportConstraint: options?.transportConstraint,
                 abort,
                 kicker,
             }).finally(() => {
@@ -492,6 +494,12 @@ export namespace Peer {
          * ongoing attempt.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Constrain the transport type for this connection.  When set to {@link ChannelType.TCP}, the connection
+         * will be established over TCP.  When undefined, the default transport (UDP/MRP) is used.
+         */
+        transportConstraint?: ChannelType;
     }
 }
 

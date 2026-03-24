@@ -27,6 +27,7 @@ import {
     AbortedError,
     AsyncIterator,
     BasicSet,
+    ChannelType,
     ClosedError,
     createPromise,
     Diagnostic,
@@ -330,8 +331,12 @@ export class ClientInteraction<
     /**
      * Invoke a single batch of commands (internal implementation).
      */
-    async *#invokeSingle(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
-        await using context = await this.#begin("invoking", request, session);
+    async *#invokeSingle(
+        request: ClientInvoke,
+        session?: SessionT,
+        transportPreference?: ChannelType,
+    ): DecodedInvokeResult {
+        await using context = await this.#begin("invoking", request, session, undefined, transportPreference);
         const { abort, messenger } = context;
 
         if (request.timedRequest) {
@@ -501,6 +506,12 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        // Large Message Quality commands must not be batched and require TCP
+        if (request.requiresTcp) {
+            yield* this.#invokeSingle(request, session, ChannelType.TCP);
+            return;
+        }
+
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
 
         // Single command with batching support — auto-batch
@@ -939,6 +950,7 @@ export class ClientInteraction<
         request: ClientRead | ClientWrite | ClientInvoke | ClientSubscribe,
         session: InteractionSession | undefined,
         extraAbort?: AbortSignal,
+        transportPreference?: ChannelType,
     ) {
         using lifetime = this.#lifetime.join(what);
 
@@ -957,6 +969,7 @@ export class ClientInteraction<
                 abort,
                 connectionTimeout: session?.connectionTimeout,
                 addressOverride: request.addressOverride,
+                transportPreference,
             });
         } catch (e) {
             abort[Symbol.dispose]();
