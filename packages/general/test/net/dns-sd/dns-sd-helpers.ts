@@ -12,7 +12,7 @@ import { IpService } from "#net/dns-sd/IpService.js";
 import { MdnsSocket } from "#net/dns-sd/MdnsSocket.js";
 import { MockNetwork } from "#net/mock/MockNetwork.js";
 import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
-import { ServerAddressUdp } from "#net/ServerAddress.js";
+import { ServerAddressIp } from "#net/ServerAddress.js";
 import { ServerAddressSet } from "#net/ServerAddressSet.js";
 import { Hours } from "#time/TimeUnit.js";
 import { hex } from "#util/String.js";
@@ -173,7 +173,7 @@ export class MockHost {
     }
 }
 
-export function expectAddresses(addresses?: Iterable<ServerAddressUdp>) {
+export function expectAddresses(addresses?: Iterable<ServerAddressIp>) {
     expect(addresses).not.undefined;
     addresses = ServerAddressSet(addresses);
     expect([...addresses]).deep.equals([

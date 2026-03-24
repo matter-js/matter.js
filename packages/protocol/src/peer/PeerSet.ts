@@ -27,7 +27,7 @@ import {
     ObservableSet,
     ObserverGroup,
     RetrySchedule,
-    ServerAddressUdp,
+    ServerAddressIp,
 } from "@matter/general";
 import { FabricIndex } from "@matter/types";
 import { NetworkProfiles } from "./NetworkProfile.js";
@@ -246,7 +246,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#observers.close();
     }
 
-    async #openSocket(address: ServerAddressUdp, abort: AbortSignal) {
+    async #openSocket(address: ServerAddressIp, abort: AbortSignal) {
         const isIpv6Address = isIPv6(address.ip);
         const operationalInterface = this.#peerContext.exchanges.interfaceFor(
             ChannelType.UDP,

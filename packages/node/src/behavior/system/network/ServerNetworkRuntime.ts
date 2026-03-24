@@ -281,6 +281,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         const advertiser = env.get(DeviceAdvertiser);
 
+        // Set TCP support for operational DNS-SD advertisements
+        const tcpConfig = NetworkServer.resolveTcpConfig(owner.state.network.tcp);
+        if (tcpConfig.incoming || tcpConfig.outgoing) {
+            advertiser.tcp = { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming };
+        }
+
         await this.addBroadcasters(advertiser);
 
         await owner.act("start-network", agent => agent.load(ProductDescriptionServer));

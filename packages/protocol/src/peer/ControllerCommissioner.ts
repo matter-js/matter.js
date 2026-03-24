@@ -346,6 +346,10 @@ export class ControllerCommissioner {
                 paseChannel = await Abort.attempt(signal, ble.openChannel(address));
                 break;
 
+            case "tcp":
+                // PASE always uses UDP or BLE — TCP is for operational CASE sessions only
+                throw new ImplementationError("PASE sessions cannot use TCP transport");
+
             default:
                 throw new ImplementationError(
                     `Unsupported address type ${(address as ServerAddress).type} for Matter protocol`,

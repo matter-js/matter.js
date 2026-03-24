@@ -19,6 +19,7 @@ import {
     causedBy,
     Channel,
     ChannelType,
+    ConnectionOrientedTransport,
     Transport,
     TransportSet,
     Diagnostic,
@@ -69,6 +70,7 @@ export class ExchangeManager implements Transport.Provider {
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
     readonly #listeners = new Map<Transport, Transport.Listener>();
+    readonly #disconnectListeners = new Map<Transport, Transport.Listener>();
     readonly #workers: BasicMultiplex;
     readonly #observers = new ObserverGroup(this);
     readonly #sessionObservers = new Map<Session, ObserverGroup>();
@@ -501,6 +503,19 @@ export class ExchangeManager implements Transport.Provider {
                 this.#workers.add(this.#onMessage(socket, data));
             }),
         );
+
+        // For connection-oriented transports (TCP), subscribe to disconnect events so we can
+        // evict all sessions bound to a dropped connection.
+        // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
+        const connectionOriented = netInterface as ConnectionOrientedTransport;
+        if (typeof connectionOriented.onDisconnect === "function") {
+            this.#disconnectListeners.set(
+                netInterface,
+                connectionOriented.onDisconnect(channel => {
+                    this.#workers.add(this.#onConnectionDisconnect(channel));
+                }),
+            );
+        }
     }
 
     #deleteTransport(netInterface: Transport) {
@@ -509,8 +524,103 @@ export class ExchangeManager implements Transport.Provider {
             return;
         }
         this.#listeners.delete(netInterface);
-
         this.#workers.add(listener.close());
+
+        const disconnectListener = this.#disconnectListeners.get(netInterface);
+        if (disconnectListener !== undefined) {
+            this.#disconnectListeners.delete(netInterface);
+            this.#workers.add(disconnectListener.close());
+        }
+    }
+
+    /**
+     * Handle a TCP connection drop by evicting all sessions bound to that connection.
+     *
+     * Mimics CHIP SDK behavior: when a TCP connection drops, all sessions on that connection
+     * are evicted and all their exchanges are closed.
+     */
+    async #onConnectionDisconnect(channel: Channel<Bytes>) {
+        logger.info("TCP connection dropped, evicting bound sessions:", channel.name);
+
+        // Find all sessions (both secure and unsecured) whose underlying channel matches
+        const sessionsToEvict: Session[] = [];
+
+        for (const session of this.#sessions.sessions) {
+            if (session.isClosed) {
+                continue;
+            }
+            try {
+                if (session.channel.channel === channel) {
+                    sessionsToEvict.push(session);
+                }
+            } catch {
+                // Session may already be closed, ignore
+            }
+        }
+
+        for (const session of this.#sessions.unsecuredSessions.values()) {
+            if (session.isClosed) {
+                continue;
+            }
+            try {
+                if (session.channel.channel === channel) {
+                    sessionsToEvict.push(session);
+                }
+            } catch {
+                // Session may already be closed, ignore
+            }
+        }
+
+        for (const session of sessionsToEvict) {
+            logger.debug("Evicting session due to TCP disconnect:", session.via);
+
+            // Close all exchanges for this session
+            for (const exchange of [...session.exchanges]) {
+                await exchange.close(new Error("TCP connection dropped"));
+            }
+
+            // Force-close the session
+            await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
+        }
+    }
+
+    /**
+     * When a session over TCP is removed, check if it was the last session referencing that
+     * TCP connection. If so, close the connection.
+     *
+     * Mimics CHIP SDK behavior: close TCP connection when last session is removed.
+     */
+    async #closeTcpConnectionIfLastSession(tcpChannel: Channel<Bytes>) {
+        // Check if any remaining sessions reference the same TCP channel
+        for (const session of this.#sessions.sessions) {
+            if (session.isClosed) {
+                continue;
+            }
+            try {
+                if (session.channel.channel === tcpChannel) {
+                    return; // Still has sessions, keep the connection open
+                }
+            } catch {
+                // Session may already be closed, ignore
+            }
+        }
+
+        for (const session of this.#sessions.unsecuredSessions.values()) {
+            if (session.isClosed) {
+                continue;
+            }
+            try {
+                if (session.channel.channel === tcpChannel) {
+                    return; // Still has sessions, keep the connection open
+                }
+            } catch {
+                // Session may already be closed, ignore
+            }
+        }
+
+        // No remaining sessions reference this TCP connection, close it
+        logger.info("Last session on TCP connection removed, closing connection:", tcpChannel.name);
+        await tcpChannel.close();
     }
 
     #addSession(session: Session) {
@@ -534,6 +644,16 @@ export class ExchangeManager implements Transport.Provider {
 
         observers.close();
         this.#sessionObservers.delete(session);
+
+        // When a session over TCP is removed, check if the TCP connection should be closed
+        try {
+            const underlyingChannel = session.channel.channel;
+            if (underlyingChannel.type === ChannelType.TCP) {
+                this.#workers.add(this.#closeTcpConnectionIfLastSession(underlyingChannel));
+            }
+        } catch {
+            // Session channel may already be detached/closed, ignore
+        }
     }
 
     async #sendCloseSession(session: NodeSession) {

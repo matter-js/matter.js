@@ -10,7 +10,6 @@ import {
     isIpNetworkChannel,
     Logger,
     ServerAddress,
-    ServerAddressUdp,
     Time,
     Timer,
 } from "@matter/general";
@@ -96,8 +95,7 @@ export class PeerAddressMonitor {
         }
 
         // If the current address is still in the discovered set, all good
-        // The discovered set is UDP-only (mDNS); cast is safe since we checked isIpNetworkChannel above
-        if (discoveredAddresses.has(currentAddress as ServerAddressUdp)) {
+        if (discoveredAddresses.has(currentAddress)) {
             return;
         }
 
