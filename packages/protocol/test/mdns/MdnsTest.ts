@@ -15,7 +15,7 @@ import {
     ServiceDescription,
 } from "#index.js";
 import {
-    ConnectionlessTransport,
+    Transport,
     DnsCodec,
     DnsMessage,
     DnsMessageType,
@@ -231,7 +231,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         }
 
         class MessageCollector extends Array<DnsMessage> {
-            #listener: ConnectionlessTransport.Listener;
+            #listener: Transport.Listener;
 
             constructor(onMessage?: (message: DnsMessage) => void) {
                 super();

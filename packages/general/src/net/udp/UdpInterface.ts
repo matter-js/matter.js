@@ -4,15 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Channel, ChannelType, IpNetworkChannel } from "#net/Channel.js";
-import { ConnectionlessTransport } from "#net/ConnectionlessTransport.js";
+import { Channel, ChannelType, UdpNetworkChannel } from "#net/Channel.js";
+import { Transport } from "#net/Transport.js";
 import { Network, NetworkError } from "#net/Network.js";
 import { Bytes } from "#util/Bytes.js";
 import { Observable } from "#util/index.js";
 import { ServerAddress, ServerAddressUdp } from "../ServerAddress.js";
 import { UdpChannel } from "./UdpChannel.js";
 
-export class UdpInterface implements ConnectionlessTransport {
+export class UdpInterface implements Transport {
     readonly #server: UdpChannel;
 
     static async create(network: Network, type: "udp4" | "udp6", port?: number, host?: string, netInterface?: string) {
@@ -41,7 +41,7 @@ export class UdpInterface implements ConnectionlessTransport {
         return Promise.resolve(new UdpConnection(this.#server, ip, port));
     }
 
-    onData(listener: (channel: Channel<Bytes>, messageBytes: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (channel: Channel<Bytes>, messageBytes: Bytes) => void): Transport.Listener {
         return this.#server.onData((_netInterface, peerHost, peerPort, data) => {
             listener(new UdpConnection(this.#server, peerHost, peerPort), data);
         });
@@ -64,7 +64,7 @@ export class UdpInterface implements ConnectionlessTransport {
     }
 }
 
-export class UdpConnection implements IpNetworkChannel<Bytes> {
+export class UdpConnection implements UdpNetworkChannel<Bytes> {
     readonly isReliable = false;
     readonly supportsLargeMessages = false;
     readonly type = ChannelType.UDP;

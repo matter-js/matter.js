@@ -31,7 +31,7 @@ import {
     Millis,
     ObserverGroup,
     QuietObservable,
-    ServerAddressUdp,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -112,7 +112,7 @@ export class Peer {
         });
 
         this.#observers.on(this.#sessions.added, session => {
-            const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
+            const updateNetworkAddress = (networkAddress: ServerAddressIp) => {
                 this.#descriptor.operationalAddress = networkAddress;
             };
 

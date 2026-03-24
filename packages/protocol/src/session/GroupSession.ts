@@ -13,7 +13,7 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     Bytes,
     ChannelType,
-    ConnectionlessTransport,
+    Transport,
     CryptoDecryptError,
     Diagnostic,
     hex,
@@ -66,7 +66,7 @@ export class GroupSession extends SecureSession {
      */
     static async create(options: {
         manager?: SessionManager;
-        transports: ConnectionlessTransport.Provider;
+        transports: Transport.Provider;
         id: number;
         fabric: Fabric;
         keySetId: number;

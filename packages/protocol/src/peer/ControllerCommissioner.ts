@@ -30,7 +30,7 @@ import {
     Channel,
     ChannelType,
     ClassExtends,
-    ConnectionlessTransportSet,
+    TransportSet,
     Duration,
     Environment,
     Environmental,
@@ -169,7 +169,7 @@ export interface EstablishPaseResult {
  */
 export interface ControllerCommissionerContext {
     peers: PeerSet;
-    transports: ConnectionlessTransportSet;
+    transports: TransportSet;
     sessions: SessionManager;
     exchanges: ExchangeManager;
     ca: CertificateAuthority;
@@ -191,7 +191,7 @@ export class ControllerCommissioner {
     static [Environmental.create](env: Environment) {
         const instance = new ControllerCommissioner({
             peers: env.get(PeerSet),
-            transports: env.get(ConnectionlessTransportSet),
+            transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
             ca: env.get(CertificateAuthority),

@@ -19,8 +19,8 @@ import {
     causedBy,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
-    ConnectionlessTransportSet,
+    Transport,
+    TransportSet,
     Diagnostic,
     Entropy,
     Environment,
@@ -57,18 +57,18 @@ const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
 export interface ExchangeManagerContext {
     lifetime: Lifetime.Owner;
     entropy: Entropy;
-    transports: ConnectionlessTransportSet;
+    transports: TransportSet;
     sessions: SessionManager;
 }
 
-export class ExchangeManager implements ConnectionlessTransport.Provider {
+export class ExchangeManager implements Transport.Provider {
     readonly #lifetime: Lifetime;
-    readonly #transports: ConnectionlessTransportSet;
+    readonly #transports: TransportSet;
     readonly #sessions: SessionManager;
     readonly #exchangeCounter: ExchangeCounter;
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
-    readonly #listeners = new Map<ConnectionlessTransport, ConnectionlessTransport.Listener>();
+    readonly #listeners = new Map<Transport, Transport.Listener>();
     readonly #workers: BasicMultiplex;
     readonly #observers = new ObserverGroup(this);
     readonly #sessionObservers = new Map<Session, ObserverGroup>();
@@ -95,7 +95,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         const instance = new ExchangeManager({
             lifetime: env,
             entropy: env.get(Entropy),
-            transports: env.get(ConnectionlessTransportSet),
+            transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
         });
         env.set(ExchangeManager, instance);
@@ -117,7 +117,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         this.#protocols.set(protocol.id, protocol);
     }
 
-    interfaceFor(type: ChannelType, address?: string): ConnectionlessTransport | undefined {
+    interfaceFor(type: ChannelType, address?: string): Transport | undefined {
         return this.#transports.interfaceFor(type, address);
     }
 
@@ -487,7 +487,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         };
     }
 
-    #addTransport(netInterface: ConnectionlessTransport) {
+    #addTransport(netInterface: Transport) {
         const udpInterface = netInterface instanceof UdpInterface;
         this.#listeners.set(
             netInterface,
@@ -503,7 +503,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         );
     }
 
-    #deleteTransport(netInterface: ConnectionlessTransport) {
+    #deleteTransport(netInterface: Transport) {
         const listener = this.#listeners.get(netInterface);
         if (listener === undefined) {
             return;

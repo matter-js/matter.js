@@ -4,7 +4,16 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Diagnostic, Duration, isIpNetworkChannel, Logger, ServerAddress, Time, Timer } from "@matter/general";
+import {
+    Diagnostic,
+    Duration,
+    isIpNetworkChannel,
+    Logger,
+    ServerAddress,
+    ServerAddressUdp,
+    Time,
+    Timer,
+} from "@matter/general";
 import type { Peer } from "./Peer.js";
 
 const logger = Logger.get("PeerAddressMonitor");
@@ -87,7 +96,8 @@ export class PeerAddressMonitor {
         }
 
         // If the current address is still in the discovered set, all good
-        if (discoveredAddresses.has(currentAddress)) {
+        // The discovered set is UDP-only (mDNS); cast is safe since we checked isIpNetworkChannel above
+        if (discoveredAddresses.has(currentAddress as ServerAddressUdp)) {
             return;
         }
 

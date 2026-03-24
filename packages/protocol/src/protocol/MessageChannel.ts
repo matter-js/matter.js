@@ -16,12 +16,15 @@ import {
     Duration,
     IpNetworkChannel,
     isIpNetworkChannel,
+    isUdpNetworkChannel,
     Logger,
     MaybePromise,
     Observable,
     sameIpNetworkChannel,
     ServerAddress,
+    ServerAddressIp,
     ServerAddressUdp,
+    UdpNetworkChannel,
 } from "@matter/general";
 import { MRP } from "./MRP.js";
 
@@ -29,7 +32,7 @@ const logger = new Logger("MessageChannel");
 
 export class MessageChannel implements Channel<Message> {
     #channel: Channel<Bytes>;
-    #networkAddressChanged = Observable<[ServerAddressUdp]>();
+    #networkAddressChanged = Observable<[ServerAddressIp]>();
     #isIpNetworkChannel = false;
     public closed = false;
     #onClose?: () => MaybePromise<void>;
@@ -98,8 +101,8 @@ export class MessageChannel implements Channel<Message> {
             );
         }
 
-        if (addressOverride && this.#isIpNetworkChannel) {
-            return await (this.#channel as IpNetworkChannel<Bytes>).send(bytes, addressOverride);
+        if (addressOverride && isUdpNetworkChannel(this.#channel)) {
+            return await (this.#channel as UdpNetworkChannel<Bytes>).send(bytes, addressOverride);
         }
         return await this.#channel.send(bytes);
     }
@@ -108,13 +111,13 @@ export class MessageChannel implements Channel<Message> {
         return Diagnostic.via(`${this.session.via}@${this.#channel.name}`);
     }
 
-    get networkAddress(): ServerAddressUdp | undefined {
+    get networkAddress(): ServerAddressIp | undefined {
         if (this.#isIpNetworkChannel) {
             return (this.#channel as IpNetworkChannel<Bytes>).networkAddress;
         }
     }
 
-    set networkAddress(networkAddress: ServerAddressUdp) {
+    set networkAddress(networkAddress: ServerAddressIp) {
         if (this.#isIpNetworkChannel) {
             (this.#channel as IpNetworkChannel<Bytes>).networkAddress = networkAddress;
         }

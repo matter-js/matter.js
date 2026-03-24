@@ -7,8 +7,8 @@
 import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
-    ConnectionlessTransport,
-    ConnectionlessTransportSet,
+    Transport,
+    TransportSet,
     Crypto,
     InterfaceType,
     Logger,
@@ -57,7 +57,7 @@ function convertNetworkEnvironmentType(type: string | number) {
 export class ServerNetworkRuntime extends NetworkRuntime {
     #mdnsAdvertiser?: MdnsAdvertiser;
     #bleAdvertiser?: BleAdvertiser;
-    #bleTransport?: ConnectionlessTransport;
+    #bleTransport?: Transport;
     #ipv6UdpInterface?: UdpInterface;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
@@ -139,9 +139,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Add transports to the {@link ConnectionlessTransportSet}.
+     * Add transports to the {@link TransportSet}.
      */
-    protected async addTransports(interfaces: ConnectionlessTransportSet) {
+    protected async addTransports(interfaces: TransportSet) {
         const netconf = this.owner.state.network;
 
         const port = this.owner.state.network.port;
@@ -245,8 +245,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await device.deleteAdvertiser(advertiser);
     }
 
-    async #deleteTransport(transport: ConnectionlessTransport) {
-        const netInterfaces = this.owner.env.get(ConnectionlessTransportSet);
+    async #deleteTransport(transport: Transport) {
+        const netInterfaces = this.owner.env.get(TransportSet);
         netInterfaces.delete(transport);
         await transport.close();
     }
@@ -260,7 +260,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const { env } = owner;
 
         // Configure network
-        const interfaces = env.get(ConnectionlessTransportSet);
+        const interfaces = env.get(TransportSet);
         await this.addTransports(interfaces);
 
         const advertiser = env.get(DeviceAdvertiser);
@@ -368,7 +368,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             using _lifetime = this.construction.join("transports");
 
             // Close transports but leave the set in place as it is shared and will be reused
-            await env.maybeGet(ConnectionlessTransportSet)?.close();
+            await env.maybeGet(TransportSet)?.close();
         }
 
         {

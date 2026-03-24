@@ -9,7 +9,7 @@ import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
-    ConnectionlessTransportSet,
+    TransportSet,
     Crypto,
     DnsRecordType,
     ImplementationError,
@@ -178,7 +178,7 @@ export class ControllerBehavior extends Behavior {
 
     async #nodeOnline() {
         // Configure network connections
-        const netTransports = this.env.get(ConnectionlessTransportSet);
+        const netTransports = this.env.get(TransportSet);
         if (this.state.ble) {
             // no try-catch needed because we already added the scanner in initialize()
             netTransports.add(this.env.get(Ble).centralInterface);
@@ -213,7 +213,7 @@ export class ControllerBehavior extends Behavior {
             }
         }
 
-        const netTransports = this.env.get(ConnectionlessTransportSet);
+        const netTransports = this.env.get(TransportSet);
         if (this.state.ble) {
             netTransports.delete(this.env.get(Ble).centralInterface);
         }

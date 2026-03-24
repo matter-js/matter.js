@@ -19,7 +19,7 @@ import {
     Millis,
     Observable,
     Seconds,
-    ServerAddressUdp,
+    ServerAddressIp,
 } from "@matter/general";
 import { GLOBAL_IDS, Specification } from "@matter/model";
 import {
@@ -82,7 +82,7 @@ export interface PeerSubscription {
     isFabricFiltered: boolean;
     maxInterval: Duration;
     sendInterval: Duration;
-    operationalAddress?: ServerAddressUdp;
+    operationalAddress?: ServerAddressIp;
 }
 
 function validateReadAttributesPath(path: TypeFromSchema<typeof TlvAttributePath>, isGroupSession = false) {

@@ -260,7 +260,7 @@ export async function PeerConnection(
             return;
         }
 
-        attemptingFallback = peer.descriptor.operationalAddress;
+        attemptingFallback = peer.descriptor.operationalAddress as ServerAddressUdp | undefined;
         if (attemptingFallback) {
             pendingAddresses.add(attemptingFallback);
         }

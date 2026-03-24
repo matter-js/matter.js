@@ -25,7 +25,7 @@ import {
     causedBy,
     ChannelType,
     ClassExtends,
-    ConnectionlessTransportSet,
+    TransportSet,
     Construction,
     Crypto,
     Diagnostic,
@@ -257,7 +257,7 @@ export class MatterController {
         await controller.construction;
 
         // Verify an appropriate network interface is available
-        const netInterfaces = environment.get(ConnectionlessTransportSet);
+        const netInterfaces = environment.get(TransportSet);
         if (!netInterfaces.hasInterfaceFor(ChannelType.BLE)) {
             if (
                 !environment.get(ScannerSet).hasScannerFor(ChannelType.UDP) ||

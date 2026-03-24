@@ -8,7 +8,7 @@ import {
     Bytes,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
+    Transport,
     Diagnostic,
     InternalError,
     Logger,
@@ -43,7 +43,7 @@ import { BleScanner } from "./BleScanner.js";
 
 const logger = Logger.get("BleChannel");
 
-export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
+export class ReactNativeBleCentralInterface implements Transport {
     #ble: Ble;
     #openChannels: Map<ServerAddress, Device> = new Map();
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
@@ -147,7 +147,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         throw new BleError(`No Matter service found on peripheral ${device.id}`);
     }
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener {
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),

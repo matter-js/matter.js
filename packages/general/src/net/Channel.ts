@@ -3,7 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ServerAddressUdp } from "#net/ServerAddress.js";
+import { ServerAddressIp, ServerAddressUdp } from "#net/ServerAddress.js";
 import { isObject } from "#util/Type.js";
 import { Observable } from "#util/index.js";
 
@@ -35,12 +35,18 @@ export interface Channel<T> {
     close(): Promise<void>;
 }
 
-// TODO Enhance when we add TCP support
 export interface IpNetworkChannel<T> extends Channel<T> {
+    networkAddress: ServerAddressIp;
+    networkAddressChanged: Observable<[ServerAddressIp]>;
+
+    /** Send data to the remote endpoint */
+    send(data: T): Promise<void>;
+}
+
+/** UDP-specific channel with per-send address override capability. */
+export interface UdpNetworkChannel<T> extends IpNetworkChannel<T> {
     networkAddress: ServerAddressUdp;
     networkAddressChanged: Observable<[ServerAddressUdp]>;
-
-    /** Send data, optionally overriding the destination address for this single send. */
     send(data: T, addressOverride?: ServerAddressUdp): Promise<void>;
 }
 
@@ -49,6 +55,13 @@ export interface IpNetworkChannel<T> extends Channel<T> {
  */
 export function isIpNetworkChannel<T>(channel?: Channel<T>): channel is IpNetworkChannel<T> {
     return isObject((channel as IpNetworkChannel<T> | undefined)?.networkAddress);
+}
+
+/**
+ * Returns true if the channel is a UDP network channel (supports address override).
+ */
+export function isUdpNetworkChannel<T>(channel?: Channel<T>): channel is UdpNetworkChannel<T> {
+    return isIpNetworkChannel(channel) && channel.type === ChannelType.UDP;
 }
 
 /**
