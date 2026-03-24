@@ -540,17 +540,13 @@ export class ExchangeManager implements Transport.Provider {
      * are evicted and all their exchanges are closed.
      */
     /** Find all active sessions whose underlying transport channel matches by identity. */
-    #sessionsOnChannel(channel: Channel<Bytes>): Session[] {
-        const result: Session[] = [];
+    #sessionsOnChannel(channel: Channel<Bytes>): Array<Session> {
+        const result = new Array<Session>();
 
         const check = (session: Session) => {
             if (session.isClosed) return;
-            try {
-                if (session.channel.channel === channel) {
-                    result.push(session);
-                }
-            } catch {
-                // Session may already be closed
+            if (session.channel.channel === channel) {
+                result.push(session);
             }
         };
 

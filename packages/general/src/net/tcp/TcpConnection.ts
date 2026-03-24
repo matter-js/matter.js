@@ -41,7 +41,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     readonly #workers = new BasicMultiplex();
 
     /** Receive buffer — accumulated chunks not yet consumed. */
-    #receiveChunks: Uint8Array[] = [];
+    #receiveChunks = new Array<Uint8Array>();
     #receiveLength = 0;
 
     #closed = false;
