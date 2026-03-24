@@ -5,6 +5,7 @@
  */
 
 export * from "./Cluster.js";
+export * from "./RetiredClusterType.js";
 export * from "./ClusterHelper.js";
 export * from "./ClusterNamespace.js";
 export * from "./ClusterType.js";
