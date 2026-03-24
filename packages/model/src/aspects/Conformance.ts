@@ -292,7 +292,7 @@ export namespace Conformance {
         | "y"
         | "z";
 
-    export type ReferenceResolver = (name: string) => Model | undefined;
+    export type ReferenceResolver = (name: string | string[]) => Model | undefined;
     export type ErrorTarget = { error(code: string, message: string): void };
 
     /**
@@ -341,10 +341,12 @@ export namespace Conformance {
                         // Find the actual enum definition with children (may be the referenced model itself,
                         // or its defining type for fields typed as enums)
                         const enumDef = referenced.definingModel ?? referenced;
-                        operatorResolver = (name: string) => {
-                            const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
-                            if (enumValue) {
-                                return enumValue as ValueModel;
+                        operatorResolver = (name: string | string[]) => {
+                            if (typeof name === "string") {
+                                const enumValue = enumDef.member(name) ?? enumDef.member(camelize(name, true));
+                                if (enumValue) {
+                                    return enumValue as ValueModel;
+                                }
                             }
                             return resolver(name);
                         };
@@ -363,6 +365,17 @@ export namespace Conformance {
                     validateReferences(conformance, a, errorTarget, resolver);
                 }
                 break;
+
+            case Operator.DOT: {
+                const segments = collectDotSegments(ast);
+                if (segments !== undefined && !resolver(segments)) {
+                    errorTarget.error(
+                        "UNRESOLVED_CONFORMANCE_NAME",
+                        `Conformance name reference "${segments.join(".")}" does not resolve`,
+                    );
+                }
+                break;
+            }
 
             case Special.Name:
                 if (!resolver(ast.param)) {

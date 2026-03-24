@@ -8,7 +8,7 @@ import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
-import { ClusterModel, Globals, ValueModel } from "../../models/index.js";
+import { ClusterModel, Globals, Model, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -26,23 +26,7 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.validateProperty({ name: "metatype", type: Metatype });
 
         this.#validateAspect("conformance");
-        this.model.conformance.validateReferences(this, name => {
-            // Features are all caps, other names are field references
-            if (name.match(/^[A-Z0-9_$]+$/)) {
-                // Feature lookup
-                const cluster = this.model.owner(ClusterModel);
-                return cluster?.features.find(f => f.name === name);
-            }
-
-            // Field lookup
-            name = camelize(name, true);
-            for (let model = this.model.parent; model; model = model.parent) {
-                const member = model.member(name);
-                if (member) {
-                    return member;
-                }
-            }
-        });
+        this.model.conformance.validateReferences(this, name => this.resolveReference(name));
         this.model.conformance.validateComputation(this, this.model.owner(ClusterModel)?.definedFeatures);
 
         this.#validateAspect("constraint");
@@ -53,6 +37,33 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         this.#validateEntries();
 
         super.validate();
+    }
+
+    /**
+     * Resolve a conformance reference.  Features (all-caps strings) resolve against the cluster's feature map.  Field
+     * references resolve via {@link Model.resolve}.  Qualified names arrive as `string[]` segments from DOT AST nodes.
+     */
+    resolveReference(name: string | string[]): Model | undefined {
+        // Simple string — check for feature (all-caps) or single-segment field
+        if (typeof name === "string") {
+            if (name.match(/^[A-Z0-9_$]+$/)) {
+                const cluster = this.model.owner(ClusterModel);
+                return cluster?.features.find(f => f.name === name);
+            }
+            name = [name];
+        }
+
+        // Field reference — camelize each segment to normalize case (e.g. "OperationalStateID" → "OperationalStateId")
+        const path = name.map(s => camelize(s, true));
+        return this.model.parent?.resolve(path, this.resolveOptions());
+    }
+
+    /**
+     * Options for {@link Model.resolve} during reference validation.  Subclasses may override to provide
+     * outerResolve for cross-scope references.
+     */
+    protected resolveOptions(): Model.ResolveOptions | undefined {
+        return undefined;
     }
 
     #validateAspect(name: string) {
