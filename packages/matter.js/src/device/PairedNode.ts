@@ -51,7 +51,6 @@ import {
 } from "@matter/protocol";
 import {
     AttributeId,
-    Attributes,
     CaseAuthenticatedTag,
     ClusterId,
     ClusterNamespace,
@@ -69,13 +68,6 @@ import {
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { Descriptor } from "@matter/types/clusters/descriptor";
-import { ClusterServer } from "../cluster/server/ClusterServer.js";
-import {
-    AttributeInitialValues,
-    ClusterServerObj,
-    isClusterServer,
-    TypedClusterServerObj,
-} from "../cluster/server/ClusterServerTypes.js";
 import { CommissioningController } from "../CommissioningController.js";
 import { Aggregator } from "./Aggregator.js";
 import { ComposedDevice } from "./ComposedDevice.js";
@@ -83,7 +75,7 @@ import { PairedDevice, RootEndpoint } from "./Device.js";
 import { DeviceInformation, DeviceInformationData } from "./DeviceInformation.js";
 import { DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode, UnknownDeviceType } from "./DeviceTypes.js";
 import { Endpoint } from "./Endpoint.js";
-import { asClusterClientInternal, isClusterClient } from "./TypeHelpers.js";
+import { asClusterClientInternal } from "./TypeHelpers.js";
 
 const logger = Logger.get("PairedNode");
 
@@ -942,11 +934,6 @@ export class PairedNode {
             areNumberListsSame(
                 device.getAllClusterClients().map(({ id }) => id),
                 descriptorData.serverList,
-            ) &&
-            // Check if the cluster servers are the same - they map to the clientList attribute
-            areNumberListsSame(
-                device.getAllClusterServers().map(({ id }) => id),
-                descriptorData.clientList,
             )
         );
     }
@@ -1184,7 +1171,7 @@ export class PairedNode {
             throw new MatterError(`NodeId ${this.nodeId}: No device type found for endpoint`);
         }
 
-        const endpointClusters = Array<ClusterServerObj | ClusterClientObj>();
+        const endpointClusters = Array<ClusterClientObj>();
 
         // Add ClusterClients for all server clusters of the device
         for (const clusterId of descriptorData.serverList) {
@@ -1200,64 +1187,24 @@ export class PairedNode {
             endpointClusters.push(clusterClient);
         }
 
-        // TODO use the attributes attributeList, acceptedCommands, generatedCommands to create the ClusterClient/Server objects
-        // Add ClusterServers for all client clusters of the device
-        for (const clusterId of descriptorData.clientList) {
-            const clusterModel = Matter.clusters(clusterId);
-            const cluster =
-                clusterModel !== undefined
-                    ? ClusterTypeOfModel(clusterModel)
-                    : ClusterType({ id: clusterId, name: `Cluster$${clusterId.toString(16)}`, revision: 0 });
-            const clusterData = {} as AttributeInitialValues<Attributes>; // TODO correct typing
-            // Todo add logic for Events
-            endpointClusters.push(
-                ClusterServer(
-                    cluster,
-                    /*clusterData.featureMap,*/ clusterData,
-                    {},
-                    undefined,
-                    true,
-                ) as ClusterServerObj,
-            ); // TODO Add Default handler!
-        }
-
         if (endpointId === 0) {
             // Endpoint 0 is the root endpoint, so we use a RootEndpoint object
             const rootEndpoint = new RootEndpoint(endpoint);
             rootEndpoint.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>); // Ideally only root one as defined
-            endpointClusters.forEach(cluster => {
-                if (isClusterServer(cluster)) {
-                    rootEndpoint.addClusterServer(cluster);
-                } else if (isClusterClient(cluster)) {
-                    rootEndpoint.addClusterClient(cluster);
-                }
-            });
+            endpointClusters.forEach(cluster => rootEndpoint.addClusterClient(cluster));
             return rootEndpoint;
         } else if (deviceTypes.find(deviceType => deviceType.code === AggregatorDt.id) !== undefined) {
             // When AGGREGATOR is in the device type list, this is an aggregator
             const aggregator = new Aggregator(endpoint, [], { endpointId });
             aggregator.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
-            endpointClusters.forEach(cluster => {
-                // TODO There should be none?
-                if (isClusterServer(cluster)) {
-                    aggregator.addClusterServer(cluster);
-                } else if (isClusterClient(cluster)) {
-                    aggregator.addClusterClient(cluster);
-                }
-            });
+            endpointClusters.forEach(cluster => aggregator.addClusterClient(cluster));
             return aggregator;
         } else {
             // It seems to be device but has a partsList, so it is a composed device
             if (descriptorData.partsList.length > 0) {
                 const composedDevice = new ComposedDevice(endpoint, deviceTypes[0], [], { endpointId });
                 composedDevice.setDeviceTypes(deviceTypes as AtLeastOne<DeviceTypeDefinition>);
-                endpointClusters.forEach(cluster => {
-                    if (isClusterServer(cluster)) {
-                        composedDevice.addClusterServer(cluster);
-                    } else if (isClusterClient(cluster)) {
-                        composedDevice.addClusterClient(cluster);
-                    }
-                });
+                endpointClusters.forEach(cluster => composedDevice.addClusterClient(cluster));
                 return composedDevice;
             } else {
                 // else it's a normal Device
@@ -1451,23 +1398,6 @@ export class PairedNode {
     }
 
     /**
-     * Get a cluster server from the root endpoint. This is mainly used internally and not needed to be called by the user.
-     *
-     * @param cluster ClusterServer to get or undefined if not existing
-     */
-    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
-    getRootClusterServer<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): TypedClusterServerObj<N["Typing"]> | undefined;
-    getRootClusterServer(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterServerObj | TypedClusterServerObj | undefined {
-        return this.#ensureLegacyEndpointStructure()
-            .get(EndpointNumber(0))
-            ?.getClusterServer(cluster as ClusterType);
-    }
-
-    /**
      * Get a cluster client from the root endpoint. This is mainly used internally and not needed to be called by the user.
      *
      * @param cluster ClusterClient to get or undefined if not existing
@@ -1482,27 +1412,6 @@ export class PairedNode {
         return this.#ensureLegacyEndpointStructure()
             .get(EndpointNumber(0))
             ?.getClusterClient(cluster as ClusterType);
-    }
-
-    /**
-     * Get a cluster server from the root endpoint. This is mainly used internally and not needed to be called by the user.
-     *
-     * @param endpointId EndpointNumber to get the cluster from
-     * @param cluster ClusterServer to get or undefined if not existing
-     */
-    getClusterServerForDevice<const T extends ClusterType>(
-        endpointId: EndpointNumber,
-        cluster: T,
-    ): ClusterServerObj<T> | undefined;
-    getClusterServerForDevice<const N extends ClusterNamespace.Concrete>(
-        endpointId: EndpointNumber,
-        cluster: N,
-    ): TypedClusterServerObj<N["Typing"]> | undefined;
-    getClusterServerForDevice(
-        endpointId: EndpointNumber,
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterServerObj | TypedClusterServerObj | undefined {
-        return this.getDeviceById(endpointId)?.getClusterServer(cluster as ClusterType);
     }
 
     /**

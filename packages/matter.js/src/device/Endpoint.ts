@@ -16,13 +16,6 @@ import {
     EndpointNumber,
     getClusterNameById,
 } from "@matter/types";
-import { BasicInformationCluster } from "@matter/types/clusters/basic-information";
-import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
-import {
-    ClusterServerObj,
-    TypedClusterServerObj,
-    asClusterServerInternal,
-} from "../cluster/server/ClusterServerTypes.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
 export interface EndpointOptions {
@@ -31,7 +24,6 @@ export interface EndpointOptions {
 }
 
 export class Endpoint {
-    private readonly clusterServers = new Map<ClusterId, ClusterServerObj>();
     private readonly clusterClients = new Map<ClusterId, ClusterClientObj>();
     private readonly childEndpoints = new Map<number, Endpoint>();
     number: EndpointNumber | undefined;
@@ -157,7 +149,6 @@ export class Endpoint {
     }
 
     removeFromStructure() {
-        this.close();
         this.structureChangedCallback = () => {
             /** noop **/
         };
@@ -167,9 +158,7 @@ export class Endpoint {
     }
 
     close() {
-        for (const clusterServer of this.clusterServers.values()) {
-            asClusterServerInternal(clusterServer)._close();
-        }
+        // noop — server cleanup removed
     }
 
     getNumber() {
@@ -179,44 +168,8 @@ export class Endpoint {
         return this.number;
     }
 
-    addClusterServer<const T extends ClusterType>(cluster: ClusterServerObj<T>) {
-        const currentCluster = this.clusterServers.get(cluster.id);
-        if (currentCluster !== undefined) {
-            asClusterServerInternal(currentCluster)._close();
-        }
-        asClusterServerInternal(cluster)._assignToEndpoint(this);
-
-        // In ts4 the cast to "any" here was unnecessary.  In TS5 the fact that
-        // the string index signature in Attributes and Events doesn't allow
-        // for undefined results in the error:
-        //
-        //   Type 'undefined' is not assignable to type '() => any'
-        //
-        // I'm not sure if I'd classify the old or new behavior as more correct
-        // but the solution would be to add "| undefined" to the string index
-        // signature in Attributes and Events, which will force additional
-        // assertions everywhere those interfaces are used.  I'm treating that
-        // as low priority for now
-        this.clusterServers.set(cluster.id, cluster as any);
-    }
-
     addClusterClient(cluster: ClusterClientObj) {
         this.clusterClients.set(cluster.id, cluster);
-    }
-
-    // TODO cleanup with id number vs ClusterId
-    // TODO add instance if optional and not existing, maybe get rid of undefined by throwing?
-    getClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
-    getClusterServer<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): TypedClusterServerObj<N["Typing"]> | undefined;
-    getClusterServer(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterServerObj | TypedClusterServerObj | undefined {
-        const clusterServer = this.clusterServers.get(cluster.id);
-        if (clusterServer !== undefined) {
-            return clusterServer as unknown as ClusterServerObj;
-        }
     }
 
     getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
@@ -229,16 +182,8 @@ export class Endpoint {
         return this.clusterClients.get(cluster.id) as ClusterClientObj;
     }
 
-    getClusterServerById(clusterId: ClusterId): ClusterServerObj | undefined {
-        return this.clusterServers.get(clusterId);
-    }
-
     getClusterClientById(clusterId: ClusterId): ClusterClientObj | undefined {
         return this.clusterClients.get(clusterId);
-    }
-
-    hasClusterServer(cluster: ClusterType | ClusterNamespace.Concrete): boolean {
-        return this.clusterServers.has(cluster.id);
     }
 
     hasClusterClient(cluster: ClusterType | ClusterNamespace.Concrete): boolean {
@@ -296,38 +241,10 @@ export class Endpoint {
         if (this.uniqueStorageKey !== undefined) {
             return `custom_${this.uniqueStorageKey}`;
         }
-        // Else we check if we have a basic information cluster or bridged device basic information cluster and
-        // use the uniqueId or serial number, if provided
-        const basicInformationCluster =
-            this.getClusterServer(BasicInformationCluster) ??
-            this.getClusterServer(BridgedDeviceBasicInformationCluster);
-        if (basicInformationCluster !== undefined) {
-            const uniqueId = basicInformationCluster.getUniqueIdAttribute?.();
-            if (uniqueId !== undefined) {
-                return `unique_${uniqueId}`;
-            }
-            const serialNumber = basicInformationCluster.getSerialNumberAttribute?.();
-            if (serialNumber !== undefined) {
-                return `serial_${serialNumber}`;
-            }
-        }
     }
 
     public verifyRequiredClusters(): void {
         this.deviceTypes.forEach(deviceType => {
-            deviceType.requiredServerClusters?.forEach(clusterId => {
-                if (!this.clusterServers.has(clusterId)) {
-                    const clusterName = getClusterNameById(clusterId);
-                    throw new ImplementationError(
-                        `Device type ${deviceType.name} (0x${deviceType.code.toString(
-                            16,
-                        )}) requires cluster server ${clusterName}(0x${clusterId.toString(
-                            16,
-                        )}) but it is not present on endpoint ${this.number}`,
-                    );
-                }
-            });
-
             if (this.clusterClients.size > 0) {
                 // TODO remove once supported
                 throw new NotImplementedError(`Devices with client clusters are not supported yet`);
@@ -345,10 +262,6 @@ export class Endpoint {
                 }
             });
         });
-    }
-
-    getAllClusterServers(): ClusterServerObj[] {
-        return Array.from(this.clusterServers.values());
     }
 
     getAllClusterClients(): ClusterClientObj[] {
@@ -379,14 +292,6 @@ export class Endpoint {
             clusterDiagnostics.push([
                 Diagnostic.strong("clients"),
                 Diagnostic.list(clients.map(client => this.#clusterClientDiagnostics(client))),
-            ]);
-        }
-
-        const servers = this.getAllClusterServers();
-        if (servers.length) {
-            clusterDiagnostics.push([
-                Diagnostic.strong("servers"),
-                Diagnostic.list(servers.map(server => this.#clusterServerDiagnostics(server))),
             ]);
         }
 
@@ -482,9 +387,5 @@ export class Endpoint {
         }
 
         return result;
-    }
-
-    #clusterServerDiagnostics(server: ClusterServerObj) {
-        return [Diagnostic.strong(server.name)];
     }
 }

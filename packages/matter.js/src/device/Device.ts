@@ -8,62 +8,15 @@ import { AtLeastOne, HandlerFunction, ImplementationError, NamedHandler, NotImpl
 import { RootNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { ClusterClientObj, TypedClusterClientObj } from "@matter/protocol";
-import { Cluster, ClusterNamespace, ClusterType, EndpointNumber } from "@matter/types";
-import { Binding } from "@matter/types/clusters/binding";
-import { ClusterTypeOfModel } from "../cluster/ClusterTypeOfModel.js";
-import { ClusterServer } from "../cluster/server/ClusterServer.js";
-import {
-    ClusterServerHandlers,
-    ClusterServerObj,
-    TypedClusterServerObj,
-    isClusterServer,
-} from "../cluster/server/ClusterServerTypes.js";
+import { ClusterNamespace, ClusterType, EndpointNumber } from "@matter/types";
 import { DeviceClasses, DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
-import { isClusterClient } from "./TypeHelpers.js";
-
-/**
- * Utility function to wrap externally registered command handlers into the internal command handler and make sure
- * the custom ones are used if defined
- *
- * @param commandHandler Command handler instance with the registered handlers
- * @param handler Internal handlers instance to wrap the external handler into
- */
-export const WrapCommandHandler = <C extends Cluster<any, any, any, any, any>>(
-    handler: ClusterServerHandlers<C>,
-    commandHandler?: NamedHandler<any>,
-): ClusterServerHandlers<C> => {
-    if (commandHandler === undefined) {
-        return handler;
-    }
-    const mergedHandler = {} as any;
-    for (const key in handler) {
-        if (
-            key.endsWith("AttributeGetter") ||
-            key.endsWith("AttributeSetter") ||
-            key.endsWith("AttributeValidator") ||
-            key === "initializeClusterServer" ||
-            key === "destroyClusterServer"
-        ) {
-            mergedHandler[key] = (handler as any)[key];
-            continue;
-        }
-        mergedHandler[key] = async (...args: any[]) => {
-            if (commandHandler.hasHandler(key)) {
-                return await commandHandler.executeHandler(key, ...args);
-            }
-            return await (handler as any)[key](...args);
-        };
-    }
-    return mergedHandler as ClusterServerHandlers<C>;
-};
 
 /**
  * Temporary used device class for paired devices until we added a layer to choose the right specialized device class
  * based on the device classes and features of the paired device
  */
 export class PairedDevice extends Endpoint {
-    private readonly declineAddingMoreClusters: boolean;
     /**
      * Create a new PairedDevice instance. All data are automatically parsed from the paired device!
      *
@@ -75,41 +28,13 @@ export class PairedDevice extends Endpoint {
     constructor(
         endpoint: NodeEndpoint,
         definition: AtLeastOne<DeviceTypeDefinition>,
-        clusters: (ClusterServerObj | ClusterClientObj)[] = [],
+        clusters: ClusterClientObj[] = [],
         endpointId: EndpointNumber,
     ) {
         super(endpoint, definition, { endpointId });
         clusters.forEach(cluster => {
-            if (isClusterServer(cluster)) {
-                this.addClusterServer(cluster);
-            } else if (isClusterClient(cluster)) {
-                this.addClusterClient(cluster);
-            }
+            this.addClusterClient(cluster);
         });
-
-        this.declineAddingMoreClusters = true;
-    }
-
-    /**
-     * Add cluster servers (used internally only!)
-     * @deprecated PairedDevice does not support adding additional clusters
-     */
-    override addClusterServer<const T extends ClusterType>(cluster: ClusterServerObj<T>) {
-        if (this.declineAddingMoreClusters) {
-            throw new ImplementationError("PairedDevice does not support adding additional clusters");
-        }
-        return super.addClusterServer(cluster);
-    }
-
-    /**
-     * Add cluster clients (used internally only!)
-     * @deprecated PairedDevice does not support adding additional clusters
-     */
-    override addClusterClient<const T extends ClusterType>(cluster: ClusterClientObj<T>) {
-        if (this.declineAddingMoreClusters) {
-            throw new ImplementationError("PairedDevice does not support adding additional clusters");
-        }
-        return super.addClusterClient(cluster);
     }
 }
 
@@ -122,21 +47,6 @@ export class RootEndpoint extends Endpoint {
      */
     constructor(endpoint: NodeEndpoint) {
         super(endpoint, [getDeviceTypeDefinitionFromModelByCode(RootNodeDt.id)!], { endpointId: EndpointNumber(0) });
-    }
-
-    /**
-     * Get a cluster server from the root endpoint. This is mainly used internally and not needed to be called by the user.
-     *
-     * @param cluster ClusterServer to get or undefined if not existing
-     */
-    getRootClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
-    getRootClusterServer<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): TypedClusterServerObj<N["Typing"]> | undefined;
-    getRootClusterServer(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterServerObj | TypedClusterServerObj | undefined {
-        return this.getClusterServer(cluster as ClusterType);
     }
 
     /**
@@ -186,17 +96,6 @@ export class Device extends Endpoint {
             throw new NotImplementedError("MatterNode devices are not supported");
         }
         super(endpoint, [definition], options);
-        if (definition.deviceClass === DeviceClasses.Simple || definition.deviceClass === DeviceClasses.Client) {
-            this.addClusterServer(
-                ClusterServer(
-                    ClusterTypeOfModel(Binding.schema),
-                    {
-                        binding: [],
-                    },
-                    {},
-                ),
-            );
-        }
     }
 
     /**
@@ -233,36 +132,9 @@ export class Device extends Endpoint {
         return await this.commandHandler.executeHandler(command, ...args);
     }
 
-    protected createOptionalClusterServer<const T extends ClusterType>(_cluster: T): ClusterServerObj<T> {
-        // TODO: Implement this in upper classes to add optional clusters on the fly
-        throw new ImplementationError("createOptionalClusterServer needs to be implemented by derived classes");
-    }
-
     protected createOptionalClusterClient<const T extends ClusterType>(_cluster: T): ClusterClientObj<T> {
         // TODO: Implement this in upper classes to add optional clusters on the fly
         throw new ImplementationError("createOptionalClusterClient needs to be implemented by derived classes");
-    }
-
-    override getClusterServer<const T extends ClusterType>(cluster: T): ClusterServerObj<T> | undefined;
-    override getClusterServer<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): TypedClusterServerObj<N["Typing"]> | undefined;
-    override getClusterServer(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterServerObj | TypedClusterServerObj | undefined {
-        const clusterServer = super.getClusterServer(cluster as ClusterType);
-        if (clusterServer !== undefined) {
-            return clusterServer;
-        }
-        if ("supportedFeatures" in cluster) {
-            for (const deviceType of this.deviceTypes) {
-                if (deviceType.optionalServerClusters.includes(cluster.id)) {
-                    const clusterServer = this.createOptionalClusterServer(cluster);
-                    this.addClusterServer(clusterServer);
-                    return clusterServer;
-                }
-            }
-        }
     }
 
     override getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
