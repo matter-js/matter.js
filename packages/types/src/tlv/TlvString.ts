@@ -65,6 +65,26 @@ export class StringSchema<T extends TlvType.ByteString | TlvType.Utf8String> ext
             );
     }
 
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element {
+        const result: TlvSchema.Element = {
+            type: this.type === TlvType.Utf8String ? "string" : "octstr",
+        };
+
+        const constraint: { min?: number; max?: number } = {};
+        if (this.minLength > 0) {
+            constraint.min = this.minLength;
+        }
+        if (this.maxLength !== 1024) {
+            constraint.max = this.maxLength;
+        }
+        if (constraint.min !== undefined || constraint.max !== undefined) {
+            result.constraint = constraint;
+        }
+
+        return result;
+    }
+
     bound({ minLength, maxLength, length }: LengthConstraints) {
         const effectiveMin = length ?? minLength ?? this.minLength;
         const effectiveMax = length ?? maxLength ?? this.maxLength;

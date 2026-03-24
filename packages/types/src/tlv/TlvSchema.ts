@@ -5,6 +5,7 @@
  */
 
 import { Bytes, DataReader, DataWriter, Endian } from "@matter/general";
+import type { Constraint, FieldElement, Quality } from "@matter/model";
 import { Schema } from "../schema/Schema.js";
 import { TlvCodec, TlvTag, TlvToPrimitive, TlvTypeLength } from "./TlvCodec.js";
 
@@ -23,6 +24,18 @@ export type TlvEncodingOptions = {
 };
 
 export abstract class TlvSchema<T> extends Schema<T> implements TlvSchema<T> {
+    /**
+     * Reverse-maps this TLV schema to model element fields.
+     *
+     * Used for old ClusterType() compatibility — converts TLV-carrying descriptors back to model elements.
+     * Remove when ClusterType compat layer is dropped.
+     *
+     * @deprecated
+     */
+    get element(): TlvSchema.Element | undefined {
+        return undefined;
+    }
+
     override decodeInternal(encoded: Bytes): T {
         return this.decodeTlvInternal(new TlvByteArrayReader(encoded)).value;
     }
@@ -58,6 +71,22 @@ export abstract class TlvSchema<T> extends Schema<T> implements TlvSchema<T> {
 
     removeField(value: T, _fieldId: number, _removeChecker: (fieldValue: any) => boolean): T {
         return value;
+    }
+}
+
+export namespace TlvSchema {
+    /**
+     * Model element fields extracted from a TLV schema.
+     *
+     * Sufficient to construct a {@link FieldElement} or {@link ValueElement}.
+     *
+     * @deprecated Part of old ClusterType() compat layer.
+     */
+    export interface Element {
+        type?: string;
+        constraint?: Constraint.Definition;
+        quality?: Quality.Definition;
+        children?: FieldElement[];
     }
 }
 

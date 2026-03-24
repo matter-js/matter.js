@@ -16,6 +16,11 @@ export class TlvWrapper<O, T> extends TlvSchema<O> {
         super();
     }
 
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element | undefined {
+        return this.underlyingSchema.element;
+    }
+
     override decodeTlvInternalValue(reader: TlvReader, typeLength: TlvTypeLength): O {
         return this.unwrap(this.underlyingSchema.decodeTlvInternalValue(reader, typeLength));
     }

@@ -28,12 +28,27 @@ import {
     maxValue,
     minValue,
 } from "@matter/general";
+import type { Constraint } from "@matter/model";
 import { ValidationDatatypeMismatchError, ValidationOutOfBoundsError } from "../common/ValidationError.js";
 import { BitSchema, BitmapSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { Schema } from "../schema/Schema.js";
 import { TlvCodec, TlvLength, TlvTag, TlvType, TlvTypeLength } from "./TlvCodec.js";
 import { TlvReader, TlvSchema, TlvWriter } from "./TlvSchema.js";
 import { TlvWrapper } from "./TlvWrapper.js";
+
+const numericTypeByMax = new Map<number | bigint, string>([
+    [UINT8_MAX, "uint8"],
+    [UINT16_MAX, "uint16"],
+    [UINT24_MAX, "uint24"],
+    [UINT32_MAX, "uint32"],
+    [UINT64_MAX, "uint64"],
+    [INT8_MAX, "int8"],
+    [INT16_MAX, "int16"],
+    [INT32_MAX, "int32"],
+    [INT64_MAX, "int64"],
+    [FLOAT32_MAX, "single"],
+    [FLOAT64_MAX, "double"],
+]);
 
 const boundCache = new WeakMap<TlvNumericSchema<any>, Map<string, TlvNumericSchema<any>>>();
 
@@ -69,6 +84,29 @@ export class TlvNumericSchema<T extends bigint | number> extends TlvSchema<T> {
 
     get max() {
         return this.#max ?? this.baseTypeMax;
+    }
+
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element | undefined {
+        const typeName = numericTypeByMax.get(this.baseTypeMax);
+        if (typeName === undefined) {
+            return undefined;
+        }
+
+        const result: TlvSchema.Element = { type: typeName };
+
+        const constraint: Constraint.Ast = {};
+        if (this.min !== this.baseTypeMin) {
+            constraint.min = this.min as number;
+        }
+        if (this.max !== this.baseTypeMax) {
+            constraint.max = this.max as number;
+        }
+        if (constraint.min !== undefined || constraint.max !== undefined) {
+            result.constraint = constraint;
+        }
+
+        return result;
     }
 
     override encodeTlvInternal(writer: TlvWriter, value: T, tag?: TlvTag): void {
