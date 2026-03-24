@@ -6,6 +6,7 @@
 
 import { Logger } from "#log/Logger.js";
 import { ChannelType, IpNetworkChannel } from "#net/Channel.js";
+import { NetworkError } from "#net/Network.js";
 import { ServerAddressTcp } from "#net/ServerAddress.js";
 import { Transport } from "#net/Transport.js";
 import { Bytes } from "#util/Bytes.js";
@@ -78,6 +79,11 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
         }
 
         const message = Bytes.of(data);
+        if (message.length >= this.maxMessageSize) {
+            throw new NetworkError(
+                `Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`,
+            );
+        }
         const frame = new Uint8Array(FRAMING_HEADER_SIZE + message.length);
         const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
         view.setUint32(0, message.length, true);
@@ -120,8 +126,9 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     // --- Internal ---
 
     #handleData(data: Bytes): void {
-        const chunk = Bytes.of(data); // Returns Uint8Array
-        this.#receiveChunks.push(chunk as Uint8Array);
+        // Bytes.of() always returns Uint8Array at runtime
+        const chunk = Bytes.of(data) as Uint8Array;
+        this.#receiveChunks.push(chunk);
         this.#receiveLength += chunk.length;
 
         this.#extractMessages();
@@ -157,6 +164,9 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
                 logger.error(
                     `Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`,
                 );
+                // TODO: Send MESSAGE_TOO_LARGE status report (general code 17) before closing,
+                // per spec §4.15.2.3. This requires protocol-layer StatusReport construction
+                // which is above the transport layer. Needs callback or event to protocol layer.
                 this.#workers.add(this.close());
                 return;
             }
@@ -194,9 +204,8 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
         const result = new Uint8Array(this.#receiveLength);
         let offset = 0;
         for (const chunk of this.#receiveChunks) {
-            const bytes = Bytes.of(chunk);
-            result.set(bytes, offset);
-            offset += bytes.length;
+            result.set(chunk, offset);
+            offset += chunk.length;
         }
         this.#receiveChunks = [result];
         return result;

@@ -72,7 +72,7 @@ export class TcpSocketReactNative implements TcpSocket {
     }
 
     async close(): Promise<void> {
-        this.#socket.destroy();
+        this.#socket.end();
     }
 }
 

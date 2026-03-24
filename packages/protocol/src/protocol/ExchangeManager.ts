@@ -539,47 +539,38 @@ export class ExchangeManager implements Transport.Provider {
      * Mimics CHIP SDK behavior: when a TCP connection drops, all sessions on that connection
      * are evicted and all their exchanges are closed.
      */
+    /** Find all active sessions whose underlying transport channel matches by identity. */
+    #sessionsOnChannel(channel: Channel<Bytes>): Session[] {
+        const result: Session[] = [];
+
+        const check = (session: Session) => {
+            if (session.isClosed) return;
+            try {
+                if (session.channel.channel === channel) {
+                    result.push(session);
+                }
+            } catch {
+                // Session may already be closed
+            }
+        };
+
+        for (const session of this.#sessions.sessions) check(session);
+        for (const session of this.#sessions.unsecuredSessions.values()) check(session);
+
+        return result;
+    }
+
     async #onConnectionDisconnect(channel: Channel<Bytes>) {
         logger.info("TCP connection dropped, evicting bound sessions:", channel.name);
 
-        // Find all sessions (both secure and unsecured) whose underlying channel matches
-        const sessionsToEvict: Session[] = [];
-
-        for (const session of this.#sessions.sessions) {
-            if (session.isClosed) {
-                continue;
-            }
-            try {
-                if (session.channel.channel === channel) {
-                    sessionsToEvict.push(session);
-                }
-            } catch {
-                // Session may already be closed, ignore
-            }
-        }
-
-        for (const session of this.#sessions.unsecuredSessions.values()) {
-            if (session.isClosed) {
-                continue;
-            }
-            try {
-                if (session.channel.channel === channel) {
-                    sessionsToEvict.push(session);
-                }
-            } catch {
-                // Session may already be closed, ignore
-            }
-        }
-
-        for (const session of sessionsToEvict) {
+        // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
+        for (const session of this.#sessionsOnChannel(channel)) {
             logger.debug("Evicting session due to TCP disconnect:", session.via);
 
-            // Close all exchanges for this session
             for (const exchange of [...session.exchanges]) {
                 await exchange.close(new Error("TCP connection dropped"));
             }
 
-            // Force-close the session
             await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
         }
     }
@@ -591,34 +582,10 @@ export class ExchangeManager implements Transport.Provider {
      * Mimics CHIP SDK behavior: close TCP connection when last session is removed.
      */
     async #closeTcpConnectionIfLastSession(tcpChannel: Channel<Bytes>) {
-        // Check if any remaining sessions reference the same TCP channel
-        for (const session of this.#sessions.sessions) {
-            if (session.isClosed) {
-                continue;
-            }
-            try {
-                if (session.channel.channel === tcpChannel) {
-                    return; // Still has sessions, keep the connection open
-                }
-            } catch {
-                // Session may already be closed, ignore
-            }
+        if (this.#sessionsOnChannel(tcpChannel).length > 0) {
+            return;
         }
 
-        for (const session of this.#sessions.unsecuredSessions.values()) {
-            if (session.isClosed) {
-                continue;
-            }
-            try {
-                if (session.channel.channel === tcpChannel) {
-                    return; // Still has sessions, keep the connection open
-                }
-            } catch {
-                // Session may already be closed, ignore
-            }
-        }
-
-        // No remaining sessions reference this TCP connection, close it
         logger.info("Last session on TCP connection removed, closing connection:", tcpChannel.name);
         await tcpChannel.close();
     }

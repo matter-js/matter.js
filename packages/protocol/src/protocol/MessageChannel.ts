@@ -47,7 +47,7 @@ export class MessageChannel implements Channel<Message> {
         if (isIpNetworkChannel(channel)) {
             this.#isIpNetworkChannel = true;
             channel.networkAddressChanged.on(networkAddress => {
-                logger.debug(`Network address of UDP Channel changed to ${ServerAddress.urlFor(networkAddress)}`);
+                logger.debug(`Network address of channel changed to ${ServerAddress.urlFor(networkAddress)}`);
                 this.#networkAddressChanged.emit(networkAddress);
             });
         }
@@ -68,7 +68,7 @@ export class MessageChannel implements Channel<Message> {
      * This is only true for TCP channels currently.
      */
     get supportsLargeMessages() {
-        return this.type === "tcp";
+        return this.#channel.supportsLargeMessages;
     }
 
     get type() {

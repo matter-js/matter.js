@@ -7,7 +7,7 @@
 import { Bytes } from "#util/Bytes.js";
 import { Transport } from "#net/Transport.js";
 
-/** Maximum Matter message size over TCP, excluding the 4-byte framing field. */
+/** Maximum Matter TCP frame size (4-byte length header + message content). Message content limit is this minus 4. */
 export const DEFAULT_MAX_TCP_MESSAGE_SIZE = 64_000;
 
 /** Time to wait for a TCP connection to be established before giving up. */
