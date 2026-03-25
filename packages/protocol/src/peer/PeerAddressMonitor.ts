@@ -115,7 +115,7 @@ export class PeerAddressMonitor {
             return;
         }
 
-        const via = Diagnostic.via(`${this.#peer.address.toString()}${session.via}`);
+        const via = session.via;
 
         // Reset backoff if the IP we're being asked about differs from last time
         if (currentIp !== this.#lastProbedIp) {
@@ -145,10 +145,8 @@ export class PeerAddressMonitor {
 
         // Probe the current address — maybe mDNS is just stale and the address still works
         if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort })) {
-            logger.debug(
-                via,
-                `Probe succeeded at current address, keeping session (next cooldown: ${Duration.format(this.#advanceBackoff())})`,
-            );
+            const nextCooldown = this.#advanceBackoff();
+            logger.debug(via, `Probe succeeded, keeping session (next cooldown: ${Duration.format(nextCooldown)})`);
             return;
         }
 

@@ -98,8 +98,8 @@ export interface PeerTimingParameters {
      * Probe cooldown range for repeated address-change probes on the same IP.
      *
      * When mDNS keeps reporting the session IP as gone but probes succeed, the cooldown grows
-     * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  Resets when the
-     * probed IP changes or the device sends data.
+     * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  The cooldown
+     * resets when the probed IP changes or a probe fails.
      */
     addressChangeProbeCooldown: {
         /** Initial cooldown between probes (first two probes use this). */
