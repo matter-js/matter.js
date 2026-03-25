@@ -16,7 +16,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/model
     - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
-    - Enhancement: First Model preparations for Matter 1.5
+    - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
