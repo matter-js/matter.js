@@ -7,15 +7,8 @@
 import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#cluster/client/AttributeClient.js";
 import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
 import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
-import { ClusterClientObj, TypedClusterClientObj, Val } from "@matter/protocol";
-import {
-    ClusterId,
-    ClusterNamespace,
-    ClusterType,
-    DeviceTypeId,
-    EndpointNumber,
-    getClusterNameById,
-} from "@matter/types";
+import { ClusterClientObj, Val } from "@matter/protocol";
+import { ClusterId, ClusterNamespace, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
 export interface EndpointOptions {
@@ -172,13 +165,8 @@ export class Endpoint {
         this.clusterClients.set(cluster.id, cluster);
     }
 
-    getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
-    getClusterClient<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): TypedClusterClientObj<N["Typing"]> | undefined;
-    getClusterClient(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterClientObj | TypedClusterClientObj | undefined {
+    getClusterClient<const N extends ClusterNamespace.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
+    getClusterClient(cluster: ClusterNamespace.Concrete): ClusterClientObj | undefined {
         return this.clusterClients.get(cluster.id) as ClusterClientObj;
     }
 
@@ -186,7 +174,7 @@ export class Endpoint {
         return this.clusterClients.get(clusterId);
     }
 
-    hasClusterClient(cluster: ClusterType | ClusterNamespace.Concrete): boolean {
+    hasClusterClient(cluster: ClusterNamespace.Concrete): boolean {
         return this.clusterClients.has(cluster.id);
     }
 
@@ -316,7 +304,7 @@ export class Endpoint {
         ];
         const elementDiagnostic = Array<unknown>();
 
-        const { supportedFeatures: features } = client;
+        const features = client.supportedFeatures as Record<string, boolean>;
         const supportedFeatures = new Array<string>();
         for (const featureName in features) {
             if (features[featureName] === true) supportedFeatures.push(featureName);

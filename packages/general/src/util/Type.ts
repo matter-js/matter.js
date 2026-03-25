@@ -171,3 +171,21 @@ export type RequiredKeys<T> = { [K in keyof T]-?: {} extends Pick<T, K> ? never 
  * Extract keys of optional properties from an interface.
  */
 export type OptionalKeys<T> = Exclude<keyof T & string, RequiredKeys<T>>;
+
+/**
+ * Recursive deep-partial type with array index key support.
+ *
+ * Primitives and functions pass through unchanged; objects become deeply optional; arrays accept either a partial array
+ * or an object keyed by numeric string indices.
+ */
+export type DeepPartial<V> = V extends (infer E)[]
+    ? { readonly [K in `${number}`]: DeepPartial<E> } | Readonly<DeepPartial<E>[]>
+    : V extends boolean | number | bigint | string
+      ? V
+      : V extends object
+        ? V extends (...args: any[]) => any
+            ? never
+            : {
+                  readonly [K in keyof V]?: DeepPartial<V[K]>;
+              }
+        : V;

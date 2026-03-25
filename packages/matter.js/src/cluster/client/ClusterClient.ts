@@ -6,24 +6,14 @@
 
 import { capitalize, Diagnostic, Duration, ImplementationError, Logger } from "@matter/general";
 import { AttributeModel } from "@matter/model";
-import {
-    AttributeClients,
-    AttributeClientValues,
-    ClusterClientObj,
-    DecodedEventData,
-    EventClients,
-    GroupClusterClientObj,
-    TypedClusterClientObj,
-} from "@matter/protocol";
+import { ClusterClientObj, DecodedEventData } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
     ClusterNamespace,
-    ClusterType,
     CommandId,
     EndpointNumber,
     EventId,
-    GlobalAttributes,
     StatusCode,
     StatusResponseError,
     TlvEventFilter,
@@ -37,23 +27,17 @@ import { InteractionClient } from "./InteractionClient.js";
 
 const logger = Logger.get("ClusterClient");
 
-export function GroupClusterClient<const T extends ClusterType>(
-    clusterDef: T,
-    interactionClient: InteractionClient,
-    globalAttributeValues?: Partial<AttributeClientValues<GlobalAttributes<T["features"]>>>,
-): GroupClusterClientObj<T>;
-
 export function GroupClusterClient<const N extends ClusterNamespace.Concrete>(
     clusterDef: N,
     interactionClient: InteractionClient,
     globalAttributeValues?: Record<string, unknown>,
-): TypedClusterClientObj<N["Typing"]>;
+): ClusterClientObj<N["Typing"]>;
 
 export function GroupClusterClient(
-    clusterDef: ClusterType | ClusterNamespace.Concrete,
+    clusterDef: ClusterNamespace.Concrete,
     interactionClient: InteractionClient,
     globalAttributeValues: Record<string, unknown> = {},
-): GroupClusterClientObj<any> | TypedClusterClientObj {
+): ClusterClientObj {
     if (!interactionClient.isGroupAddress) {
         throw new Error("GroupClusterClient must be used with a GroupAddress InteractionClient");
     }
@@ -61,26 +45,19 @@ export function GroupClusterClient(
     return ClusterClient(clusterDef as any, undefined, interactionClient, globalAttributeValues) as any;
 }
 
-export function ClusterClient<const T extends ClusterType>(
-    clusterDef: T,
-    endpointId: EndpointNumber | undefined,
-    interactionClient: InteractionClient,
-    globalAttributeValues?: Partial<AttributeClientValues<GlobalAttributes<T["features"]>>>,
-): ClusterClientObj<T>;
-
 export function ClusterClient<const N extends ClusterNamespace.Concrete>(
     clusterDef: N,
     endpointId: EndpointNumber | undefined,
     interactionClient: InteractionClient,
     globalAttributeValues?: Record<string, unknown>,
-): TypedClusterClientObj<N["Typing"]>;
+): ClusterClientObj<N["Typing"]>;
 
 export function ClusterClient(
-    clusterDef: ClusterType | ClusterNamespace.Concrete,
+    clusterDef: ClusterNamespace.Concrete,
     endpointId: EndpointNumber | undefined,
     interactionClient: InteractionClient,
     globalAttributeValues: any = {},
-): ClusterClientObj<any> | TypedClusterClientObj {
+): ClusterClientObj {
     // After factory swap, ClusterType() returns namespace-shaped objects at runtime
     const ns = clusterDef as ClusterNamespace.Concrete;
     const isGroupAddress = interactionClient.isGroupAddress;
@@ -227,8 +204,8 @@ export function ClusterClient(
         };
     }
 
-    const attributes = <AttributeClients<any, any>>{};
-    const events = <EventClients<any>>{};
+    const attributes = <Record<string, any>>{};
+    const events = <Record<string, any>>{};
     const commands: any = {};
     const nsAttrs = ns.attributes ?? {};
     const nsCmds = ns.commands ?? {};
@@ -489,5 +466,5 @@ export function ClusterClient(
         result[commandName] = result.commands[commandName];
     }
 
-    return result as ClusterClientObj<any>;
+    return result as ClusterClientObj;
 }

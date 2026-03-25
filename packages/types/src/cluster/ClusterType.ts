@@ -13,7 +13,6 @@ import {
     GlobalAttributes,
 } from "./Cluster.js";
 import { ClusterNamespace } from "./ClusterNamespace.js";
-import { ClusterTypeBridge } from "./ClusterTypeBridge.js";
 import { RetiredClusterType } from "./RetiredClusterType.js";
 
 /**
@@ -40,7 +39,7 @@ export namespace ClusterType {
      * the TLV schemas in the options bag.
      */
     export type FromOptions<T extends RetiredClusterType.Options> = ClusterNamespace.Concrete & {
-        Typing: ClusterTypeBridge<RetiredClusterType.Of<T>, {}>;
+        Typing: RetiredClusterType.TypingOfOptions<T>;
     };
 
     /**

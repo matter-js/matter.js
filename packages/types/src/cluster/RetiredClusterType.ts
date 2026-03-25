@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded, Merge } from "@matter/general";
+import { Branded, type DeepPartial, Merge } from "@matter/general";
 import {
     Access,
     AccessLevel,
@@ -19,6 +19,7 @@ import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { TlvSchema } from "../tlv/TlvSchema.js";
 import { TlvVoid } from "../tlv/TlvVoid.js";
 import { Attribute, Command, Event, GlobalAttributes } from "./Cluster.js";
+import type { ClusterNamespace, ClusterTyping } from "./ClusterNamespace.js";
 import { ClusterType } from "./ClusterType.js";
 
 /**
@@ -202,19 +203,9 @@ export namespace RetiredClusterType {
     };
 
     /**
-     * @deprecated
+     * @deprecated Use {@link DeepPartial} from `@matter/general` instead.
      */
-    export type PatchType<V> = V extends (infer E)[]
-        ? { readonly [K in `${number}`]: PatchType<E> } | Readonly<PatchType<E>[]>
-        : V extends boolean | number | bigint | string
-          ? V
-          : V extends object
-            ? V extends (...args: any[]) => any
-                ? never
-                : {
-                      readonly [K in keyof V]?: PatchType<V[K]>;
-                  }
-            : V;
+    export type PatchType<V> = DeepPartial<V>;
 
     /**
      * @deprecated
@@ -223,6 +214,106 @@ export namespace RetiredClusterType {
         flags: TypeFromPartialBitSchema<F>;
         component: false | Partial<ClusterType.Elements>;
     }
+
+    /**
+     * Extract {@link ClusterTyping} from an {@link Options} bag.
+     *
+     * This replaces the `ClusterTypeBridge<Of<T>, {}>` path with a simpler extraction that derives value types
+     * directly from the TLV schemas in the options without the component-merging machinery.
+     */
+    export type TypingOfOptions<T extends Options> = {
+        Attributes: AttrValuesOf<Of<T>["attributes"]>;
+        Commands: CmdValuesOf<Of<T>["commands"]>;
+        Events: EventValuesOf<Of<T>["events"]>;
+        Features: FeatureNamesOf<Of<T>["features"]>;
+        SupportedFeatures: Of<T>["supportedFeatures"];
+        Components: [
+            {
+                flags: {};
+                attributes: AttrInterfaceOf<Of<T>["attributes"]>;
+                events: EventInterfaceOf<Of<T>["events"]>;
+            },
+            ...ExtComponents<ExtensionsOf<Of<T>>>,
+        ];
+    };
+
+    type AttrValueOf<A> = A extends { schema: TlvSchema<infer T> } ? T : never;
+
+    type AttrValuesOf<R> = { [K in keyof R]: AttrValueOf<R[K]> };
+
+    type EventValuesOf<R> = { [K in keyof R]: AttrValueOf<R[K]> };
+
+    type CmdFnOf<C> = C extends { requestSchema: TlvSchema<infer Req>; responseSchema: TlvSchema<infer Resp> }
+        ? Req extends void
+            ? () => Resp
+            : (request: Req) => Resp
+        : () => void;
+
+    type CmdValuesOf<R> = { [K in keyof R]: CmdFnOf<R[K]> };
+
+    type FeatureNamesOf<F> = Capitalize<keyof F & string>;
+
+    /**
+     * Attribute keys that are mandatory (not optional).
+     */
+    type MandatoryAttrKeys<R> = {
+        [K in keyof R & string]: R[K] extends { optional: true } ? never : K;
+    }[keyof R & string];
+
+    /**
+     * Attribute keys that are optional.
+     */
+    type OptionalAttrKeys<R> = {
+        [K in keyof R & string]: R[K] extends { optional: true } ? K : never;
+    }[keyof R & string];
+
+    /**
+     * Build a per-component attribute interface from ClusterType attributes.
+     *
+     * Mandatory attributes are required; optional attributes use `?`.
+     */
+    type AttrInterfaceOf<R> = { [K in MandatoryAttrKeys<R>]: AttrValueOf<R[K]> } & {
+        [K in OptionalAttrKeys<R>]?: AttrValueOf<R[K]>;
+    };
+
+    /**
+     * Build a per-component event interface from ClusterType events.
+     *
+     * Mandatory events are required; optional events use `?`.
+     */
+    type EventInterfaceOf<R> = { [K in MandatoryAttrKeys<R>]: AttrValueOf<R[K]> } & {
+        [K in OptionalAttrKeys<R>]?: AttrValueOf<R[K]>;
+    };
+
+    type ExtensionsOf<C extends ClusterType> = C extends {
+        extensions: infer E extends readonly ClusterType.Extension[];
+    }
+        ? E
+        : [];
+
+    type ExtFlags<E extends ClusterType.Extension> = E["flags"];
+
+    type ExtComponents<Exts extends readonly ClusterType.Extension[]> = Exts extends readonly [
+        infer E extends ClusterType.Extension,
+        ...infer Rest extends readonly ClusterType.Extension[],
+    ]
+        ? [ExtComponentEntry<E>, ...ExtComponents<Rest>]
+        : [];
+
+    type ExtComponentEntry<E extends ClusterType.Extension> = {
+        flags: ExtFlags<E>;
+    } & (E["component"] extends { attributes: infer A } ? { attributes: AttrInterfaceOf<A> } : {}) &
+        (E["component"] extends { events: infer Ev } ? { events: EventInterfaceOf<Ev> } : {});
+
+    /**
+     * Extract {@link ClusterTyping} from either a {@link ClusterNamespace.Concrete} (which carries
+     * `Typing` directly) or a legacy {@link ClusterType} (via direct extraction).
+     */
+    export type TypingOf<C> = C extends { Typing: infer N extends ClusterTyping }
+        ? N
+        : C extends ClusterType
+          ? TypingOfOptions<C>
+          : ClusterTyping;
 }
 
 const GLOBAL_ATTR_IDS = new Set([0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8]);

@@ -53,7 +53,6 @@ import {
     PeerAddress,
     Read,
     SustainedSubscription,
-    TypedClusterClientObj,
     Val,
 } from "@matter/protocol";
 import {
@@ -61,7 +60,6 @@ import {
     CaseAuthenticatedTag,
     ClusterId,
     ClusterNamespace,
-    ClusterType,
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
     EndpointNumber,
@@ -1407,16 +1405,11 @@ export class PairedNode {
      *
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getRootClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
     getRootClusterClient<const N extends ClusterNamespace.Concrete>(
         cluster: N,
-    ): TypedClusterClientObj<N["Typing"]> | undefined;
-    getRootClusterClient(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterClientObj | TypedClusterClientObj | undefined {
-        return this.#ensureLegacyEndpointStructure()
-            .get(EndpointNumber(0))
-            ?.getClusterClient(cluster as ClusterType);
+    ): ClusterClientObj<N["Typing"]> | undefined;
+    getRootClusterClient(cluster: ClusterNamespace.Concrete): ClusterClientObj | undefined {
+        return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterClient(cluster);
     }
 
     /**
@@ -1425,19 +1418,15 @@ export class PairedNode {
      * @param endpointId EndpointNumber to get the cluster from
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getClusterClientForDevice<const T extends ClusterType>(
-        endpointId: EndpointNumber,
-        cluster: T,
-    ): ClusterClientObj<T> | undefined;
     getClusterClientForDevice<const N extends ClusterNamespace.Concrete>(
         endpointId: EndpointNumber,
         cluster: N,
-    ): TypedClusterClientObj<N["Typing"]> | undefined;
+    ): ClusterClientObj<N["Typing"]> | undefined;
     getClusterClientForDevice(
         endpointId: EndpointNumber,
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterClientObj | TypedClusterClientObj | undefined {
-        return this.getDeviceById(endpointId)?.getClusterClient(cluster as ClusterType);
+        cluster: ClusterNamespace.Concrete,
+    ): ClusterClientObj | undefined {
+        return this.getDeviceById(endpointId)?.getClusterClient(cluster);
     }
 
     get [Diagnostic.value](): unknown {
