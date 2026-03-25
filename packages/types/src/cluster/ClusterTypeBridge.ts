@@ -20,9 +20,10 @@ import type { ClusterType } from "./ClusterType.js";
  */
 export type ClusterTypeBridge<C extends ClusterType, I extends ClusterTyping> = Omit<
     I,
-    "Attributes" | "Events" | "Features" | "SupportedFeatures" | "Components"
+    "Attributes" | "Commands" | "Events" | "Features" | "SupportedFeatures" | "Components"
 > & {
     Attributes: AttrValuesOf<C["attributes"]> & ExtAttrValuesOf<ExtensionsOf<C>>;
+    Commands: I extends { Commands: infer IC } ? IC : CmdValuesOf<C["commands"]> & ExtCmdValuesOf<ExtensionsOf<C>>;
     Events: EventValuesOf<C["events"]> & ExtEventValuesOf<ExtensionsOf<C>>;
     Features: FeatureNamesOf<C["features"]>;
     SupportedFeatures: C["supportedFeatures"];
@@ -101,6 +102,14 @@ type AttrValuesOf<R> = { [K in keyof R]: AttrValueOf<R[K]> };
 
 type EventValuesOf<R> = { [K in keyof R]: AttrValueOf<R[K]> };
 
+type CmdFnOf<C> = C extends { requestSchema: TlvSchema<infer Req>; responseSchema: TlvSchema<infer Resp> }
+    ? Req extends void
+        ? () => Resp
+        : (request: Req) => Resp
+    : () => void;
+
+type CmdValuesOf<R> = { [K in keyof R]: CmdFnOf<R[K]> };
+
 /**
  * Attribute keys that are mandatory (not optional).
  */
@@ -161,6 +170,13 @@ type ExtEventValuesOf<Exts extends readonly ClusterType.Extension[]> = Exts exte
     ...infer Rest extends readonly ClusterType.Extension[],
 ]
     ? (E["component"] extends { events: infer Ev } ? EventValuesOf<Ev> : {}) & ExtEventValuesOf<Rest>
+    : {};
+
+type ExtCmdValuesOf<Exts extends readonly ClusterType.Extension[]> = Exts extends readonly [
+    infer E extends ClusterType.Extension,
+    ...infer Rest extends readonly ClusterType.Extension[],
+]
+    ? (E["component"] extends { commands: infer Cmd } ? CmdValuesOf<Cmd> : {}) & ExtCmdValuesOf<Rest>
     : {};
 
 /**

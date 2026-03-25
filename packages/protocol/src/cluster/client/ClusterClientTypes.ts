@@ -12,13 +12,13 @@ import {
     Attributes,
     BitSchema,
     ClusterId,
+    ClusterNamespace,
     ClusterType,
     ClusterTyping,
     Command,
     CommandId,
     Commands,
     EndpointNumber,
-    Event,
     EventId,
     EventNumber,
     EventType,
@@ -42,7 +42,7 @@ import { DecodedEventData } from "../../interaction/EventDataDecoder.js";
 
 export interface AttributeClientObj<T = any> {
     readonly id: AttributeId;
-    readonly attribute: Attribute<T, any>;
+    readonly attribute: ClusterNamespace.Attribute<T>;
     readonly name: string;
     readonly endpointId: EndpointNumber | undefined;
     readonly clusterId: ClusterId;
@@ -63,7 +63,7 @@ export interface AttributeClientObj<T = any> {
 
 export interface EventClientObj<T> {
     readonly id: EventId;
-    readonly event: Event<T, any>;
+    readonly event: ClusterNamespace.Event<T>;
     readonly name: string;
     readonly endpointId: EndpointNumber | undefined;
     readonly clusterId: ClusterId;

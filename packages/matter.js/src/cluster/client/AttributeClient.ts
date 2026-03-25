@@ -8,12 +8,13 @@ import { ImplementationError } from "@matter/general";
 import { FabricIndex as FabricIndexElement } from "@matter/model";
 import { NoAssociatedFabricError } from "@matter/protocol";
 import {
-    Attribute,
     AttributeError,
     AttributeId,
     ClusterId,
+    ClusterNamespace,
     EndpointNumber,
     FabricIndex,
+    TlvOfModel,
     TlvSchema,
 } from "@matter/types";
 import { InteractionClient } from "./InteractionClient.js";
@@ -22,14 +23,15 @@ import { InteractionClient } from "./InteractionClient.js";
  * Factory function to create an AttributeClient for a given attribute.
  */
 export function createAttributeClient<T>(
-    attribute: Attribute<T, any>,
+    attribute: ClusterNamespace.Attribute<T>,
     name: string,
     endpointId: EndpointNumber | undefined,
     clusterId: ClusterId,
     interactionClient: InteractionClient,
     present = false,
+    unknown = false,
 ): AttributeClient<T> {
-    if (attribute.unknown) {
+    if (unknown) {
         return new UnknownSupportedAttributeClient(attribute, name, endpointId, clusterId, interactionClient);
     }
     if (present) {
@@ -51,18 +53,18 @@ export class AttributeClient<T = any> {
     readonly #interactionClient: InteractionClient;
 
     constructor(
-        readonly attribute: Attribute<T, any>,
+        readonly attribute: ClusterNamespace.Attribute<T>,
         readonly name: string,
         readonly endpointId: EndpointNumber | undefined,
         readonly clusterId: ClusterId,
         interactionClient: InteractionClient,
     ) {
-        const { schema, writable, fabricScoped, id, omitChanges } = attribute;
-        this.schema = schema;
-        this.#isWritable = writable;
-        this.#isFabricScoped = fabricScoped;
-        this.#updatedBySubscriptions = !omitChanges;
-        this.id = id;
+        const model = attribute.schema;
+        this.schema = TlvOfModel(model);
+        this.id = attribute.id;
+        this.#isWritable = model.writable;
+        this.#isFabricScoped = model.fabricScoped;
+        this.#updatedBySubscriptions = !(model.effectiveQuality.changesOmitted ?? false);
         this.#interactionClient = interactionClient;
     }
 
@@ -177,7 +179,7 @@ export class AttributeClient<T = any> {
             maxIntervalCeilingSeconds,
             isFabricFiltered,
             knownDataVersion,
-            listener: this.update.bind(this),
+            listener: (value: T) => this.update(value),
         });
     }
 

@@ -16,7 +16,6 @@ import {
     NodeDiscoveryType,
     PeerConnectionOptions,
 } from "#cluster/client/InteractionClient.js";
-import { ClusterTypeOfModel } from "#cluster/ClusterTypeOfModel.js";
 import type { NodeCommissioningOptions } from "#CommissioningController.js";
 import { ControllerStore, ControllerStoreInterface } from "#ControllerStore.js";
 import { DeviceInformationData } from "#device/DeviceInformation.js";
@@ -636,11 +635,11 @@ export class MatterController {
             allowUnknownPeer: true,
         }); // Wait maximum 120s to find the operational device for a commissioning process
         const generalCommissioningClusterClient = ClusterClient(
-            ClusterTypeOfModel(GeneralCommissioning.schema),
+            GeneralCommissioning,
             EndpointNumber(0),
             interactionClient,
         );
-        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete(undefined, {
+        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete({
             useExtendedFailSafeMessageResponseTimeout: true,
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {

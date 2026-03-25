@@ -5,13 +5,10 @@
  */
 
 import { ClusterClientObj, ClusterClientObjInternal } from "@matter/protocol";
-import { ClusterType } from "@matter/types";
 
-export function asClusterClientInternal<const T extends ClusterType>(
-    obj: ClusterClientObj<T>,
-): ClusterClientObjInternal<T> {
+export function asClusterClientInternal(obj: ClusterClientObj): ClusterClientObjInternal {
     if (obj._type !== "ClusterClient") {
         throw new Error("Object is not a ClusterClientObj instance.");
     }
-    return obj as ClusterClientObjInternal<T>;
+    return obj as ClusterClientObjInternal;
 }

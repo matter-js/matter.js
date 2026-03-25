@@ -19,46 +19,13 @@ import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { TlvSchema } from "../tlv/TlvSchema.js";
 import { TlvVoid } from "../tlv/TlvVoid.js";
 import { Attribute, Command, Event, GlobalAttributes } from "./Cluster.js";
-import { ClusterId } from "../datatype/ClusterId.js";
 import { ClusterType } from "./ClusterType.js";
 
 /**
- * The old {@link ClusterType} factory.
- *
- * Builds an old-style cluster descriptor from a legacy options bag.
+ * Types and utilities for the deprecated {@link ClusterType} factory.
  *
  * @deprecated Remove when ClusterType compat layer is dropped.
  */
-export function RetiredClusterType<const T extends RetiredClusterType.Options>(options: T) {
-    const cluster = {
-        id: ClusterId(options.id),
-        name: options.name,
-        revision: options.revision,
-
-        features: options.features ?? {},
-        supportedFeatures: options.supportedFeatures ?? {},
-
-        attributes: {
-            ...options.attributes,
-            ...GlobalAttributes(options.features ?? {}),
-        },
-        commands: options.commands ?? {},
-        events: options.events ?? {},
-
-        unknown: false,
-    } as RetiredClusterType.Of<T>;
-
-    if (options.base) {
-        cluster.base = options.base as RetiredClusterType.Of<T>["base"];
-    }
-
-    if (options.extensions) {
-        cluster.extensions = options.extensions as RetiredClusterType.Of<T>["extensions"];
-    }
-
-    return cluster;
-}
-
 export namespace RetiredClusterType {
     /**
      * Convert a legacy options bag (TLV schemas, AccessLevel enums, boolean flags) into a {@link ClusterModel}.

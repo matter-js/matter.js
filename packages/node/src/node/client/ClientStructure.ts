@@ -35,7 +35,7 @@ import {
     type FeatureBitmap,
 } from "@matter/model";
 import { ReadScope, Val, type Read, type ReadResult } from "@matter/protocol";
-import type { AttributeId, ClusterId, ClusterType, CommandId, EndpointNumber } from "@matter/types";
+import type { AttributeId, ClusterId, CommandId, EndpointNumber } from "@matter/types";
 import { Status } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import type { ClientEventEmitter } from "./ClientEventEmitter.js";
@@ -425,7 +425,7 @@ export class ClientStructure {
     }
 
     /**
-     * Obtain the {@link ClusterType} for an {@link EndpointNumber} and {@link ClusterId}.
+     * Obtain the cluster namespace for an {@link EndpointNumber} and {@link ClusterId}.
      */
     clusterFor(endpoint: EndpointNumber, cluster: ClusterId) {
         const ep = this.#endpointFor(endpoint);

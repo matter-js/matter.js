@@ -6,7 +6,6 @@
 
 import { ClusterClient } from "#cluster/client/ClusterClient.js";
 import { InteractionClient, UnknownNodeError } from "#cluster/client/InteractionClient.js";
-import { ClusterTypeOfModel } from "#cluster/ClusterTypeOfModel.js";
 import {
     AsyncObservable,
     AtLeastOne,
@@ -25,7 +24,15 @@ import {
     Seconds,
     Time,
 } from "@matter/general";
-import { AcceptedCommandList, AggregatorDt, AttributeList, ClusterRevision, FeatureMap, Matter } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AggregatorDt,
+    AttributeList,
+    ClusterModel,
+    ClusterRevision,
+    FeatureMap,
+    Matter,
+} from "@matter/model";
 import {
     Behavior,
     ChangeNotificationService,
@@ -1176,15 +1183,13 @@ export class PairedNode {
         // Add ClusterClients for all server clusters of the device
         for (const clusterId of descriptorData.serverList) {
             const clusterModel = Matter.clusters(clusterId);
-            let cluster: ClusterType;
-            if (clusterModel === undefined) {
-                cluster = ClusterType({ id: clusterId, name: `Cluster$${clusterId.toString(16)}`, revision: 0 });
-            } else {
-                cluster = ClusterTypeOfModel(clusterModel);
-            }
+            const cluster = (
+                clusterModel !== undefined
+                    ? ClusterNamespace(clusterModel)
+                    : ClusterNamespace(new ClusterModel({ id: clusterId, name: `Cluster$${clusterId.toString(16)}` }))
+            ) as ClusterNamespace.Concrete;
             const data = (endpoint.state as any)[camelize(cluster.name)];
-            const clusterClient = ClusterClient(cluster, endpointId, interactionClient, data);
-            endpointClusters.push(clusterClient);
+            endpointClusters.push(ClusterClient(cluster, endpointId, interactionClient, data) as ClusterClientObj);
         }
 
         if (endpointId === 0) {

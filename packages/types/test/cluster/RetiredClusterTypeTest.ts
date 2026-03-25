@@ -15,6 +15,7 @@ import {
     WritableAttribute,
     WritableFabricScopedAttribute,
 } from "#cluster/Cluster.js";
+import { ClusterType } from "#cluster/ClusterType.js";
 import { RetiredClusterType } from "#cluster/RetiredClusterType.js";
 import { Priority } from "#globals/Priority.js";
 import { BitFlag } from "#schema/BitmapSchema.js";
@@ -335,6 +336,39 @@ describe("ClusterCompat", () => {
             const attr = model.get(AttributeModel, "myList");
             expect(attr).exist;
             expect(attr!.effectiveType).equal("list");
+        });
+    });
+
+    describe("ClusterType factory", () => {
+        it("returns namespace-shaped object", () => {
+            const cluster = ClusterType({
+                id: 1,
+                name: "Foo",
+                revision: 1,
+                attributes: {
+                    attr: OptionalAttribute(2, TlvUInt8),
+                },
+                commands: {
+                    cmd: OptionalCommand(3, TlvUInt8, 3, TlvUInt8),
+                },
+            });
+
+            expect(cluster.id).equal(1);
+            expect(cluster.name).equal("Foo");
+            expect(cluster.schema).exist;
+            expect(cluster.schema.name).equal("Foo");
+
+            // Should have namespace-style attribute descriptors
+            const attrs = cluster.attributes;
+            expect(attrs).exist;
+            expect(attrs!["attr"]).exist;
+            expect(attrs!["attr"].id).equal(2);
+
+            // Should have namespace-style command descriptors
+            const cmds = cluster.commands;
+            expect(cmds).exist;
+            expect(cmds!["cmd"]).exist;
+            expect(cmds!["cmd"].id).equal(3);
         });
     });
 });

@@ -45,24 +45,20 @@ import {
 } from "@matter/protocol";
 import {
     ArraySchema,
-    Attribute,
     AttributeId,
-    AttributeJsType,
     CaseAuthenticatedTag,
     ClusterId,
-    Command,
+    ClusterNamespace,
     EndpointNumber,
-    Event,
     EventId,
     EventNumber,
     NodeId,
-    RequestType,
     resolveAttributeName,
     resolveEventName,
-    ResponseType,
     StatusCode,
     StatusResponseError,
     TlvEventFilter,
+    TlvOfModel,
     TypeFromSchema,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -149,10 +145,20 @@ export interface AttributeStatus {
     status: StatusCode;
 }
 
-export type InvokeOptions<C extends Command<any, any, any>> = {
+type CommandRequest<C extends ClusterNamespace.Command> =
+    C extends ClusterNamespace.Command<infer F>
+        ? F extends (req: infer R, ...args: unknown[]) => unknown
+            ? R
+            : undefined
+        : unknown;
+
+type CommandResponse<C extends ClusterNamespace.Command> =
+    C extends ClusterNamespace.Command<infer F> ? Awaited<ReturnType<F>> : unknown;
+
+export type InvokeOptions<C extends ClusterNamespace.Command = ClusterNamespace.Command> = {
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
-    request: RequestType<C>;
+    request: CommandRequest<C>;
     command: C;
 
     /** Send as timed request. If no timedRequestTimeoutMs is provided the default of 10s will be used. */
@@ -565,11 +571,11 @@ export class InteractionClient {
         };
     }
 
-    getStoredAttribute<A extends Attribute<any, any>>(options: {
+    getStoredAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        attribute: A;
-    }): AttributeJsType<A> | undefined {
+        attribute: ClusterNamespace.Attribute<T>;
+    }): T | undefined {
         if (this.isGroupAddress) {
             throw new ImplementationError("Reading data from group addresses is not supported.");
         }
@@ -578,21 +584,19 @@ export class InteractionClient {
         const { id: attributeId } = attribute;
 
         if (this.#interaction instanceof ClientNodeInteraction) {
-            return deepCopy(this.#interaction.localStateFor(endpointId)?.[clusterId]?.[attributeId]) as
-                | AttributeJsType<A>
-                | undefined;
+            return deepCopy(this.#interaction.localStateFor(endpointId)?.[clusterId]?.[attributeId]) as T | undefined;
         }
         return undefined;
     }
 
-    async getAttribute<A extends Attribute<any, any>>(options: {
+    async getAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        attribute: A;
+        attribute: ClusterNamespace.Attribute<T>;
         isFabricFiltered?: boolean;
         requestFromRemote?: boolean;
         attributeChangeListener?: (data: DecodedAttributeReportValue<any>) => void;
-    }): Promise<AttributeJsType<A> | undefined> {
+    }): Promise<T | undefined> {
         if (this.isGroupAddress) {
             throw new ImplementationError("Reading data from group addresses is not supported.");
         }
@@ -603,7 +607,7 @@ export class InteractionClient {
         if (!requestFromRemote) {
             const value = this.getStoredAttribute({ endpointId, clusterId, attribute });
             if (value !== undefined) {
-                return value as AttributeJsType<A>;
+                return value;
             }
             if (requestFromRemote === false) {
                 return undefined;
@@ -622,13 +626,13 @@ export class InteractionClient {
         if (attributeReports.length > 1) {
             throw new UnexpectedDataError("Unexpected response with more then one attribute");
         }
-        return attributeReports[0]?.value;
+        return attributeReports[0]?.value as T | undefined;
     }
 
-    async getEvent<T, E extends Event<T, any>>(options: {
+    async getEvent<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        event: E;
+        event: ClusterNamespace.Event<T>;
         minimumEventNumber?: EventNumber;
         isFabricFiltered?: boolean;
     }): Promise<DecodedEventData<T>[] | undefined> {
@@ -639,14 +643,14 @@ export class InteractionClient {
             eventFilters: minimumEventNumber !== undefined ? [{ eventMin: minimumEventNumber }] : undefined,
             isFabricFiltered,
         });
-        return response?.eventReports[0]?.events;
+        return response?.eventReports[0]?.events as DecodedEventData<T>[] | undefined;
     }
 
     async setAttribute<T>(options: {
         attributeData: {
             endpointId?: EndpointNumber;
             clusterId: ClusterId;
-            attribute: Attribute<T, any>;
+            attribute: ClusterNamespace.Attribute<T>;
             value: T;
             dataVersion?: number;
         };
@@ -684,7 +688,7 @@ export class InteractionClient {
         attributes: {
             endpointId?: EndpointNumber;
             clusterId: ClusterId;
-            attribute: Attribute<any, any>;
+            attribute: ClusterNamespace.Attribute;
             value: any;
             dataVersion?: number;
         }[];
@@ -714,36 +718,36 @@ export class InteractionClient {
             }
         }
 
-        const writeRequests = attributes.flatMap(
-            ({ endpointId, clusterId, attribute: { id, schema }, value, dataVersion }) => {
-                if (
-                    chunkLists &&
-                    Array.isArray(value) &&
-                    schema instanceof ArraySchema &&
-                    // As implemented for Matter 1.4.2 in https://github.com/project-chip/connectedhomeip/pull/38263
-                    // Acl writes will no longer be chunked by default, all others still
-                    // Will be streamlined later ... see https://github.com/project-chip/connectedhomeip/issues/38270
-                    !isAclOrExtensionPath({ clusterId, attributeId: id })
-                ) {
-                    return schema
-                        .encodeAsChunkedArray(value, { forWriteInteraction: true })
-                        .map(({ element: data, listIndex }) => ({
-                            path: { endpointId, clusterId, attributeId: id, listIndex },
-                            data,
-                            dataVersion,
-                        }));
-                }
-                return [
-                    {
-                        path: { endpointId, clusterId, attributeId: id },
-                        data: schema.encodeTlv(value, { forWriteInteraction: true }),
+        const writeRequests = attributes.flatMap(({ endpointId, clusterId, attribute, value, dataVersion }) => {
+            const { id } = attribute;
+            const schema = TlvOfModel(attribute.schema);
+            if (
+                chunkLists &&
+                Array.isArray(value) &&
+                schema instanceof ArraySchema &&
+                // As implemented for Matter 1.4.2 in https://github.com/project-chip/connectedhomeip/pull/38263
+                // Acl writes will no longer be chunked by default, all others still
+                // Will be streamlined later ... see https://github.com/project-chip/connectedhomeip/issues/38270
+                !isAclOrExtensionPath({ clusterId, attributeId: id })
+            ) {
+                return schema
+                    .encodeAsChunkedArray(value, { forWriteInteraction: true })
+                    .map(({ element: data, listIndex }) => ({
+                        path: { endpointId, clusterId, attributeId: id, listIndex },
+                        data,
                         dataVersion,
-                    },
-                ];
-            },
-        );
+                    }));
+            }
+            return [
+                {
+                    path: { endpointId, clusterId, attributeId: id },
+                    data: schema.encodeTlv(value, { forWriteInteraction: true }),
+                    dataVersion,
+                },
+            ];
+        });
         const timedRequest =
-            attributes.some(({ attribute: { timed } }) => timed) ||
+            attributes.some(({ attribute }) => attribute.schema.effectiveAccess.timed === true) ||
             asTimedRequest === true ||
             options.timedRequestTimeout !== undefined;
         if (this.isGroupAddress && timedRequest) {
@@ -786,16 +790,16 @@ export class InteractionClient {
             .filter(({ status }) => status !== StatusCode.Success);
     }
 
-    async subscribeAttribute<A extends Attribute<any, any>>(options: {
+    async subscribeAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        attribute: A;
+        attribute: ClusterNamespace.Attribute<T>;
         minIntervalFloorSeconds: number;
         maxIntervalCeilingSeconds: number;
         isFabricFiltered?: boolean;
         knownDataVersion?: number;
         keepSubscriptions?: boolean;
-        listener?: (value: AttributeJsType<A>, version: number) => void;
+        listener?: (value: T, version: number) => void;
         updateTimeoutHandler?: () => void;
         updateReceived?: () => void;
     }): Promise<{
@@ -835,10 +839,10 @@ export class InteractionClient {
         return { maxInterval };
     }
 
-    async subscribeEvent<T, E extends Event<T, any>>(options: {
+    async subscribeEvent<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        event: E;
+        event: ClusterNamespace.Event<T>;
         minIntervalFloorSeconds: number;
         maxIntervalCeilingSeconds: number;
         keepSubscriptions?: boolean;
@@ -1057,9 +1061,9 @@ export class InteractionClient {
         };
     }
 
-    async #invoke<C extends Command<any, any, any>>(
+    async #invoke<C extends ClusterNamespace.Command>(
         options: InvokeOptions<C> & { suppressResponse: boolean },
-    ): Promise<ResponseType<C>> {
+    ): Promise<CommandResponse<C>> {
         const {
             endpointId,
             clusterId,
@@ -1071,7 +1075,7 @@ export class InteractionClient {
             skipValidation,
             request,
         } = options;
-        const { timed } = command;
+        const timed = command.schema.effectiveAccess.timed === true;
         let { suppressResponse } = options;
         const timedRequest = (timed && !skipValidation) || asTimedRequest === true || !!options.timedRequestTimeout;
 
@@ -1118,7 +1122,7 @@ export class InteractionClient {
         for await (const chunks of invoke) {
             for (const chunk of chunks) {
                 if (chunk.kind === "cmd-response") {
-                    return chunk.data as ResponseType<C>;
+                    return chunk.data as CommandResponse<C>;
                 }
 
                 const resultCode = chunk.status;
@@ -1129,33 +1133,33 @@ export class InteractionClient {
                         chunk.clusterStatus,
                     );
                 }
-                return undefined as unknown as ResponseType<C>; // ResponseType is void, force casting the empty result
+                return undefined as CommandResponse<C>; // ResponseType is void
             }
         }
 
         if (suppressResponse) {
-            return undefined as unknown as ResponseType<C>;
+            return undefined as CommandResponse<C>;
         }
 
         throw new MatterFlowError("Received invoke response with no result nor response.");
     }
 
-    async invoke<C extends Command<any, any, any>>(options: InvokeOptions<C>): Promise<ResponseType<C>> {
-        return this.#invoke<C>({ ...options, suppressResponse: false });
+    async invoke<C extends ClusterNamespace.Command>(options: InvokeOptions<C>): Promise<CommandResponse<C>> {
+        return this.#invoke({ ...options, suppressResponse: false });
     }
 
     // TODO Add to ClusterClient when needed/when Group communication is implemented
     // TODO Additionally support it without endpoint
-    async invokeWithSuppressedResponse<C extends Command<any, any, any>>(options: {
+    async invokeWithSuppressedResponse<C extends ClusterNamespace.Command>(options: {
         endpointId?: EndpointNumber;
         clusterId: ClusterId;
-        request: RequestType<C>;
+        request: CommandRequest<C>;
         command: C;
         asTimedRequest?: boolean;
         timedRequestTimeout?: Duration;
         skipValidation?: boolean;
     }): Promise<void> {
-        return this.#invoke<C>({ ...options, suppressResponse: true });
+        return this.#invoke({ ...options, suppressResponse: true }) as Promise<void>;
     }
 
     get channelType() {

@@ -28,15 +28,13 @@ import { AttributeElement, ClusterModel, CommandElement } from "@matter/model";
 import {
     Attribute,
     ClusterId,
+    ClusterNamespace,
     ClusterType,
-    Command,
     CommandId,
     TlvBoolean,
     TlvInt32,
-    TlvNoResponse,
     TlvNullable,
     TlvString,
-    TlvUInt8,
 } from "@matter/types";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 import { MockEndpointType } from "../mock-behavior.js";
@@ -367,22 +365,6 @@ describe("ClusterBehavior", () => {
 
     describe("non-Matter methods", () => {
         it("excludes CommandId.NONE from accepted and generated command lists", async () => {
-            // Create a cluster with a regular command and a non-Matter method (id -1)
-            const TestCluster = ClusterType({
-                id: 0xfff1_fc99,
-                name: "TestWithMethod",
-                revision: 1,
-
-                commands: {
-                    realCommand: Command(0x01, TlvUInt8, 0x02, TlvUInt8),
-                    nonMatterMethod: {
-                        ...Command(0x01, TlvUInt8, 0x01, TlvNoResponse),
-                        requestId: CommandId.NONE,
-                        responseId: CommandId.NONE,
-                    },
-                },
-            });
-
             interface TestInterface {
                 Components: [
                     {
@@ -422,7 +404,8 @@ describe("ClusterBehavior", () => {
                 ],
             });
 
-            const TestBehavior = ClusterBehavior.withInterface<TestInterface>().for(TestCluster, TestSchema);
+            const TestNs = ClusterNamespace(TestSchema) as ClusterNamespace.Concrete & { Typing: TestInterface };
+            const TestBehavior = ClusterBehavior.for(TestNs);
 
             class MyTestBehavior extends TestBehavior {
                 override realCommand() {

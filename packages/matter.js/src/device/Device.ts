@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { AtLeastOne, HandlerFunction, ImplementationError, NamedHandler, NotImplementedError } from "@matter/general";
+import { AtLeastOne, HandlerFunction, NamedHandler, NotImplementedError } from "@matter/general";
 import { RootNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { ClusterClientObj, TypedClusterClientObj } from "@matter/protocol";
@@ -130,31 +130,5 @@ export class Device extends Endpoint {
      */
     protected async _executeHandler(command: never, ...args: any[]) {
         return await this.commandHandler.executeHandler(command, ...args);
-    }
-
-    protected createOptionalClusterClient<const T extends ClusterType>(_cluster: T): ClusterClientObj<T> {
-        // TODO: Implement this in upper classes to add optional clusters on the fly
-        throw new ImplementationError("createOptionalClusterClient needs to be implemented by derived classes");
-    }
-
-    override getClusterClient<const T extends ClusterType>(cluster: T): ClusterClientObj<T> | undefined;
-    override getClusterClient<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): TypedClusterClientObj<N["Typing"]> | undefined;
-    override getClusterClient(
-        cluster: ClusterType | ClusterNamespace.Concrete,
-    ): ClusterClientObj | TypedClusterClientObj | undefined {
-        const clusterClient = super.getClusterClient(cluster as ClusterType);
-        if (clusterClient !== undefined) {
-            return clusterClient;
-        }
-        if ("supportedFeatures" in cluster) {
-            for (const deviceType of this.deviceTypes) {
-                if (deviceType.optionalClientClusters.includes(cluster.id)) {
-                    const clusterClient = this.createOptionalClusterClient(cluster);
-                    this.addClusterClient(clusterClient);
-                }
-            }
-        }
     }
 }

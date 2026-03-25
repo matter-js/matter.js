@@ -12,6 +12,8 @@ import {
     Event as ClusterEvent,
     GlobalAttributes,
 } from "./Cluster.js";
+import { ClusterNamespace } from "./ClusterNamespace.js";
+import { ClusterTypeBridge } from "./ClusterTypeBridge.js";
 import { RetiredClusterType } from "./RetiredClusterType.js";
 
 /**
@@ -24,13 +26,23 @@ export interface ClusterType extends ClusterType.Identity, ClusterType.Features<
 /**
  * Define a cluster.
  *
- * @deprecated Delegates to {@link RetiredClusterType}.
+ * @deprecated use {@link ClusterNamespace} instead.
  */
-export function ClusterType<const T extends RetiredClusterType.Options>(options: T) {
-    return RetiredClusterType(options);
+export function ClusterType<const T extends RetiredClusterType.Options>(options: T): ClusterType.FromOptions<T> {
+    return ClusterNamespace(RetiredClusterType.ModelForOptions(options)) as ClusterType.FromOptions<T>;
 }
 
 export namespace ClusterType {
+    /**
+     * The result of calling `ClusterType(options)`.
+     *
+     * At runtime this is a `ClusterNamespace.Concrete` object. The `Typing` field carries value types derived from
+     * the TLV schemas in the options bag.
+     */
+    export type FromOptions<T extends RetiredClusterType.Options> = ClusterNamespace.Concrete & {
+        Typing: ClusterTypeBridge<RetiredClusterType.Of<T>, {}>;
+    };
+
     /**
      * Definition of a cluster attribute.
      */

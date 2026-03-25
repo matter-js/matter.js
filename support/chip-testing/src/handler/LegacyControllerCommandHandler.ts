@@ -21,27 +21,22 @@ import {
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
 import {
-    Attribute,
-    Command,
+    ClusterNamespace,
     GroupId,
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
     SecureChannelStatusCode,
-    TlvAny,
     TlvBoolean,
     TlvByteString,
     TlvInt32,
-    TlvNoResponse,
     TlvNullable,
-    TlvObject,
     TlvString,
     TlvUInt64,
-    TlvVoid,
     VendorId,
 } from "@matter/main/types";
-import { Matter } from "@matter/model";
+import { AttributeModel, CommandModel, Matter } from "@matter/model";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
-import { ClusterTypeOfModel, InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
+import { InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
 import {
     CommandHandler,
@@ -327,14 +322,18 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         if (clusterModel === undefined) {
             throw new Error(`Unknown cluster ${clusterId}`);
         }
-        const cluster = ClusterTypeOfModel(clusterModel);
+        const ns = ClusterNamespace(clusterModel) as ClusterNamespace.Concrete;
+        const nsAttr = ns.attributes?.[attributeName];
+        if (nsAttr === undefined) {
+            throw new Error(`Unknown attribute ${attributeName} on cluster ${clusterId}`);
+        }
 
         logger.info("Writing attribute", attributeName, "with value", value);
         await client.setAttribute({
             attributeData: {
                 endpointId,
                 clusterId,
-                attribute: cluster.attributes[attributeName],
+                attribute: nsAttr,
                 value,
             },
         });
@@ -382,25 +381,25 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         if (clusterModel === undefined) {
             throw new Error("Cluster not found");
         }
-        const cluster = ClusterTypeOfModel(clusterModel);
-        const clusterCommand = Object.values(cluster.commands).find(
-            command => (command as any).requestId === commandId,
-        ) as Command<any, any, any> | undefined;
-        if (!clusterCommand) {
+        const ns = ClusterNamespace(clusterModel) as ClusterNamespace.Concrete;
+        const nsCmd = ns.commands
+            ? Object.values(ns.commands).find((cmd: ClusterNamespace.Command) => cmd.id === commandId)
+            : undefined;
+        if (!nsCmd) {
             throw new Error("Command for Cluster not found");
         }
         if (suppressResponse) {
-            return await client.invokeWithSuppressedResponse<Command<any, any, any>>({
+            return await client.invokeWithSuppressedResponse({
                 endpointId,
                 clusterId,
-                command: clusterCommand,
+                command: nsCmd,
                 request: commandData,
             });
         }
-        return await client.invoke<Command<any, any, any>>({
+        return await client.invoke({
             endpointId,
             clusterId,
-            command: clusterCommand,
+            command: nsCmd,
             request: commandData,
             asTimedRequest: timedInteractionTimeout !== undefined,
             timedRequestTimeout: timedInteractionTimeout,
@@ -412,16 +411,25 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     async handleInvokeById(data: InvokeByIdRequest): Promise<void> {
         const { nodeId, endpointId, clusterId, commandId, data: commandData, timedInteractionTimeout } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
-        await client.invoke<Command<any, any, any>>({
+
+        // Try to look up the real model for proper encoding
+        const realCmd = Matter.clusters(clusterId)?.commands(commandId);
+        const cmdModel =
+            realCmd ??
+            new CommandModel({
+                id: commandId,
+                name: `command_${commandId}`,
+                direction: "request",
+                access: timedInteractionTimeout !== undefined ? "T" : undefined,
+            });
+
+        await client.invoke({
             endpointId,
             clusterId: clusterId,
-            command: Command(commandId, TlvAny, 0x00, TlvNoResponse, {
-                timed: timedInteractionTimeout !== undefined,
-            }),
-            request: commandData === undefined ? TlvVoid.encodeTlv() : TlvObject({}).encodeTlv(commandData as any),
+            command: { id: commandId, name: cmdModel.name, schema: cmdModel },
+            request: commandData,
             asTimedRequest: timedInteractionTimeout !== undefined,
             timedRequestTimeout: timedInteractionTimeout,
-            skipValidation: true,
         });
     }
 
@@ -458,11 +466,16 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             }
         }
 
+        // Try to look up the real model for proper encoding
+        const realAttr = Matter.clusters(clusterId)?.attributes(attributeId);
+        const attrModel =
+            realAttr ?? new AttributeModel({ id: attributeId, name: `attr_${attributeId}`, access: "RW" });
+
         await client.setAttribute({
             attributeData: {
                 endpointId,
                 clusterId,
-                attribute: Attribute(attributeId, TlvAny),
+                attribute: { id: attributeId, name: attrModel.name, schema: attrModel },
                 value: tlvValue,
             },
         });
