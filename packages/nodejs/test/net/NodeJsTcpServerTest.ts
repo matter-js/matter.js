@@ -19,7 +19,7 @@ describe("NodeJsTcpServer", () => {
                 server.onConnection(socket => {
                     assert.ok(socket.remoteAddress);
                     assert.ok(socket.remotePort > 0);
-                    socket.close();
+                    void socket.close();
                     resolve();
                 });
             });
@@ -39,7 +39,7 @@ describe("NodeJsTcpServer", () => {
                 server.onConnection(socket => {
                     socket.onData(data => {
                         resolve(Bytes.toString(data));
-                        socket.close();
+                        void socket.close();
                     });
                 });
             });
