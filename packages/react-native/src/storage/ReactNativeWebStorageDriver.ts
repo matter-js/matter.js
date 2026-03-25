@@ -22,7 +22,9 @@ export class ReactNativeWebStorageDriver extends WebStorageDriver {
     static readonly id = "react-native-web";
 
     static create(namespace: DataNamespace) {
-        return new ReactNativeWebStorageDriver(namespace.namespace);
+        const storage = new ReactNativeWebStorageDriver(namespace.namespace);
+        storage.initialize();
+        return storage;
     }
 
     constructor(namespace?: string) {
