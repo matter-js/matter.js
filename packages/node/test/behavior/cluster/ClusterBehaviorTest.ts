@@ -29,7 +29,6 @@ import {
     Attribute,
     ClusterId,
     ClusterNamespace,
-    ClusterType,
     CommandId,
     TlvBoolean,
     TlvInt32,
@@ -204,7 +203,7 @@ describe("ClusterBehavior", () => {
 
         it("assigns correct default values", () => {
             const MyBehavior = ClusterBehavior.for(
-                ClusterType({
+                ClusterNamespace({
                     name: "MyCluster",
                     id: ClusterId(1),
                     revision: 1,

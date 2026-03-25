@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Branded, type DeepPartial, Merge } from "@matter/general";
 import {
     Access,
     AccessLevel,
@@ -18,13 +17,11 @@ import {
 import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { TlvSchema } from "../tlv/TlvSchema.js";
 import { TlvVoid } from "../tlv/TlvVoid.js";
-import { GlobalAttributes } from "./Cluster.js";
-import type { ClusterNamespace, ClusterTyping } from "./ClusterNamespace.js";
-import { ClusterType } from "./ClusterType.js";
+import type { ClusterTyping } from "./ClusterNamespace.js";
 import { Attribute, Command, Event } from "./RetiredElements.js";
 
 /**
- * Types and utilities for the deprecated {@link ClusterType} factory.
+ * Types and utilities for the deprecated ClusterType factory.
  *
  * @deprecated Remove when ClusterType compat layer is dropped.
  */
@@ -149,92 +146,49 @@ export namespace RetiredClusterType {
     }
 
     /**
-     * Input to the retired {@link ClusterType} factory.
+     * Input to the retired ClusterType factory.
      *
      * @deprecated
      */
-    export type Options<F extends BitSchema = {}> = { id: number } & Omit<ClusterType.Identity, "id"> &
-        Partial<ClusterType.Features<F>> & {
-            attributes?: ClusterType.ElementSet<ClusterType.Attribute>;
-            commands?: ClusterType.ElementSet<ClusterType.Command>;
-            events?: ClusterType.ElementSet<ClusterType.Event>;
-        };
-
-    /**
-     * A fully typed result of the retired {@link ClusterType} factory.
-     *
-     * @deprecated
-     */
-    export interface Of<T extends Options> {
-        id: Branded<T["id"], "ClusterId">;
-        name: T["name"];
-        revision: T["revision"];
-        features: T["features"] extends {} ? T["features"] : {};
-        supportedFeatures: T["supportedFeatures"] extends {} ? T["supportedFeatures"] : {};
-        attributes: T["attributes"] extends infer A extends {}
-            ? Merge<A, GlobalAttributes<T["features"] extends {} ? T["features"] : {}>>
-            : {};
-        commands: T["commands"] extends {} ? T["commands"] : {};
-        events: T["events"] extends {} ? T["events"] : {};
-        unknown: T["unknown"] extends boolean ? T["unknown"] : false;
-        base: T["base"] extends {} ? T["base"] : undefined;
-        extensions: T["extensions"] extends {} ? T["extensions"] : undefined;
-    }
-
-    /**
-     * @deprecated
-     */
-    export type AttributeValues<T> = ValuesOfAttributes<ClusterType.AttributesOf<T>>;
-
-    /**
-     * @deprecated
-     */
-    export type ValuesOfAttributes<AttrsT extends { [K: string]: Attribute<any, any> }> = {
-        [K in keyof AttrsT as [AttrsT[K]] extends [{ optional: true }] ? never : K]: AttrsT[K] extends {
-            schema: TlvSchema<infer T>;
-        }
-            ? T
-            : never;
-    } & {
-        [K in keyof AttrsT as [AttrsT[K]] extends [{ optional: true }] ? K : never]?: AttrsT[K] extends {
-            schema: TlvSchema<infer T>;
-        }
-            ? T
-            : never;
+    export type Options<F extends BitSchema = {}> = {
+        id: number;
+        name: string;
+        revision: number;
+        features?: F;
+        supportedFeatures?: TypeFromPartialBitSchema<F>;
+        unknown?: boolean;
+        attributes?: Record<string, Attribute<any, any>>;
+        commands?: Record<string, Command<any, any, any>>;
+        events?: Record<string, Event<any, any>>;
     };
 
     /**
-     * @deprecated Use {@link DeepPartial} from `@matter/general` instead.
+     * @deprecated Provided for compatibility with external consumers.
      */
-    export type PatchType<V> = DeepPartial<V>;
+    export type AttributeValues<T> = T extends { Typing: { Attributes: infer A } } ? A : {};
 
     /**
-     * @deprecated
+     * @deprecated Provided for compatibility with external consumers.
      */
-    export interface Extension<F extends BitSchema = {}> {
-        flags: TypeFromPartialBitSchema<F>;
-        component: false | Partial<ClusterType.Elements>;
-    }
+    export type CommandsOf<T> = T extends { Typing: { Commands: infer C } } ? C : {};
 
     /**
      * Extract {@link ClusterTyping} from an {@link Options} bag.
      *
-     * This replaces the `ClusterTypeBridge<Of<T>, {}>` path with a simpler extraction that derives value types
-     * directly from the TLV schemas in the options without the component-merging machinery.
+     * Derives value types directly from the TLV schemas in the options without the component-merging machinery.
      */
     export type TypingOfOptions<T extends Options> = {
-        Attributes: AttrValuesOf<Of<T>["attributes"]>;
-        Commands: CmdValuesOf<Of<T>["commands"]>;
-        Events: EventValuesOf<Of<T>["events"]>;
-        Features: FeatureNamesOf<Of<T>["features"]>;
-        SupportedFeatures: Of<T>["supportedFeatures"];
+        Attributes: AttrValuesOf<T["attributes"] extends {} ? T["attributes"] : {}>;
+        Commands: CmdValuesOf<T["commands"] extends {} ? T["commands"] : {}>;
+        Events: EventValuesOf<T["events"] extends {} ? T["events"] : {}>;
+        Features: FeatureNamesOf<T["features"] extends {} ? T["features"] : {}>;
+        SupportedFeatures: T["supportedFeatures"] extends {} ? T["supportedFeatures"] : {};
         Components: [
             {
                 flags: {};
-                attributes: AttrInterfaceOf<Of<T>["attributes"]>;
-                events: EventInterfaceOf<Of<T>["events"]>;
+                attributes: AttrInterfaceOf<T["attributes"] extends {} ? T["attributes"] : {}>;
+                events: EventInterfaceOf<T["events"] extends {} ? T["events"] : {}>;
             },
-            ...ExtComponents<ExtensionsOf<Of<T>>>,
         ];
     };
 
@@ -269,7 +223,7 @@ export namespace RetiredClusterType {
     }[keyof R & string];
 
     /**
-     * Build a per-component attribute interface from ClusterType attributes.
+     * Build a per-component attribute interface from legacy attributes.
      *
      * Mandatory attributes are required; optional attributes use `?`.
      */
@@ -278,7 +232,7 @@ export namespace RetiredClusterType {
     };
 
     /**
-     * Build a per-component event interface from ClusterType events.
+     * Build a per-component event interface from legacy events.
      *
      * Mandatory events are required; optional events use `?`.
      */
@@ -286,35 +240,6 @@ export namespace RetiredClusterType {
         [K in OptionalAttrKeys<R>]?: AttrValueOf<R[K]>;
     };
 
-    type ExtensionsOf<C extends ClusterType> = C extends {
-        extensions: infer E extends readonly ClusterType.Extension[];
-    }
-        ? E
-        : [];
-
-    type ExtFlags<E extends ClusterType.Extension> = E["flags"];
-
-    type ExtComponents<Exts extends readonly ClusterType.Extension[]> = Exts extends readonly [
-        infer E extends ClusterType.Extension,
-        ...infer Rest extends readonly ClusterType.Extension[],
-    ]
-        ? [ExtComponentEntry<E>, ...ExtComponents<Rest>]
-        : [];
-
-    type ExtComponentEntry<E extends ClusterType.Extension> = {
-        flags: ExtFlags<E>;
-    } & (E["component"] extends { attributes: infer A } ? { attributes: AttrInterfaceOf<A> } : {}) &
-        (E["component"] extends { events: infer Ev } ? { events: EventInterfaceOf<Ev> } : {});
-
-    /**
-     * Extract {@link ClusterTyping} from either a {@link ClusterNamespace.Concrete} (which carries
-     * `Typing` directly) or a legacy {@link ClusterType} (via direct extraction).
-     */
-    export type TypingOf<C> = C extends { Typing: infer N extends ClusterTyping }
-        ? N
-        : C extends ClusterType
-          ? TypingOfOptions<C>
-          : ClusterTyping;
 }
 
 const GLOBAL_ATTR_IDS = new Set([0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8]);

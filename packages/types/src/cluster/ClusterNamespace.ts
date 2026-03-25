@@ -14,6 +14,7 @@ import type { CommandId } from "../datatype/CommandId.js";
 import type { EventId } from "../datatype/EventId.js";
 import { Status } from "../globals/Status.js";
 import type { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
+import { RetiredClusterType } from "./RetiredClusterType.js";
 
 /**
  * Describes the shape of generated namespace objects for standard Matter clusters (`typeof OnOff`).
@@ -86,8 +87,18 @@ const cache = new WeakMap<ClusterModel, object>();
  * identical object.  The object carries all runtime properties: `id`, `name`, `revision`, `schema`, enum values,
  * feature enum, error classes, plus lazy getters for `attributes`, `commands`, `events`, `features`, `Cluster`,
  * and `Complete`.
+ *
+ * @deprecated Use ClusterNamespace with a ClusterModel instead.
  */
-export function ClusterNamespace(model: ClusterModel): object {
+export function ClusterNamespace<const T extends RetiredClusterType.Options>(
+    options: T,
+): ClusterNamespace.Concrete & { Typing: RetiredClusterType.TypingOfOptions<T> };
+
+export function ClusterNamespace(model: ClusterModel): object;
+
+export function ClusterNamespace(input: ClusterModel | RetiredClusterType.Options): object {
+    const model = input instanceof ClusterModel ? input : RetiredClusterType.ModelForOptions(input);
+
     let ns = cache.get(model);
     if (ns !== undefined) {
         return ns;
@@ -501,4 +512,14 @@ export namespace ClusterNamespace {
         }
         return result;
     }
+
+    /**
+     * @deprecated Provided for compatibility with external consumers.
+     */
+    export type AttributeValues<T> = RetiredClusterType.AttributeValues<T>;
+
+    /**
+     * @deprecated Provided for compatibility with external consumers.
+     */
+    export type CommandsOf<T> = RetiredClusterType.CommandsOf<T>;
 }
