@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { capitalize, decamelize, Diagnostic } from "@matter/general";
-import { ClientNode, SoftwareUpdateManager } from "@matter/node";
+import { capitalize, ChannelType, decamelize, Diagnostic } from "@matter/general";
+import { ClientNode, NetworkClient, SoftwareUpdateManager } from "@matter/node";
 import { PeerAddress } from "@matter/protocol";
 import { FabricIndex, NodeId, VendorId } from "@matter/types";
 import { CommissioningControllerNodeOptions, NodeStateInformation } from "@project-chip/matter.js/device";
@@ -246,6 +246,49 @@ export default function commands(theNode: MatterNode) {
                                 );
                             }
                         }
+                    },
+                )
+                .command(
+                    "tcp <node-id> <preference>",
+                    "Set TCP transport preference for a node",
+                    yargs => {
+                        return yargs
+                            .positional("node-id", {
+                                describe: "node id",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("preference", {
+                                describe: "tcp preference: on/off (on = prefer TCP, off = prefer UDP)",
+                                choices: ["on", "off"],
+                                demandOption: true,
+                                type: "string",
+                            });
+                    },
+                    async argv => {
+                        const { nodeId: nodeIdStr, preference } = argv;
+                        await theNode.start();
+                        if (theNode.commissioningController === undefined) {
+                            throw new Error("CommissioningController not initialized");
+                        }
+
+                        const nodeId = NodeId(BigInt(nodeIdStr));
+                        const node = await theNode.commissioningController.getNode(nodeId);
+
+                        const pref = preference === "on" ? "tcp" : "udp";
+                        await node.node.setStateOf(NetworkClient, { transportPreference: pref });
+
+                        // Also update the protocol-level peer preference
+                        const peer = theNode.node.env.get(
+                            (await import("@matter/protocol")).PeerSet,
+                        ).for(theNode.commissioningController.fabric.addressOf(nodeId));
+                        if (peer) {
+                            peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
+                        }
+
+                        console.log(
+                            `Transport preference for node ${nodeIdStr} set to ${pref.toUpperCase()}`,
+                        );
                     },
                 )
                 .command(

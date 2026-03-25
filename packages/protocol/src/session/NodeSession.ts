@@ -21,14 +21,15 @@ import {
     AsyncObservableValue,
     BasicSet,
     Bytes,
-    CRYPTO_SYMMETRIC_KEY_LENGTH,
+    ChannelType,
     Crypto,
+    CRYPTO_SYMMETRIC_KEY_LENGTH,
     Diagnostic,
     Duration,
+    hex,
     InternalError,
     Logger,
     MatterFlowError,
-    hex,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricIndex, GlobalFabricId, NodeId } from "@matter/types";
 import { SecureSession } from "./SecureSession.js";
@@ -236,8 +237,9 @@ export class NodeSession extends SecureSession {
     }
 
     get via() {
-        const transport = !this.isClosed ? this.channel.channel.type : "?";
-        return Diagnostic.via(`${this.peerAddress.toString()}${Mark.SESSION}${hex.word(this.id)}/${transport}`);
+        const transport =
+            !this.isClosed && this.channel.channel.type !== ChannelType.UDP ? `(${this.channel.channel.type})` : "";
+        return Diagnostic.via(`${this.peerAddress.toString()}${Mark.SESSION}${hex.word(this.id)}${transport}`);
     }
 
     get peerSessionId(): number {

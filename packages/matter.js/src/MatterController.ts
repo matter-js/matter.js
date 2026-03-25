@@ -289,6 +289,8 @@ export class MatterController {
         id: string;
         fabric?: Fabric;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         adminFabricId?: FabricId;
         adminFabricLabel: string;
         adminVendorId?: VendorId;
@@ -305,6 +307,8 @@ export class MatterController {
         const crypto = options.environment.get(Crypto);
         const {
             ble = false,
+            tcp,
+            transportPreference,
             adminFabricLabel,
             adminFabricId = FabricId(crypto.randomBigInt(8)),
             adminVendorId,
@@ -332,6 +336,8 @@ export class MatterController {
                     listeningAddressIpv4,
                     listeningAddressIpv6,
                     port: localPort,
+                    tcp,
+                    transportPreference,
                 },
                 basicInformation: {
                     ...basicInformation,
