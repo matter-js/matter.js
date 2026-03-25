@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { PowerSource as PowerSourceModel } from "@matter/model";
 
-export const PowerSource = ClusterNamespace(PowerSourceModel);
+export const PowerSource = ClusterType(PowerSourceModel);
 export const PowerSourceCluster = PowerSource;

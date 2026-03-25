@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { BasicInformation as BasicInformationModel } from "@matter/model";
 
-export const BasicInformation = ClusterNamespace(BasicInformationModel);
+export const BasicInformation = ClusterType(BasicInformationModel);
 export const BasicInformationCluster = BasicInformation;

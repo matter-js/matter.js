@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ScenesManagement as ScenesManagementModel } from "@matter/model";
 
-export const ScenesManagement = ClusterNamespace(ScenesManagementModel);
+export const ScenesManagement = ClusterType(ScenesManagementModel);
 export const ScenesManagementCluster = ScenesManagement;

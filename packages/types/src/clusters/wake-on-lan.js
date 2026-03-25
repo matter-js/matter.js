@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { WakeOnLan as WakeOnLanModel } from "@matter/model";
 
-export const WakeOnLan = ClusterNamespace(WakeOnLanModel);
+export const WakeOnLan = ClusterType(WakeOnLanModel);
 export const WakeOnLanCluster = WakeOnLan;

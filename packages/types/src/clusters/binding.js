@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Binding as BindingModel } from "@matter/model";
 
-export const Binding = ClusterNamespace(BindingModel);
+export const Binding = ClusterType(BindingModel);
 export const BindingCluster = Binding;

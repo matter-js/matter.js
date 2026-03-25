@@ -6,7 +6,7 @@
 
 import type { MaybePromise } from "@matter/general";
 import type { ClusterModel } from "@matter/model";
-import type { ClusterId, ClusterNamespace, ClusterTyping } from "@matter/types";
+import type { ClusterId, ClusterType, ClusterTyping } from "@matter/types";
 
 /**
  * Test cluster for ClusterBehavior tests.
@@ -116,10 +116,10 @@ export declare namespace My {
 
     export type Features = "Awesome";
 
-    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
-    export const commands: ClusterNamespace.CommandObjects<Commands>;
-    export const events: ClusterNamespace.EventObjects<Events>;
-    export const features: ClusterNamespace.Features<Features>;
+    export const attributes: ClusterType.AttributeObjects<Attributes>;
+    export const commands: ClusterType.CommandObjects<Commands>;
+    export const events: ClusterType.EventObjects<Events>;
+    export const features: ClusterType.Features<Features>;
 
     export const Cluster: typeof My;
     export const Complete: typeof My;

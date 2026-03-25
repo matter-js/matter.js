@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { EnergyPreference as EnergyPreferenceModel } from "@matter/model";
 
-export const EnergyPreference = ClusterNamespace(EnergyPreferenceModel);
+export const EnergyPreference = ClusterType(EnergyPreferenceModel);
 export const EnergyPreferenceCluster = EnergyPreference;

@@ -8,7 +8,7 @@ import { SupportedAttributeClient, UnknownSupportedAttributeClient } from "#clus
 import { AtLeastOne, Diagnostic, ImplementationError, InternalError, NotImplementedError } from "@matter/general";
 import { Behavior, Endpoint as ClientEndpoint } from "@matter/node";
 import { ClusterClientObj, Val } from "@matter/protocol";
-import { ClusterId, ClusterNamespace, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
+import { ClusterId, ClusterType, DeviceTypeId, EndpointNumber, getClusterNameById } from "@matter/types";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 
 export interface EndpointOptions {
@@ -165,8 +165,8 @@ export class Endpoint {
         this.clusterClients.set(cluster.id, cluster);
     }
 
-    getClusterClient<const N extends ClusterNamespace.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
-    getClusterClient(cluster: ClusterNamespace.Concrete): ClusterClientObj | undefined {
+    getClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
+    getClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.clusterClients.get(cluster.id) as ClusterClientObj;
     }
 
@@ -174,7 +174,7 @@ export class Endpoint {
         return this.clusterClients.get(clusterId);
     }
 
-    hasClusterClient(cluster: ClusterNamespace.Concrete): boolean {
+    hasClusterClient(cluster: ClusterType.Concrete): boolean {
         return this.clusterClients.has(cluster.id);
     }
 

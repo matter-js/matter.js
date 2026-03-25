@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { RefrigeratorAndTemperatureControlledCabinetMode as RefrigeratorAndTemperatureControlledCabinetModeModel } from "@matter/model";
 
-export const RefrigeratorAndTemperatureControlledCabinetMode = ClusterNamespace(RefrigeratorAndTemperatureControlledCabinetModeModel);
+export const RefrigeratorAndTemperatureControlledCabinetMode = ClusterType(RefrigeratorAndTemperatureControlledCabinetModeModel);
 export const RefrigeratorAndTemperatureControlledCabinetModeCluster = RefrigeratorAndTemperatureControlledCabinetMode;

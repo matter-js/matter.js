@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClusterNamespace, ClusterTyping } from "@matter/types";
+import type { ClusterType, ClusterTyping } from "@matter/types";
 
 /**
  * @see {@link ClusterTyping}
@@ -15,11 +15,11 @@ export namespace ClusterInterface {
     export const Empty: ClusterInterface = {};
     export type Empty = ClusterInterface;
 
-    export type Component = ClusterNamespace.Component;
+    export type Component = ClusterType.Component;
 
     export type InterfaceOf<B> = B extends { Interface: infer I extends ClusterInterface } ? I : ClusterInterface;
 
-    export type MethodsOf<I extends ClusterInterface> = InterfaceMethodsOf<I, ClusterNamespace.SupportedFeaturesOf<I>>;
+    export type MethodsOf<I extends ClusterInterface> = InterfaceMethodsOf<I, ClusterType.SupportedFeaturesOf<I>>;
 
     /**
      * All methods from all components, regardless of feature selection.

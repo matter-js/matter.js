@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ContentLauncher as ContentLauncherModel } from "@matter/model";
 
-export const ContentLauncher = ClusterNamespace(ContentLauncherModel);
+export const ContentLauncher = ClusterType(ContentLauncherModel);
 export const ContentLauncherCluster = ContentLauncher;

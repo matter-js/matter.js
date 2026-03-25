@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { WindowCovering as WindowCoveringModel } from "@matter/model";
 
-export const WindowCovering = ClusterNamespace(WindowCoveringModel);
+export const WindowCovering = ClusterType(WindowCoveringModel);
 export const WindowCoveringCluster = WindowCovering;

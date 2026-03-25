@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ElectricalEnergyMeasurement as ElectricalEnergyMeasurementModel } from "@matter/model";
 
-export const ElectricalEnergyMeasurement = ClusterNamespace(ElectricalEnergyMeasurementModel);
+export const ElectricalEnergyMeasurement = ClusterType(ElectricalEnergyMeasurementModel);
 export const ElectricalEnergyMeasurementCluster = ElectricalEnergyMeasurement;

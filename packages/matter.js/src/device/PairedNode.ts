@@ -59,7 +59,7 @@ import {
     AttributeId,
     CaseAuthenticatedTag,
     ClusterId,
-    ClusterNamespace,
+    ClusterType,
     CommissioningFlowType,
     DiscoveryCapabilitiesSchema,
     EndpointNumber,
@@ -1183,9 +1183,9 @@ export class PairedNode {
             const clusterModel = Matter.clusters(clusterId);
             const cluster = (
                 clusterModel !== undefined
-                    ? ClusterNamespace(clusterModel)
-                    : ClusterNamespace(new ClusterModel({ id: clusterId, name: `Cluster$${clusterId.toString(16)}` }))
-            ) as ClusterNamespace.Concrete;
+                    ? ClusterType(clusterModel)
+                    : ClusterType(new ClusterModel({ id: clusterId, name: `Cluster$${clusterId.toString(16)}` }))
+            ) as ClusterType.Concrete;
             const data = (endpoint.state as any)[camelize(cluster.name)];
             endpointClusters.push(ClusterClient(cluster, endpointId, interactionClient, data) as ClusterClientObj);
         }
@@ -1405,10 +1405,8 @@ export class PairedNode {
      *
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getRootClusterClient<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): ClusterClientObj<N["Typing"]> | undefined;
-    getRootClusterClient(cluster: ClusterNamespace.Concrete): ClusterClientObj | undefined {
+    getRootClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
+    getRootClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.#ensureLegacyEndpointStructure().get(EndpointNumber(0))?.getClusterClient(cluster);
     }
 
@@ -1418,14 +1416,11 @@ export class PairedNode {
      * @param endpointId EndpointNumber to get the cluster from
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getClusterClientForDevice<const N extends ClusterNamespace.Concrete>(
+    getClusterClientForDevice<const N extends ClusterType.Concrete>(
         endpointId: EndpointNumber,
         cluster: N,
     ): ClusterClientObj<N["Typing"]> | undefined;
-    getClusterClientForDevice(
-        endpointId: EndpointNumber,
-        cluster: ClusterNamespace.Concrete,
-    ): ClusterClientObj | undefined {
+    getClusterClientForDevice(endpointId: EndpointNumber, cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.getDeviceById(endpointId)?.getClusterClient(cluster);
     }
 

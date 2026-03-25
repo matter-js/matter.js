@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { BridgedDeviceBasicInformation as BridgedDeviceBasicInformationModel } from "@matter/model";
 
-export const BridgedDeviceBasicInformation = ClusterNamespace(BridgedDeviceBasicInformationModel);
+export const BridgedDeviceBasicInformation = ClusterType(BridgedDeviceBasicInformationModel);
 export const BridgedDeviceBasicInformationCluster = BridgedDeviceBasicInformation;

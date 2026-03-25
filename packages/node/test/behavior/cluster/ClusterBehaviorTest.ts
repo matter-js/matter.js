@@ -28,7 +28,7 @@ import { AttributeElement, ClusterModel, CommandElement } from "@matter/model";
 import {
     Attribute,
     ClusterId,
-    ClusterNamespace,
+    ClusterType,
     CommandId,
     TlvBoolean,
     TlvInt32,
@@ -203,7 +203,7 @@ describe("ClusterBehavior", () => {
 
         it("assigns correct default values", () => {
             const MyBehavior = ClusterBehavior.for(
-                ClusterNamespace({
+                ClusterType({
                     name: "MyCluster",
                     id: ClusterId(1),
                     revision: 1,
@@ -403,7 +403,7 @@ describe("ClusterBehavior", () => {
                 ],
             });
 
-            const TestNs = ClusterNamespace(TestSchema) as ClusterNamespace.Concrete & { Typing: TestInterface };
+            const TestNs = ClusterType(TestSchema) as ClusterType.Concrete & { Typing: TestInterface };
             const TestBehavior = ClusterBehavior.for(TestNs);
 
             class MyTestBehavior extends TestBehavior {

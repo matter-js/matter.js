@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { FanControl as FanControlModel } from "@matter/model";
 
-export const FanControl = ClusterNamespace(FanControlModel);
+export const FanControl = ClusterType(FanControlModel);
 export const FanControlCluster = FanControl;

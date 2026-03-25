@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ApplicationLauncher as ApplicationLauncherModel } from "@matter/model";
 
-export const ApplicationLauncher = ClusterNamespace(ApplicationLauncherModel);
+export const ApplicationLauncher = ClusterType(ApplicationLauncherModel);
 export const ApplicationLauncherCluster = ApplicationLauncher;

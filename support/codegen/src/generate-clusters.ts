@@ -93,10 +93,10 @@ function generateClusterJs(cluster: ClusterModel): string {
     const name = cluster.name;
     const lines = [
         HEADER,
-        `import { ClusterNamespace } from "../cluster/ClusterNamespace.js";`,
+        `import { ClusterType } from "../cluster/ClusterType.js";`,
         `import { ${name} as ${name}Model } from "@matter/model";`,
         "",
-        `export const ${name} = ClusterNamespace(${name}Model);`,
+        `export const ${name} = ClusterType(${name}Model);`,
     ];
 
     if (cluster.id !== undefined) {

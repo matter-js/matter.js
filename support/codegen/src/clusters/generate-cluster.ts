@@ -20,14 +20,14 @@ export function generateCluster(file: ClusterFile) {
 }
 
 /**
- * Generate unified component interfaces (Attributes, Commands, Events, Features) and ClusterNamespace consts.
+ * Generate unified component interfaces (Attributes, Commands, Events, Features) and ClusterType consts.
  */
 function generateComponents(file: ClusterFile) {
     const cluster = file.cluster;
     const name = cluster.name;
 
-    file.addImport("!types/cluster/ClusterNamespace.js", "ClusterNamespace");
-    file.addImport("!types/cluster/ClusterNamespace.js", "ClusterTyping");
+    file.addImport("!types/cluster/ClusterType.js", "ClusterType");
+    file.addImport("!types/cluster/ClusterType.js", "ClusterTyping");
 
     // --- Identity (top of namespace, via interfaces section) ---
 
@@ -86,22 +86,22 @@ function generateComponents(file: ClusterFile) {
 
     if (hasAttrs) {
         file.ns
-            .atom(`export const attributes: ClusterNamespace.AttributeObjects<Attributes>`)
+            .atom(`export const attributes: ClusterType.AttributeObjects<Attributes>`)
             .document("Attribute metadata objects keyed by name.");
     }
     if (hasCommands) {
         file.ns
-            .atom(`export const commands: ClusterNamespace.CommandObjects<Commands>`)
+            .atom(`export const commands: ClusterType.CommandObjects<Commands>`)
             .document("Command metadata objects keyed by name.");
     }
     if (hasEvents) {
         file.ns
-            .atom(`export const events: ClusterNamespace.EventObjects<Events>`)
+            .atom(`export const events: ClusterType.EventObjects<Events>`)
             .document("Event metadata objects keyed by name.");
     }
     if (hasFeatures) {
         file.ns
-            .atom(`export const features: ClusterNamespace.Features<Features>`)
+            .atom(`export const features: ClusterType.Features<Features>`)
             .document("Feature metadata objects keyed by name.");
     }
 

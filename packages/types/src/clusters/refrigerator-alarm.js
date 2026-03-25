@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { RefrigeratorAlarm as RefrigeratorAlarmModel } from "@matter/model";
 
-export const RefrigeratorAlarm = ClusterNamespace(RefrigeratorAlarmModel);
+export const RefrigeratorAlarm = ClusterType(RefrigeratorAlarmModel);
 export const RefrigeratorAlarmCluster = RefrigeratorAlarm;

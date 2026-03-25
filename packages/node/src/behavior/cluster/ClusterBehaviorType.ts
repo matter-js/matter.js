@@ -21,7 +21,7 @@ import {
     ValueModel,
 } from "@matter/model";
 import { Val } from "@matter/protocol";
-import { ClusterNamespace } from "@matter/types";
+import { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { DerivedState } from "../state/StateType.js";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
@@ -50,7 +50,7 @@ export function ClusterBehaviorType({
             schema = base.schema;
         }
         if (!schema && namespace) {
-            schema = (namespace as ClusterNamespace).schema;
+            schema = (namespace as ClusterType).schema;
         }
         if (!schema && namespace) {
             const nsId = (namespace as { id?: number }).id;
@@ -73,7 +73,7 @@ export function ClusterBehaviorType({
 
     // Construct namespace from schema if not provided
     if (!namespace) {
-        namespace = ClusterNamespace(schema);
+        namespace = ClusterType(schema);
     }
 
     const useCache = name === undefined;

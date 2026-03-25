@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Identify as IdentifyModel } from "@matter/model";
 
-export const Identify = ClusterNamespace(IdentifyModel);
+export const Identify = ClusterType(IdentifyModel);
 export const IdentifyCluster = Identify;

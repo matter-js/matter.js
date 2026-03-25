@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { PressureMeasurement as PressureMeasurementModel } from "@matter/model";
 
-export const PressureMeasurement = ClusterNamespace(PressureMeasurementModel);
+export const PressureMeasurement = ClusterType(PressureMeasurementModel);
 export const PressureMeasurementCluster = PressureMeasurement;

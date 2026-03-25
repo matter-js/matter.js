@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { FixedLabel as FixedLabelModel } from "@matter/model";
 
-export const FixedLabel = ClusterNamespace(FixedLabelModel);
+export const FixedLabel = ClusterType(FixedLabelModel);
 export const FixedLabelCluster = FixedLabel;

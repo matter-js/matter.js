@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { LocalizationConfiguration as LocalizationConfigurationModel } from "@matter/model";
 
-export const LocalizationConfiguration = ClusterNamespace(LocalizationConfigurationModel);
+export const LocalizationConfiguration = ClusterType(LocalizationConfigurationModel);
 export const LocalizationConfigurationCluster = LocalizationConfiguration;

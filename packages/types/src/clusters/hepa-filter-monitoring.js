@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { HepaFilterMonitoring as HepaFilterMonitoringModel } from "@matter/model";
 
-export const HepaFilterMonitoring = ClusterNamespace(HepaFilterMonitoringModel);
+export const HepaFilterMonitoring = ClusterType(HepaFilterMonitoringModel);
 export const HepaFilterMonitoringCluster = HepaFilterMonitoring;

@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ConcentrationMeasurement as ConcentrationMeasurementModel } from "@matter/model";
 
-export const ConcentrationMeasurement = ClusterNamespace(ConcentrationMeasurementModel);
+export const ConcentrationMeasurement = ClusterType(ConcentrationMeasurementModel);

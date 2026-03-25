@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
 import type { Bytes, MaybePromise } from "@matter/general";
@@ -190,12 +190,12 @@ export declare namespace WiFiNetworkManagement {
     /**
      * Attribute metadata objects keyed by name.
      */
-    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+    export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
      * Command metadata objects keyed by name.
      */
-    export const commands: ClusterNamespace.CommandObjects<Commands>;
+    export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
      * @deprecated Use {@link WiFiNetworkManagement}.

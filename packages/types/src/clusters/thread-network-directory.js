@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ThreadNetworkDirectory as ThreadNetworkDirectoryModel } from "@matter/model";
 
-export const ThreadNetworkDirectory = ClusterNamespace(ThreadNetworkDirectoryModel);
+export const ThreadNetworkDirectory = ClusterType(ThreadNetworkDirectoryModel);
 export const ThreadNetworkDirectoryCluster = ThreadNetworkDirectory;

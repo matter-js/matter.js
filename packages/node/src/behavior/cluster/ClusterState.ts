@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClusterNamespace, ClusterTyping } from "@matter/types";
+import type { ClusterType, ClusterTyping } from "@matter/types";
 import { AttributeId, BitSchema, CommandId, TypeFromPartialBitSchema } from "@matter/types";
 import type { Behavior } from "../Behavior.js";
 
@@ -37,7 +37,7 @@ export namespace ClusterState {
      */
     export type Type<N extends ClusterTyping = ClusterTyping, B extends Behavior.Type = Behavior.Type> =
         // Keep properties *not* from attributes of the old cluster
-        Omit<InstanceType<B["State"]>, ClusterNamespace.AttrKeysOf<N>> &
+        Omit<InstanceType<B["State"]>, ClusterType.AttrKeysOf<N>> &
             // Add properties from attributes of the new cluster
             AttributeProperties<N>;
 
@@ -45,7 +45,7 @@ export namespace ClusterState {
      * Extract Components tuple from namespace.
      */
     type ComponentsOf<N extends ClusterTyping> = N extends {
-        Components: infer C extends ClusterNamespace.Component[];
+        Components: infer C extends ClusterType.Component[];
     }
         ? C
         : [];
@@ -59,7 +59,7 @@ export namespace ClusterState {
      */
     type AttributeProperties<N extends ClusterTyping> = AppliedAttrsOf<
         ComponentsOf<N>,
-        ClusterNamespace.SupportedFeaturesOf<N>
+        ClusterType.SupportedFeaturesOf<N>
     >;
 
     /**
@@ -67,9 +67,9 @@ export namespace ClusterState {
      *
      * Mirrors {@link ClusterInterface.AppliedMethodsOf} for commands.
      */
-    type AppliedAttrsOf<CA extends ClusterNamespace.Component[], S> = CA extends [
-        infer C extends ClusterNamespace.Component,
-        ...infer R extends ClusterNamespace.Component[],
+    type AppliedAttrsOf<CA extends ClusterType.Component[], S> = CA extends [
+        infer C extends ClusterType.Component,
+        ...infer R extends ClusterType.Component[],
     ]
         ? (S extends C["flags"] ? (C extends { attributes: infer A } ? A : {}) : {}) & AppliedAttrsOf<R, S>
         : {};
@@ -82,7 +82,7 @@ export namespace ClusterState {
      */
     export type Complete<N extends ClusterTyping = ClusterTyping, B extends Behavior.Type = Behavior.Type> = Omit<
         InstanceType<B["State"]>,
-        ClusterNamespace.AttrKeysOf<N>
+        ClusterType.AttrKeysOf<N>
     > &
         CompleteAttributeProperties<N>;
 
@@ -95,9 +95,9 @@ export namespace ClusterState {
     /**
      * Intersect attribute interfaces from base components (flags: {}).
      */
-    type AppliedBaseAttrs<CA extends ClusterNamespace.Component[]> = CA extends [
-        infer C extends ClusterNamespace.Component,
-        ...infer R extends ClusterNamespace.Component[],
+    type AppliedBaseAttrs<CA extends ClusterType.Component[]> = CA extends [
+        infer C extends ClusterType.Component,
+        ...infer R extends ClusterType.Component[],
     ]
         ? ({} extends C["flags"] ? (C extends { attributes: infer A } ? A : {}) : {}) & AppliedBaseAttrs<R>
         : {};
@@ -105,9 +105,9 @@ export namespace ClusterState {
     /**
      * Intersect attribute interfaces from non-base components (flags !== {}).
      */
-    type AppliedNonBaseAttrs<CA extends ClusterNamespace.Component[]> = CA extends [
-        infer C extends ClusterNamespace.Component,
-        ...infer R extends ClusterNamespace.Component[],
+    type AppliedNonBaseAttrs<CA extends ClusterType.Component[]> = CA extends [
+        infer C extends ClusterType.Component,
+        ...infer R extends ClusterType.Component[],
     ]
         ? ({} extends C["flags"] ? {} : C extends { attributes: infer A } ? A : {}) & AppliedNonBaseAttrs<R>
         : {};

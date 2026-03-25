@@ -49,16 +49,16 @@ import { RetiredClusterType } from "./RetiredClusterType.js";
  *     per-component attribute interface.  `commands` references a per-component command interface.  `events` uses
  *     `{ mandatory?, optional? }` string-union maps.
  */
-export interface ClusterNamespace {
+export interface ClusterType {
     readonly Typing: ClusterTyping;
     readonly schema: ClusterModel;
     readonly id?: ClusterId;
     readonly name: string;
     readonly revision?: number;
-    readonly attributes?: Record<string, ClusterNamespace.Attribute>;
-    readonly commands?: Record<string, ClusterNamespace.Command>;
-    readonly events?: Record<string, ClusterNamespace.Event>;
-    readonly features?: Record<string, ClusterNamespace.Feature>;
+    readonly attributes?: Record<string, ClusterType.Attribute>;
+    readonly commands?: Record<string, ClusterType.Command>;
+    readonly events?: Record<string, ClusterType.Event>;
+    readonly features?: Record<string, ClusterType.Feature>;
 }
 
 /**
@@ -88,15 +88,15 @@ const cache = new WeakMap<ClusterModel, object>();
  * feature enum, error classes, plus lazy getters for `attributes`, `commands`, `events`, `features`, `Cluster`,
  * and `Complete`.
  *
- * @deprecated Use ClusterNamespace with a ClusterModel instead.
+ * @deprecated Use ClusterType with a ClusterModel instead.
  */
-export function ClusterNamespace<const T extends RetiredClusterType.Options>(
+export function ClusterType<const T extends RetiredClusterType.Options>(
     options: T,
-): ClusterNamespace.Concrete & { Typing: RetiredClusterType.TypingOfOptions<T> };
+): ClusterType.Concrete & { Typing: RetiredClusterType.TypingOfOptions<T> };
 
-export function ClusterNamespace(model: ClusterModel): object;
+export function ClusterType(model: ClusterModel): object;
 
-export function ClusterNamespace(input: ClusterModel | RetiredClusterType.Options): object {
+export function ClusterType(input: ClusterModel | RetiredClusterType.Options): object {
     const model = input instanceof ClusterModel ? input : RetiredClusterType.ModelForOptions(input);
 
     let ns = cache.get(model);
@@ -140,10 +140,10 @@ function installLazyProperties(ns: object, model: ClusterModel) {
     };
 
     // Element maps
-    lazy("attributes", () => ClusterNamespace.attributes(model));
-    lazy("commands", () => ClusterNamespace.commands(model));
-    lazy("events", () => ClusterNamespace.events(model));
-    lazy("features", () => ClusterNamespace.features(model));
+    lazy("attributes", () => ClusterType.attributes(model));
+    lazy("commands", () => ClusterType.commands(model));
+    lazy("events", () => ClusterType.events(model));
+    lazy("features", () => ClusterType.features(model));
 
     // Self-references
     if (!Object.hasOwn(ns, "Cluster")) {
@@ -235,7 +235,7 @@ function installEnumGetters(model: ClusterModel, lazy: (name: string, factory: (
     }
 }
 
-export namespace ClusterNamespace {
+export namespace ClusterType {
     export interface Component<F extends BitSchema = {}> {
         flags: TypeFromPartialBitSchema<F>;
         attributes?: {};
@@ -270,10 +270,10 @@ export namespace ClusterNamespace {
     }
 
     /**
-     * A {@link ClusterNamespace} with a concrete cluster ID.  Used for behavior types that are known to be associated
+     * A {@link ClusterType} with a concrete cluster ID.  Used for behavior types that are known to be associated
      * with a non-abstract cluster.
      */
-    export interface Concrete extends ClusterNamespace {
+    export interface Concrete extends ClusterType {
         readonly id: ClusterId;
     }
 

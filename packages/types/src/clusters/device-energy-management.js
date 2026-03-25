@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { DeviceEnergyManagement as DeviceEnergyManagementModel } from "@matter/model";
 
-export const DeviceEnergyManagement = ClusterNamespace(DeviceEnergyManagementModel);
+export const DeviceEnergyManagement = ClusterType(DeviceEnergyManagementModel);
 export const DeviceEnergyManagementCluster = DeviceEnergyManagement;

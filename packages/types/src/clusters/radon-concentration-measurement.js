@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { RadonConcentrationMeasurement as RadonConcentrationMeasurementModel } from "@matter/model";
 
-export const RadonConcentrationMeasurement = ClusterNamespace(RadonConcentrationMeasurementModel);
+export const RadonConcentrationMeasurement = ClusterType(RadonConcentrationMeasurementModel);
 export const RadonConcentrationMeasurementCluster = RadonConcentrationMeasurement;

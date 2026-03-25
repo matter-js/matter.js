@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { AlarmBase as AlarmBaseModel } from "@matter/model";
 
-export const AlarmBase = ClusterNamespace(AlarmBaseModel);
+export const AlarmBase = ClusterType(AlarmBaseModel);

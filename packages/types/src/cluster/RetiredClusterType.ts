@@ -17,7 +17,7 @@ import {
 import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { TlvSchema } from "../tlv/TlvSchema.js";
 import { TlvVoid } from "../tlv/TlvVoid.js";
-import type { ClusterTyping } from "./ClusterNamespace.js";
+import type { ClusterTyping } from "./ClusterType.js";
 import { Attribute, Command, Event } from "./RetiredElements.js";
 
 /**
@@ -239,7 +239,6 @@ export namespace RetiredClusterType {
     type EventInterfaceOf<R> = { [K in MandatoryAttrKeys<R>]: AttrValueOf<R[K]> } & {
         [K in OptionalAttrKeys<R>]?: AttrValueOf<R[K]>;
     };
-
 }
 
 const GLOBAL_ATTR_IDS = new Set([0xfffd, 0xfffc, 0xfffb, 0xfff9, 0xfff8]);

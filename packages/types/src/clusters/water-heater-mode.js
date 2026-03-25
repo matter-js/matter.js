@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { WaterHeaterMode as WaterHeaterModeModel } from "@matter/model";
 
-export const WaterHeaterMode = ClusterNamespace(WaterHeaterModeModel);
+export const WaterHeaterMode = ClusterType(WaterHeaterModeModel);
 export const WaterHeaterModeCluster = WaterHeaterMode;

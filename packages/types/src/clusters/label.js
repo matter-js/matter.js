@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Label as LabelModel } from "@matter/model";
 
-export const Label = ClusterNamespace(LabelModel);
+export const Label = ClusterType(LabelModel);

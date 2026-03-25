@@ -11,7 +11,7 @@ import type { ServerNode } from "#node/ServerNode.js";
 import { createPromise, deepCopy, isObject, Logger, MaybePromise, Seconds, withTimeout } from "@matter/general";
 import { Access, ClusterModel, Schema } from "@matter/model";
 import { OccurrenceManager, Val } from "@matter/protocol";
-import type { ClusterNamespace, FabricIndex } from "@matter/types";
+import type { ClusterType, FabricIndex } from "@matter/types";
 import type { ClusterBehavior } from "./ClusterBehavior.js";
 
 const logger = Logger.get("FabricScopedDataHandler");
@@ -19,7 +19,7 @@ const logger = Logger.get("FabricScopedDataHandler");
 /** Helper function to iterate over all behaviors of an endpoint */
 async function forBehaviors(
     endpoint: Endpoint,
-    callback: (type: Behavior.Type, cluster: ClusterNamespace, elements: SupportedElements) => Promise<void>,
+    callback: (type: Behavior.Type, cluster: ClusterType, elements: SupportedElements) => Promise<void>,
 ) {
     for (const type of Object.values(endpoint.behaviors.supported)) {
         const cluster = (type as ClusterBehavior.Type)?.cluster;
@@ -40,7 +40,7 @@ async function forBehaviors(
 async function sanitizeAttributeData(
     endpoint: Endpoint,
     type: Behavior.Type,
-    cluster: ClusterNamespace,
+    cluster: ClusterType,
     supportedAttributes: Set<string>,
     allowedIndices: FabricIndex[],
 ) {
@@ -108,7 +108,7 @@ export async function limitNodeDataToAllowedFabrics(node: ServerNode, allowedInd
             if (elements.events.size) {
                 // If we have events also check if they are fabric scoped and collect them
                 const clusterSchema = Schema(type) as ClusterModel;
-                const nsEvents = cluster.events as Record<string, ClusterNamespace.Event> | undefined;
+                const nsEvents = cluster.events as Record<string, ClusterType.Event> | undefined;
                 if (nsEvents && clusterSchema.tag === "cluster") {
                     // Build set of fabric-scoped event names from schema
                     const fabricScopedEvents = new Set<string>();

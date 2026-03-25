@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterNamespace } from "@matter/types";
+import { ClusterType } from "@matter/types";
 import { MySchema } from "./my-schema.js";
 
-export const My = ClusterNamespace(MySchema);
+export const My = ClusterType(MySchema);
 export const MyCluster = My;

@@ -7,7 +7,7 @@ import type { Duration, OptionalKeys, RequiredKeys, WritableKeys } from "@matter
 import {
     AttributeId,
     ClusterId,
-    ClusterNamespace,
+    ClusterType,
     ClusterTyping,
     CommandId,
     EndpointNumber,
@@ -20,7 +20,7 @@ import { DecodedEventData } from "../../interaction/EventDataDecoder.js";
 
 export interface AttributeClientObj<T = any> {
     readonly id: AttributeId;
-    readonly attribute: ClusterNamespace.Attribute<T>;
+    readonly attribute: ClusterType.Attribute<T>;
     readonly name: string;
     readonly endpointId: EndpointNumber | undefined;
     readonly clusterId: ClusterId;
@@ -41,7 +41,7 @@ export interface AttributeClientObj<T = any> {
 
 export interface EventClientObj<T> {
     readonly id: EventId;
-    readonly event: ClusterNamespace.Event<T>;
+    readonly event: ClusterType.Event<T>;
     readonly name: string;
     readonly endpointId: EndpointNumber | undefined;
     readonly clusterId: ClusterId;

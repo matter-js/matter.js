@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
 import type { MaybePromise } from "@matter/general";
@@ -983,17 +983,17 @@ export declare namespace ServiceArea {
     /**
      * Attribute metadata objects keyed by name.
      */
-    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+    export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
      * Command metadata objects keyed by name.
      */
-    export const commands: ClusterNamespace.CommandObjects<Commands>;
+    export const commands: ClusterType.CommandObjects<Commands>;
 
     /**
      * Feature metadata objects keyed by name.
      */
-    export const features: ClusterNamespace.Features<Features>;
+    export const features: ClusterType.Features<Features>;
 
     /**
      * @deprecated Use {@link ServiceArea}.

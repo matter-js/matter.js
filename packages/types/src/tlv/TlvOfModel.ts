@@ -95,7 +95,7 @@ const cache = new WeakMap<ClusterModel | ValueModel, TlvSchema<unknown>>();
  * Obtain the TLV schema for a model or namespace element.
  *
  * Accepts a {@link ClusterModel}, {@link ValueModel}, or an object with a `schema` property (e.g. a
- * {@link ClusterNamespace.Attribute}).
+ * {@link ClusterType.Attribute}).
  */
 export function TlvOfModel(source: ClusterModel | ValueModel | { schema: ClusterModel | ValueModel }) {
     const model = "schema" in source && !(source instanceof ValueModel) ? source.schema : source;

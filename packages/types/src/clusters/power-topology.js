@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { PowerTopology as PowerTopologyModel } from "@matter/model";
 
-export const PowerTopology = ClusterNamespace(PowerTopologyModel);
+export const PowerTopology = ClusterType(PowerTopologyModel);
 export const PowerTopologyCluster = PowerTopology;

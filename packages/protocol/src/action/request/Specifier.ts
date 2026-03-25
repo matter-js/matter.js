@@ -5,7 +5,7 @@
  */
 
 import type { ClusterId, CommandId } from "@matter/types";
-import { ClusterNamespace, EndpointNumber, Global, TlvSchema } from "@matter/types";
+import { ClusterType, EndpointNumber, Global, TlvSchema } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 
 /**
@@ -13,14 +13,14 @@ import { MalformedRequestError } from "./MalformedRequestError.js";
  */
 export namespace Specifier {
     /**
-     * Minimal structural type for clusters used in requests.  {@link ClusterNamespace.Concrete} satisfies this.
+     * Minimal structural type for clusters used in requests.  {@link ClusterType.Concrete} satisfies this.
      */
     export interface ClusterLike {
         readonly id: ClusterId;
         readonly name: string;
-        readonly attributes?: Record<string, ClusterNamespace.Attribute>;
-        readonly commands?: Record<string, ClusterNamespace.Command>;
-        readonly events?: Record<string, ClusterNamespace.Event>;
+        readonly attributes?: Record<string, ClusterType.Attribute>;
+        readonly commands?: Record<string, ClusterType.Command>;
+        readonly events?: Record<string, ClusterType.Event>;
     }
 
     /**
@@ -41,7 +41,7 @@ export namespace Specifier {
      * An attribute specifier may be the name of a cluster attribute or the name of a cluster or global attribute.
      */
     export type Attribute<C extends ClusterLike = ClusterLike> =
-        | ClusterNamespace.Attribute
+        | ClusterType.Attribute
         | (string & keyof NonNullable<C["attributes"]>)
         | GlobalAttributeName;
 
@@ -49,12 +49,12 @@ export namespace Specifier {
      * A command specifier may be the name of a cluster command or a command object.
      */
     export type Command<C extends ClusterLike = ClusterLike> =
-        | ClusterNamespace.Command
+        | ClusterType.Command
         | (string & keyof NonNullable<C["commands"]>);
 
     /**
      * @deprecated
-     * Legacy command specifier from ClusterType.  Use {@link ClusterNamespace.Command}.
+     * Legacy command specifier from ClusterType.  Use {@link ClusterType.Command}.
      */
     export interface ClusterTypeCommand {
         requestId: CommandId;
@@ -67,7 +67,7 @@ export namespace Specifier {
      * An event specifier may be the name of a cluster event or an event object.
      */
     export type Event<C extends ClusterLike = ClusterLike> =
-        | ClusterNamespace.Event
+        | ClusterType.Event
         | (string & keyof NonNullable<C["events"]>);
 
     export type GlobalAttributeName = keyof typeof Global.attributes;
@@ -122,12 +122,12 @@ export namespace Specifier {
      * Extract a command type from a cluster type and command specifier.
      */
     export type CommandFor<C extends ClusterLike, CMD extends Specifier.Command<C>> = CMD extends string
-        ? C["commands"] extends Record<string, ClusterNamespace.Command>
+        ? C["commands"] extends Record<string, ClusterType.Command>
             ? C["commands"][CMD]
-            : ClusterNamespace.Command
-        : CMD extends ClusterNamespace.Command
+            : ClusterType.Command
+        : CMD extends ClusterType.Command
           ? CMD
-          : ClusterNamespace.Command;
+          : ClusterType.Command;
 
     export function commandFor<const C extends ClusterLike, const CMD extends Specifier.Command<C>>(
         cluster: C | undefined,

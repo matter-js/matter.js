@@ -6,7 +6,7 @@
 
 import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observable } from "@matter/general";
 import { ClusterModel, Conformance, Schema } from "@matter/model";
-import type { ClusterNamespace } from "@matter/types";
+import type { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
 import { ClusterBehavior } from "./ClusterBehavior.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
@@ -79,7 +79,7 @@ export class ValidatedElements {
     #name: string;
     #type: Behavior.Type;
     #instance?: Behavior;
-    #cluster: ClusterNamespace;
+    #cluster: ClusterType;
     #schema: ClusterModel;
 
     /**

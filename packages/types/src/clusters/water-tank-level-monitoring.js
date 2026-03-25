@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { WaterTankLevelMonitoring as WaterTankLevelMonitoringModel } from "@matter/model";
 
-export const WaterTankLevelMonitoring = ClusterNamespace(WaterTankLevelMonitoringModel);
+export const WaterTankLevelMonitoring = ClusterType(WaterTankLevelMonitoringModel);
 export const WaterTankLevelMonitoringCluster = WaterTankLevelMonitoring;

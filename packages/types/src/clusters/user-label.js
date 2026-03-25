@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { UserLabel as UserLabelModel } from "@matter/model";
 
-export const UserLabel = ClusterNamespace(UserLabelModel);
+export const UserLabel = ClusterType(UserLabelModel);
 export const UserLabelCluster = UserLabel;

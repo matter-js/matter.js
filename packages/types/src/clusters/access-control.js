@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { AccessControl as AccessControlModel } from "@matter/model";
 
-export const AccessControl = ClusterNamespace(AccessControlModel);
+export const AccessControl = ClusterType(AccessControlModel);
 export const AccessControlCluster = AccessControl;

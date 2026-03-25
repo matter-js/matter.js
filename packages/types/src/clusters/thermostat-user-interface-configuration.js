@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ThermostatUserInterfaceConfiguration as ThermostatUserInterfaceConfigurationModel } from "@matter/model";
 
-export const ThermostatUserInterfaceConfiguration = ClusterNamespace(ThermostatUserInterfaceConfigurationModel);
+export const ThermostatUserInterfaceConfiguration = ClusterType(ThermostatUserInterfaceConfigurationModel);
 export const ThermostatUserInterfaceConfigurationCluster = ThermostatUserInterfaceConfiguration;

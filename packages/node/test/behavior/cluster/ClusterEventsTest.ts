@@ -11,12 +11,12 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { OnlineEvent } from "#behavior/Events.js";
 import { BasicInformationBehavior, BasicInformationServer } from "#behaviors/basic-information";
 import { AsyncObservable, EventEmitter, MaybePromise, Observable } from "@matter/general";
-import { ClusterNamespace } from "@matter/types";
+import { ClusterType } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { MyCluster, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
 
-type MyClusterWithOptEvent = ClusterNamespace.WithEnabledEvents<MyClusterTyping, "optEv">;
-type BiWithStartup = ClusterNamespace.WithEnabledEvents<BasicInformation, "startUp">;
+type MyClusterWithOptEvent = ClusterType.WithEnabledEvents<MyClusterTyping, "optEv">;
+type BiWithStartup = ClusterType.WithEnabledEvents<BasicInformation, "startUp">;
 
 const MyClusterBehavior = ClusterBehavior.for(MyCluster, MySchema);
 
@@ -65,7 +65,7 @@ describe("ClusterEvents", () => {
         it("extends EventEmitter with swapped cluster", () => {
             ({}) as InstanceType<typeof MyClusterBehavior.Events> satisfies EventEmitter;
 
-            ({}) as InstanceType<typeof MyClusterBehavior> satisfies { cluster: ClusterNamespace.Concrete };
+            ({}) as InstanceType<typeof MyClusterBehavior> satisfies { cluster: ClusterType.Concrete };
 
             type ToOmit = keyof ClusterEvents.Properties<MyClusterTyping>;
 

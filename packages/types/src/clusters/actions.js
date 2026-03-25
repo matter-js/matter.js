@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Actions as ActionsModel } from "@matter/model";
 
-export const Actions = ClusterNamespace(ActionsModel);
+export const Actions = ClusterType(ActionsModel);
 export const ActionsCluster = Actions;

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { LevelControl as LevelControlModel } from "@matter/model";
 
-export const LevelControl = ClusterNamespace(LevelControlModel);
+export const LevelControl = ClusterType(LevelControlModel);
 export const LevelControlCluster = LevelControl;

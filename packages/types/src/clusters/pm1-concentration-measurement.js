@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Pm1ConcentrationMeasurement as Pm1ConcentrationMeasurementModel } from "@matter/model";
 
-export const Pm1ConcentrationMeasurement = ClusterNamespace(Pm1ConcentrationMeasurementModel);
+export const Pm1ConcentrationMeasurement = ClusterType(Pm1ConcentrationMeasurementModel);
 export const Pm1ConcentrationMeasurementCluster = Pm1ConcentrationMeasurement;

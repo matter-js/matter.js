@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { PumpConfigurationAndControl as PumpConfigurationAndControlModel } from "@matter/model";
 
-export const PumpConfigurationAndControl = ClusterNamespace(PumpConfigurationAndControlModel);
+export const PumpConfigurationAndControl = ClusterType(PumpConfigurationAndControlModel);
 export const PumpConfigurationAndControlCluster = PumpConfigurationAndControl;

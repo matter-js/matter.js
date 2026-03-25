@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { NetworkCommissioning as NetworkCommissioningModel } from "@matter/model";
 
-export const NetworkCommissioning = ClusterNamespace(NetworkCommissioningModel);
+export const NetworkCommissioning = ClusterType(NetworkCommissioningModel);
 export const NetworkCommissioningCluster = NetworkCommissioning;

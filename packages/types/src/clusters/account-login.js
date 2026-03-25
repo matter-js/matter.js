@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { AccountLogin as AccountLoginModel } from "@matter/model";
 
-export const AccountLogin = ClusterNamespace(AccountLoginModel);
+export const AccountLogin = ClusterType(AccountLoginModel);
 export const AccountLoginCluster = AccountLogin;

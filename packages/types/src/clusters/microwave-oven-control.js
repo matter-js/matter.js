@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { MicrowaveOvenControl as MicrowaveOvenControlModel } from "@matter/model";
 
-export const MicrowaveOvenControl = ClusterNamespace(MicrowaveOvenControlModel);
+export const MicrowaveOvenControl = ClusterType(MicrowaveOvenControlModel);
 export const MicrowaveOvenControlCluster = MicrowaveOvenControl;

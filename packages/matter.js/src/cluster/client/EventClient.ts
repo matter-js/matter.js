@@ -6,14 +6,14 @@
 
 import { Duration, ImplementationError } from "@matter/general";
 import { DecodedEventData } from "@matter/protocol";
-import { ClusterId, ClusterNamespace, EndpointNumber, EventId, EventNumber } from "@matter/types";
+import { ClusterId, ClusterType, EndpointNumber, EventId, EventNumber } from "@matter/types";
 import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an EventClient for a given event.
  */
 export function createEventClient<T>(
-    event: ClusterNamespace.Event<T>,
+    event: ClusterType.Event<T>,
     name: string,
     endpointId: EndpointNumber | undefined,
     clusterId: ClusterId,
@@ -31,7 +31,7 @@ export class EventClient<T = any> {
     readonly #interactionClient: InteractionClient;
 
     constructor(
-        readonly event: ClusterNamespace.Event<T>,
+        readonly event: ClusterType.Event<T>,
         readonly name: string,
         readonly endpointId: EndpointNumber | undefined,
         readonly clusterId: ClusterId,

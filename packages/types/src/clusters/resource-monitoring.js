@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ResourceMonitoring as ResourceMonitoringModel } from "@matter/model";
 
-export const ResourceMonitoring = ClusterNamespace(ResourceMonitoringModel);
+export const ResourceMonitoring = ClusterType(ResourceMonitoringModel);

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ContentAppObserver as ContentAppObserverModel } from "@matter/model";
 
-export const ContentAppObserver = ClusterNamespace(ContentAppObserverModel);
+export const ContentAppObserver = ClusterType(ContentAppObserverModel);
 export const ContentAppObserverCluster = ContentAppObserver;

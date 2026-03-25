@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Descriptor as DescriptorModel } from "@matter/model";
 
-export const Descriptor = ClusterNamespace(DescriptorModel);
+export const Descriptor = ClusterType(DescriptorModel);
 export const DescriptorCluster = Descriptor;

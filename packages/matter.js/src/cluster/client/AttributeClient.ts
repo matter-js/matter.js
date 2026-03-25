@@ -7,22 +7,14 @@
 import { ImplementationError } from "@matter/general";
 import { FabricIndex as FabricIndexElement } from "@matter/model";
 import { NoAssociatedFabricError } from "@matter/protocol";
-import {
-    AttributeId,
-    ClusterId,
-    ClusterNamespace,
-    EndpointNumber,
-    FabricIndex,
-    TlvOfModel,
-    TlvSchema,
-} from "@matter/types";
+import { AttributeId, ClusterId, ClusterType, EndpointNumber, FabricIndex, TlvOfModel, TlvSchema } from "@matter/types";
 import { InteractionClient } from "./InteractionClient.js";
 
 /**
  * Factory function to create an AttributeClient for a given attribute.
  */
 export function createAttributeClient<T>(
-    attribute: ClusterNamespace.Attribute<T>,
+    attribute: ClusterType.Attribute<T>,
     name: string,
     endpointId: EndpointNumber | undefined,
     clusterId: ClusterId,
@@ -52,7 +44,7 @@ export class AttributeClient<T = any> {
     readonly #interactionClient: InteractionClient;
 
     constructor(
-        readonly attribute: ClusterNamespace.Attribute<T>,
+        readonly attribute: ClusterType.Attribute<T>,
         readonly name: string,
         readonly endpointId: EndpointNumber | undefined,
         readonly clusterId: ClusterId,

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { TotalVolatileOrganicCompoundsConcentrationMeasurement as TotalVolatileOrganicCompoundsConcentrationMeasurementModel } from "@matter/model";
 
-export const TotalVolatileOrganicCompoundsConcentrationMeasurement = ClusterNamespace(TotalVolatileOrganicCompoundsConcentrationMeasurementModel);
+export const TotalVolatileOrganicCompoundsConcentrationMeasurement = ClusterType(TotalVolatileOrganicCompoundsConcentrationMeasurementModel);
 export const TotalVolatileOrganicCompoundsConcentrationMeasurementCluster = TotalVolatileOrganicCompoundsConcentrationMeasurement;

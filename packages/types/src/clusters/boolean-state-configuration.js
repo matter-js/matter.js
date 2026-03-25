@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { BooleanStateConfiguration as BooleanStateConfigurationModel } from "@matter/model";
 
-export const BooleanStateConfiguration = ClusterNamespace(BooleanStateConfigurationModel);
+export const BooleanStateConfiguration = ClusterType(BooleanStateConfigurationModel);
 export const BooleanStateConfigurationCluster = BooleanStateConfiguration;

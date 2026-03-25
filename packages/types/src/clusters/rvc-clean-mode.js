@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { RvcCleanMode as RvcCleanModeModel } from "@matter/model";
 
-export const RvcCleanMode = ClusterNamespace(RvcCleanModeModel);
+export const RvcCleanMode = ClusterType(RvcCleanModeModel);
 export const RvcCleanModeCluster = RvcCleanMode;

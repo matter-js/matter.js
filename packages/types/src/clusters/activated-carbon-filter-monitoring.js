@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ActivatedCarbonFilterMonitoring as ActivatedCarbonFilterMonitoringModel } from "@matter/model";
 
-export const ActivatedCarbonFilterMonitoring = ClusterNamespace(ActivatedCarbonFilterMonitoringModel);
+export const ActivatedCarbonFilterMonitoring = ClusterType(ActivatedCarbonFilterMonitoringModel);
 export const ActivatedCarbonFilterMonitoringCluster = ActivatedCarbonFilterMonitoring;

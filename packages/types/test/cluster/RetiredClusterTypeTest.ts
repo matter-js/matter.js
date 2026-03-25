@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ClusterNamespace } from "#cluster/ClusterNamespace.js";
+import { ClusterType } from "#cluster/ClusterType.js";
 import { RetiredClusterType } from "#cluster/RetiredClusterType.js";
 import {
     Attribute,
@@ -339,9 +339,9 @@ describe("ClusterCompat", () => {
         });
     });
 
-    describe("ClusterNamespace factory (legacy overload)", () => {
+    describe("ClusterType factory (legacy overload)", () => {
         it("returns namespace-shaped object", () => {
-            const cluster = ClusterNamespace({
+            const cluster = ClusterType({
                 id: 1,
                 name: "Foo",
                 revision: 1,

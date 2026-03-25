@@ -21,7 +21,7 @@ import {
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
 import {
-    ClusterNamespace,
+    ClusterType,
     GroupId,
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
@@ -322,7 +322,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         if (clusterModel === undefined) {
             throw new Error(`Unknown cluster ${clusterId}`);
         }
-        const ns = ClusterNamespace(clusterModel) as ClusterNamespace.Concrete;
+        const ns = ClusterType(clusterModel) as ClusterType.Concrete;
         const nsAttr = ns.attributes?.[attributeName];
         if (nsAttr === undefined) {
             throw new Error(`Unknown attribute ${attributeName} on cluster ${clusterId}`);
@@ -381,9 +381,9 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         if (clusterModel === undefined) {
             throw new Error("Cluster not found");
         }
-        const ns = ClusterNamespace(clusterModel) as ClusterNamespace.Concrete;
+        const ns = ClusterType(clusterModel) as ClusterType.Concrete;
         const nsCmd = ns.commands
-            ? Object.values(ns.commands).find((cmd: ClusterNamespace.Command) => cmd.id === commandId)
+            ? Object.values(ns.commands).find((cmd: ClusterType.Command) => cmd.id === commandId)
             : undefined;
         if (!nsCmd) {
             throw new Error("Command for Cluster not found");

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Messages as MessagesModel } from "@matter/model";
 
-export const Messages = ClusterNamespace(MessagesModel);
+export const Messages = ClusterType(MessagesModel);
 export const MessagesCluster = Messages;

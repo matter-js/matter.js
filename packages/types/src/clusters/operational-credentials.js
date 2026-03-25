@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OperationalCredentials as OperationalCredentialsModel } from "@matter/model";
 
-export const OperationalCredentials = ClusterNamespace(OperationalCredentialsModel);
+export const OperationalCredentials = ClusterType(OperationalCredentialsModel);
 export const OperationalCredentialsCluster = OperationalCredentials;

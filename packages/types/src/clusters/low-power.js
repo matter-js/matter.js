@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { LowPower as LowPowerModel } from "@matter/model";
 
-export const LowPower = ClusterNamespace(LowPowerModel);
+export const LowPower = ClusterType(LowPowerModel);
 export const LowPowerCluster = LowPower;

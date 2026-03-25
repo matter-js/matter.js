@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OtaSoftwareUpdateRequestor as OtaSoftwareUpdateRequestorModel } from "@matter/model";
 
-export const OtaSoftwareUpdateRequestor = ClusterNamespace(OtaSoftwareUpdateRequestorModel);
+export const OtaSoftwareUpdateRequestor = ClusterType(OtaSoftwareUpdateRequestorModel);
 export const OtaSoftwareUpdateRequestorCluster = OtaSoftwareUpdateRequestor;

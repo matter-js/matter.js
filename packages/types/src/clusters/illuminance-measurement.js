@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { IlluminanceMeasurement as IlluminanceMeasurementModel } from "@matter/model";
 
-export const IlluminanceMeasurement = ClusterNamespace(IlluminanceMeasurementModel);
+export const IlluminanceMeasurement = ClusterType(IlluminanceMeasurementModel);
 export const IlluminanceMeasurementCluster = IlluminanceMeasurement;

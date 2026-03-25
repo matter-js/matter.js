@@ -6,7 +6,7 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import type { ClusterNamespace, ClusterTyping } from "../cluster/ClusterNamespace.js";
+import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
 
@@ -177,7 +177,7 @@ export declare namespace IlluminanceMeasurement {
     /**
      * Attribute metadata objects keyed by name.
      */
-    export const attributes: ClusterNamespace.AttributeObjects<Attributes>;
+    export const attributes: ClusterType.AttributeObjects<Attributes>;
 
     /**
      * @deprecated Use {@link IlluminanceMeasurement}.

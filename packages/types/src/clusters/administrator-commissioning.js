@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { AdministratorCommissioning as AdministratorCommissioningModel } from "@matter/model";
 
-export const AdministratorCommissioning = ClusterNamespace(AdministratorCommissioningModel);
+export const AdministratorCommissioning = ClusterType(AdministratorCommissioningModel);
 export const AdministratorCommissioningCluster = AdministratorCommissioning;

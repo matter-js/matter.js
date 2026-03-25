@@ -48,7 +48,7 @@ import {
     AttributeId,
     CaseAuthenticatedTag,
     ClusterId,
-    ClusterNamespace,
+    ClusterType,
     EndpointNumber,
     EventId,
     EventNumber,
@@ -145,17 +145,17 @@ export interface AttributeStatus {
     status: StatusCode;
 }
 
-type CommandRequest<C extends ClusterNamespace.Command> =
-    C extends ClusterNamespace.Command<infer F>
+type CommandRequest<C extends ClusterType.Command> =
+    C extends ClusterType.Command<infer F>
         ? F extends (req: infer R, ...args: unknown[]) => unknown
             ? R
             : undefined
         : unknown;
 
-type CommandResponse<C extends ClusterNamespace.Command> =
-    C extends ClusterNamespace.Command<infer F> ? Awaited<ReturnType<F>> : unknown;
+type CommandResponse<C extends ClusterType.Command> =
+    C extends ClusterType.Command<infer F> ? Awaited<ReturnType<F>> : unknown;
 
-export type InvokeOptions<C extends ClusterNamespace.Command = ClusterNamespace.Command> = {
+export type InvokeOptions<C extends ClusterType.Command = ClusterType.Command> = {
     endpointId?: EndpointNumber;
     clusterId: ClusterId;
     request: CommandRequest<C>;
@@ -574,7 +574,7 @@ export class InteractionClient {
     getStoredAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        attribute: ClusterNamespace.Attribute<T>;
+        attribute: ClusterType.Attribute<T>;
     }): T | undefined {
         if (this.isGroupAddress) {
             throw new ImplementationError("Reading data from group addresses is not supported.");
@@ -592,7 +592,7 @@ export class InteractionClient {
     async getAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        attribute: ClusterNamespace.Attribute<T>;
+        attribute: ClusterType.Attribute<T>;
         isFabricFiltered?: boolean;
         requestFromRemote?: boolean;
         attributeChangeListener?: (data: DecodedAttributeReportValue<any>) => void;
@@ -632,7 +632,7 @@ export class InteractionClient {
     async getEvent<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        event: ClusterNamespace.Event<T>;
+        event: ClusterType.Event<T>;
         minimumEventNumber?: EventNumber;
         isFabricFiltered?: boolean;
     }): Promise<DecodedEventData<T>[] | undefined> {
@@ -650,7 +650,7 @@ export class InteractionClient {
         attributeData: {
             endpointId?: EndpointNumber;
             clusterId: ClusterId;
-            attribute: ClusterNamespace.Attribute<T>;
+            attribute: ClusterType.Attribute<T>;
             value: T;
             dataVersion?: number;
         };
@@ -688,7 +688,7 @@ export class InteractionClient {
         attributes: {
             endpointId?: EndpointNumber;
             clusterId: ClusterId;
-            attribute: ClusterNamespace.Attribute;
+            attribute: ClusterType.Attribute;
             value: any;
             dataVersion?: number;
         }[];
@@ -793,7 +793,7 @@ export class InteractionClient {
     async subscribeAttribute<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        attribute: ClusterNamespace.Attribute<T>;
+        attribute: ClusterType.Attribute<T>;
         minIntervalFloorSeconds: number;
         maxIntervalCeilingSeconds: number;
         isFabricFiltered?: boolean;
@@ -842,7 +842,7 @@ export class InteractionClient {
     async subscribeEvent<T>(options: {
         endpointId: EndpointNumber;
         clusterId: ClusterId;
-        event: ClusterNamespace.Event<T>;
+        event: ClusterType.Event<T>;
         minIntervalFloorSeconds: number;
         maxIntervalCeilingSeconds: number;
         keepSubscriptions?: boolean;
@@ -1061,7 +1061,7 @@ export class InteractionClient {
         };
     }
 
-    async #invoke<C extends ClusterNamespace.Command>(
+    async #invoke<C extends ClusterType.Command>(
         options: InvokeOptions<C> & { suppressResponse: boolean },
     ): Promise<CommandResponse<C>> {
         const {
@@ -1144,13 +1144,13 @@ export class InteractionClient {
         throw new MatterFlowError("Received invoke response with no result nor response.");
     }
 
-    async invoke<C extends ClusterNamespace.Command>(options: InvokeOptions<C>): Promise<CommandResponse<C>> {
+    async invoke<C extends ClusterType.Command>(options: InvokeOptions<C>): Promise<CommandResponse<C>> {
         return this.#invoke({ ...options, suppressResponse: false });
     }
 
     // TODO Add to ClusterClient when needed/when Group communication is implemented
     // TODO Additionally support it without endpoint
-    async invokeWithSuppressedResponse<C extends ClusterNamespace.Command>(options: {
+    async invokeWithSuppressedResponse<C extends ClusterType.Command>(options: {
         endpointId?: EndpointNumber;
         clusterId: ClusterId;
         request: CommandRequest<C>;

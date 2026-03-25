@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OperationalState as OperationalStateModel } from "@matter/model";
 
-export const OperationalState = ClusterNamespace(OperationalStateModel);
+export const OperationalState = ClusterType(OperationalStateModel);
 export const OperationalStateCluster = OperationalState;

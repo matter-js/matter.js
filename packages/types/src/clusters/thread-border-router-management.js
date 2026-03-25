@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ThreadBorderRouterManagement as ThreadBorderRouterManagementModel } from "@matter/model";
 
-export const ThreadBorderRouterManagement = ClusterNamespace(ThreadBorderRouterManagementModel);
+export const ThreadBorderRouterManagement = ClusterType(ThreadBorderRouterManagementModel);
 export const ThreadBorderRouterManagementCluster = ThreadBorderRouterManagement;

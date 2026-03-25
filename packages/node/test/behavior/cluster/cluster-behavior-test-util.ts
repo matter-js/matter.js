@@ -8,7 +8,7 @@ import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import type { ClusterTyping } from "@matter/types";
 import {
     Attribute,
-    ClusterNamespace,
+    ClusterType,
     Command,
     Event,
     OptionalAttribute,
@@ -42,9 +42,9 @@ export const BaseBehavior = ClusterBehavior.for(My, MySchema);
 export class MyBehavior extends BaseBehavior {}
 
 /**
- * A plain immutable ClusterNamespace for testing backward compatibility with legacy cluster definitions.
+ * A plain immutable ClusterType for testing backward compatibility with legacy cluster definitions.
  */
-export const MyObsoleteCluster = ClusterNamespace({
+export const MyObsoleteCluster = ClusterType({
     id: 0x1234_fc01,
     name: "MyCluster",
     revision: 1,

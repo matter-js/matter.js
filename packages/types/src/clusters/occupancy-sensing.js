@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OccupancySensing as OccupancySensingModel } from "@matter/model";
 
-export const OccupancySensing = ClusterNamespace(OccupancySensingModel);
+export const OccupancySensing = ClusterType(OccupancySensingModel);
 export const OccupancySensingCluster = OccupancySensing;

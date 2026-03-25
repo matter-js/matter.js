@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { ClusterNamespace } from "@matter/types";
+import type { ClusterType } from "@matter/types";
 import { ClusterBehavior } from "./ClusterBehavior.js";
 import { markClientBehavior } from "./cluster-behavior-utils.js";
 
@@ -17,7 +17,7 @@ import { markClientBehavior } from "./cluster-behavior-utils.js";
  * For appropriate type safety {@link cluster} must specify all cluster elements, and those that are not mandatory
  * without features must be marked as optional.
  */
-export function ClientBehavior<const NS extends ClusterNamespace>(
+export function ClientBehavior<const NS extends ClusterType>(
     ns: NS,
 ): ClusterBehavior.Complete<typeof ClusterBehavior, NS> {
     const schema = (ns as { schema?: { name?: string } }).schema;

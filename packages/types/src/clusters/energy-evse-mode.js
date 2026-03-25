@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { EnergyEvseMode as EnergyEvseModeModel } from "@matter/model";
 
-export const EnergyEvseMode = ClusterNamespace(EnergyEvseModeModel);
+export const EnergyEvseMode = ClusterType(EnergyEvseModeModel);
 export const EnergyEvseModeCluster = EnergyEvseMode;

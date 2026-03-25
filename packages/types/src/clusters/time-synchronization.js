@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { TimeSynchronization as TimeSynchronizationModel } from "@matter/model";
 
-export const TimeSynchronization = ClusterNamespace(TimeSynchronizationModel);
+export const TimeSynchronization = ClusterType(TimeSynchronizationModel);
 export const TimeSynchronizationCluster = TimeSynchronization;

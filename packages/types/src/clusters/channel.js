@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Channel as ChannelModel } from "@matter/model";
 
-export const Channel = ClusterNamespace(ChannelModel);
+export const Channel = ClusterType(ChannelModel);
 export const ChannelCluster = Channel;

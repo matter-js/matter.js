@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { SoftwareDiagnostics as SoftwareDiagnosticsModel } from "@matter/model";
 
-export const SoftwareDiagnostics = ClusterNamespace(SoftwareDiagnosticsModel);
+export const SoftwareDiagnostics = ClusterType(SoftwareDiagnosticsModel);
 export const SoftwareDiagnosticsCluster = SoftwareDiagnostics;

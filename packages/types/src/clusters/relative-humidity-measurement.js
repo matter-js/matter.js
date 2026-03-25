@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { RelativeHumidityMeasurement as RelativeHumidityMeasurementModel } from "@matter/model";
 
-export const RelativeHumidityMeasurement = ClusterNamespace(RelativeHumidityMeasurementModel);
+export const RelativeHumidityMeasurement = ClusterType(RelativeHumidityMeasurementModel);
 export const RelativeHumidityMeasurementCluster = RelativeHumidityMeasurement;

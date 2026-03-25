@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { KeypadInput as KeypadInputModel } from "@matter/model";
 
-export const KeypadInput = ClusterNamespace(KeypadInputModel);
+export const KeypadInput = ClusterType(KeypadInputModel);
 export const KeypadInputCluster = KeypadInput;

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { MediaInput as MediaInputModel } from "@matter/model";
 
-export const MediaInput = ClusterNamespace(MediaInputModel);
+export const MediaInput = ClusterType(MediaInputModel);
 export const MediaInputCluster = MediaInput;

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { Switch as SwitchModel } from "@matter/model";
 
-export const Switch = ClusterNamespace(SwitchModel);
+export const Switch = ClusterType(SwitchModel);
 export const SwitchCluster = Switch;

@@ -8,7 +8,7 @@ import { AtLeastOne, HandlerFunction, NamedHandler, NotImplementedError } from "
 import { RootNodeDt } from "@matter/model";
 import { Endpoint as NodeEndpoint } from "@matter/node";
 import { ClusterClientObj } from "@matter/protocol";
-import { ClusterNamespace, EndpointNumber } from "@matter/types";
+import { ClusterType, EndpointNumber } from "@matter/types";
 import { DeviceClasses, DeviceTypeDefinition, getDeviceTypeDefinitionFromModelByCode } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
 
@@ -63,10 +63,8 @@ export class RootEndpoint extends Endpoint {
      *
      * @param cluster ClusterClient to get or undefined if not existing
      */
-    getRootClusterClient<const N extends ClusterNamespace.Concrete>(
-        cluster: N,
-    ): ClusterClientObj<N["Typing"]> | undefined;
-    getRootClusterClient(cluster: ClusterNamespace.Concrete): ClusterClientObj | undefined {
+    getRootClusterClient<const N extends ClusterType.Concrete>(cluster: N): ClusterClientObj<N["Typing"]> | undefined;
+    getRootClusterClient(cluster: ClusterType.Concrete): ClusterClientObj | undefined {
         return this.getClusterClient(cluster);
     }
 }

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ServiceArea as ServiceAreaModel } from "@matter/model";
 
-export const ServiceArea = ClusterNamespace(ServiceAreaModel);
+export const ServiceArea = ClusterType(ServiceAreaModel);
 export const ServiceAreaCluster = ServiceArea;

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { JointFabricAdministrator as JointFabricAdministratorModel } from "@matter/model";
 
-export const JointFabricAdministrator = ClusterNamespace(JointFabricAdministratorModel);
+export const JointFabricAdministrator = ClusterType(JointFabricAdministratorModel);
 export const JointFabricAdministratorCluster = JointFabricAdministrator;

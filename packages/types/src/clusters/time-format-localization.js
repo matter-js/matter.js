@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { TimeFormatLocalization as TimeFormatLocalizationModel } from "@matter/model";
 
-export const TimeFormatLocalization = ClusterNamespace(TimeFormatLocalizationModel);
+export const TimeFormatLocalization = ClusterType(TimeFormatLocalizationModel);
 export const TimeFormatLocalizationCluster = TimeFormatLocalization;

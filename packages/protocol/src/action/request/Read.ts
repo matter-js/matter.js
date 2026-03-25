@@ -6,7 +6,7 @@
 
 import { camelize, Diagnostic } from "@matter/general";
 import { Specification } from "@matter/model";
-import { AttributePath, ClusterNamespace, DataVersionFilter, EventFilter, EventPath, ReadRequest } from "@matter/types";
+import { AttributePath, ClusterType, DataVersionFilter, EventFilter, EventPath, ReadRequest } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
 
@@ -285,7 +285,7 @@ export namespace Read {
         skipChangesOmitted?: boolean;
     }
 
-    export type GlobalAttributeSpecifier = ClusterNamespace.Attribute | Specifier.GlobalAttributeName;
+    export type GlobalAttributeSpecifier = ClusterType.Attribute | Specifier.GlobalAttributeName;
 
     export namespace AttributeSelector {
         export interface Concrete<C extends Specifier.Cluster> {

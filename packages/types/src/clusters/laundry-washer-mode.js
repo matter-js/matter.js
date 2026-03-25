@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { LaundryWasherMode as LaundryWasherModeModel } from "@matter/model";
 
-export const LaundryWasherMode = ClusterNamespace(LaundryWasherModeModel);
+export const LaundryWasherMode = ClusterType(LaundryWasherModeModel);
 export const LaundryWasherModeCluster = LaundryWasherMode;

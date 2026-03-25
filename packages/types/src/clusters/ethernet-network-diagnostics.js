@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { EthernetNetworkDiagnostics as EthernetNetworkDiagnosticsModel } from "@matter/model";
 
-export const EthernetNetworkDiagnostics = ClusterNamespace(EthernetNetworkDiagnosticsModel);
+export const EthernetNetworkDiagnostics = ClusterType(EthernetNetworkDiagnosticsModel);
 export const EthernetNetworkDiagnosticsCluster = EthernetNetworkDiagnostics;

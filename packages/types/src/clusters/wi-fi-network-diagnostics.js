@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { WiFiNetworkDiagnostics as WiFiNetworkDiagnosticsModel } from "@matter/model";
 
-export const WiFiNetworkDiagnostics = ClusterNamespace(WiFiNetworkDiagnosticsModel);
+export const WiFiNetworkDiagnostics = ClusterType(WiFiNetworkDiagnosticsModel);
 export const WiFiNetworkDiagnosticsCluster = WiFiNetworkDiagnostics;

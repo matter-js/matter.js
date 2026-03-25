@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OvenMode as OvenModeModel } from "@matter/model";
 
-export const OvenMode = ClusterNamespace(OvenModeModel);
+export const OvenMode = ClusterType(OvenModeModel);
 export const OvenModeCluster = OvenMode;

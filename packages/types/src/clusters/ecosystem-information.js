@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { EcosystemInformation as EcosystemInformationModel } from "@matter/model";
 
-export const EcosystemInformation = ClusterNamespace(EcosystemInformationModel);
+export const EcosystemInformation = ClusterType(EcosystemInformationModel);
 export const EcosystemInformationCluster = EcosystemInformation;

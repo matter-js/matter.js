@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { GroupKeyManagement as GroupKeyManagementModel } from "@matter/model";
 
-export const GroupKeyManagement = ClusterNamespace(GroupKeyManagementModel);
+export const GroupKeyManagement = ClusterType(GroupKeyManagementModel);
 export const GroupKeyManagementCluster = GroupKeyManagement;

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { AudioOutput as AudioOutputModel } from "@matter/model";
 
-export const AudioOutput = ClusterNamespace(AudioOutputModel);
+export const AudioOutput = ClusterType(AudioOutputModel);
 export const AudioOutputCluster = AudioOutput;

@@ -10,7 +10,7 @@ import { ClusterClientObj, DecodedEventData } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
-    ClusterNamespace,
+    ClusterType,
     CommandId,
     EndpointNumber,
     EventId,
@@ -27,14 +27,14 @@ import { InteractionClient } from "./InteractionClient.js";
 
 const logger = Logger.get("ClusterClient");
 
-export function GroupClusterClient<const N extends ClusterNamespace.Concrete>(
+export function GroupClusterClient<const N extends ClusterType.Concrete>(
     clusterDef: N,
     interactionClient: InteractionClient,
     globalAttributeValues?: Record<string, unknown>,
 ): ClusterClientObj<N["Typing"]>;
 
 export function GroupClusterClient(
-    clusterDef: ClusterNamespace.Concrete,
+    clusterDef: ClusterType.Concrete,
     interactionClient: InteractionClient,
     globalAttributeValues: Record<string, unknown> = {},
 ): ClusterClientObj {
@@ -45,7 +45,7 @@ export function GroupClusterClient(
     return ClusterClient(clusterDef as any, undefined, interactionClient, globalAttributeValues) as any;
 }
 
-export function ClusterClient<const N extends ClusterNamespace.Concrete>(
+export function ClusterClient<const N extends ClusterType.Concrete>(
     clusterDef: N,
     endpointId: EndpointNumber | undefined,
     interactionClient: InteractionClient,
@@ -53,13 +53,13 @@ export function ClusterClient<const N extends ClusterNamespace.Concrete>(
 ): ClusterClientObj<N["Typing"]>;
 
 export function ClusterClient(
-    clusterDef: ClusterNamespace.Concrete,
+    clusterDef: ClusterType.Concrete,
     endpointId: EndpointNumber | undefined,
     interactionClient: InteractionClient,
     globalAttributeValues: any = {},
 ): ClusterClientObj {
     // After factory swap, ClusterType() returns namespace-shaped objects at runtime
-    const ns = clusterDef as ClusterNamespace.Concrete;
+    const ns = clusterDef as ClusterType.Concrete;
     const isGroupAddress = interactionClient.isGroupAddress;
     if (isGroupAddress !== (endpointId === undefined)) {
         throw new Error("Endpoint ID must be defined for a Non-Group ClusterClient");
@@ -71,7 +71,7 @@ export function ClusterClient(
     const revisionAttr = model.attributes(0xfffd);
     const revision = typeof revisionAttr?.default === "number" ? revisionAttr.default : 1;
 
-    function addAttributeToResult(attribute: ClusterNamespace.Attribute, attributeName: string, unknown = false) {
+    function addAttributeToResult(attribute: ClusterType.Attribute, attributeName: string, unknown = false) {
         (attributes as any)[attributeName] = createAttributeClient(
             attribute,
             attributeName,
@@ -145,7 +145,7 @@ export function ClusterClient(
         };
     }
 
-    function addEventToResult(event: ClusterNamespace.Event, eventName: string) {
+    function addEventToResult(event: ClusterType.Event, eventName: string) {
         (events as any)[eventName] = createEventClient(event, eventName, endpointId, clusterId, interactionClient);
         (events as any)[event.id] = (events as any)[eventName];
         eventToId[event.id] = eventName;
@@ -346,7 +346,7 @@ export function ClusterClient(
             continue;
         }
         const attrName = attr.propertyName;
-        const nsAttr: ClusterNamespace.Attribute = nsAttrs[attrName] ?? {
+        const nsAttr: ClusterType.Attribute = nsAttrs[attrName] ?? {
             id: AttributeId(attr.id),
             name: attrName,
             schema: attr,
@@ -363,7 +363,7 @@ export function ClusterClient(
                     name: `unknown_${attributeId}`,
                     access: "RW",
                 });
-                const nsAttr: ClusterNamespace.Attribute = {
+                const nsAttr: ClusterType.Attribute = {
                     id: attributeId,
                     name: unknownModel.name,
                     schema: unknownModel,

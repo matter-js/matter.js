@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { CarbonMonoxideConcentrationMeasurement as CarbonMonoxideConcentrationMeasurementModel } from "@matter/model";
 
-export const CarbonMonoxideConcentrationMeasurement = ClusterNamespace(CarbonMonoxideConcentrationMeasurementModel);
+export const CarbonMonoxideConcentrationMeasurement = ClusterType(CarbonMonoxideConcentrationMeasurementModel);
 export const CarbonMonoxideConcentrationMeasurementCluster = CarbonMonoxideConcentrationMeasurement;

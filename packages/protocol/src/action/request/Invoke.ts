@@ -8,7 +8,7 @@ import { ClientRequest } from "#action/client/ClientRequest.js";
 import { SessionParameters } from "#session/SessionParameters.js";
 import { Diagnostic, Duration, isObject } from "@matter/general";
 import {
-    ClusterNamespace,
+    ClusterType,
     CommandData,
     CommandId,
     FabricIndex,
@@ -186,7 +186,7 @@ export namespace Invoke {
 
     /**
      * @deprecated
-     * Use {@link CommandRequest} with {@link ClusterNamespace.Command}.
+     * Use {@link CommandRequest} with {@link ClusterType.Command}.
      */
     export function Command(request: Invoke.LegacyCommandRequest, skipValidation?: boolean): InvokeCommandData;
 
@@ -256,7 +256,7 @@ export namespace Invoke {
     /**
      * @deprecated
      * Legacy command request using ClusterType commands.  Use {@link CommandRequest} with
-     * {@link ClusterNamespace.Command}.
+     * {@link ClusterType.Command}.
      */
     export interface LegacyCommandRequest {
         cluster: Specifier.Cluster;
@@ -340,7 +340,7 @@ export namespace Invoke {
     /**
      * Extract the command element from a command request.
      */
-    export function commandOf<const R extends CommandRequest>(request: R): ClusterNamespace.Command {
+    export function commandOf<const R extends CommandRequest>(request: R): ClusterType.Command {
         if (typeof request.command === "string") {
             const cluster = Specifier.clusterFor(request.cluster);
             const command = cluster.commands?.[request.command];
@@ -355,14 +355,14 @@ export namespace Invoke {
     /**
      * Extract the request type from a command's function signature phantom type.
      */
-    export type RequestOf<C extends ClusterNamespace.Command = ClusterNamespace.Command> =
-        C extends ClusterNamespace.Command<infer F>
+    export type RequestOf<C extends ClusterType.Command = ClusterType.Command> =
+        C extends ClusterType.Command<infer F>
             ? F extends (request: infer R, ...args: unknown[]) => unknown
                 ? R
                 : void
             : void;
 
-    export type Fields<C extends ClusterNamespace.Command> =
+    export type Fields<C extends ClusterType.Command> =
         RequestOf<C> extends void
             ? {}
             : undefined extends RequestOf<C>

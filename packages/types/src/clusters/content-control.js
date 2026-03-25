@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ContentControl as ContentControlModel } from "@matter/model";
 
-export const ContentControl = ClusterNamespace(ContentControlModel);
+export const ContentControl = ClusterType(ContentControlModel);
 export const ContentControlCluster = ContentControl;

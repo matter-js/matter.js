@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { DishwasherAlarm as DishwasherAlarmModel } from "@matter/model";
 
-export const DishwasherAlarm = ClusterNamespace(DishwasherAlarmModel);
+export const DishwasherAlarm = ClusterType(DishwasherAlarmModel);
 export const DishwasherAlarmCluster = DishwasherAlarm;

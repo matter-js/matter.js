@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { AirQuality as AirQualityModel } from "@matter/model";
 
-export const AirQuality = ClusterNamespace(AirQualityModel);
+export const AirQuality = ClusterType(AirQualityModel);
 export const AirQualityCluster = AirQuality;

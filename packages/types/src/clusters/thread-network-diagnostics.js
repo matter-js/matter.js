@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ThreadNetworkDiagnostics as ThreadNetworkDiagnosticsModel } from "@matter/model";
 
-export const ThreadNetworkDiagnostics = ClusterNamespace(ThreadNetworkDiagnosticsModel);
+export const ThreadNetworkDiagnostics = ClusterType(ThreadNetworkDiagnosticsModel);
 export const ThreadNetworkDiagnosticsCluster = ThreadNetworkDiagnostics;

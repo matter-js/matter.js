@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OvenCavityOperationalState as OvenCavityOperationalStateModel } from "@matter/model";
 
-export const OvenCavityOperationalState = ClusterNamespace(OvenCavityOperationalStateModel);
+export const OvenCavityOperationalState = ClusterType(OvenCavityOperationalStateModel);
 export const OvenCavityOperationalStateCluster = OvenCavityOperationalState;

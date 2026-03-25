@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { RvcOperationalState as RvcOperationalStateModel } from "@matter/model";
 
-export const RvcOperationalState = ClusterNamespace(RvcOperationalStateModel);
+export const RvcOperationalState = ClusterType(RvcOperationalStateModel);
 export const RvcOperationalStateCluster = RvcOperationalState;

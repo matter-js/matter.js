@@ -32,7 +32,7 @@ import {
 } from "@matter/general";
 import {
     ClusterId,
-    ClusterNamespace,
+    ClusterType,
     EndpointNumber,
     FabricIndex,
     Global,
@@ -151,7 +151,7 @@ type CollectedCommissioningData = {
     productName?: string;
     networkFeatures?: {
         endpointId: EndpointNumber;
-        value: ClusterNamespace.FeaturesOf<NetworkCommissioning>;
+        value: ClusterType.FeaturesOf<NetworkCommissioning>;
     }[];
     networkStatus?: {
         endpointId: EndpointNumber;
@@ -393,7 +393,7 @@ export class ControllerCommissioningFlow {
     }
 
     // TODO improve response typing
-    async #invokeCommand<const C extends ClusterNamespace.Concrete>(
+    async #invokeCommand<const C extends ClusterType.Concrete>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
     ) {
@@ -672,7 +672,7 @@ export class ControllerCommissioningFlow {
 
         const networkFeatures = new Array<{
             endpointId: EndpointNumber;
-            value: ClusterNamespace.FeaturesOf<NetworkCommissioning>;
+            value: ClusterType.FeaturesOf<NetworkCommissioning>;
         }>();
         const networkStatus = new Array<{
             endpointId: EndpointNumber;
@@ -693,7 +693,7 @@ export class ControllerCommissioningFlow {
                     case Global.attributes.featureMap.id:
                         networkFeatures.push({
                             endpointId,
-                            value: value as ClusterNamespace.FeaturesOf<NetworkCommissioning>,
+                            value: value as ClusterType.FeaturesOf<NetworkCommissioning>,
                         });
                         break;
                     case NetworkCommissioning.attributes.networks.id:

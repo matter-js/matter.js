@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ModeSelect as ModeSelectModel } from "@matter/model";
 
-export const ModeSelect = ClusterNamespace(ModeSelectModel);
+export const ModeSelect = ClusterType(ModeSelectModel);
 export const ModeSelectCluster = ModeSelect;

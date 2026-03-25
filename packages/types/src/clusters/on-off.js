@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OnOff as OnOffModel } from "@matter/model";
 
-export const OnOff = ClusterNamespace(OnOffModel);
+export const OnOff = ClusterType(OnOffModel);
 export const OnOffCluster = OnOff;

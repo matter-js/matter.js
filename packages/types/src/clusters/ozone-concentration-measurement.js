@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { OzoneConcentrationMeasurement as OzoneConcentrationMeasurementModel } from "@matter/model";
 
-export const OzoneConcentrationMeasurement = ClusterNamespace(OzoneConcentrationMeasurementModel);
+export const OzoneConcentrationMeasurement = ClusterType(OzoneConcentrationMeasurementModel);
 export const OzoneConcentrationMeasurementCluster = OzoneConcentrationMeasurement;

@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { TemperatureMeasurement as TemperatureMeasurementModel } from "@matter/model";
 
-export const TemperatureMeasurement = ClusterNamespace(TemperatureMeasurementModel);
+export const TemperatureMeasurement = ClusterType(TemperatureMeasurementModel);
 export const TemperatureMeasurementCluster = TemperatureMeasurement;

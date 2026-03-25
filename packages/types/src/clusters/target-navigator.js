@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { TargetNavigator as TargetNavigatorModel } from "@matter/model";
 
-export const TargetNavigator = ClusterNamespace(TargetNavigatorModel);
+export const TargetNavigator = ClusterType(TargetNavigatorModel);
 export const TargetNavigatorCluster = TargetNavigator;

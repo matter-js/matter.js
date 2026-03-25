@@ -21,7 +21,7 @@ import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
 import { ClusterInterface } from "#behavior/cluster/ClusterInterface.js";
 import { ClusterState } from "#behavior/cluster/ClusterState.js";
 import { MaybePromise } from "@matter/general";
-import { ClusterNamespace, ClusterTyping } from "@matter/types";
+import { ClusterType, ClusterTyping } from "@matter/types";
 import { OnOff } from "@matter/types/clusters/on-off";
 
 // ---------------------------------------------------------------------------
@@ -73,20 +73,20 @@ interface TestTyping extends ClusterTyping {
 describe("ClusterComponentMatching", () => {
     describe("SupportedFeaturesOf", () => {
         it("defaults to all-false when SupportedFeatures is absent", () => {
-            type S = ClusterNamespace.SupportedFeaturesOf<TestTyping>;
+            type S = ClusterType.SupportedFeaturesOf<TestTyping>;
             ({}) as S satisfies { featureA: false; featureB: false };
             ({}) as { featureA: false; featureB: false } satisfies S;
         });
 
         it("returns SupportedFeatures when present", () => {
-            type WithA = ClusterNamespace.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
-            type S = ClusterNamespace.SupportedFeaturesOf<WithA>;
+            type WithA = ClusterType.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
+            type S = ClusterType.SupportedFeaturesOf<WithA>;
             ({}) as S satisfies { featureA: true; featureB: false };
             ({}) as { featureA: true; featureB: false } satisfies S;
         });
 
         it("defaults to {} when no Features union", () => {
-            type S = ClusterNamespace.SupportedFeaturesOf<ClusterTyping>;
+            type S = ClusterType.SupportedFeaturesOf<ClusterTyping>;
             ({}) as S satisfies {};
         });
     });
@@ -97,19 +97,19 @@ describe("ClusterComponentMatching", () => {
 
     describe("FeaturesAsFlags", () => {
         it("sets selected features to true, others to false", () => {
-            type F = ClusterNamespace.FeaturesAsFlags<TestTyping, readonly ["FeatureA"]>;
+            type F = ClusterType.FeaturesAsFlags<TestTyping, readonly ["FeatureA"]>;
             ({}) as F satisfies { featureA: true; featureB: false };
             ({}) as { featureA: true; featureB: false } satisfies F;
         });
 
         it("sets all features false when none selected", () => {
-            type F = ClusterNamespace.FeaturesAsFlags<TestTyping, readonly []>;
+            type F = ClusterType.FeaturesAsFlags<TestTyping, readonly []>;
             ({}) as F satisfies { featureA: false; featureB: false };
             ({}) as { featureA: false; featureB: false } satisfies F;
         });
 
         it("sets all features true when all selected", () => {
-            type F = ClusterNamespace.FeaturesAsFlags<TestTyping, readonly ["FeatureA", "FeatureB"]>;
+            type F = ClusterType.FeaturesAsFlags<TestTyping, readonly ["FeatureA", "FeatureB"]>;
             ({}) as F satisfies { featureA: true; featureB: true };
             ({}) as { featureA: true; featureB: true } satisfies F;
         });
@@ -209,7 +209,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("includes featureA methods after WithSupportedFeatures", () => {
-            type WithA = ClusterNamespace.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
+            type WithA = ClusterType.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
             type M = ClusterInterface.MethodsOf<WithA>;
             ({}) as keyof M satisfies "baseCmd" | "featureACmd" | "notFeatureBCmd";
             ({}) as "baseCmd" | "featureACmd" | "notFeatureBCmd" satisfies keyof M;
@@ -222,14 +222,14 @@ describe("ClusterComponentMatching", () => {
 
     describe("WithSupportedFeatures", () => {
         it("preserves all original typing fields", () => {
-            type WithA = ClusterNamespace.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
+            type WithA = ClusterType.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
             // Should still have Attributes, Commands, Features
             ({}) as WithA["Attributes"] satisfies { attr1: string };
             ({}) as WithA["Features"] satisfies "FeatureA" | "FeatureB";
         });
 
         it("satisfies ClusterTyping constraint", () => {
-            type WithA = ClusterNamespace.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
+            type WithA = ClusterType.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
             ({}) as WithA satisfies ClusterTyping;
         });
     });
@@ -266,7 +266,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("makes feature attributes mandatory when feature selected", () => {
-            type WithA = ClusterNamespace.WithSupportedFeatures<StateTestTyping, { featureA: true; featureB: false }>;
+            type WithA = ClusterType.WithSupportedFeatures<StateTestTyping, { featureA: true; featureB: false }>;
             type S = ClusterState.Type<WithA>;
             ({}) as S satisfies { attr1: string; attr2: number };
         });
@@ -300,7 +300,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("makes feature attribute events mandatory when feature selected", () => {
-            type WithA = ClusterNamespace.WithSupportedFeatures<EventTestTyping, { featureA: true }>;
+            type WithA = ClusterType.WithSupportedFeatures<EventTestTyping, { featureA: true }>;
             type E = ClusterEvents.Properties<WithA>;
             ({}) as E satisfies { attr2$Changed: ClusterEvents.ChangedObservable<number> };
         });
@@ -324,7 +324,7 @@ describe("ClusterComponentMatching", () => {
         it("allows override of feature-conditional methods after .with()", () => {
             // This is a compile-time test.  If the type of WithA's instance
             // doesn't include featureACmd, the override will fail with TS4113.
-            type WithA = ClusterNamespace.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
+            type WithA = ClusterType.WithSupportedFeatures<TestTyping, { featureA: true; featureB: false }>;
             type M = ClusterInterface.MethodsOf<WithA>;
             ({}) as keyof M satisfies "baseCmd" | "featureACmd" | "notFeatureBCmd";
         });
@@ -344,12 +344,12 @@ describe("ClusterComponentMatching", () => {
 
     describe("OnOff real-world component matching", () => {
         it("resolves OnOff SupportedFeaturesOf to all-false defaults", () => {
-            type S = ClusterNamespace.SupportedFeaturesOf<OnOff>;
+            type S = ClusterType.SupportedFeaturesOf<OnOff>;
             ({}) as S satisfies { lighting: false; deadFrontBehavior: false; offOnly: false };
         });
 
         it("with(Lighting) produces correct feature flags", () => {
-            type F = ClusterNamespace.FeaturesAsFlags<OnOff, readonly ["Lighting"]>;
+            type F = ClusterType.FeaturesAsFlags<OnOff, readonly ["Lighting"]>;
             ({}) as F satisfies { lighting: true; deadFrontBehavior: false; offOnly: false };
         });
 
@@ -361,7 +361,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("OnOff with Lighting includes all three command groups", () => {
-            type WithLighting = ClusterNamespace.WithSupportedFeatures<
+            type WithLighting = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -380,7 +380,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("OnOff with Lighting has onOff and globalSceneControl as mandatory attributes", () => {
-            type WithLighting = ClusterNamespace.WithSupportedFeatures<
+            type WithLighting = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -395,7 +395,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("OnOff with Lighting has onOff$Changed event", () => {
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -406,7 +406,7 @@ describe("ClusterComponentMatching", () => {
         it("full ClusterEvents with OnOff has onOff$Changed", () => {
             // This tests the Omit + re-add pattern in ClusterEvents<N, BaseT>
             type OnOffBehaviorType = ClusterBehavior.Type<typeof ClusterBehavior, OnOff, typeof OnOff>;
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -417,7 +417,7 @@ describe("ClusterComponentMatching", () => {
         it("ClusterEvents with actual OnOffBehavior has onOff$Changed", () => {
             // Use the real OnOffBehavior type as BaseT, matching how OnOffServer resolves
             const OnOffBeh = ClusterBehavior.for(OnOff);
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -429,7 +429,7 @@ describe("ClusterComponentMatching", () => {
             // This is what ClusterBehavior.Instance<B, N> resolves to for the methods portion.
             // When N = WithSupportedFeatures<OnOff, {lighting:true, ...}>, MethodsOf should include
             // all three command groups.
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -495,7 +495,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("Type with Lighting features has Lighting methods on instance", () => {
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -512,7 +512,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("Type with Lighting features has Lighting attributes mandatory in state", () => {
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -531,7 +531,7 @@ describe("ClusterComponentMatching", () => {
             // For the override to work, the Instance type must include offWithEffect as a method.
             // We test this by checking the Instance type directly.
             type Base = ClusterBehavior.Type<typeof ClusterBehavior, OnOff, typeof OnOff>;
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -552,7 +552,7 @@ describe("ClusterComponentMatching", () => {
             // After class XxxServer extends XxxBaseServer.with() {} the type should have
             // base + negated-flag commands but NOT feature-conditional commands.
             type Base = ClusterBehavior.Type<typeof ClusterBehavior, OnOff, typeof OnOff>;
-            type N = ClusterNamespace.WithSupportedFeatures<
+            type N = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: false; deadFrontBehavior: false; offOnly: false }
             >;
@@ -599,7 +599,7 @@ describe("ClusterComponentMatching", () => {
 
         it("with(features) enables feature-conditional methods for override", () => {
             // Step 1: Enable features — this is what makes override legal in step 2
-            type N = ClusterNamespace.WithSupportedFeatures<AllConditionalTyping, { featureA: true; featureB: true }>;
+            type N = ClusterType.WithSupportedFeatures<AllConditionalTyping, { featureA: true; featureB: true }>;
             type T = ClusterBehavior.Type<typeof ClusterBehavior, N>;
             type Inst = InstanceType<T>;
             ({}) as Inst satisfies { cmdA(): void; cmdB(): void };
@@ -619,7 +619,7 @@ describe("ClusterComponentMatching", () => {
 
         it("re-basing after .with(features) correctly removes conditional methods", () => {
             // Step 1: Enable all features
-            type N1 = ClusterNamespace.WithSupportedFeatures<AllConditionalTyping, { featureA: true; featureB: true }>;
+            type N1 = ClusterType.WithSupportedFeatures<AllConditionalTyping, { featureA: true; featureB: true }>;
             type WithAll = ClusterBehavior.Type<typeof ClusterBehavior, N1>;
 
             // Verify methods are present with features enabled
@@ -639,7 +639,7 @@ describe("ClusterComponentMatching", () => {
             // This is the OnOffServer step 1:
             //   const OnOffLogicBase = OnOffBehavior.with(OnOff.Feature.Lighting);
             // Lighting methods should be present on the Instance type.
-            type NLit = ClusterNamespace.WithSupportedFeatures<
+            type NLit = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;
@@ -672,8 +672,8 @@ describe("ClusterComponentMatching", () => {
             // NonNullable<This["cluster"]["Typing"]> = NonNullable<typeof OnOff["Typing"]> = OnOff
             // FeaturesAsFlags<OnOff, ["Lighting"]> = { lighting: true; deadFrontBehavior: false; offOnly: false }
             // Return: Type<OnOffBehaviorType, WithSupportedFeatures<OnOff, { lighting: true; ... }>>
-            type Flags = ClusterNamespace.FeaturesAsFlags<OnOff, readonly ["Lighting"]>;
-            type N = ClusterNamespace.WithSupportedFeatures<OnOff, Flags>;
+            type Flags = ClusterType.FeaturesAsFlags<OnOff, readonly ["Lighting"]>;
+            type N = ClusterType.WithSupportedFeatures<OnOff, Flags>;
             type WithLightingType = ClusterBehavior.Type<OnOffBehaviorType, N>;
             type Inst = InstanceType<WithLightingType>;
 
@@ -698,9 +698,9 @@ describe("ClusterComponentMatching", () => {
             // Verify the
             // Type interface's `with` return type resolves correctly by constructing
             // the same type that `with` declares it returns.
-            type ExpectedN = ClusterNamespace.WithSupportedFeatures<
+            type ExpectedN = ClusterType.WithSupportedFeatures<
                 OnOff,
-                ClusterNamespace.FeaturesAsFlags<OnOff, readonly ["Lighting"]>
+                ClusterType.FeaturesAsFlags<OnOff, readonly ["Lighting"]>
             >;
             type ExpectedReturn = ClusterBehavior.Type<OnOffBehaviorType, ExpectedN>;
             type Inst = InstanceType<ExpectedReturn>;
@@ -722,12 +722,12 @@ describe("ClusterComponentMatching", () => {
             ({}) as OnOff satisfies Typing;
 
             // FeatureSelection should allow "Lighting"
-            type Sel = ClusterNamespace.FeatureSelection<Typing>;
+            type Sel = ClusterType.FeatureSelection<Typing>;
             ({}) as readonly ["Lighting"] satisfies Sel;
         });
 
         it("FeaturesAsFlags with string literal", () => {
-            type F = ClusterNamespace.FeaturesAsFlags<OnOff, readonly ["Lighting"]>;
+            type F = ClusterType.FeaturesAsFlags<OnOff, readonly ["Lighting"]>;
             ({}) as F satisfies { lighting: true; deadFrontBehavior: false; offOnly: false };
         });
 
@@ -735,7 +735,7 @@ describe("ClusterComponentMatching", () => {
             // String enum values are nominally typed in TypeScript.
             // FeaturesAsFlags uses `${F[number]}` to coerce enum types to their
             // string representation for comparison.
-            type F = ClusterNamespace.FeaturesAsFlags<OnOff, readonly [OnOff.Feature.Lighting]>;
+            type F = ClusterType.FeaturesAsFlags<OnOff, readonly [OnOff.Feature.Lighting]>;
             ({}) as F satisfies { lighting: true; deadFrontBehavior: false; offOnly: false };
         });
 
@@ -769,7 +769,7 @@ describe("ClusterComponentMatching", () => {
         });
 
         it("OnOff: after re-basing, Lighting methods correctly disappear", () => {
-            type NLit = ClusterNamespace.WithSupportedFeatures<
+            type NLit = ClusterType.WithSupportedFeatures<
                 OnOff,
                 { lighting: true; deadFrontBehavior: false; offOnly: false }
             >;

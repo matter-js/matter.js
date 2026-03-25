@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { ValveConfigurationAndControl as ValveConfigurationAndControlModel } from "@matter/model";
 
-export const ValveConfigurationAndControl = ClusterNamespace(ValveConfigurationAndControlModel);
+export const ValveConfigurationAndControl = ClusterType(ValveConfigurationAndControlModel);
 export const ValveConfigurationAndControlCluster = ValveConfigurationAndControl;

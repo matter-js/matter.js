@@ -19,14 +19,14 @@
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
 import { ClusterState } from "#behavior/cluster/ClusterState.js";
-import { ClusterNamespace } from "@matter/types";
+import { ClusterType } from "@matter/types";
 import { My, MyClusterTyping, MySchema } from "./cluster-behavior-test-util.js";
 
 type Match<A, B> = A extends B ? true : false;
 
 type NoFeatures = MyClusterTyping;
 
-type WithAwesome = ClusterNamespace.WithSupportedFeatures<MyClusterTyping, { awesome: true }>;
+type WithAwesome = ClusterType.WithSupportedFeatures<MyClusterTyping, { awesome: true }>;
 
 const MyBehavior = ClusterBehavior.for(My, MySchema);
 
@@ -169,14 +169,14 @@ describe("ClusterBehaviorSemantics", () => {
 
     describe("enable overrides", () => {
         it("optional attr forced to required via enable()", () => {
-            type WithEnabled = ClusterNamespace.WithEnabledAttributes<NoFeatures, "optAttr">;
+            type WithEnabled = ClusterType.WithEnabledAttributes<NoFeatures, "optAttr">;
             type S = ClusterState.Type<WithEnabled>;
             // optAttr is now required (not optional)
             ({}) as Match<S, { optAttr: boolean }> satisfies true;
         });
 
         it("enabled attr $Changed/$Changing are required", () => {
-            type WithEnabled = ClusterNamespace.WithEnabledAttributes<NoFeatures, "optAttr">;
+            type WithEnabled = ClusterType.WithEnabledAttributes<NoFeatures, "optAttr">;
             type E = ClusterEvents.Properties<WithEnabled>;
             // Check presence and required-ness (not observable type — variance makes that complex)
             ({}) as Match<E, { optAttr$Changed: {} }> satisfies true;

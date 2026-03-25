@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { FormaldehydeConcentrationMeasurement as FormaldehydeConcentrationMeasurementModel } from "@matter/model";
 
-export const FormaldehydeConcentrationMeasurement = ClusterNamespace(FormaldehydeConcentrationMeasurementModel);
+export const FormaldehydeConcentrationMeasurement = ClusterType(FormaldehydeConcentrationMeasurementModel);
 export const FormaldehydeConcentrationMeasurementCluster = FormaldehydeConcentrationMeasurement;

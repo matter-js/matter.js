@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { GeneralCommissioning as GeneralCommissioningModel } from "@matter/model";
 
-export const GeneralCommissioning = ClusterNamespace(GeneralCommissioningModel);
+export const GeneralCommissioning = ClusterType(GeneralCommissioningModel);
 export const GeneralCommissioningCluster = GeneralCommissioning;

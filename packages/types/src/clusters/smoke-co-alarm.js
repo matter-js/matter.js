@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { SmokeCoAlarm as SmokeCoAlarmModel } from "@matter/model";
 
-export const SmokeCoAlarm = ClusterNamespace(SmokeCoAlarmModel);
+export const SmokeCoAlarm = ClusterType(SmokeCoAlarmModel);
 export const SmokeCoAlarmCluster = SmokeCoAlarm;

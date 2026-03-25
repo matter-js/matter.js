@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { CommissionerControl as CommissionerControlModel } from "@matter/model";
 
-export const CommissionerControl = ClusterNamespace(CommissionerControlModel);
+export const CommissionerControl = ClusterType(CommissionerControlModel);
 export const CommissionerControlCluster = CommissionerControl;

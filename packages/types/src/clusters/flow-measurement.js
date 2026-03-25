@@ -6,8 +6,8 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import { ClusterNamespace } from "../cluster/ClusterNamespace.js";
+import { ClusterType } from "../cluster/ClusterType.js";
 import { FlowMeasurement as FlowMeasurementModel } from "@matter/model";
 
-export const FlowMeasurement = ClusterNamespace(FlowMeasurementModel);
+export const FlowMeasurement = ClusterType(FlowMeasurementModel);
 export const FlowMeasurementCluster = FlowMeasurement;
