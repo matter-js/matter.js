@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClusterType } from "#cluster/ClusterType.js";
+import { RetiredClusterType } from "#cluster/RetiredClusterType.js";
 import {
     Attribute,
     Command,
@@ -14,9 +16,7 @@ import {
     OptionalEvent,
     WritableAttribute,
     WritableFabricScopedAttribute,
-} from "#cluster/Cluster.js";
-import { ClusterType } from "#cluster/ClusterType.js";
-import { RetiredClusterType } from "#cluster/RetiredClusterType.js";
+} from "#cluster/RetiredElements.js";
 import { Priority } from "#globals/Priority.js";
 import { BitFlag } from "#schema/BitmapSchema.js";
 import { TlvArray } from "#tlv/TlvArray.js";

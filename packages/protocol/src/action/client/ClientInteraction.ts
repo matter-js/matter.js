@@ -50,12 +50,12 @@ import {
 import {
     Status,
     TlvAttributeReport,
-    TlvNoResponse,
     TlvOfModel,
     TlvSchema,
     TlvSubscribeResponse,
     TypeFromSchema,
 } from "@matter/types";
+import { TlvVoid } from "@matter/types/tlv";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -381,15 +381,15 @@ export class ClientInteraction<
                             }
                             let responseSchema: TlvSchema<any>;
                             if (Invoke.isLegacy(cmd)) {
-                                responseSchema = cmd.command.responseSchema ?? TlvNoResponse;
+                                responseSchema = cmd.command.responseSchema ?? TlvVoid;
                             } else {
                                 const command = Invoke.commandOf(cmd);
                                 const responseModel = command.schema.responseModel;
                                 responseSchema = responseModel
-                                    ? (TlvOfModel(responseModel) ?? TlvNoResponse)
-                                    : TlvNoResponse;
+                                    ? (TlvOfModel(responseModel) ?? TlvVoid)
+                                    : TlvVoid;
                             }
-                            if (commandFields === undefined && responseSchema !== TlvNoResponse) {
+                            if (commandFields === undefined && responseSchema !== TlvVoid) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );

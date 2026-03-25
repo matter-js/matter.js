@@ -18,9 +18,10 @@ import {
 import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
 import { TlvSchema } from "../tlv/TlvSchema.js";
 import { TlvVoid } from "../tlv/TlvVoid.js";
-import { Attribute, Command, Event, GlobalAttributes } from "./Cluster.js";
+import { GlobalAttributes } from "./Cluster.js";
 import type { ClusterNamespace, ClusterTyping } from "./ClusterNamespace.js";
 import { ClusterType } from "./ClusterType.js";
+import { Attribute, Command, Event } from "./RetiredElements.js";
 
 /**
  * Types and utilities for the deprecated {@link ClusterType} factory.

@@ -6,14 +6,14 @@
 
 import { ClusterId } from "../datatype/ClusterId.js";
 import { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
-import {
+import { GlobalAttributes } from "./Cluster.js";
+import { ClusterNamespace } from "./ClusterNamespace.js";
+import { RetiredClusterType } from "./RetiredClusterType.js";
+import type {
     Attribute as ClusterAttribute,
     Command as ClusterCommand,
     Event as ClusterEvent,
-    GlobalAttributes,
-} from "./Cluster.js";
-import { ClusterNamespace } from "./ClusterNamespace.js";
-import { RetiredClusterType } from "./RetiredClusterType.js";
+} from "./RetiredElements.js";
 
 /**
  * A "cluster" is a grouping of related functionality that a Matter endpoint supports.

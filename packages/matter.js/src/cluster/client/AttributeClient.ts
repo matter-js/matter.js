@@ -8,7 +8,6 @@ import { ImplementationError } from "@matter/general";
 import { FabricIndex as FabricIndexElement } from "@matter/model";
 import { NoAssociatedFabricError } from "@matter/protocol";
 import {
-    AttributeError,
     AttributeId,
     ClusterId,
     ClusterNamespace,
@@ -73,7 +72,7 @@ export class AttributeClient<T = any> {
      * cluster dataVersion of the server matches. If it does not match it is rejected with an Error.
      */
     async set(value: T, dataVersion?: number) {
-        if (!this.#isWritable) throw new AttributeError(`Attribute ${this.name} is not writable`);
+        if (!this.#isWritable) throw new ImplementationError(`Attribute ${this.name} is not writable`);
 
         value = this.schema.injectField(
             value,
