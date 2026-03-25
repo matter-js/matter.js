@@ -44,8 +44,8 @@ export class ChannelStatusResponseError extends TransientPeerCommunicationError 
     }
 }
 
-/** This value is used by chip SDK when performance wise heavy crypto operations are expected. */
-export const EXPECTED_CRYPTO_PROCESSING_TIME = Seconds(30);
+/** Chip SDK uses this value when performance wise heavy crypto operations are expected. */
+export const EXPECTED_CRYPTO_PROCESSING_TIME = Seconds(35);
 
 /** This value is used by chip SDK when normal processing time is expected. */
 export const DEFAULT_NORMAL_PROCESSING_TIME = Seconds(2);
@@ -95,7 +95,7 @@ export class SecureChannelMessenger {
     /**
      * Waits for the next message and decodes it.
      *
-     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME_MS is used.
+     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME is used.
      */
     async nextMessageDecoded<T>(schema: TlvSchema<T>, options?: SecureChannelMessenger.ReadOptions) {
         return schema.decode((await this.nextMessage(options)).payload);
@@ -104,7 +104,7 @@ export class SecureChannelMessenger {
     /**
      * Waits for the next message and returns it.
      *
-     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME_MS is used.
+     * When no expectedProcessingTimeMs is provided, the default value of EXPECTED_CRYPTO_PROCESSING_TIME is used.
      */
     async waitForSuccess(options?: Omit<SecureChannelMessenger.ReadOptions, "type">) {
         // If the status is not Success, this would throw an Error.
@@ -118,7 +118,7 @@ export class SecureChannelMessenger {
      * Sends a message of the given type with the given payload.
      *
      * If no ExchangeSendOptions are provided, the expectedProcessingTimeMs will be set to
-     * EXPECTED_CRYPTO_PROCESSING_TIME_MS.
+     * EXPECTED_CRYPTO_PROCESSING_TIME.
      */
     async send<T>(message: T, type: number, schema: TlvSchema<T>, options?: ExchangeSendOptions) {
         options = {

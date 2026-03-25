@@ -316,6 +316,11 @@ export class MessageExchange {
         return this.context.session;
     }
 
+    /** Number of retransmissions of the current outstanding message (resets on ack or new send). */
+    get retransmissionCount() {
+        return this.#retransmissionCounter;
+    }
+
     get channel() {
         if (this.#channel === undefined) {
             this.#channel = this.session.channel;

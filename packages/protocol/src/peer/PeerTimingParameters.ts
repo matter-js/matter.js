@@ -65,6 +65,14 @@ export interface PeerTimingParameters {
     kickThrottleInterval: Duration;
 
     /**
+     * Minimum number of MRP retransmissions before a kick may restart the exchange.
+     *
+     * Gives the peer a fair chance to respond before aborting. A kick arriving while the exchange
+     * has retransmitted fewer than this many times is suppressed.
+     */
+    kickMinRetransmissions: number;
+
+    /**
      * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
      *
      * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
@@ -137,6 +145,7 @@ export namespace PeerTimingParameters {
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
         kickThrottleInterval: Seconds(3),
+        kickMinRetransmissions: 2,
         kickRestartCooldown: {
             addressChange: Minutes(30),
             connect: Minutes(10),
