@@ -259,6 +259,39 @@ describe("TcpConnection", () => {
         });
     });
 
+    describe("send-side size check", () => {
+        it("rejects messages at or above the size limit", async () => {
+            const { server } = createPair();
+            const conn = new TcpConnection(server);
+
+            // maxMessageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE - 4 = 63996
+            const oversized = new Uint8Array(conn.maxMessageSize);
+
+            let threw = false;
+            try {
+                await conn.send(oversized);
+            } catch (e) {
+                threw = true;
+                expect((e as Error).message).to.include("exceeds TCP limit");
+            }
+            expect(threw).true;
+
+            await conn.close();
+        });
+
+        it("accepts messages just under the size limit", async () => {
+            const { server } = createPair();
+            const conn = new TcpConnection(server);
+
+            const justUnder = new Uint8Array(conn.maxMessageSize - 1);
+
+            // Should not throw
+            await conn.send(justUnder);
+
+            await conn.close();
+        });
+    });
+
     describe("close", () => {
         it("closes the underlying socket", async () => {
             const { client, server } = createPair();

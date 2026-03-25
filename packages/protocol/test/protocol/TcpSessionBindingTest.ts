@@ -187,43 +187,43 @@ describe("TCP Session-Connection Binding", () => {
         });
     });
 
-    describe("Last session close triggers connection close", () => {
-        it("TCP channel closes when last session is closed", async () => {
+    describe("TCP connection lifecycle", () => {
+        it("TCP connection is NOT closed by MessageChannel.close()", async () => {
+            // TCP connections are persistent and shared across sessions. They are managed
+            // by TcpTransport and ExchangeManager, not by individual MessageChannel.close().
             const tcpChannel = new MockTcpChannel("tcp-1");
             const session = createSessionOnTcpChannel(tcpChannel);
 
             expect(tcpChannel.closed).to.be.false;
 
-            // Force close the session, which should close the channel via Session.close()
             await session.initiateForceClose({ cause: new Error("test") });
 
-            // The session's close() calls channel.close() which closes the underlying tcp channel
-            expect(tcpChannel.closed).to.be.true;
+            // TCP channel should stay open — ExchangeManager handles TCP connection closure
+            expect(tcpChannel.closed).to.be.false;
         });
 
-        it("TCP channel stays open when other sessions still reference it", () => {
+        it("multiple sessions can share the same TCP connection", () => {
             const tcpChannel = new MockTcpChannel("tcp-1");
             const session1 = createSessionOnTcpChannel(tcpChannel, 1);
             const session2 = createSessionOnTcpChannel(tcpChannel, 2);
 
-            // Both sessions reference the same channel
             expect(session1.channel.channel).to.equal(tcpChannel);
             expect(session2.channel.channel).to.equal(tcpChannel);
             expect(tcpChannel.closed).to.be.false;
         });
 
-        it("sessions on other connections are unaffected by disconnect", async () => {
+        it("closing one session does not affect sessions on other connections", async () => {
             const tcpChannel1 = new MockTcpChannel("tcp-1");
             const tcpChannel2 = new MockTcpChannel("tcp-2");
             const session1 = createSessionOnTcpChannel(tcpChannel1, 1);
             const session2 = createSessionOnTcpChannel(tcpChannel2, 2);
 
-            // Force-close session1 (simulating connection 1 drop)
-            await session1.initiateForceClose({ cause: new Error("TCP connection dropped") });
+            await session1.initiateForceClose({ cause: new Error("test") });
 
             expect(session1.isClosing).to.be.true;
             expect(session2.isClosing).to.be.false;
-            expect(tcpChannel1.closed).to.be.true;
+            // Both TCP channels remain open — ExchangeManager manages their lifecycle
+            expect(tcpChannel1.closed).to.be.false;
             expect(tcpChannel2.closed).to.be.false;
         });
     });

@@ -12,6 +12,7 @@ import type { SessionParameters } from "#session/SessionParameters.js";
 import {
     Bytes,
     Channel,
+    ChannelType,
     Diagnostic,
     Duration,
     IpNetworkChannel,
@@ -157,7 +158,17 @@ export class MessageChannel implements Channel<Message> {
     async close() {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
-        await this.#channel.close();
+
+        // TCP connections are shared across sessions on the same peer (N:1 per CHIP SDK pattern).
+        // Only close the underlying TCP channel if no other sessions reference it. For non-TCP
+        // channels (UDP, BLE) always close since they are ephemeral per-session.
+        if (this.#channel.type === ChannelType.TCP) {
+            // TCP channel lifecycle is managed by ExchangeManager.#closeTcpConnectionIfLastSession
+            // which checks after session removal whether any sessions still reference the connection.
+        } else {
+            await this.#channel.close();
+        }
+
         if (!wasAlreadyClosed) {
             await this.#onClose?.();
         }

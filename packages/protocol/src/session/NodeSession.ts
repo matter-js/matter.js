@@ -236,7 +236,8 @@ export class NodeSession extends SecureSession {
     }
 
     get via() {
-        return Diagnostic.via(`${this.peerAddress.toString()}${Mark.SESSION}${hex.word(this.id)}`);
+        const transport = !this.isClosed ? this.channel.channel.type : "?";
+        return Diagnostic.via(`${this.peerAddress.toString()}${Mark.SESSION}${hex.word(this.id)}/${transport}`);
     }
 
     get peerSessionId(): number {
