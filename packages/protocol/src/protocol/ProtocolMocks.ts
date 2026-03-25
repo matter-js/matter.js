@@ -20,13 +20,13 @@ import {
     DataReadQueue,
     Environment,
     ImplementationError,
-    UdpNetworkChannel,
     MAX_UDP_MESSAGE_SIZE,
     MaybePromise,
     MockCrypto,
     Observable,
     ServerAddress,
     ServerAddressUdp,
+    UdpNetworkChannel,
 } from "@matter/general";
 import { Specification } from "@matter/model";
 import {

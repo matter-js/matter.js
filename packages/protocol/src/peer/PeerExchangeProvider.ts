@@ -90,11 +90,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
                     // For requiredTransport: no fallback — the caller needs TCP or nothing.
                     // For preference: also no fallback here — connect() should have established TCP.
                     session = [...this.#peer.sessions].find(
-                        s =>
-                            !s.isClosing &&
-                            !s.isPeerLost &&
-                            !s.isClosed &&
-                            s.channel.channel.type === ChannelType.TCP,
+                        s => !s.isClosing && !s.isPeerLost && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
                     );
                 } else {
                     session = this.#peer.newestSession;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Transport, Environment } from "@matter/general";
+import { Environment, Transport } from "@matter/general";
 import { Ble, Scanner } from "@matter/protocol";
 import { BlenoBleServer } from "./BlenoBleServer.js";
 import { BlenoPeripheralInterface } from "./BlenoPeripheralInterface.js";

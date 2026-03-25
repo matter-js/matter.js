@@ -53,9 +53,9 @@ describe("TcpTransport", () => {
             const host = simulator.addHost(1);
             const transport = await TcpTransport.create({ network: host });
 
-            await expect(
-                transport.openChannel({ type: "udp", ip: "10.10.10.1", port: 5540 }),
-            ).rejectedWith("does not support address type");
+            await expect(transport.openChannel({ type: "udp", ip: "10.10.10.1", port: 5540 })).rejectedWith(
+                "does not support address type",
+            );
 
             await transport.close();
         });

@@ -52,10 +52,9 @@ describe("ClientNodeTcp", () => {
 
         await controller.start();
         const { passcode, discriminator } = device.state.commissioning;
-        await MockTime.resolve(
-            controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }),
-            { macrotasks: true },
-        );
+        await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+            macrotasks: true,
+        });
 
         controllerCrypto.entropic = deviceCrypto.entropic = false;
 
@@ -75,11 +74,7 @@ describe("ClientNodeTcp", () => {
     describe("TCP interface availability", () => {
         it("registers TCP interface on controller when tcp is enabled", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const exchanges = controller.env.get(ExchangeManager);
             expect(exchanges.hasInterfaceFor(ChannelType.TCP)).true;
@@ -97,11 +92,7 @@ describe("ClientNodeTcp", () => {
 
         it("registers TCP interface on device when tcp is enabled", async () => {
             await using site = new MockSite();
-            const { device } = await commissionPair(
-                site,
-                undefined,
-                { tcp: true },
-            );
+            const { device } = await commissionPair(site, undefined, { tcp: true });
 
             const exchanges = device.env.get(ExchangeManager);
             expect(exchanges.hasInterfaceFor(ChannelType.TCP)).true;
@@ -109,11 +100,7 @@ describe("ClientNodeTcp", () => {
 
         it("enables TCP on controller only (outgoing)", async () => {
             await using site = new MockSite();
-            const { controller, device } = await commissionPair(
-                site,
-                { tcp: { outgoing: true } },
-                undefined,
-            );
+            const { controller, device } = await commissionPair(site, { tcp: { outgoing: true } }, undefined);
 
             const controllerExchanges = controller.env.get(ExchangeManager);
             expect(controllerExchanges.hasInterfaceFor(ChannelType.TCP)).true;
@@ -126,11 +113,7 @@ describe("ClientNodeTcp", () => {
     describe("transport preference wiring", () => {
         it("propagates UDP preference (default) — peer has no TCP preference", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true, transportPreference: "udp" },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true, transportPreference: "udp" }, { tcp: true });
 
             const peer = protocolPeer(controller);
             // "udp" preference should leave peer.transportPreference as undefined (the default)
@@ -147,11 +130,7 @@ describe("ClientNodeTcp", () => {
 
         it("allows setting TCP preference directly on protocol peer", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const peer = protocolPeer(controller);
             expect(peer.transportPreference).undefined;
@@ -169,11 +148,7 @@ describe("ClientNodeTcp", () => {
     describe("commissioning transport", () => {
         it("commissions over UDP when TCP is enabled on both sides", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             // After commissioning, the operational CASE session should be UDP
             const peer = protocolPeer(controller);
@@ -184,11 +159,7 @@ describe("ClientNodeTcp", () => {
 
         it("stores UDP addresses after commissioning with TCP enabled", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true }, { tcp: true });
 
             const peer1 = controller.peers.get("peer1")!;
             expect(peer1).not.undefined;
@@ -221,11 +192,7 @@ describe("ClientNodeTcp", () => {
 
         it("invokes over UDP when TCP is enabled but not preferred", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true, transportPreference: "udp" },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true, transportPreference: "udp" }, { tcp: true });
 
             expect(controller.peers.size).equals(1);
 
@@ -243,20 +210,14 @@ describe("ClientNodeTcp", () => {
 
         it("subscribes and receives updates over UDP when TCP is enabled but not preferred", async () => {
             await using site = new MockSite();
-            const { controller } = await commissionPair(
-                site,
-                { tcp: true, transportPreference: "udp" },
-                { tcp: true },
-            );
+            const { controller } = await commissionPair(site, { tcp: true, transportPreference: "udp" }, { tcp: true });
 
             const peer1 = await subscribedPeer(controller, "peer1");
             const ep1 = peer1.parts.get("ep1")!;
             expect(ep1).not.undefined;
 
             // Trigger a state change via invoke and verify the subscription delivers it
-            const receivedUpdate = new Promise<boolean>(resolve =>
-                ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve),
-            );
+            const receivedUpdate = new Promise<boolean>(resolve => ep1.eventsOf(OnOffClient).onOff$Changed.on(resolve));
 
             await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
             await MockTime.resolve(receivedUpdate);

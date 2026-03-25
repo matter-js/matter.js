@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, Transport, ImplementationError } from "@matter/general";
+import { ChannelType, ImplementationError, Transport } from "@matter/general";
 import { Ble, BlePeripheralInterface, Scanner } from "@matter/protocol";
 import { BleScanner } from "./BleScanner.js";
 import { ReactNativeBleCentralInterface } from "./ReactNativeBleChannel.js";

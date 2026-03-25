@@ -3,8 +3,6 @@
  * The library's built-in types don't properly export through the default namespace pattern.
  */
 declare module "react-native-tcp-socket" {
-    import type { EventEmitter } from "react-native";
-
     export interface ConnectionOptions {
         port: number;
         host?: string;

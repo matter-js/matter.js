@@ -193,10 +193,11 @@ export class NodeJsNetwork extends Network {
                 settle(() => resolve(new NodeJsTcpSocket(socket)));
             });
 
-            const rejectOnce = (error: Error) => settle(() => {
-                socket.destroy();
-                reject(error);
-            });
+            const rejectOnce = (error: Error) =>
+                settle(() => {
+                    socket.destroy();
+                    reject(error);
+                });
 
             socket.setTimeout(TCP_CONNECTION_TIMEOUT_MS);
             socket.once("timeout", () => {

@@ -20,8 +20,6 @@ import {
     Channel,
     ChannelType,
     ConnectionOrientedTransport,
-    Transport,
-    TransportSet,
     Diagnostic,
     Entropy,
     Environment,
@@ -33,6 +31,8 @@ import {
     MatterFlowError,
     ObserverGroup,
     Time,
+    Transport,
+    TransportSet,
     UdpInterface,
     UnexpectedDataError,
 } from "@matter/general";

@@ -13,7 +13,6 @@ import { PeerAddress } from "#peer/PeerAddress.js";
 import {
     Bytes,
     ChannelType,
-    Transport,
     CryptoDecryptError,
     Diagnostic,
     hex,
@@ -22,6 +21,7 @@ import {
     Logger,
     MatterFlowError,
     STANDARD_MATTER_PORT,
+    Transport,
     UnexpectedDataError,
 } from "@matter/general";
 import { FabricIndex, GroupId, NodeId } from "@matter/types";

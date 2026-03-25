@@ -9,12 +9,12 @@ import { BasicInformationBehavior } from "#behaviors/basic-information";
 import { Node } from "#node/Node.js";
 import { IdentityService } from "#node/server/IdentityService.js";
 import {
-    TransportSet,
     Crypto,
     DnsRecordType,
     ImplementationError,
     Logger,
     SharedEnvironmentServices,
+    TransportSet,
 } from "@matter/general";
 import {
     Ble,

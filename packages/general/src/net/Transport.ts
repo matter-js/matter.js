@@ -54,10 +54,7 @@ export interface ConnectionOrientedTransport extends Transport {
 /**
  * A collection of {@link Transport}s managed as a unit.
  */
-export class TransportSet<T extends Transport = Transport>
-    extends BasicSet<T>
-    implements Transport.Provider<T>
-{
+export class TransportSet<T extends Transport = Transport> extends BasicSet<T> implements Transport.Provider<T> {
     constructor(...initialInterfaces: T[]) {
         super(...initialInterfaces);
     }

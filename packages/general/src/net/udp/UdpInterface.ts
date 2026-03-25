@@ -5,8 +5,8 @@
  */
 
 import { Channel, ChannelType, UdpNetworkChannel } from "#net/Channel.js";
-import { Transport } from "#net/Transport.js";
 import { Network, NetworkError } from "#net/Network.js";
+import { Transport } from "#net/Transport.js";
 import { Bytes } from "#util/Bytes.js";
 import { Observable } from "#util/index.js";
 import { ServerAddress, ServerAddressUdp } from "../ServerAddress.js";

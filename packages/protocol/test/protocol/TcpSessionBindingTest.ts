@@ -9,7 +9,15 @@ import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Channel, ChannelType, ImplementationError, Seconds, ServerAddressTcp, Transport } from "@matter/general";
+import {
+    Bytes,
+    Channel,
+    ChannelType,
+    ImplementationError,
+    Seconds,
+    ServerAddressTcp,
+    Transport,
+} from "@matter/general";
 import { SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 /**

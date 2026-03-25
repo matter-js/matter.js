@@ -25,7 +25,6 @@ import {
     causedBy,
     ChannelType,
     ClassExtends,
-    TransportSet,
     Construction,
     Crypto,
     Diagnostic,
@@ -45,6 +44,7 @@ import {
     StorageService,
     SupportedStorageTypes,
     Time,
+    TransportSet,
     UnexpectedDataError,
 } from "@matter/general";
 import {

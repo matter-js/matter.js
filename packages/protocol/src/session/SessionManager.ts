@@ -18,7 +18,6 @@ import {
     Bytes,
     Channel,
     ClosedError,
-    Transport,
     Construction,
     Crypto,
     Duration,
@@ -37,6 +36,7 @@ import {
     Time,
     Timestamp,
     toHex,
+    Transport,
     UnexpectedDataError,
 } from "@matter/general";
 import { CaseAuthenticatedTag, FabricId, FabricIndex, GroupId, NodeId } from "@matter/types";

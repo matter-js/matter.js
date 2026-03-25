@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger, NetworkError, TCP_KEEP_ALIVE_INITIAL_DELAY_MS, TcpServerOptions, TcpServerSocket, TcpSocket, Transport } from "@matter/general";
+import {
+    Logger,
+    NetworkError,
+    TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
+    TcpServerOptions,
+    TcpServerSocket,
+    TcpSocket,
+    Transport,
+} from "@matter/general";
 import { createServer, type Server, type Socket } from "node:net";
 import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
 

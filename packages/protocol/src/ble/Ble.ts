@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, ChannelType, Transport, Duration, MatterError } from "@matter/general";
+import { Bytes, Channel, ChannelType, Duration, MatterError, Transport } from "@matter/general";
 import { Scanner } from "../common/Scanner.js";
 import { BLE_MAX_MATTER_PAYLOAD_SIZE } from "./BleConsts.js";
 

@@ -4,8 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { Transport } from "#net/Transport.js";
+import { Bytes } from "#util/Bytes.js";
 
 /** Maximum Matter TCP frame size (4-byte length header + message content). Message content limit is this minus 4. */
 export const DEFAULT_MAX_TCP_MESSAGE_SIZE = 64_000;

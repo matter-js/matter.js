@@ -8,7 +8,6 @@ import {
     Bytes,
     Channel,
     ChannelType,
-    Transport,
     Diagnostic,
     InternalError,
     Logger,
@@ -17,6 +16,7 @@ import {
     ServerAddress,
     Time,
     Timer,
+    Transport,
     asError,
     createPromise,
 } from "@matter/general";

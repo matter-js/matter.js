@@ -15,7 +15,6 @@ import {
     ServiceDescription,
 } from "#index.js";
 import {
-    Transport,
     DnsCodec,
     DnsMessage,
     DnsMessageType,
@@ -32,6 +31,7 @@ import {
     NetworkSimulator,
     Seconds,
     Time,
+    Transport,
     UdpChannel,
 } from "@matter/general";
 import { GlobalFabricId, NodeId, VendorId } from "@matter/types";

@@ -56,8 +56,8 @@ export class NetworkClient extends NetworkBehavior {
 
                 // Set transport preference: per-peer override from NetworkClient, or inherit
                 // from the controller (owner) NetworkServer default. Maps "tcp"/"udp" string to ChannelType.
-                const pref = this.state.transportPreference
-                    ?? (this.#node.owner?.state as any)?.network?.transportPreference;
+                const pref =
+                    this.state.transportPreference ?? (this.#node.owner?.state as any)?.network?.transportPreference;
                 if (pref === "tcp") {
                     peer.transportPreference = ChannelType.TCP;
                 }

@@ -30,7 +30,6 @@ import {
     Channel,
     ChannelType,
     ClassExtends,
-    TransportSet,
     Duration,
     Environment,
     Environmental,
@@ -43,6 +42,7 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
+    TransportSet,
 } from "@matter/general";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";

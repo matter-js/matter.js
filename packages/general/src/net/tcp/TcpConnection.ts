@@ -80,9 +80,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
 
         const message = Bytes.of(data);
         if (message.length >= this.maxMessageSize) {
-            throw new NetworkError(
-                `Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`,
-            );
+            throw new NetworkError(`Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`);
         }
         const frame = new Uint8Array(FRAMING_HEADER_SIZE + message.length);
         const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
@@ -161,9 +159,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
 
             // Oversized message: the total frame (header + message) must fit within maxPayloadSize
             if (messageLength >= this.maxMessageSize) {
-                logger.error(
-                    `Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`,
-                );
+                logger.error(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
                 // TODO: Send MESSAGE_TOO_LARGE status report (general code 17) before closing,
                 // per spec §4.15.2.3. This requires protocol-layer StatusReport construction
                 // which is above the transport layer. Needs callback or event to protocol layer.

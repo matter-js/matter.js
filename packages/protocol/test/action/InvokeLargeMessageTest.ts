@@ -5,9 +5,9 @@
  */
 
 import { Invoke } from "#action/request/Invoke.js";
+import { CommandModel, Quality } from "@matter/model";
 import { EndpointNumber } from "@matter/types";
 import { OnOffCluster } from "@matter/types/clusters/on-off";
-import { CommandModel, Quality } from "@matter/model";
 
 /**
  * Tests for the largeMessage flag on Invoke requests.

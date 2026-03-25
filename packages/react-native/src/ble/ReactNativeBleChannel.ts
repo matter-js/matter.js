@@ -8,12 +8,12 @@ import {
     Bytes,
     Channel,
     ChannelType,
-    Transport,
     Diagnostic,
     InternalError,
     Logger,
     ServerAddress,
     Time,
+    Transport,
     createPromise,
 } from "@matter/general";
 import {

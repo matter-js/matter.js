@@ -7,9 +7,6 @@
 import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
-    Transport,
-    TransportSet,
-    TcpTransport,
     Crypto,
     InterfaceType,
     Logger,
@@ -18,6 +15,9 @@ import {
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
+    TcpTransport,
+    Transport,
+    TransportSet,
     UdpInterface,
 } from "@matter/general";
 import {
@@ -192,9 +192,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 listeningPort: tcpConfig.incoming ? operationalPort : undefined,
             });
             interfaces.add(this.#tcpTransport);
-            logger.info(
-                `TCP transport enabled (incoming=${tcpConfig.incoming}, outgoing=${tcpConfig.outgoing})`,
-            );
+            logger.info(`TCP transport enabled (incoming=${tcpConfig.incoming}, outgoing=${tcpConfig.outgoing})`);
         }
     }
 

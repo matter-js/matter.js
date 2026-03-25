@@ -164,9 +164,7 @@ export default function commands(theNode: MatterNode) {
                             if (dd.T !== undefined) {
                                 const tcpClient = !!(dd.T & 0x02);
                                 const tcpServer = !!(dd.T & 0x04);
-                                console.log(
-                                    `    TCP Support:  T=${dd.T} (client=${tcpClient}, server=${tcpServer})`,
-                                );
+                                console.log(`    TCP Support:  T=${dd.T} (client=${tcpClient}, server=${tcpServer})`);
                             } else {
                                 console.log(`    TCP Support:  not advertised`);
                             }
@@ -187,9 +185,7 @@ export default function commands(theNode: MatterNode) {
                         if (sessions.length) {
                             console.log(`  Active Sessions: ${sessions.length}`);
                             for (const session of sessions) {
-                                console.log(
-                                    `    ${session.via} (${session.channel.channel.type})`,
-                                );
+                                console.log(`    ${session.via} (${session.channel.channel.type})`);
                             }
                         } else {
                             console.log(`  Active Sessions: none`);
@@ -358,16 +354,14 @@ export default function commands(theNode: MatterNode) {
                         await node.node.setStateOf(NetworkClient, { transportPreference: pref });
 
                         // Also update the protocol-level peer preference
-                        const peer = theNode.node.env.get(PeerSet).for(
-                            theNode.commissioningController.fabric.addressOf(nodeId),
-                        );
+                        const peer = theNode.node.env
+                            .get(PeerSet)
+                            .for(theNode.commissioningController.fabric.addressOf(nodeId));
                         if (peer) {
                             peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
                         }
 
-                        console.log(
-                            `Transport preference for node ${nodeIdStr} set to ${pref.toUpperCase()}`,
-                        );
+                        console.log(`Transport preference for node ${nodeIdStr} set to ${pref.toUpperCase()}`);
                     },
                 )
                 .command(

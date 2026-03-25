@@ -7,8 +7,8 @@
 import { Environment, Network } from "@matter/general";
 
 export * from "./NetworkReactNative.js";
-export * from "./TcpSocketReactNative.js";
 export * from "./TcpServerReactNative.js";
+export * from "./TcpSocketReactNative.js";
 
 export async function closeNetwork() {
     if (Environment.default.has(Network)) {
