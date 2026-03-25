@@ -178,6 +178,13 @@ export class ExchangeManager implements Transport.Provider {
         }
 
         this.#exchanges.clear();
+
+        // Clean up any remaining session observers (safety net for shutdown ordering)
+        for (const observers of this.#sessionObservers.values()) {
+            observers.close();
+        }
+        this.#sessionObservers.clear();
+
         this.#observers.close();
     }
 
