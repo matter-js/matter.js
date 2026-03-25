@@ -47,6 +47,8 @@ export interface IpNetworkChannel<T> extends Channel<T> {
 export interface UdpNetworkChannel<T> extends IpNetworkChannel<T> {
     networkAddress: ServerAddressUdp;
     networkAddressChanged: Observable<[ServerAddressUdp]>;
+
+    /** Send data, optionally overriding the destination address for this single send. */
     send(data: T, addressOverride?: ServerAddressUdp): Promise<void>;
 }
 

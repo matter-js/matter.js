@@ -14,7 +14,6 @@ import {
     Diagnostic,
     Logger,
     MatterFlowError,
-    Millis,
     PbkdfParameters,
     Seconds,
     Spake2p,
@@ -82,10 +81,8 @@ export class PaseServer implements ProtocolHandler {
             logger.info("Pairing already in progress (PASE session exists), ignoring new exchange");
         } else if (this.#pairingTimer?.isRunning) {
             logger.info("Pairing already in progress (PASE establishment timer running), ignoring new exchange");
-            await this.sendBusy(exchange);
         } else if (this.#pairingMessenger !== undefined) {
             logger.info("Already handling a pairing request, ignoring new exchange.");
-            await this.sendBusy(exchange);
         } else {
             const messenger = new PaseServerMessenger(exchange);
             // All checks done, we handle the pairing request
@@ -209,21 +206,6 @@ export class PaseServer implements ProtocolHandler {
             await messenger.sendError(SecureChannelStatusCode.InvalidParam);
         }
         await messenger.close();
-    }
-
-    /** Send a Busy status response on the given exchange with the remaining pairing timeout. */
-    private async sendBusy(exchange: MessageExchange) {
-        const elapsed = this.#pairingTimer?.elapsed?.time ?? 0;
-        const busyTime = Millis(PASE_PAIRING_TIMEOUT - elapsed);
-        if (busyTime <= 0) {
-            return;
-        }
-        const messenger = new PaseServerMessenger(exchange);
-        try {
-            await messenger.sendBusy(busyTime);
-        } finally {
-            await messenger.close();
-        }
     }
 
     async close() {

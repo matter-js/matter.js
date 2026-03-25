@@ -44,6 +44,9 @@ export class WebStorageDriver extends StorageDriver {
     }
 
     initialize() {
+        if (this.#initialized) {
+            throw new StorageError("Storage already initialized!");
+        }
         this.#initialized = true;
     }
 

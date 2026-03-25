@@ -449,6 +449,10 @@ export async function PeerConnection(
             using _pairing = attemptLifetime.join("pairing");
 
             kick = kicker?.use((origin: KickOrigin) => {
+                if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+                    return;
+                }
+
                 const threshold =
                     origin === "discover"
                         ? context.timing.kickRestartCooldown.addressChange
