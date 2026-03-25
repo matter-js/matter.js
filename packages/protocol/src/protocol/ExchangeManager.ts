@@ -206,9 +206,9 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                         // after PASE completed).  Drop it rather than creating an orphan session.
                         logger.debug(
                             Diagnostic.via(
-                                `@${packet.header.sourceNodeId === undefined ? "?" : hex(packet.header.sourceNodeId)}:?${Mark.SESSION}${Session.idStrOf(packet)}`,
+                                `${packet.header.sourceNodeId === undefined ? "" : `@${hex(packet.header.sourceNodeId)}:`}${Mark.SESSION}unsecured#${hex.word(initiatorNodeId)}`,
                             ),
-                            `Ignoring unsecured response for unknown session ${initiatorNodeId.toString(16)}`,
+                            `Ignoring unsecured response for unknown session`,
                         );
                         return;
                     }

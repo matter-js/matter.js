@@ -144,9 +144,13 @@ export class MessageChannel implements Channel<Message> {
         ) {
             return;
         }
-        if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
+        const addressChanged = !sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>);
+
+        // Always replace the underlying channel so references stay fresh, even when addresses match
+        this.#channel = channel;
+
+        if (addressChanged) {
             logger.debug(`Updated address of channel to`, this.name);
-            this.#channel = channel;
             this.#networkAddressChanged.emit(channel.networkAddress);
         }
     }

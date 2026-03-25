@@ -93,6 +93,21 @@ export interface PeerTimingParameters {
      * change before checking whether the session's IP is still valid.
      */
     addressChangeStabilizationDelay: Duration;
+
+    /**
+     * Probe cooldown range for repeated address-change probes on the same IP.
+     *
+     * When mDNS keeps reporting the session IP as gone but probes succeed, the cooldown grows
+     * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  Resets when the
+     * probed IP changes or the device sends data.
+     */
+    addressChangeProbeCooldown: {
+        /** Initial cooldown between probes (first two probes use this). */
+        minimum: Duration;
+
+        /** Upper bound — cooldown stops growing beyond this. */
+        maximum: Duration;
+    };
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -151,5 +166,9 @@ export namespace PeerTimingParameters {
             connect: Minutes(10),
         },
         addressChangeStabilizationDelay: Seconds(10),
+        addressChangeProbeCooldown: {
+            minimum: Minutes(2),
+            maximum: Minutes(60),
+        },
     };
 }
