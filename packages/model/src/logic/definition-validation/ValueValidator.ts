@@ -8,7 +8,7 @@ import { ModelTraversal } from "#logic/ModelTraversal.js";
 import { camelize } from "@matter/general";
 import { Access, Aspect, Conformance, Constraint, Quality } from "../../aspects/index.js";
 import { DefinitionError, FieldValue, Metatype } from "../../common/index.js";
-import { AttributeModel, ClusterModel, Globals, ValueModel } from "../../models/index.js";
+import { ClusterModel, Globals, ValueModel } from "../../models/index.js";
 import { ModelValidator } from "./ModelValidator.js";
 import { ValidationExceptions } from "./ValidationExceptions.js";
 
@@ -27,12 +27,6 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
 
         this.#validateAspect("conformance");
         this.model.conformance.validateReferences(this, name => {
-            // "Rev" is a special conformance keyword referencing the cluster revision (spec 1.5.1+)
-            if (name === "Rev") {
-                const cluster = this.model.owner(ClusterModel);
-                return cluster?.get(AttributeModel, "ClusterRevision");
-            }
-
             // Features are all caps, other names are field references
             if (name.match(/^[A-Z0-9_$]+$/)) {
                 // Feature lookup

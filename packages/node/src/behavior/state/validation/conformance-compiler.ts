@@ -358,12 +358,6 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
      * retrieves the value from options.siblings.
      */
     function createName(param: string): DynamicNode {
-        // "Rev" references the cluster revision, known at compile time (spec 1.5.1+)
-        if (param === "Rev") {
-            const revision = (supervisor.schema as { revision?: number }).revision;
-            return { code: Code.Value, value: revision ?? 1 };
-        }
-
         if (featuresAvailable.has(param)) {
             // Name references a feature.  We know whether features are supported by a cluster at compile time so this
             // results in a static node that is conformant iff the feature is supported
