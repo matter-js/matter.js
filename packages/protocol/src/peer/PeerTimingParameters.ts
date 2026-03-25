@@ -65,6 +65,14 @@ export interface PeerTimingParameters {
     kickThrottleInterval: Duration;
 
     /**
+     * Minimum number of MRP retransmissions before a kick may restart the exchange.
+     *
+     * Gives the peer a fair chance to respond before aborting. A kick arriving while the exchange
+     * has retransmitted fewer than this many times is suppressed.
+     */
+    kickMinRetransmissions: number;
+
+    /**
      * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
      *
      * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
@@ -85,6 +93,24 @@ export interface PeerTimingParameters {
      * change before checking whether the session's IP is still valid.
      */
     addressChangeStabilizationDelay: Duration;
+
+    /**
+     * Probe cooldown range for address-change probes on the same IP.
+     *
+     * When mDNS keeps reporting the session IP as gone but probes succeed, the cooldown grows
+     * using a Fibonacci-like sequence from {@link minimum} to {@link maximum}.  The cooldown
+     * resets when the probed IP changes or a probe fails.
+     *
+     * Probes are also suppressed while the session is actively receiving data — the cooldown
+     * is measured from whichever is more recent: the last probe or the last received message.
+     */
+    addressChangeProbeCooldown: {
+        /** Minimum delay before sending a probe (first two probes use this). */
+        minimum: Duration;
+
+        /** Upper bound — cooldown stops growing beyond this. */
+        maximum: Duration;
+    };
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -137,10 +163,15 @@ export namespace PeerTimingParameters {
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
         kickThrottleInterval: Seconds(3),
+        kickMinRetransmissions: 2,
         kickRestartCooldown: {
             addressChange: Minutes(30),
             connect: Minutes(10),
         },
         addressChangeStabilizationDelay: Seconds(10),
+        addressChangeProbeCooldown: {
+            minimum: Minutes(2),
+            maximum: Minutes(60),
+        },
     };
 }

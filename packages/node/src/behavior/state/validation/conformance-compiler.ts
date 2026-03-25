@@ -199,6 +199,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             case Conformance.Special.Name:
                 return createName(ast.param);
 
+            case Conformance.Special.Revision: {
+                // "Rev >= vN" — resolve at compile time since the cluster revision is static
+                const revision = (supervisor.schema as { revision?: number }).revision ?? 1;
+                return revision >= ast.param ? ConformantNode : NonconformantNode;
+            }
+
             case Conformance.Special.OptionalIf:
                 return createOptionalIf(ast.param);
 

@@ -204,7 +204,12 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                     if (packet.header.destNodeId !== undefined) {
                         // This is a response to a session that no longer exists (e.g. a late retransmission
                         // after PASE completed).  Drop it rather than creating an orphan session.
-                        logger.debug(`Ignoring unsecured response for unknown session ${initiatorNodeId.toString(16)}`);
+                        logger.debug(
+                            Diagnostic.via(
+                                `${packet.header.sourceNodeId === undefined ? "" : `@${hex(packet.header.sourceNodeId)}:`}${Mark.SESSION}unsecured#${hex.word(initiatorNodeId)}`,
+                            ),
+                            `Ignoring unsecured response for unknown session`,
+                        );
                         return;
                     }
                     session = this.#sessions.createUnsecuredSession({
