@@ -8,8 +8,10 @@ import { Diagnostic, ImplementationError, Logger, MatterAggregateError, Observab
 import { ClusterModel, Conformance, Schema } from "@matter/model";
 import type { ClusterType } from "@matter/types";
 import { Behavior } from "../Behavior.js";
-import { ClusterBehavior } from "./ClusterBehavior.js";
 import { introspectionInstanceOf } from "./cluster-behavior-utils.js";
+import { ClusterBehavior } from "./ClusterBehavior.js";
+import { resolveInterElementConformance } from "./inter-element-conformance.js";
+import { NameDependentElements } from "./NameDependentElements.js";
 
 const logger = Logger.get("ValidatedElements");
 
@@ -67,6 +69,11 @@ export class ValidatedElements {
     commands = new Set<string>();
 
     /**
+     * Commands that are structurally present on the prototype, including {@link Behavior.unimplemented} stubs.
+     */
+    presentCommands = new Set<string>();
+
+    /**
      * Supported events.
      */
     events = new Set<string>();
@@ -81,6 +88,7 @@ export class ValidatedElements {
     #instance?: Behavior;
     #cluster: ClusterType;
     #schema: ClusterModel;
+    #nameDependentElements?: NameDependentElements;
 
     /**
      * Obtain validation information.
@@ -116,6 +124,10 @@ export class ValidatedElements {
         this.#validateAttributes();
         this.#validateCommands();
         this.#validateEvents();
+
+        if (this.#nameDependentElements) {
+            resolveInterElementConformance(this, this.#schema, this.#nameDependentElements);
+        }
     }
 
     /**
@@ -171,11 +183,26 @@ export class ValidatedElements {
                 continue;
             }
             const name = member.propertyName;
+            const isImplemented = (state as Record<string, unknown>)[name] !== undefined;
 
-            if ((state as Record<string, unknown>)[name] === undefined) {
-                if (
-                    member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory
-                ) {
+            const applicability = member.effectiveConformance.applicabilityFor(this.#schema);
+
+            if (applicability === Conformance.Applicability.Conditional) {
+                if (!this.#nameDependentElements) {
+                    this.#nameDependentElements = new NameDependentElements(this.#schema);
+                }
+                this.#nameDependentElements.add(member, "attribute", isImplemented);
+
+                // Still add to sets if implemented — the resolver may remove if disallowed
+                if (isImplemented) {
+                    this.attributes.add(name);
+                    this.attributeIds.set(name, member.id);
+                }
+                continue;
+            }
+
+            if (!isImplemented) {
+                if (applicability === Conformance.Applicability.Mandatory) {
                     this.error(`State.${name}`, "Mandatory element unsupported", false);
                 }
                 continue;
@@ -206,12 +233,32 @@ export class ValidatedElements {
             }
 
             const name = member.propertyName;
-            const isMandatory =
-                member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory;
+            const applicability = member.effectiveConformance.applicabilityFor(this.#schema);
             const implementation = (implementations as Record<string, unknown>)[name];
+            const isPresent = name in implementations && implementation !== undefined;
 
-            if (!(name in implementations) || implementation === undefined) {
-                if (isMandatory) {
+            if (applicability === Conformance.Applicability.Conditional) {
+                if (!this.#nameDependentElements) {
+                    this.#nameDependentElements = new NameDependentElements(this.#schema);
+                }
+
+                // For commands, we need to determine isImplemented more carefully:
+                // present + is a function + not unimplemented = truly implemented
+                let isImplemented = false;
+                if (isPresent && typeof implementation === "function") {
+                    this.presentCommands.add(name);
+                    if (implementation !== Behavior.unimplemented) {
+                        isImplemented = true;
+                        this.commands.add(name);
+                    }
+                }
+
+                this.#nameDependentElements.add(member, "command", isImplemented);
+                continue;
+            }
+
+            if (!isPresent) {
+                if (applicability === Conformance.Applicability.Mandatory) {
                     this.error(name, `Implementation missing`, true);
                 }
                 continue;
@@ -222,8 +269,10 @@ export class ValidatedElements {
                 continue;
             }
 
+            this.presentCommands.add(name);
+
             if (implementation === Behavior.unimplemented) {
-                if (isMandatory) {
+                if (applicability === Conformance.Applicability.Mandatory) {
                     // TODO - do not pollute the logs with these as Matter spec is in flux (should this include groups
                     //  or just scenes?)
                     if (this.#name.match(/^(?:Groups|Scenes|GroupKeyManagement)(?:Server|Behavior)/)) {
@@ -270,11 +319,25 @@ export class ValidatedElements {
 
         for (const member of this.#schema.conformant.events) {
             const name = member.propertyName;
+            const isImplemented = name in emitters;
 
-            if (!(name in emitters)) {
-                if (
-                    member.effectiveConformance.applicabilityFor(this.#schema) === Conformance.Applicability.Mandatory
-                ) {
+            const applicability = member.effectiveConformance.applicabilityFor(this.#schema);
+
+            if (applicability === Conformance.Applicability.Conditional) {
+                if (!this.#nameDependentElements) {
+                    this.#nameDependentElements = new NameDependentElements(this.#schema);
+                }
+                this.#nameDependentElements.add(member, "event", isImplemented);
+
+                // Still add to sets if implemented — the resolver may remove if disallowed
+                if (isImplemented) {
+                    this.events.add(name);
+                }
+                continue;
+            }
+
+            if (!isImplemented) {
+                if (applicability === Conformance.Applicability.Mandatory) {
                     this.error(`cluster.events.${name}`, "Implementation missing", true);
                 }
                 continue;
@@ -284,7 +347,7 @@ export class ValidatedElements {
         }
     }
 
-    private error(element: string | undefined, message: string, fatal: boolean) {
+    error(element: string | undefined, message: string, fatal: boolean) {
         if (!this.errors) {
             this.errors = [];
         }
