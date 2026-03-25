@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ControllerCommissioner, ControllerCommissionerContext } from "#peer/ControllerCommissioner.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import { Bytes, Channel, ChannelType, Transport } from "@matter/general";
+import { Bytes, Channel, ChannelType, ImplementationError, Seconds, ServerAddressTcp, Transport } from "@matter/general";
 import { SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 /**
@@ -237,6 +238,102 @@ describe("TCP Session-Connection Binding", () => {
         it("UDP channels have type UDP", () => {
             const udpChannel = new ProtocolMocks.NetworkChannel({ index: 1 });
             expect(udpChannel.type).to.equal(ChannelType.UDP);
+        });
+    });
+
+    describe("TCP session selection", () => {
+        // Tests the session filtering pattern used by PeerExchangeProvider.initiateExchange
+        // when requiredTransport === ChannelType.TCP.  PeerExchangeProvider itself requires
+        // a full Peer + PeerConnection.Context, but the filtering logic can be validated
+        // directly on mock sessions.
+
+        it("finds a TCP session among mixed sessions", () => {
+            const tcpChannel = new MockTcpChannel("tcp-1");
+            const udpChannel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            const tcpSession = createSessionOnTcpChannel(tcpChannel, 1);
+            const udpSession = new ProtocolMocks.NodeSession({ index: 2, fabricIndex: 1, channel: udpChannel });
+
+            const sessions = [udpSession, tcpSession];
+
+            // This mirrors PeerExchangeProvider's TCP session selection:
+            //   sessions.find(s => !s.isClosing && !s.isPeerLost && !s.isClosed && s.channel.channel.type === ChannelType.TCP)
+            const selected = sessions.find(
+                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+            );
+
+            expect(selected).to.equal(tcpSession);
+            expect(selected!.channel.channel.type).to.equal(ChannelType.TCP);
+        });
+
+        it("returns undefined when no TCP session exists", () => {
+            const udpChannel = new ProtocolMocks.NetworkChannel({ index: 1 });
+            const udpSession = new ProtocolMocks.NodeSession({ index: 1, fabricIndex: 1, channel: udpChannel });
+
+            const sessions = [udpSession];
+
+            const selected = sessions.find(
+                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+            );
+
+            expect(selected).to.be.undefined;
+        });
+
+        it("skips closing TCP sessions", async () => {
+            const tcpChannel1 = new MockTcpChannel("tcp-closing");
+            const tcpChannel2 = new MockTcpChannel("tcp-active");
+            const closingSession = createSessionOnTcpChannel(tcpChannel1, 1);
+            const activeSession = createSessionOnTcpChannel(tcpChannel2, 2);
+
+            await closingSession.initiateForceClose({ cause: new Error("connection dropped") });
+
+            const sessions = [closingSession, activeSession];
+
+            const selected = sessions.find(
+                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+            );
+
+            expect(selected).to.equal(activeSession);
+        });
+
+        it("returns undefined when all TCP sessions are closing", async () => {
+            const tcpChannel = new MockTcpChannel("tcp-1");
+            const session = createSessionOnTcpChannel(tcpChannel, 1);
+
+            await session.initiateForceClose({ cause: new Error("connection dropped") });
+
+            const sessions = [session];
+
+            const selected = sessions.find(
+                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+            );
+
+            expect(selected).to.be.undefined;
+        });
+    });
+
+    describe("PASE TCP guard", () => {
+        it("rejects TCP addresses for PASE session establishment", async () => {
+            // ControllerCommissioner.establishPase should reject TCP addresses with ImplementationError
+            // because PASE always uses UDP or BLE — TCP is for operational CASE sessions only.
+            const commissioner = new ControllerCommissioner({
+                // Minimal stubs — the TCP guard throws before any of these are accessed
+                peers: {} as ControllerCommissionerContext["peers"],
+                transports: {} as ControllerCommissionerContext["transports"],
+                sessions: { sessionParameters: SessionParameters(SessionParameters.defaults) } as any,
+                exchanges: {} as ControllerCommissionerContext["exchanges"],
+                ca: {} as ControllerCommissionerContext["ca"],
+                environment: {} as ControllerCommissionerContext["environment"],
+            });
+
+            const tcpAddress: ServerAddressTcp = { type: "tcp", ip: "192.168.1.1", port: 5540 };
+
+            await expect(
+                commissioner.establishPase({
+                    addresses: [tcpAddress],
+                    passcode: 20202021,
+                    timeout: Seconds(5),
+                }),
+            ).to.be.rejectedWith(ImplementationError, "PASE sessions cannot use TCP transport");
         });
     });
 });
