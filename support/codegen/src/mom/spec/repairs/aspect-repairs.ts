@@ -84,10 +84,6 @@ export function repairConformanceRule(conformance?: string) {
     // Opcreds "OK" StatusCode specified with incorrect case (cluster 1.4.2)
     conformance = conformance.replace(/StatusCode == OK/g, "StatusCode == Ok");
 
-    // 1.5.1: Revision conformance uses "Rev >= vN" syntax.  Normalize "vN" to just the number
-    // so the parser sees "Rev >= 3" instead of "Rev >= v3"
-    conformance = conformance.replace(/\bv(\d+)\b/g, "$1");
-
     return conformance;
 }
 
