@@ -35,6 +35,7 @@ export class MessageChannel implements Channel<Message> {
     #channel: Channel<Bytes>;
     #networkAddressChanged = Observable<[ServerAddressIp]>();
     #isIpNetworkChannel = false;
+    #channelAddressObserver?: (networkAddress: ServerAddressIp) => void;
     public closed = false;
     #onClose?: () => MaybePromise<void>;
     // When the session is supporting MRP and the channel is not reliable, use MRP handling
@@ -47,10 +48,7 @@ export class MessageChannel implements Channel<Message> {
         this.#channel = channel;
         if (isIpNetworkChannel(channel)) {
             this.#isIpNetworkChannel = true;
-            channel.networkAddressChanged.on(networkAddress => {
-                logger.debug(`Network address of channel changed to ${ServerAddress.urlFor(networkAddress)}`);
-                this.#networkAddressChanged.emit(networkAddress);
-            });
+            this.#observeChannelAddress(channel);
         }
         this.#onClose = onClose;
     }
@@ -148,11 +146,30 @@ export class MessageChannel implements Channel<Message> {
         ) {
             return;
         }
-        if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
+        const addressChanged = !sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>);
+
+        // Resubscribe address observer before replacing, so we detach from the old channel
+        this.#observeChannelAddress(channel);
+
+        // Always replace the underlying channel so references stay fresh, even when addresses match
+        this.#channel = channel;
+
+        if (addressChanged) {
             logger.debug(`Updated address of channel to`, this.name);
-            this.#channel = channel;
             this.#networkAddressChanged.emit(channel.networkAddress);
         }
+    }
+
+    #observeChannelAddress(newChannel: IpNetworkChannel<Bytes>) {
+        // Detach from previous channel
+        if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
+            (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
+        }
+        this.#channelAddressObserver = (networkAddress: ServerAddressIp) => {
+            logger.debug(`Network address of channel changed to ${ServerAddress.urlFor(networkAddress)}`);
+            this.#networkAddressChanged.emit(networkAddress);
+        };
+        newChannel.networkAddressChanged.on(this.#channelAddressObserver);
     }
 
     async close() {

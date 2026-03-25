@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MockNetwork, Network, Seconds, ServerAddressIp, Time } from "@matter/general";
+import { Minutes, MockNetwork, Network, Seconds, ServerAddressIp, Time } from "@matter/general";
 import { Peer } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
@@ -49,6 +49,10 @@ describe("ClientAddressProbeTest", () => {
             probeCalled = true;
             probeResult = result.resolve as boolean;
         });
+
+        // *** ADVANCE past minimum probe cooldown so session activity doesn't suppress the probe ***
+
+        await MockTime.advance(Minutes(3));
 
         // *** SIMULATE ADDRESS CHANGE — replace discovered addresses with a different IP ***
 
@@ -100,6 +104,10 @@ describe("ClientAddressProbeTest", () => {
             }
             route(packet);
         });
+
+        // *** ADVANCE past minimum probe cooldown ***
+
+        await MockTime.advance(Minutes(3));
 
         // *** SIMULATE ADDRESS CHANGE ***
 

@@ -399,6 +399,7 @@ export class Peer {
             this.#addressMonitor = new PeerAddressMonitor(
                 this,
                 this.#context.timing.addressChangeStabilizationDelay,
+                this.#context.timing.addressChangeProbeCooldown,
                 this.#abort,
                 work => this.#workers.add(work),
             );
