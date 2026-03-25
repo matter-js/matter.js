@@ -283,6 +283,7 @@ export class AllClustersTestInstance extends NodeTestInstance {
                 },
                 network: {
                     port: 5540,
+                    tcp: true,
                     //advertiseOnStartup: false,
                 },
                 commissioning: {
