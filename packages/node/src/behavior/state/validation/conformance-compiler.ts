@@ -11,6 +11,7 @@ import {
     ClusterModel,
     Conformance,
     DataModelPath,
+    ElementTag,
     FeatureSet,
     FieldValue,
     Metatype,
@@ -388,6 +389,15 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             return NonconformantNode;
         }
 
+        // Check if name references a top-level cluster element (command, event, datatype).  Element-level
+        // conformance is structural, enforced by ValidatedElements, not the data validator
+        const resolved = schema.parent?.resolve(param, {
+            tags: [ElementTag.Command, ElementTag.Event],
+        });
+        if (resolved) {
+            return ConformantNode;
+        }
+
         // Name references another value.  This results in a value node but must be evaluated at runtime against a
         // specific struct
         return createNameReference(param);
@@ -398,7 +408,7 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
      * access the RHS property name on it.
      */
     function createDotAccess({ lhs, rhs }: Conformance.Ast.BinaryOperands): DynamicNode {
-        const compiledLhs = compile(lhs);
+        let compiledLhs = compile(lhs);
 
         // RHS must be a name node
         if (rhs.type !== Conformance.Special.Name) {
@@ -408,6 +418,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             );
         }
         const propertyName = camelize(rhs.param);
+
+        // If LHS resolved statically to a cluster element (e.g. a command name), recompile as a name reference.
+        // Dot access needs the actual data value to access a property on, and the data is provided via outerResolve
+        if (compiledLhs.code === Code.Conformant && lhs.type === Conformance.Special.Name) {
+            compiledLhs = createNameReference(lhs.param);
+        }
 
         // If LHS is static (e.g. undefined from unresolved name), the dot access is also static
         if (compiledLhs.code === Code.Value) {
@@ -617,7 +633,8 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
                     schema.parent instanceof ValueModel || schema.parent instanceof ClusterModel
                         ? schema.parent
                         : undefined;
-                const field = siblingScope && supervisor.membersOf(siblingScope).find(model => model.propertyName === name);
+                const field =
+                    siblingScope && supervisor.membersOf(siblingScope).find(model => model.propertyName === name);
                 if (field?.effectiveMetatype === Metatype.enum) {
                     let enumValues: undefined | Record<string, number | undefined>;
                     createNameReference = (name: string) => {

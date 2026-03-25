@@ -6,7 +6,7 @@
 
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
-import { ClusterModel, DataModelPath, FeatureMap, FieldElement, FieldModel } from "@matter/model";
+import { ClusterModel, CommandModel, DataModelPath, FeatureMap, FieldElement, FieldModel } from "@matter/model";
 import { ConformanceError, EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
 import { Features, Fields, Tests, testValidation } from "./validation-test-utils.js";
 
@@ -759,6 +759,37 @@ describe("conformance", () => {
 
         it("allows omission without outerResolve", () => {
             expect(() => validateWith({})).not.throw();
+        });
+    });
+
+    describe("element references", () => {
+        // Field conformance references a command name — should be treated as conformant since element-level
+        // conformance is structural (enforced by ValidatedElements), not the data validator
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                FeatureMap.clone(),
+                new CommandModel({ name: "Pause", id: 1, direction: "request" }),
+                new CommandModel({ name: "Resume", id: 2, direction: "request" }),
+                new FieldModel({ name: "Dependent", type: "uint8", conformance: "Pause | Resume" }),
+            ],
+        });
+
+        const root = RootSupervisor.for(cluster);
+        const manager = root.get(cluster);
+
+        function validate(record: Record<string, unknown>) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, {
+                path: new DataModelPath(cluster.path),
+            });
+        }
+
+        it("accepts field when conformance references cluster element", () => {
+            expect(() => validate({ dependent: 42 })).not.throw();
+        });
+
+        it("requires field when conformance references cluster element", () => {
+            expect(() => validate({})).throw(ConformanceError);
         });
     });
 });
