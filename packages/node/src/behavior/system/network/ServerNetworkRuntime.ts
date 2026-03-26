@@ -11,7 +11,6 @@ import {
     ConnectionlessTransport,
     ConnectionlessTransportSet,
     Crypto,
-    ImplementationError,
     InterfaceType,
     Logger,
     Network,
@@ -301,15 +300,16 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // Initialize ScannerSet
         env.get(ScannerSet).add(env.get(MdnsService).client);
 
-        const { timing, profiles, defaultProfile } = this.owner.state.network;
+        const { timing, profiles } = this.owner.state.network;
         if (timing) {
             env.get(PeerSet).timing = timing;
         }
 
-        // Determine the fallback profile for peers with unknown physical properties.  An explicit defaultProfile
-        // takes precedence, otherwise auto-detect from the node's endpoint structure and network capabilities.
-        const fallbackProfile = this.#resolveFallbackProfile(defaultProfile);
-        const effectiveProfiles = fallbackProfile !== undefined ? { ...profiles, fallback: fallbackProfile } : profiles;
+        // Auto-detect the fallback profile for peers with unknown physical properties.  If the node has
+        // application endpoints we derive it from local network capabilities, otherwise keep conservative.
+        // Users can still override via profiles.fallback in config.
+        const autoFallback = this.#detectFallbackProfile();
+        const effectiveProfiles = autoFallback !== undefined ? { fallback: autoFallback, ...profiles } : profiles;
         if (effectiveProfiles) {
             env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
@@ -388,35 +388,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Resolve the fallback profile limits from an explicit profile name or auto-detection.
-     */
-    #resolveFallbackProfile(defaultProfile: string | undefined): NetworkProfiles.Limits | undefined {
-        if (defaultProfile !== undefined) {
-            const limits = NetworkProfiles.defaults[defaultProfile as keyof NetworkProfiles.Templates];
-            if (limits === undefined) {
-                throw new ImplementationError(`Unknown default profile "${defaultProfile}"`);
-            }
-            logger.info("Fallback network profile set to", defaultProfile);
-            return limits;
-        }
-
-        const autoProfile = this.#detectDefaultNetworkProfile();
-        if (autoProfile !== undefined) {
-            logger.info("Fallback network profile auto-detected as", autoProfile);
-            return NetworkProfiles.defaults[autoProfile as keyof NetworkProfiles.Templates];
-        }
-
-        return undefined;
-    }
-
-    /**
-     * Detect the appropriate default network profile based on the local node's structure and capabilities.
+     * Detect the fallback network profile based on the local node's endpoint structure and network capabilities.
      *
-     * Returns a profile ID if the node has application endpoints (i.e. it is a device).  The profile is derived from
-     * the root endpoint's NetworkCommissioning supported features (e.g. Thread vs non-Thread).  Returns undefined for
-     * pure controller/utility nodes.
+     * Returns profile limits if the node has application endpoints (i.e. it is a device), derived from the root
+     * endpoint's NetworkCommissioning supported features.  Returns undefined for pure controller/utility nodes.
      */
-    #detectDefaultNetworkProfile(): string | undefined {
+    #detectFallbackProfile(): NetworkProfiles.Limits | undefined {
         const { owner } = this;
 
         // Check if any child endpoint is an application device type
@@ -436,10 +413,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // TODO - whenever we support WiFi/Thread or secondary network interfaces we need to adjust this logic
         const nc = owner.behaviors.typeFor(NetworkCommissioningBehavior);
         if (nc?.schema.supportedFeatures.has("TH")) {
-            return "thread";
+            logger.info("Fallback network profile auto-detected as thread");
+            return NetworkProfiles.defaults.thread;
         }
 
-        return "fast";
+        logger.info("Fallback network profile auto-detected as fast");
+        return NetworkProfiles.defaults.fast;
     }
 
     async #initializeGroupNetworking() {
