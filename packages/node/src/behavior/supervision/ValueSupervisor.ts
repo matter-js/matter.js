@@ -7,6 +7,7 @@
 import type { AsyncObservable, Transaction } from "@matter/general";
 import { DataModelPath, Schema } from "@matter/model";
 import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
+import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
 
@@ -108,7 +109,7 @@ export namespace ValueSupervisor {
 
     export type Validate = (value: Val, session: Session, location: ValidationLocation) => void;
 
-    export type Manage = (reference: Val.Reference, session: Session) => Val;
+    export type Manage = (reference: ValReference, session: Session) => Val;
 
     export type Patch = (changes: Val.ReadonlyCollection, target: Val.Collection, path: DataModelPath) => Val;
 

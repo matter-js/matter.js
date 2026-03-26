@@ -15,6 +15,7 @@ import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
 import { NameResolver } from "../NameResolver.js";
+import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 const AUTHORIZE_READ = Symbol("authorize-read");
@@ -24,7 +25,7 @@ const AUTHORIZE_READ = Symbol("authorize-read");
  */
 interface Struct extends Val.Struct {
     [Internal.session]: ValueSupervisor.Session;
-    [Internal.reference]: Val.Reference<Val.Struct>;
+    [Internal.reference]: ValReference<Val.Struct>;
 
     /**
      * Direct read authorization.
@@ -102,10 +103,10 @@ export function StructManager(owner: RootSupervisor, schema: Schema): ValueSuper
     const Wrapper = GeneratedClass({
         name,
 
-        initialize(this: Struct, ref: Val.Reference, session: ValueSupervisor.Session) {
+        initialize(this: Struct, ref: ValReference, session: ValueSupervisor.Session) {
             Object.defineProperties(this, {
                 [Internal.reference]: {
-                    value: ref as Val.Reference<Val.Struct>,
+                    value: ref as ValReference<Val.Struct>,
                 },
                 [Internal.session]: {
                     value: session,

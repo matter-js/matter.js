@@ -20,6 +20,7 @@ import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val } from "@matt
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { StateType } from "../StateType.js";
+import type { ValReference } from "./ValReference.js";
 
 const logger = Logger.get("Datasource");
 
@@ -506,7 +507,7 @@ function configureExternalChanges(internals: Internals) {
 }
 
 /**
- * The bulk of {@link Datasource} logic resides with a specific {@link Val.Reference} created by this function.
+ * The bulk of {@link Datasource} logic resides with a specific {@link ValReference} created by this function.
  *
  * This reference provides external access to the {@link Val.Struct} in the context of a specific session.
  */
@@ -546,7 +547,7 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
     const fields = internals.supervisor.memberNames;
 
     // This is the actual reference
-    const reference: Val.Reference<Val.Struct> = {
+    const reference: ValReference<Val.Struct> = {
         primaryKey: internals.primaryKey,
 
         get original() {
