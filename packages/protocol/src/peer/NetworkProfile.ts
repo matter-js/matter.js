@@ -42,7 +42,7 @@ export interface ConcreteNetworkProfile {
  * A single logical Matter networking segment.
  *
  * A "network profile" is a logical grouping of nodes that share rate limits.  By default matter.js selects a network
- * based on medium, falling back to {@link NetworkProfiles.conservative} if the medium is unknown.
+ * based on medium, falling back to {@link NetworkProfiles.Templates.fallback} if the medium is unknown.
  *
  * TODO - record latency and packet loss to support dynamic rate limits
  */
@@ -164,7 +164,7 @@ export class NetworkProfiles {
             defaults = this.#defaults.fast;
         } else if (pp === undefined) {
             id = "unknown";
-            defaults = this.#defaults.conservative;
+            defaults = this.#defaults.fallback;
         } else if (pp.threadActive || (pp.threadActive === undefined && pp.supportsThread)) {
             if (pp.threadChannel) {
                 id = `thread:${pp.threadChannel}`;
@@ -182,7 +182,7 @@ export class NetworkProfiles {
             defaults = this.#defaults.fast;
         } else {
             id = "unknown";
-            defaults = this.#defaults.conservative;
+            defaults = this.#defaults.fallback;
         }
 
         return this.#networks.get(id) ?? this.configure(id, defaults);
@@ -258,9 +258,16 @@ export namespace NetworkProfiles {
         thread: Limits;
 
         /**
-         * Fallback limits for unknown profiles.
+         * Limits for conservative networks.
          */
         conservative: Limits;
+
+        /**
+         * Fallback limits used for peers with unknown physical properties.
+         *
+         * Defaults to {@link conservative}.
+         */
+        fallback: Limits;
 
         /**
          * Limit for "unlimited" networks.
@@ -293,5 +300,6 @@ export namespace NetworkProfiles {
         fast: { exchanges: 200 },
         thread: conservative,
         conservative,
+        fallback: conservative,
     };
 }
