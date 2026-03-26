@@ -81,6 +81,18 @@ export class NodeJsNetwork extends Network {
         return this.getNetInterfaceZoneIpv6Internal(netInterface, netInterfaceInfo);
     }
 
+    /** Get the first non-internal IPv6 network interface zone ID as fallback for multicast. */
+    static getDefaultNetInterface(): string | undefined {
+        const interfaces = networkInterfaces();
+        for (const name in interfaces) {
+            const infos = interfaces[name] as NetworkInterfaceInfo[];
+            if (infos.some(info => familyIs(6, info) && !info.internal)) {
+                return this.getNetInterfaceZoneIpv6Internal(name, infos);
+            }
+        }
+        return undefined;
+    }
+
     static getNetInterfaceForIp(ip: string) {
         // Finding the local interface on the same interface is complex and won't change
         // So let's cache the results for 5mn
