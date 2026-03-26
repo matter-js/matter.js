@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, NetworkError, TCP_KEEP_ALIVE_INITIAL_DELAY_MS, TcpSocket, Transport } from "@matter/general";
+import { Bytes, NetworkError, Seconds, TCP_KEEP_ALIVE_INITIAL_DELAY_MS, TcpSocket, Transport, withTimeout } from "@matter/general";
 import type { Socket } from "node:net";
+
+/** Time to wait for graceful close before force-destroying the socket. */
+const TCP_CLOSE_TIMEOUT = Seconds(5);
 
 /**
  * Node.js implementation of the {@link TcpSocket} interface.
@@ -75,13 +78,18 @@ export class NodeJsTcpSocket implements TcpSocket {
     }
 
     async close(): Promise<void> {
-        return new Promise<void>(resolve => {
-            if (this.#socket.destroyed) {
-                resolve();
-                return;
-            }
+        if (this.#socket.destroyed) {
+            return;
+        }
+
+        const closed = new Promise<void>(resolve => {
             this.#socket.once("close", () => resolve());
             this.#socket.end();
+        });
+
+        await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
+            // Graceful close did not complete in time — force destroy
+            this.#socket.destroy();
         });
     }
 }

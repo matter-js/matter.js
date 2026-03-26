@@ -9,11 +9,19 @@ import { Channel, ChannelType } from "#net/Channel.js";
 import { Network, NetworkError } from "#net/Network.js";
 import { ServerAddress } from "#net/ServerAddress.js";
 import { ConnectionOrientedTransport, Transport } from "#net/Transport.js";
+import { Time } from "#time/Time.js";
+import { Seconds } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { TcpConnection } from "./TcpConnection.js";
 import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpServerSocket } from "./TcpSocket.js";
 
 const logger = Logger.get("TcpTransport");
+
+/** Maximum number of TCP connections allowed from the same peer IP address. */
+const MAX_CONNECTIONS_PER_PEER_IP = 2;
+
+/** Time to wait for the first data on a new inbound connection before closing it. */
+const NEW_CONNECTION_IDLE_TIMEOUT = Seconds(10);
 
 export interface TcpTransportOptions {
     /** Network for creating sockets. */
@@ -62,7 +70,41 @@ export class TcpTransport implements ConnectionOrientedTransport {
 
             transport.#server.onConnection(socket => {
                 const connection = new TcpConnection(socket, transport.#maxMessageSize);
+
+                // Enforce per-IP connection limit
+                if (transport.#countConnectionsFromIp(connection.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
+                    logger.warn(
+                        `Rejecting TCP connection from ${connection.name}: too many connections from this IP`,
+                    );
+                    void connection.close();
+                    return;
+                }
+
                 transport.#registerConnection(connection);
+
+                // Close new inbound connections that send no data within the idle timeout
+                const idleTimer = Time.getTimer(
+                    "tcp-new-connection-idle",
+                    NEW_CONNECTION_IDLE_TIMEOUT,
+                    () => {
+                        if (!receivedData) {
+                            logger.debug(`Closing idle TCP connection ${connection.name}: no data received`);
+                            void connection.close();
+                        }
+                    },
+                );
+                idleTimer.start();
+
+                let receivedData = false;
+                const dataWatcher = connection.onMessage(() => {
+                    receivedData = true;
+                    idleTimer.stop();
+                    void dataWatcher.close();
+                });
+
+                connection.onClose(() => {
+                    idleTimer.stop();
+                });
 
                 for (const listener of transport.#connectListeners) {
                     listener(connection);
@@ -138,6 +180,13 @@ export class TcpTransport implements ConnectionOrientedTransport {
         const { ip, port } = connection.networkAddress;
         const key = `${ip}:${port}`;
 
+        // Close any existing connection with the same key to prevent orphaning (M-1 fix)
+        const existing = this.#connections.get(key);
+        if (existing) {
+            logger.debug("Replacing existing connection for", key);
+            void existing.close();
+        }
+
         this.#connections.set(key, connection);
 
         connection.onMessage(data => {
@@ -147,12 +196,26 @@ export class TcpTransport implements ConnectionOrientedTransport {
         });
 
         connection.onClose(() => {
-            this.#connections.delete(key);
+            // Only delete if this connection is still the one in the pool (not replaced)
+            if (this.#connections.get(key) === connection) {
+                this.#connections.delete(key);
+            }
             for (const listener of this.#disconnectListeners) {
                 listener(connection);
             }
         });
 
         logger.debug("Registered TCP connection", key);
+    }
+
+    /** Count active connections from the given IP address (any port). */
+    #countConnectionsFromIp(ip: string): number {
+        let count = 0;
+        for (const conn of this.#connections.values()) {
+            if (conn.networkAddress.ip === ip) {
+                count++;
+            }
+        }
+        return count;
     }
 }

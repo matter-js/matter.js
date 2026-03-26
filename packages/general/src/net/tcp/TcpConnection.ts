@@ -19,6 +19,9 @@ const logger = Logger.get("TcpConnection");
 /** Size of the length-prefix header in bytes. */
 const FRAMING_HEADER_SIZE = 4;
 
+/** Maximum receive buffer size before closing the connection (DoS protection). */
+const MAX_RECEIVE_BUFFER_FACTOR = 2;
+
 /**
  * TCP channel implementing Matter message framing.
  *
@@ -40,6 +43,9 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     readonly #closeListeners = new Set<() => void>();
     readonly #workers = new BasicMultiplex();
 
+    /** Maximum allowed receive buffer size before connection is closed for protection. */
+    readonly #maxReceiveBufferSize: number;
+
     /** Receive buffer — accumulated chunks not yet consumed. */
     #receiveChunks = new Array<Uint8Array>();
     #receiveLength = 0;
@@ -49,6 +55,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     constructor(socket: TcpSocket, maxPayloadSize = DEFAULT_MAX_TCP_MESSAGE_SIZE) {
         this.#socket = socket;
         this.maxPayloadSize = maxPayloadSize;
+        this.#maxReceiveBufferSize = maxPayloadSize * MAX_RECEIVE_BUFFER_FACTOR;
 
         socket.onData(data => this.#handleData(data));
         socket.onClose(() => this.#handleClose());
@@ -80,7 +87,9 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
 
         const message = Bytes.of(data);
         if (message.length >= this.maxMessageSize) {
-            throw new NetworkError(`Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`);
+            throw new NetworkError(
+                `Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`,
+            );
         }
         const frame = new Uint8Array(FRAMING_HEADER_SIZE + message.length);
         const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);
@@ -124,10 +133,23 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     // --- Internal ---
 
     #handleData(data: Bytes): void {
+        if (this.#closed) {
+            return;
+        }
+
         // Bytes.of() always returns Uint8Array at runtime
         const chunk = Bytes.of(data) as Uint8Array;
         this.#receiveChunks.push(chunk);
         this.#receiveLength += chunk.length;
+
+        // Receive buffer cap — prevent memory exhaustion from slow/malicious peers
+        if (this.#receiveLength > this.#maxReceiveBufferSize) {
+            logger.error(
+                `Receive buffer exceeded ${this.#maxReceiveBufferSize} bytes without completing a message, closing`,
+            );
+            this.#workers.add(this.close());
+            return;
+        }
 
         this.#extractMessages();
     }
@@ -156,6 +178,20 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
             const flat = this.#flatten();
             const view = new DataView(flat.buffer, flat.byteOffset, flat.byteLength);
             const messageLength = view.getUint32(0, true);
+
+            // Ignore zero-length messages — invalid framing
+            if (messageLength === 0) {
+                // Consume the 4-byte header and continue
+                if (this.#receiveLength > FRAMING_HEADER_SIZE) {
+                    const remainder = flat.slice(FRAMING_HEADER_SIZE);
+                    this.#receiveChunks = [remainder];
+                    this.#receiveLength = remainder.length;
+                } else {
+                    this.#receiveChunks = [];
+                    this.#receiveLength = 0;
+                }
+                continue;
+            }
 
             // Oversized message: the total frame (header + message) must fit within maxPayloadSize
             if (messageLength >= this.maxMessageSize) {
