@@ -24,27 +24,33 @@ describe("TcpTransport", () => {
             const host = simulator.addHost(1);
             const transport = await TcpTransport.create({ network: host });
 
-            expect(transport.supports(ChannelType.TCP)).equals(true);
-
-            await transport.close();
+            try {
+                expect(transport.supports(ChannelType.TCP)).equals(true);
+            } finally {
+                await transport.close();
+            }
         });
 
         it("returns false for UDP", async () => {
             const host = simulator.addHost(1);
             const transport = await TcpTransport.create({ network: host });
 
-            expect(transport.supports(ChannelType.UDP)).equals(false);
-
-            await transport.close();
+            try {
+                expect(transport.supports(ChannelType.UDP)).equals(false);
+            } finally {
+                await transport.close();
+            }
         });
 
         it("returns false for BLE", async () => {
             const host = simulator.addHost(1);
             const transport = await TcpTransport.create({ network: host });
 
-            expect(transport.supports(ChannelType.BLE)).equals(false);
-
-            await transport.close();
+            try {
+                expect(transport.supports(ChannelType.BLE)).equals(false);
+            } finally {
+                await transport.close();
+            }
         });
     });
 
@@ -53,11 +59,13 @@ describe("TcpTransport", () => {
             const host = simulator.addHost(1);
             const transport = await TcpTransport.create({ network: host });
 
-            await expect(transport.openChannel({ type: "udp", ip: "10.10.10.1", port: 5540 })).rejectedWith(
-                "does not support address type",
-            );
-
-            await transport.close();
+            try {
+                await expect(transport.openChannel({ type: "udp", ip: "10.10.10.1", port: 5540 })).rejectedWith(
+                    "does not support address type",
+                );
+            } finally {
+                await transport.close();
+            }
         });
 
         it("connects to a remote server", async () => {
@@ -70,17 +78,19 @@ describe("TcpTransport", () => {
             });
             const clientTransport = await TcpTransport.create({ network: host2 });
 
-            const channel = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
+            try {
+                const channel = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
 
-            expect(channel).instanceof(TcpConnection);
-            expect(channel.type).equals(ChannelType.TCP);
-
-            await clientTransport.close();
-            await serverTransport.close();
+                expect(channel).instanceof(TcpConnection);
+                expect(channel.type).equals(ChannelType.TCP);
+            } finally {
+                await clientTransport.close();
+                await serverTransport.close();
+            }
         });
 
         it("reuses existing connection for same address", async () => {
@@ -93,21 +103,23 @@ describe("TcpTransport", () => {
             });
             const clientTransport = await TcpTransport.create({ network: host2 });
 
-            const channel1 = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
-            const channel2 = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
+            try {
+                const channel1 = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
+                const channel2 = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
 
-            expect(channel1).equals(channel2);
-
-            await clientTransport.close();
-            await serverTransport.close();
+                expect(channel1).equals(channel2);
+            } finally {
+                await clientTransport.close();
+                await serverTransport.close();
+            }
         });
 
         it("creates different connections for different addresses", async () => {
@@ -125,22 +137,24 @@ describe("TcpTransport", () => {
             });
             const clientTransport = await TcpTransport.create({ network: host3 });
 
-            const channel1 = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
-            const channel2 = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::2",
-                port: SERVER_PORT,
-            });
+            try {
+                const channel1 = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
+                const channel2 = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::2",
+                    port: SERVER_PORT,
+                });
 
-            expect(channel1).not.equals(channel2);
-
-            await clientTransport.close();
-            await server1.close();
-            await server2.close();
+                expect(channel1).not.equals(channel2);
+            } finally {
+                await clientTransport.close();
+                await server1.close();
+                await server2.close();
+            }
         });
     });
 
@@ -158,13 +172,16 @@ describe("TcpTransport", () => {
             serverTransport.onConnect(channel => connected.push(channel));
 
             const clientTransport = await TcpTransport.create({ network: host2 });
-            await clientTransport.openChannel({ type: "tcp", ip: "abcd::1", port: SERVER_PORT });
 
-            expect(connected).length(1);
-            expect(connected[0]).instanceof(TcpConnection);
+            try {
+                await clientTransport.openChannel({ type: "tcp", ip: "abcd::1", port: SERVER_PORT });
 
-            await clientTransport.close();
-            await serverTransport.close();
+                expect(connected).length(1);
+                expect(connected[0]).instanceof(TcpConnection);
+            } finally {
+                await clientTransport.close();
+                await serverTransport.close();
+            }
         });
     });
 
@@ -182,20 +199,23 @@ describe("TcpTransport", () => {
             serverTransport.onData((channel, data) => received.push({ channel, data }));
 
             const clientTransport = await TcpTransport.create({ network: host2 });
-            const channel = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
 
-            const payload = Bytes.fromHex("deadbeef");
-            await channel.send(payload);
+            try {
+                const channel = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
 
-            expect(received).length(1);
-            expect(Bytes.toHex(received[0].data)).equals("deadbeef");
+                const payload = Bytes.fromHex("deadbeef");
+                await channel.send(payload);
 
-            await clientTransport.close();
-            await serverTransport.close();
+                expect(received).length(1);
+                expect(Bytes.toHex(received[0].data)).equals("deadbeef");
+            } finally {
+                await clientTransport.close();
+                await serverTransport.close();
+            }
         });
     });
 
@@ -213,19 +233,22 @@ describe("TcpTransport", () => {
             serverTransport.onDisconnect(channel => disconnected.push(channel));
 
             const clientTransport = await TcpTransport.create({ network: host2 });
-            const channel = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
 
-            // Close the client-side channel, which should trigger disconnect on server
-            await channel.close();
+            try {
+                const channel = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
 
-            expect(disconnected).length(1);
+                // Close the client-side channel, which should trigger disconnect on server
+                await channel.close();
 
-            await clientTransport.close();
-            await serverTransport.close();
+                expect(disconnected).length(1);
+            } finally {
+                await clientTransport.close();
+                await serverTransport.close();
+            }
         });
     });
 
@@ -240,18 +263,24 @@ describe("TcpTransport", () => {
             });
 
             const clientTransport = await TcpTransport.create({ network: host2 });
-            const channel = await clientTransport.openChannel({
-                type: "tcp",
-                ip: "abcd::1",
-                port: SERVER_PORT,
-            });
 
-            // Both transports should close without error
-            await serverTransport.close();
-            await clientTransport.close();
+            try {
+                const channel = await clientTransport.openChannel({
+                    type: "tcp",
+                    ip: "abcd::1",
+                    port: SERVER_PORT,
+                });
 
-            // Sending after close should fail
-            await expect(channel.send(Bytes.fromHex("ff"))).rejected;
+                // Both transports should close without error
+                await serverTransport.close();
+                await clientTransport.close();
+
+                // Sending after close should fail
+                await expect(channel.send(Bytes.fromHex("ff"))).rejected;
+            } finally {
+                await clientTransport.close();
+                await serverTransport.close();
+            }
         });
     });
 });

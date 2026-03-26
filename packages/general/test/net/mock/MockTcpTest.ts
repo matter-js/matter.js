@@ -42,6 +42,7 @@ describe("MockTcpSocket", () => {
         expect(Bytes.toHex(clientReceived[0])).equals("bb");
 
         await client.close();
+        await server.close();
     });
 
     it("propagates close to peer", async () => {
@@ -57,7 +58,7 @@ describe("MockTcpSocket", () => {
         expect(serverClosed).true;
     });
 
-    it("exposes correct addresses and ports", () => {
+    it("exposes correct addresses and ports", async () => {
         const [client, server] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
         expect(client.remoteAddress).equals("5.6.7.8");
@@ -67,6 +68,9 @@ describe("MockTcpSocket", () => {
         expect(server.remoteAddress).equals("1.2.3.4");
         expect(server.remotePort).equals(5000);
         expect(server.localPort).equals(6000);
+
+        await client.close();
+        await server.close();
     });
 
     it("throws on send after close", async () => {
@@ -105,6 +109,7 @@ describe("MockTcpServer", () => {
         expect(accepted!.remoteAddress).equals("abcd::1");
 
         await clientSocket.close();
+        await accepted!.close();
         await server.close();
     });
 
@@ -137,6 +142,7 @@ describe("MockTcpServer", () => {
         expect(Bytes.toHex(clientReceived[0])).equals("babe");
 
         await clientSocket.close();
+        await serverSocket!.close();
         await server.close();
     });
 

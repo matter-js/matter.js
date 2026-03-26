@@ -153,18 +153,20 @@ describe("TcpConnection", () => {
     });
 
     describe("channel properties", () => {
-        it("reports correct channel type properties", () => {
+        it("reports correct channel type properties", async () => {
             const { server } = createPair();
             const conn = new TcpConnection(server);
 
             expect(conn.isReliable).equals(true);
             expect(conn.supportsLargeMessages).equals(true);
             expect(conn.type).equals(ChannelType.TCP);
+
+            await conn.close();
         });
     });
 
     describe("networkAddress", () => {
-        it("returns a ServerAddressTcp with correct values", () => {
+        it("returns a ServerAddressTcp with correct values", async () => {
             const { server } = createPair();
             const conn = new TcpConnection(server);
 
@@ -173,20 +175,26 @@ describe("TcpConnection", () => {
             // server socket's remote is the client
             expect(addr.ip).equals("1.2.3.4");
             expect(addr.port).equals(5000);
+
+            await conn.close();
         });
     });
 
     describe("name", () => {
-        it("returns tcp:// formatted name", () => {
+        it("returns tcp:// formatted name", async () => {
             const { server } = createPair();
             const conn = new TcpConnection(server);
             expect(conn.name).equals("tcp://1.2.3.4:5000");
+
+            await conn.close();
         });
 
-        it("wraps IPv6 addresses in brackets", () => {
+        it("wraps IPv6 addresses in brackets", async () => {
             const [, server] = MockTcpSocket.createPair("::1", 5000, "::2", 6000);
             const conn = new TcpConnection(server);
             expect(conn.name).equals("tcp://[::1]:5000");
+
+            await conn.close();
         });
     });
 
