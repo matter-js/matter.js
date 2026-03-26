@@ -128,10 +128,14 @@ export class Peer {
                 this.#sessions.delete(session);
             });
 
-            // Ensure the operational address is always set to the most recent IP
+            // Ensure the operational address is always set to the most recent IP.
+            // Skip TCP: for incoming TCP connections the remote port is the client's ephemeral
+            // port, not the peer's listening port. The correct TCP operational address comes from
+            // mDNS discovery or from outgoing connections where we connected to a known port.
+            // For UDP the source port is always the peer's listening port, so it's safe to use.
             if (!session.isClosed) {
                 const { channel } = session.channel;
-                if (isIpNetworkChannel(channel)) {
+                if (isIpNetworkChannel(channel) && channel.type !== ChannelType.TCP) {
                     updateNetworkAddress(channel.networkAddress);
                     channel.networkAddressChanged.on(updateNetworkAddress);
                 }
