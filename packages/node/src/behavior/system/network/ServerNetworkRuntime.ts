@@ -21,6 +21,7 @@ import {
     ObserverGroup,
     UdpInterface,
 } from "@matter/general";
+import { DeviceClassification } from "@matter/model";
 import {
     Advertiser,
     Ble,
@@ -36,7 +37,6 @@ import {
     SecureChannelProtocol,
     SessionManager,
 } from "@matter/protocol";
-import { DeviceClassification } from "@matter/model";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
