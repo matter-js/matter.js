@@ -7,12 +7,17 @@
 import {
     Bytes,
     NetworkError,
+    Seconds,
     TCP_CONNECTION_TIMEOUT_MS,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     Transport,
     type TcpSocket,
+    withTimeout,
 } from "@matter/general";
 import { createConnection, type Socket as RnSocket } from "react-native-tcp-socket";
+
+/** Connection timeout as Duration for withTimeout. */
+const TCP_CONNECT_TIMEOUT = Seconds(TCP_CONNECTION_TIMEOUT_MS / 1000);
 
 /**
  * React Native implementation of {@link TcpSocket}.
@@ -85,7 +90,9 @@ export class TcpSocketReactNative implements TcpSocket {
 
 /** Create a client TCP connection using react-native-tcp-socket. */
 export function connectReactNativeTcp(host: string, port: number): Promise<TcpSocketReactNative> {
-    return new Promise((resolve, reject) => {
+    let socket: RnSocket | undefined;
+
+    const connected = new Promise<TcpSocketReactNative>((resolve, reject) => {
         let settled = false;
         const settle = (fn: () => void) => {
             if (!settled) {
@@ -94,19 +101,17 @@ export function connectReactNativeTcp(host: string, port: number): Promise<TcpSo
             }
         };
 
-        const socket = createConnection({ host, port }, () => {
-            clearTimeout(timeout);
-            settle(() => resolve(new TcpSocketReactNative(socket)));
+        socket = createConnection({ host, port }, () => {
+            settle(() => resolve(new TcpSocketReactNative(socket!)));
         });
-
-        const timeout = setTimeout(() => {
-            socket.destroy();
-            settle(() => reject(new NetworkError("TCP connection timeout")));
-        }, TCP_CONNECTION_TIMEOUT_MS);
 
         socket.on("error", (err: Error) => {
-            clearTimeout(timeout);
             settle(() => reject(new NetworkError(err.message)));
         });
+    });
+
+    return withTimeout(TCP_CONNECT_TIMEOUT, connected, () => {
+        socket?.destroy();
+        throw new NetworkError("TCP connection timeout");
     });
 }

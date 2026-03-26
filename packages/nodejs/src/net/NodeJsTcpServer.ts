@@ -7,16 +7,24 @@
 import {
     Logger,
     NetworkError,
+    Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     TcpServerOptions,
     TcpServerSocket,
     TcpSocket,
     Transport,
+    withTimeout,
 } from "@matter/general";
 import { createServer, type Server, type Socket } from "node:net";
 import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
 
 const logger = Logger.get("NodeJsTcpServer");
+
+/** Timeout for server listen to complete. */
+const TCP_LISTEN_TIMEOUT = Seconds(10);
+
+/** Timeout for server close to complete. */
+const TCP_CLOSE_TIMEOUT = Seconds(5);
 
 function serverPort(server: Server): number {
     const addr = server.address();
@@ -41,7 +49,7 @@ export class NodeJsTcpServer implements TcpServerSocket {
             keepAliveInitialDelay: TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
         });
 
-        await new Promise<void>((resolve, reject) => {
+        const listening = new Promise<void>((resolve, reject) => {
             const handleError = (error: Error) => {
                 server.removeListener("error", handleError);
                 reject(new NetworkError(error.message));
@@ -51,6 +59,11 @@ export class NodeJsTcpServer implements TcpServerSocket {
                 server.removeListener("error", handleError);
                 resolve();
             });
+        });
+
+        await withTimeout(TCP_LISTEN_TIMEOUT, listening, () => {
+            server.close();
+            throw new NetworkError("TCP server listen timeout");
         });
 
         const port = serverPort(server);
@@ -80,13 +93,18 @@ export class NodeJsTcpServer implements TcpServerSocket {
     }
 
     async close(): Promise<void> {
-        return new Promise<void>(resolve => {
+        const closed = new Promise<void>(resolve => {
             this.#server.close(error => {
                 if (error) {
                     logger.debug("Error closing TCP server:", error);
                 }
                 resolve();
             });
+        });
+
+        await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
+            // Force close if graceful close hangs
+            logger.debug("TCP server close timeout, forcing");
         });
     }
 }
