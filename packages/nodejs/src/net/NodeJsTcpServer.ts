@@ -73,7 +73,6 @@ export class NodeJsTcpServer implements TcpServerSocket {
     private constructor(server: Server) {
         this.#server = server;
 
-        // Track all accepted connections for cleanup on close
         server.on("connection", (socket: Socket) => {
             this.#activeSockets.add(socket);
             socket.once("close", () => this.#activeSockets.delete(socket));
@@ -97,10 +96,9 @@ export class NodeJsTcpServer implements TcpServerSocket {
     }
 
     async close(): Promise<void> {
-        // Stop accepting new connections
         this.#server.close();
 
-        // Destroy all active connections so server.close() can complete
+        // server.close() waits for existing connections — destroy them so it completes
         for (const socket of this.#activeSockets) {
             socket.destroy();
         }

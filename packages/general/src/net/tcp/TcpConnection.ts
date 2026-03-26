@@ -135,7 +135,6 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
             return;
         }
 
-        // Bytes.of() always returns Uint8Array at runtime
         const chunk = Bytes.of(data) as Uint8Array;
         this.#receiveChunks.push(chunk);
         this.#receiveLength += chunk.length;
@@ -179,7 +178,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
 
             // Ignore zero-length messages — invalid framing
             if (messageLength === 0) {
-                // Consume the 4-byte header and continue
+                // Invalid zero-length frame — skip and continue
                 if (this.#receiveLength > FRAMING_HEADER_SIZE) {
                     const remainder = flat.slice(FRAMING_HEADER_SIZE);
                     this.#receiveChunks = [remainder];

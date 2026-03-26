@@ -71,7 +71,6 @@ export class TcpTransport implements ConnectionOrientedTransport {
             transport.#server.onConnection(socket => {
                 const connection = new TcpConnection(socket, transport.#maxMessageSize);
 
-                // Enforce per-IP connection limit
                 if (transport.#countConnectionsFromIp(connection.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
                     logger.warn(`Rejecting TCP connection from ${connection.name}: too many connections from this IP`);
                     void connection.close();
@@ -80,7 +79,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
 
                 transport.#registerConnection(connection);
 
-                // Close new inbound connections that send no data within the idle timeout
+                // Detect and close zombie connections
                 const idleTimer = Time.getTimer("tcp-new-connection-idle", NEW_CONNECTION_IDLE_TIMEOUT, () => {
                     if (!receivedData) {
                         logger.debug(`Closing idle TCP connection ${connection.name}: no data received`);
@@ -190,7 +189,6 @@ export class TcpTransport implements ConnectionOrientedTransport {
         });
 
         connection.onClose(() => {
-            // Only delete if this connection is still the one in the pool (not replaced)
             if (this.#connections.get(key) === connection) {
                 this.#connections.delete(key);
             }
