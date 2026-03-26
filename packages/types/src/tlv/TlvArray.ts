@@ -5,6 +5,7 @@
  */
 
 import { deepCopy, serialize, UnexpectedDataError } from "@matter/general";
+import { FieldElement } from "@matter/model";
 import {
     ValidationDatatypeMismatchError,
     ValidationError,
@@ -37,6 +38,29 @@ export class ArraySchema<T> extends TlvSchema<T[]> {
         readonly maxLength: number = 65535,
     ) {
         super();
+    }
+
+    /** @deprecated Part of old ClusterType() compat layer. */
+    override get element(): TlvSchema.Element {
+        const result: TlvSchema.Element = { type: "list" };
+
+        const entryElement = this.elementSchema.element;
+        if (entryElement) {
+            result.children = [FieldElement({ name: "entry", ...entryElement })];
+        }
+
+        const constraint: { min?: number; max?: number } = {};
+        if (this.minLength > 0) {
+            constraint.min = this.minLength;
+        }
+        if (this.maxLength < 65535) {
+            constraint.max = this.maxLength;
+        }
+        if (constraint.min !== undefined || constraint.max !== undefined) {
+            result.constraint = constraint;
+        }
+
+        return result;
     }
 
     override encodeTlvInternal(writer: TlvWriter, value: T[], tag?: TlvTag, options?: TlvEncodingOptions): void {

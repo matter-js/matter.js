@@ -10,7 +10,7 @@ import { Thermostat } from "@matter/types/clusters/thermostat";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ThermostatClientConstructor = ClientBehavior(Thermostat.Complete);
+export const ThermostatClientConstructor = ClientBehavior(Thermostat);
 export interface ThermostatClient extends InstanceType<typeof ThermostatClientConstructor> {}
 export interface ThermostatClientConstructor extends Identity<typeof ThermostatClientConstructor> {}
 export const ThermostatClient: ThermostatClientConstructor = ThermostatClientConstructor;

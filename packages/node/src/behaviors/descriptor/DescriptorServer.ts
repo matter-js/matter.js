@@ -9,7 +9,7 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import { EndpointLifecycle } from "#endpoint/properties/EndpointLifecycle.js";
 import { ImplementationError, isDeepEqual } from "@matter/general";
 import { Matter } from "@matter/model";
-import { ClusterId, DeviceTypeId, EndpointNumber, Semtag, TypeFromSchema } from "@matter/types";
+import { ClusterId, DeviceTypeId, EndpointNumber, Semtag } from "@matter/types";
 import { Descriptor } from "@matter/types/clusters/descriptor";
 import { DescriptorBehavior } from "./DescriptorBehavior.js";
 
@@ -246,5 +246,5 @@ export class DescriptorServer extends DescriptorBehavior {
 }
 
 export namespace DescriptorServer {
-    export type DeviceType = TypeFromSchema<typeof Descriptor.TlvDeviceType>;
+    export type DeviceType = Descriptor.DeviceType;
 }

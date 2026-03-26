@@ -17,7 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of PressureMeasurement.Cluster enabled. You can enable additional features
  * using PressureMeasurementBehavior.with.
  */
-export const PressureMeasurementBehaviorConstructor = ClusterBehavior.for(PressureMeasurement.Cluster);
+export const PressureMeasurementBehaviorConstructor = ClusterBehavior.for(PressureMeasurement);
 
 export interface PressureMeasurementBehaviorConstructor extends Identity<typeof PressureMeasurementBehaviorConstructor> {}
 export const PressureMeasurementBehavior: PressureMeasurementBehaviorConstructor = PressureMeasurementBehaviorConstructor;

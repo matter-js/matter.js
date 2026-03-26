@@ -10,7 +10,7 @@ import { ContentLauncher } from "@matter/types/clusters/content-launcher";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ContentLauncherClientConstructor = ClientBehavior(ContentLauncher.Complete);
+export const ContentLauncherClientConstructor = ClientBehavior(ContentLauncher);
 export interface ContentLauncherClient extends InstanceType<typeof ContentLauncherClientConstructor> {}
 export interface ContentLauncherClientConstructor extends Identity<typeof ContentLauncherClientConstructor> {}
 export const ContentLauncherClient: ContentLauncherClientConstructor = ContentLauncherClientConstructor;

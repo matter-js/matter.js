@@ -10,7 +10,7 @@ import { BridgedDeviceBasicInformation } from "@matter/types/clusters/bridged-de
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const BridgedDeviceBasicInformationClientConstructor = ClientBehavior(BridgedDeviceBasicInformation.Complete);
+export const BridgedDeviceBasicInformationClientConstructor = ClientBehavior(BridgedDeviceBasicInformation);
 export interface BridgedDeviceBasicInformationClient extends InstanceType<typeof BridgedDeviceBasicInformationClientConstructor> {}
 export interface BridgedDeviceBasicInformationClientConstructor extends Identity<typeof BridgedDeviceBasicInformationClientConstructor> {}
 export const BridgedDeviceBasicInformationClient: BridgedDeviceBasicInformationClientConstructor = BridgedDeviceBasicInformationClientConstructor;

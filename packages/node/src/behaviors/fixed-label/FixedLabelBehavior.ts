@@ -13,7 +13,7 @@ import { Identity } from "@matter/general";
 /**
  * FixedLabelBehavior is the base class for objects that support interaction with {@link FixedLabel.Cluster}.
  */
-export const FixedLabelBehaviorConstructor = ClusterBehavior.for(FixedLabel.Cluster);
+export const FixedLabelBehaviorConstructor = ClusterBehavior.for(FixedLabel);
 
 export interface FixedLabelBehaviorConstructor extends Identity<typeof FixedLabelBehaviorConstructor> {}
 export const FixedLabelBehavior: FixedLabelBehaviorConstructor = FixedLabelBehaviorConstructor;

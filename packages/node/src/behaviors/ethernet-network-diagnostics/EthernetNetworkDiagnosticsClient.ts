@@ -10,7 +10,7 @@ import { EthernetNetworkDiagnostics } from "@matter/types/clusters/ethernet-netw
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const EthernetNetworkDiagnosticsClientConstructor = ClientBehavior(EthernetNetworkDiagnostics.Complete);
+export const EthernetNetworkDiagnosticsClientConstructor = ClientBehavior(EthernetNetworkDiagnostics);
 export interface EthernetNetworkDiagnosticsClient extends InstanceType<typeof EthernetNetworkDiagnosticsClientConstructor> {}
 export interface EthernetNetworkDiagnosticsClientConstructor extends Identity<typeof EthernetNetworkDiagnosticsClientConstructor> {}
 export const EthernetNetworkDiagnosticsClient: EthernetNetworkDiagnosticsClientConstructor = EthernetNetworkDiagnosticsClientConstructor;

@@ -10,7 +10,7 @@ import { TargetNavigator } from "@matter/types/clusters/target-navigator";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const TargetNavigatorClientConstructor = ClientBehavior(TargetNavigator.Complete);
+export const TargetNavigatorClientConstructor = ClientBehavior(TargetNavigator);
 export interface TargetNavigatorClient extends InstanceType<typeof TargetNavigatorClientConstructor> {}
 export interface TargetNavigatorClientConstructor extends Identity<typeof TargetNavigatorClientConstructor> {}
 export const TargetNavigatorClient: TargetNavigatorClientConstructor = TargetNavigatorClientConstructor;

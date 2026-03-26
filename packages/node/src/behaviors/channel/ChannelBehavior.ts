@@ -8,7 +8,6 @@
 
 import { Channel } from "@matter/types/clusters/channel";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ChannelInterface } from "./ChannelInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of Channel.Cluster enabled. You can enable additional features using
  * ChannelBehavior.with.
  */
-export const ChannelBehaviorConstructor = ClusterBehavior
-    .withInterface<ChannelInterface>()
-    .for(Channel.Cluster);
+export const ChannelBehaviorConstructor = ClusterBehavior.for(Channel);
 
 export interface ChannelBehaviorConstructor extends Identity<typeof ChannelBehaviorConstructor> {}
 export const ChannelBehavior: ChannelBehaviorConstructor = ChannelBehaviorConstructor;

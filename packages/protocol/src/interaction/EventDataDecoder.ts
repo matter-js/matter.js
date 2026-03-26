@@ -5,13 +5,12 @@
  */
 
 import { Diagnostic, Logger, UnexpectedDataError } from "@matter/general";
+import { Matter } from "@matter/model";
 import {
     ClusterId,
     EndpointNumber,
     EventId,
     EventNumber,
-    getClusterById,
-    getClusterEventById,
     NodeId,
     Priority,
     Status,
@@ -19,6 +18,7 @@ import {
     TlvEventData,
     TlvEventReport,
     TlvEventStatus,
+    TlvOfModel,
     TlvStream,
     TypeFromSchema,
 } from "@matter/types";
@@ -104,9 +104,9 @@ export function normalizeAndDecodeEventData(
             throw new UnexpectedDataError(`Invalid event path ${endpointId}/${clusterId}/${eventId}`);
         }
         try {
-            const cluster = getClusterById(clusterId);
-            const eventDetail = getClusterEventById(cluster, eventId);
-            if (eventDetail === undefined) {
+            const clusterModel = Matter.clusters(clusterId);
+            const eventModel = clusterModel?.events(eventId);
+            if (eventModel === undefined) {
                 logger.debug(
                     `Decode unknown event ${Diagnostic.hex(clusterId)}/${Diagnostic.hex(eventId)} via the AnySchema.`,
                 );
@@ -122,16 +122,16 @@ export function normalizeAndDecodeEventData(
 
                 return;
             }
-            const {
-                event: { schema },
-                name,
-            } = eventDetail;
+            const schema = TlvOfModel(eventModel);
             const events = values.map(eventData => ({
                 ...eventData,
                 data: eventData.data === undefined ? undefined : schema.decodeTlv(eventData.data),
                 path: undefined,
             }));
-            result.push({ path: { nodeId, endpointId, clusterId, eventId, eventName: name }, events });
+            result.push({
+                path: { nodeId, endpointId, clusterId, eventId, eventName: eventModel.propertyName },
+                events,
+            });
         } catch (error: any) {
             logger.error(`Error decoding event ${endpointId}/${clusterId}/${eventId}: ${error.message}`);
         }
@@ -151,9 +151,9 @@ export function normalizeEventStatus(data: TypeFromSchema<typeof TlvEventStatus>
             throw new UnexpectedDataError(`Invalid event path ${endpointId}/${clusterId}/${eventId}`);
         }
         try {
-            const cluster = getClusterById(clusterId);
-            const eventDetail = getClusterEventById(cluster, eventId);
-            if (eventDetail === undefined) {
+            const clusterModel = Matter.clusters(clusterId);
+            const eventModel = clusterModel?.events(eventId);
+            if (eventModel === undefined) {
                 result.push({
                     path: { nodeId, endpointId, clusterId, eventId, eventName: `Unknown (${Diagnostic.hex(eventId)})` },
                     status: status.status,
@@ -162,7 +162,7 @@ export function normalizeEventStatus(data: TypeFromSchema<typeof TlvEventStatus>
                 return;
             }
             result.push({
-                path: { nodeId, endpointId, clusterId, eventId, eventName: eventDetail.name },
+                path: { nodeId, endpointId, clusterId, eventId, eventName: eventModel.propertyName },
                 status: status.status,
                 clusterStatus: status.clusterStatus,
             });

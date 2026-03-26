@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./OnOffInterface.js";
 export * from "./OnOffBehavior.js";
 export * from "./OnOffServer.js";
 export * from "./OnOffClient.js";

@@ -8,16 +8,13 @@
 
 import { JointFabricDatastore } from "@matter/types/clusters/joint-fabric-datastore";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { JointFabricDatastoreInterface } from "./JointFabricDatastoreInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * JointFabricDatastoreBehavior is the base class for objects that support interaction with
  * {@link JointFabricDatastore.Cluster}.
  */
-export const JointFabricDatastoreBehaviorConstructor = ClusterBehavior
-    .withInterface<JointFabricDatastoreInterface>()
-    .for(JointFabricDatastore.Cluster);
+export const JointFabricDatastoreBehaviorConstructor = ClusterBehavior.for(JointFabricDatastore);
 
 export interface JointFabricDatastoreBehaviorConstructor extends Identity<typeof JointFabricDatastoreBehaviorConstructor> {}
 export const JointFabricDatastoreBehavior: JointFabricDatastoreBehaviorConstructor = JointFabricDatastoreBehaviorConstructor;

@@ -10,7 +10,7 @@ import { ApplicationBasic } from "@matter/types/clusters/application-basic";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ApplicationBasicClientConstructor = ClientBehavior(ApplicationBasic.Complete);
+export const ApplicationBasicClientConstructor = ClientBehavior(ApplicationBasic);
 export interface ApplicationBasicClient extends InstanceType<typeof ApplicationBasicClientConstructor> {}
 export interface ApplicationBasicClientConstructor extends Identity<typeof ApplicationBasicClientConstructor> {}
 export const ApplicationBasicClient: ApplicationBasicClientConstructor = ApplicationBasicClientConstructor;

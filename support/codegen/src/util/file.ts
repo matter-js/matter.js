@@ -94,7 +94,7 @@ export function clean(target: string, suffix = "") {
     const path = absolute(target);
     try {
         readdirSync(path).forEach(f => {
-            if (f.endsWith(`${suffix}.ts`)) {
+            if (f.endsWith(`${suffix}.ts`) || f.endsWith(`${suffix}.js`)) {
                 unlinkSync(resolve(path, f));
             }
         });

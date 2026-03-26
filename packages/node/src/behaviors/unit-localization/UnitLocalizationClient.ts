@@ -10,7 +10,7 @@ import { UnitLocalization } from "@matter/types/clusters/unit-localization";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const UnitLocalizationClientConstructor = ClientBehavior(UnitLocalization.Complete);
+export const UnitLocalizationClientConstructor = ClientBehavior(UnitLocalization);
 export interface UnitLocalizationClient extends InstanceType<typeof UnitLocalizationClientConstructor> {}
 export interface UnitLocalizationClientConstructor extends Identity<typeof UnitLocalizationClientConstructor> {}
 export const UnitLocalizationClient: UnitLocalizationClientConstructor = UnitLocalizationClientConstructor;

@@ -3,9 +3,7 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { ImplementationError } from "@matter/general";
 import { Endpoint as NodeEndpoint } from "@matter/node";
-import { BridgedDeviceBasicInformationCluster } from "@matter/types/clusters/bridged-device-basic-information";
 import { Device } from "./Device.js";
 import { DeviceTypeDefinition } from "./DeviceTypes.js";
 import { Endpoint, EndpointOptions } from "./Endpoint.js";
@@ -58,20 +56,5 @@ export class ComposedDevice extends Endpoint {
         //      somehow match with the device types of the composed device?!
         //      For now we do not check this
         return;
-    }
-
-    /**
-     * Set the reachability of the Composed device exposed via the bridge.
-     *
-     * @param reachable true if reachable, false otherwise
-     */
-    setBridgedDeviceReachability(reachable: boolean) {
-        const bridgedBasicInformationCluster = this.getClusterServer(BridgedDeviceBasicInformationCluster);
-        if (bridgedBasicInformationCluster === undefined) {
-            throw new ImplementationError(
-                "The reachability flag can only be set for bridged devices this way. To set the reachability flag for a non-bridged device or for the bridget itself please set it on the CommissioningServer!",
-            );
-        }
-        bridgedBasicInformationCluster.setReachableAttribute(reachable);
     }
 }

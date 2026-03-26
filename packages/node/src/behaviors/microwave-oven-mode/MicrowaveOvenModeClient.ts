@@ -10,7 +10,7 @@ import { MicrowaveOvenMode } from "@matter/types/clusters/microwave-oven-mode";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const MicrowaveOvenModeClientConstructor = ClientBehavior(MicrowaveOvenMode.Complete);
+export const MicrowaveOvenModeClientConstructor = ClientBehavior(MicrowaveOvenMode);
 export interface MicrowaveOvenModeClient extends InstanceType<typeof MicrowaveOvenModeClientConstructor> {}
 export interface MicrowaveOvenModeClientConstructor extends Identity<typeof MicrowaveOvenModeClientConstructor> {}
 export const MicrowaveOvenModeClient: MicrowaveOvenModeClientConstructor = MicrowaveOvenModeClientConstructor;

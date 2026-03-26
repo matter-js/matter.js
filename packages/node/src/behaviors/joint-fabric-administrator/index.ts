@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./JointFabricAdministratorInterface.js";
 export * from "./JointFabricAdministratorBehavior.js";
 export * from "./JointFabricAdministratorServer.js";
 export * from "./JointFabricAdministratorClient.js";
