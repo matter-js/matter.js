@@ -27,10 +27,24 @@ describe("NodeJsTcpSocket", () => {
 
     function connectClient(): Promise<{ clientSocket: NodeJsTcpSocket; rawClient: net.Socket; rawServer: net.Socket }> {
         return new Promise((resolve, reject) => {
-            server.once("connection", rawServer => {
-                resolve({ clientSocket: new NodeJsTcpSocket(rawClient), rawClient, rawServer });
+            let rawServer: net.Socket | undefined;
+            let connected = false;
+
+            const tryResolve = () => {
+                if (rawServer && connected) {
+                    resolve({ clientSocket: new NodeJsTcpSocket(rawClient), rawClient, rawServer });
+                }
+            };
+
+            server.once("connection", s => {
+                rawServer = s;
+                tryResolve();
             });
-            const rawClient = net.createConnection(serverPort, "127.0.0.1");
+
+            const rawClient = net.createConnection(serverPort, "127.0.0.1", () => {
+                connected = true;
+                tryResolve();
+            });
             rawClient.on("error", reject);
         });
     }
