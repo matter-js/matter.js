@@ -152,7 +152,7 @@ describe("ClientNodeTcp", () => {
 
             // After commissioning, the operational CASE session should be UDP
             const peer = protocolPeer(controller);
-            const session = peer.newestSession;
+            const session = peer.newestSession();
             expect(session).not.undefined;
             expect(session!.channel.channel.type).equals(ChannelType.UDP);
         });
@@ -185,7 +185,7 @@ describe("ClientNodeTcp", () => {
             await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
             const peer = protocolPeer(controller);
-            const session = peer.newestSession;
+            const session = peer.newestSession();
             expect(session).not.undefined;
             expect(session!.channel.channel.type).equals(ChannelType.UDP);
         });
@@ -203,7 +203,7 @@ describe("ClientNodeTcp", () => {
             await MockTime.resolve(ep1.commandsOf(OnOffClient).toggle());
 
             const peer = protocolPeer(controller);
-            const session = peer.newestSession;
+            const session = peer.newestSession();
             expect(session).not.undefined;
             expect(session!.channel.channel.type).equals(ChannelType.UDP);
         });
@@ -224,7 +224,7 @@ describe("ClientNodeTcp", () => {
 
             // Session remains UDP
             const peer = protocolPeer(controller);
-            const session = peer.newestSession;
+            const session = peer.newestSession();
             expect(session).not.undefined;
             expect(session!.channel.channel.type).equals(ChannelType.UDP);
         });

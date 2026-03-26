@@ -266,7 +266,7 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession;
+            const session = this.newestSession();
             if (session) {
                 return session;
             }
@@ -377,12 +377,20 @@ export class Peer {
         await this.#updated.emit(this);
     }
 
-    get newestSession() {
+    /**
+     * Get the newest active session, optionally filtered by transport type.
+     * When type is specified and no matching session exists, returns undefined.
+     */
+    newestSession(type?: ChannelType) {
         // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
         let found: NodeSession | undefined;
 
         for (const session of this.#sessions) {
             if (session.isClosing || session.isPeerLost) {
+                continue;
+            }
+
+            if (type !== undefined && session.channel.channel.type !== type) {
                 continue;
             }
 

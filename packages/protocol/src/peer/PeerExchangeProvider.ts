@@ -40,7 +40,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
      * newest active session, or UDP as default when no session is active.
      */
     get channelType() {
-        const session = this.#peer.newestSession;
+        const session = this.#peer.newestSession();
         if (session && !session.isClosed) {
             return session.channel.channel.type;
         }
@@ -85,15 +85,15 @@ export class PeerExchangeProvider extends ExchangeProvider {
                         this.#peer.address,
                         this.#context.exchanges,
                     );
-                } else if ((options?.requiredTransport ?? this.#peer.transportPreference) === ChannelType.TCP) {
-                    // When TCP is required or preferred, select a TCP session.
-                    // For requiredTransport: no fallback — the caller needs TCP or nothing.
-                    // For preference: also no fallback here — connect() should have established TCP.
-                    session = [...this.#peer.sessions].find(
-                        s => !s.isClosing && !s.isPeerLost && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
-                    );
+                } else if (options?.requiredTransport === ChannelType.TCP) {
+                    // When TCP is explicitly required (e.g. Large Message Quality), only use TCP.
+                    // No fallback — the caller needs TCP or nothing.
+                    session = this.#peer.newestSession(ChannelType.TCP);
+                } else if (this.#peer.transportPreference === ChannelType.TCP) {
+                    // When TCP is preferred, try TCP first but fall back to any available session.
+                    session = this.#peer.newestSession(ChannelType.TCP) ?? this.#peer.newestSession();
                 } else {
-                    session = this.#peer.newestSession;
+                    session = this.#peer.newestSession();
                 }
                 if (session === undefined) {
                     if (options?.requireExistingSession) {
