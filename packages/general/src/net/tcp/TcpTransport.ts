@@ -18,7 +18,7 @@ import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpServerSocket } from "./TcpSocket.js";
 const logger = Logger.get("TcpTransport");
 
 /** Maximum number of TCP connections allowed from the same peer IP address. */
-const MAX_CONNECTIONS_PER_PEER_IP = 2;
+const MAX_CONNECTIONS_PER_PEER_IP = 3;
 
 /** Time to wait for the first data on a new inbound connection before closing it. */
 const NEW_CONNECTION_IDLE_TIMEOUT = Seconds(10);
