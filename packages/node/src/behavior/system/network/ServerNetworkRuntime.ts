@@ -7,6 +7,7 @@
 import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
+    AddressInUseError,
     ConnectionlessTransport,
     ConnectionlessTransportSet,
     Crypto,
@@ -41,6 +42,8 @@ import { NetworkRuntime } from "./NetworkRuntime.js";
 import { ServerGroupNetworking } from "./ServerGroupNetworking.js";
 
 const logger = Logger.get("ServerNetworkRuntime");
+
+const MAX_PORT_ASSIGNMENT_RETRIES = 10;
 
 function convertNetworkEnvironmentType(type: string | number) {
     const convertedType: InterfaceType =
@@ -143,40 +146,58 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      */
     protected async addTransports(interfaces: ConnectionlessTransportSet) {
         const netconf = this.owner.state.network;
+        const network = this.owner.env.get(Network);
 
         const port = this.owner.state.network.port;
-        try {
-            this.#ipv6UdpInterface = await UdpInterface.create(
-                this.owner.env.get(Network),
-                "udp6",
-                port ? port : undefined,
-                netconf.listeningAddressIpv6,
-            );
-            interfaces.add(this.#ipv6UdpInterface);
 
-            await this.owner.set({ network: { operationalPort: this.#ipv6UdpInterface.port } });
-        } catch (error) {
-            NoAddressAvailableError.accept(error);
-            logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter.`);
-            throw error;
-        }
+        // When port is auto-assigned (0/undefined), we need both IPv6 and IPv4 UDP on the same port.
+        // The OS may assign an IPv6 port already taken on IPv4, so we retry up to 10 times.
+        const maxPortRetries = port ? 1 : MAX_PORT_ASSIGNMENT_RETRIES;
 
-        if (netconf.ipv4) {
+        for (let attempt = 1; attempt <= maxPortRetries; attempt++) {
+            let ipv6Interface: UdpInterface;
             try {
-                // Use the same port as IPv6 to ensure consistent operational port across transports
-                const ipv4Port = this.owner.state.network.operationalPort || netconf.port;
-                interfaces.add(
-                    await UdpInterface.create(
-                        this.owner.env.get(Network),
-                        "udp4",
-                        ipv4Port,
-                        netconf.listeningAddressIpv4,
-                    ),
+                ipv6Interface = await UdpInterface.create(
+                    network,
+                    "udp6",
+                    port ? port : undefined,
+                    netconf.listeningAddressIpv6,
                 );
             } catch (error) {
                 NoAddressAvailableError.accept(error);
-                logger.info(`IPv4 UDP interface not created because IPv4 is not available`);
+                logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required by Matter.`);
+                throw error;
             }
+
+            let ipv4Interface: UdpInterface | undefined;
+            if (netconf.ipv4) {
+                try {
+                    ipv4Interface = await UdpInterface.create(
+                        network,
+                        "udp4",
+                        ipv6Interface.port,
+                        netconf.listeningAddressIpv4,
+                    );
+                } catch (error) {
+                    if (error instanceof AddressInUseError && attempt < maxPortRetries) {
+                        logger.info(
+                            `IPv4 UDP port ${ipv6Interface.port} already in use, retrying with new port (attempt ${attempt}/${maxPortRetries})`,
+                        );
+                        await ipv6Interface.close();
+                        continue;
+                    }
+                    NoAddressAvailableError.accept(error);
+                    logger.info(`IPv4 UDP interface not created because IPv4 is not available`);
+                }
+            }
+
+            this.#ipv6UdpInterface = ipv6Interface;
+            interfaces.add(ipv6Interface);
+            if (ipv4Interface !== undefined) {
+                interfaces.add(ipv4Interface);
+            }
+            await this.owner.set({ network: { operationalPort: ipv6Interface.port } });
+            break;
         }
 
         if (netconf.ble) {
