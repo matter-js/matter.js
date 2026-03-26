@@ -309,8 +309,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // application endpoints we derive it from local network capabilities.  Users can still override
         // via profiles.unknown in config.
         const autoUnknown = this.#detectFallbackProfile();
-        const effectiveProfiles =
-            autoUnknown !== undefined ? { unknown: autoUnknown, ...profiles } : profiles;
+        const effectiveProfiles = autoUnknown !== undefined ? { unknown: autoUnknown, ...profiles } : profiles;
         if (effectiveProfiles) {
             env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
