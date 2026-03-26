@@ -43,7 +43,18 @@ export function createConstraintValidator(
         };
     };
 
-    return create(constraint, schema, nameResolverFactory);
+    const inner = create(constraint, schema, nameResolverFactory);
+    if (!inner) {
+        return undefined;
+    }
+
+    return (value, session, location) => {
+        const cfg = location.config?.config;
+        if (cfg?.validate === false || cfg?.constraint === false) {
+            return;
+        }
+        inner(value, session, location);
+    };
 }
 
 function create(

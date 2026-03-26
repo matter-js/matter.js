@@ -10,6 +10,7 @@ import type { AccessControl, InteractionSettings, Val } from "@matter/protocol";
 import type { ValReference } from "../state/managed/ValReference.js";
 import type { ValidationLocation } from "../state/validation/location.js";
 import type { RootSupervisor } from "./RootSupervisor.js";
+import type { SupervisionMode } from "./Supervision.js";
 
 /**
  * Value supervisor implements schema-based supervision of a specific value.
@@ -80,6 +81,14 @@ export namespace ValueSupervisor {
          * deferred.
          */
         acceptInvalid?: boolean;
+
+        /**
+         * Controls how per-instance supervision config is scoped.
+         *
+         * - `"global"`: config mutations persist across sessions (used for view and initialization)
+         * - `"local"`: config mutations are session-scoped (default for normal transactions)
+         */
+        supervisionMode?: SupervisionMode;
 
         /**
          * If true, structs initialize without named properties which are more expensive to install.  This is useful

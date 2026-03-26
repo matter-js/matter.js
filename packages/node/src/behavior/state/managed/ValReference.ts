@@ -5,6 +5,7 @@
  */
 
 import type { AccessControl, Val } from "@matter/protocol";
+import type { Supervision } from "../../supervision/Supervision.js";
 
 /**
  * A Reference offers a simple mechanism for referring to properties by reference.
@@ -70,4 +71,9 @@ export interface ValReference<T extends Val = Val> {
      * The parent of this reference, if any.
      */
     parent?: ValReference;
+
+    /**
+     * Per-instance validation configuration for this reference.
+     */
+    supervisionConfig?: Supervision.Config;
 }

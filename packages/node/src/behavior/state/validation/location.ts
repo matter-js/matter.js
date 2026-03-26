@@ -6,6 +6,7 @@
 
 import { DataModelPath } from "@matter/model";
 import { Val } from "@matter/protocol";
+import type { Supervision } from "../../supervision/Supervision.js";
 
 /**
  * Contextual information tracked during validation.
@@ -38,6 +39,12 @@ export interface ValidationLocation {
      * hierarchy, the validator calls this function.
      */
     outerResolve?: (name: string) => Val;
+
+    /**
+     * Per-instance validation configuration.  When set, controls which validation phases run for the value and its
+     * children.
+     */
+    config?: Supervision.Config;
 }
 
 export namespace ValidationLocation {

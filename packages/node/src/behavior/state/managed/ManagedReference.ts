@@ -208,6 +208,11 @@ export function ManagedReference(
         },
     };
 
+    // Propagate supervision config from parent
+    if (parent.supervisionConfig) {
+        reference.supervisionConfig = parent.supervisionConfig.readonlyChild(key);
+    }
+
     if (!parent.subrefs) {
         parent.subrefs = {};
     }

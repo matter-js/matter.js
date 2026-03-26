@@ -6,4 +6,5 @@
 
 export * from "./BehaviorSupervisor.js";
 export * from "./RootSupervisor.js";
+export * from "./Supervision.js";
 export * from "./ValueSupervisor.js";
