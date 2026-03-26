@@ -9,7 +9,6 @@ import { ServerSubscription } from "#node/server/ServerSubscription.js";
 import {
     ChannelType,
     deepCopy,
-    isIpNetworkChannel,
     Logger,
     MatterAggregateError,
     MatterError,
@@ -121,16 +120,6 @@ export class SubscriptionsServer extends Behavior {
                 FieldElement({ name: "minIntervalFloor", type: "duration" }),
                 FieldElement({ name: "maxInterval", type: "duration" }),
                 FieldElement({ name: "sendInterval", type: "duration" }),
-                FieldElement(
-                    {
-                        name: "operationalAddress",
-                        type: "struct",
-                        conformance: "O",
-                    },
-                    FieldElement({ name: "type", type: "string" }),
-                    FieldElement({ name: "ip", type: "string" }),
-                    FieldElement({ name: "port", type: "uint16" }),
-                ),
             ),
         ),
     );
@@ -150,9 +139,6 @@ export class SubscriptionsServer extends Behavior {
         const { peerAddress } = session;
         const { fabricIndex, nodeId } = peerAddress;
 
-        // TODO Remove when we store peer addresses also for operational nodes
-        const operationalAddress =
-            !session.isClosed && isIpNetworkChannel(session.channel) ? session.channel.networkAddress : undefined;
         const peerSubscription: PeerSubscription = {
             subscriptionId: id,
             peerAddress: { fabricIndex, nodeId },
@@ -163,7 +149,6 @@ export class SubscriptionsServer extends Behavior {
             isFabricFiltered,
             maxInterval,
             sendInterval,
-            operationalAddress,
         };
         this.reactTo(subscription.cancelled, this.#subscriptionCancelled);
 
@@ -237,12 +222,12 @@ export class SubscriptionsServer extends Behavior {
                         return;
                     }
 
-                    const { operationalAddress } = peerSubscriptions[0];
                     let session;
                     try {
-                        const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
+                        const peer = peers.addKnownPeer({ address: peerAddress });
+                        const { operationalAddress } = peer.descriptor;
 
-                        // If the original subscription was over TCP, prefer TCP for re-establishment
+                        // If the peer's last known address was TCP, prefer TCP for re-establishment
                         const transportConstraint = operationalAddress?.type === "tcp" ? ChannelType.TCP : undefined;
                         session = await peer.connect({
                             connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT,

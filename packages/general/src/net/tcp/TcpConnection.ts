@@ -50,10 +50,12 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     #receiveChunks = new Array<Uint8Array>();
     #receiveLength = 0;
 
+    readonly #isIncoming: boolean;
     #closed = false;
 
-    constructor(socket: TcpSocket, maxPayloadSize = DEFAULT_MAX_TCP_MESSAGE_SIZE) {
+    constructor(socket: TcpSocket, maxPayloadSize = DEFAULT_MAX_TCP_MESSAGE_SIZE, isIncoming = false) {
         this.#socket = socket;
+        this.#isIncoming = isIncoming;
         this.maxPayloadSize = maxPayloadSize;
         this.#maxReceiveBufferSize = maxPayloadSize * MAX_RECEIVE_BUFFER_FACTOR;
 
@@ -65,7 +67,8 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     get name() {
         const ip = this.#socket.remoteAddress;
         const host = ip.includes(":") ? `[${ip}]` : ip;
-        return `tcp://${host}:${this.#socket.remotePort}`;
+        // For incoming connections the remote port is the client's ephemeral port, not meaningful
+        return this.#isIncoming ? `tcp://${host}` : `tcp://${host}:${this.#socket.remotePort}`;
     }
 
     get networkAddress(): ServerAddressTcp {

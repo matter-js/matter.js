@@ -69,7 +69,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
             });
 
             transport.#server.onConnection(socket => {
-                const connection = new TcpConnection(socket, transport.#maxMessageSize);
+                const connection = new TcpConnection(socket, transport.#maxMessageSize, true);
 
                 if (transport.#countConnectionsFromIp(connection.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
                     logger.warn(`Rejecting TCP connection from ${connection.name}: too many connections from this IP`);

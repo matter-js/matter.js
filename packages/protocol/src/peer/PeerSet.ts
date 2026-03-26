@@ -303,5 +303,9 @@ function operationalAddressOf(session: Session) {
     if (session.isClosed || !isIpNetworkChannel(session.channel)) {
         return;
     }
+    // TCP incoming connections have an ephemeral remote port — not the peer's listening port
+    if (session.channel.channel.type === ChannelType.TCP) {
+        return;
+    }
     return session.channel.networkAddress;
 }
