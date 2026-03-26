@@ -10,7 +10,7 @@ import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ThreadNetworkDiagnosticsClientConstructor = ClientBehavior(ThreadNetworkDiagnostics.Complete);
+export const ThreadNetworkDiagnosticsClientConstructor = ClientBehavior(ThreadNetworkDiagnostics);
 export interface ThreadNetworkDiagnosticsClient extends InstanceType<typeof ThreadNetworkDiagnosticsClientConstructor> {}
 export interface ThreadNetworkDiagnosticsClientConstructor extends Identity<typeof ThreadNetworkDiagnosticsClientConstructor> {}
 export const ThreadNetworkDiagnosticsClient: ThreadNetworkDiagnosticsClientConstructor = ThreadNetworkDiagnosticsClientConstructor;

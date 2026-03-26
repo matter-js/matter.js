@@ -23,7 +23,7 @@ import {
     Millis,
 } from "@matter/general";
 import { Val } from "@matter/protocol";
-import { ClusterType, StatusCode, StatusResponseError, TypeFromPartialBitSchema } from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { ColorControl } from "@matter/types/clusters/color-control";
 import { GeneralDiagnostics } from "@matter/types/clusters/general-diagnostics";
 import { ColorControlBehavior } from "./ColorControlBehavior.js";
@@ -133,8 +133,8 @@ const MAX_CURRENT_LEVEL = 0xfe;
  */
 export class ColorControlBaseServer extends ColorControlBase {
     declare protected internal: ColorControlBaseServer.Internal;
-    declare state: ColorControlBaseServer.State;
-    declare events: ColorControlBaseServer.Events;
+    declare readonly state: ColorControlBaseServer.State;
+    declare readonly events: ColorControlBaseServer.Events;
 
     /*
      * The following block contains some convenience methods to allow to easily work with the CIE color space values
@@ -1721,19 +1721,16 @@ export class ColorControlBaseServer extends ColorControlBase {
     }
 
     #calculateEffectiveOptions(
-        optionsMask: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-        optionsOverride: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-    ): TypeFromPartialBitSchema<typeof ColorControl.Options> {
+        optionsMask: ColorControl.Options,
+        optionsOverride: ColorControl.Options,
+    ): ColorControl.Options {
         const options = this.state.options ?? {};
         return {
             executeIfOff: optionsMask.executeIfOff ? optionsOverride.executeIfOff : options.executeIfOff,
         };
     }
 
-    #optionsAllowExecution(
-        optionsMask: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-        optionsOverride: TypeFromPartialBitSchema<typeof ColorControl.Options>,
-    ) {
+    #optionsAllowExecution(optionsMask: ColorControl.Options, optionsOverride: ColorControl.Options) {
         const options = this.#calculateEffectiveOptions(optionsMask, optionsOverride);
         return options.executeIfOff || !this.agent.has(OnOffServer) || this.agent.get(OnOffServer).state.onOff;
     }
@@ -2021,4 +2018,4 @@ export namespace ColorControlBaseServer {
 
 // We had turned on some more features to provide a default implementation, but export the cluster with default
 // Features again.
-export class ColorControlServer extends ColorControlBaseServer.for(ClusterType(ColorControl.Base)) {}
+export class ColorControlServer extends ColorControlBaseServer.for(ColorControl) {}

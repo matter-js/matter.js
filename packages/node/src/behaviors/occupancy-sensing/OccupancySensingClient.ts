@@ -10,7 +10,7 @@ import { OccupancySensing } from "@matter/types/clusters/occupancy-sensing";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const OccupancySensingClientConstructor = ClientBehavior(OccupancySensing.Complete);
+export const OccupancySensingClientConstructor = ClientBehavior(OccupancySensing);
 export interface OccupancySensingClient extends InstanceType<typeof OccupancySensingClientConstructor> {}
 export interface OccupancySensingClientConstructor extends Identity<typeof OccupancySensingClientConstructor> {}
 export const OccupancySensingClient: OccupancySensingClientConstructor = OccupancySensingClientConstructor;

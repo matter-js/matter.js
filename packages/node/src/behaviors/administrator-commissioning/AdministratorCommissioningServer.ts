@@ -6,7 +6,6 @@
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
 import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "@matter/general";
-import { AccessLevel } from "@matter/model";
 import {
     assertRemoteActor,
     DeviceCommissioner,
@@ -16,46 +15,35 @@ import {
     SessionManager,
 } from "@matter/protocol";
 import {
-    Command,
     MINIMUM_COMMISSIONING_TIMEOUT,
     PAKE_PASSCODE_VERIFIER_LENGTH,
     STANDARD_COMMISSIONING_TIMEOUT,
     Status,
     StatusResponseError,
-    TlvByteString,
-    TlvField,
-    TlvNoResponse,
-    TlvObject,
-    TlvUInt16,
-    TlvUInt32,
 } from "@matter/types";
 import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { AdministratorCommissioningBehavior } from "./AdministratorCommissioningBehavior.js";
 
 /**
- * Monkey patching Tlv Structure of openCommissioningWindow command to prevent data validation of the fields to be
- * handled as ConstraintError because we need to return a special error.
- * We do this to leave the model in fact for other validations and only apply the change for our Schema-aware Tlv parsing.
+ * Extend the AdministratorCommissioning model to relax constraints on OpenCommissioningWindow fields.  This prevents
+ * the interaction layer from rejecting with ConstraintError so the behavior can validate and return PakeParameterError.
  */
-AdministratorCommissioning.Cluster.commands = {
-    ...AdministratorCommissioning.Cluster.commands,
-    openCommissioningWindow: Command(
-        0x0,
-        TlvObject({
-            commissioningTimeout: TlvField(0, TlvUInt16),
-            pakePasscodeVerifier: TlvField(1, TlvByteString),
-            discriminator: TlvField(2, TlvUInt16.bound({ max: 4095 })),
-            iterations: TlvField(3, TlvUInt32),
-            salt: TlvField(4, TlvByteString),
-        }),
-        0x0,
-        TlvNoResponse,
-        {
-            invokeAcl: AccessLevel.Administer,
-            timed: true,
-        },
+const openCommissioningWindow = AdministratorCommissioning.schema.commands.require("OpenCommissioningWindow");
+
+const AdministratorCommissioningSchema = AdministratorCommissioning.schema.extend(
+    undefined,
+    openCommissioningWindow.extend(
+        undefined,
+        openCommissioningWindow.fields.extend("PakePasscodeVerifier", { constraint: "none" }),
+        openCommissioningWindow.fields.extend("Iterations", { constraint: "none" }),
+        openCommissioningWindow.fields.extend("Salt", { constraint: "none" }),
     ),
-};
+);
+
+const AdministratorCommissioningBase = AdministratorCommissioningBehavior.for(
+    AdministratorCommissioning,
+    AdministratorCommissioningSchema,
+);
 
 const logger = Logger.get("AdministratorCommissioningServer");
 
@@ -65,9 +53,9 @@ const logger = Logger.get("AdministratorCommissioningServer");
  * This implementation includes all features of AdministratorCommissioning.Cluster. You should use
  * AdministratorCommissioningServer.with to specialize the class for the features your implementation supports.
  */
-export class AdministratorCommissioningServer extends AdministratorCommissioningBehavior {
+export class AdministratorCommissioningServer extends AdministratorCommissioningBase {
     declare internal: AdministratorCommissioningServer.Internal;
-    declare state: AdministratorCommissioningServer.State;
+    declare readonly state: AdministratorCommissioningServer.State;
 
     static override lockOnInvoke = false;
 
@@ -289,7 +277,7 @@ export namespace AdministratorCommissioningServer {
         maximumCommissioningTimeout = STANDARD_COMMISSIONING_TIMEOUT;
     }
 
-    export class State extends AdministratorCommissioningBehavior.State {
+    export class State extends AdministratorCommissioningBase.State {
         // Spec doesn't declare a default here so set manually
         override windowStatus = AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen;
     }

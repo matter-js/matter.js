@@ -11,10 +11,10 @@ import { ColorControl } from "@matter/types/clusters/color-control";
 import { OnOff } from "@matter/types/clusters/on-off";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 
-const WC1 = ClusterBehavior.for(WindowCovering.Cluster.with("Lift"));
-const WC2 = ClusterBehavior.for(WindowCovering.Cluster.with("Tilt", "PositionAwareTilt"));
-const CC = ClusterBehavior.for(ColorControl.Cluster.with("Xy", "HueSaturation", "EnhancedHue"));
-const OO = ClusterBehavior.for(OnOff.Cluster);
+const WC1 = ClusterBehavior.for(WindowCovering).with("Lift");
+const WC2 = ClusterBehavior.for(WindowCovering).with("Tilt", "PositionAwareTilt");
+const CC = ClusterBehavior.for(ColorControl).with("Xy", "HueSaturation", "EnhancedHue");
+const OO = ClusterBehavior.for(OnOff);
 
 type WC1 = typeof WC1;
 type WC2 = typeof WC2;

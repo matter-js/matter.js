@@ -10,9 +10,7 @@ import { FormaldehydeConcentrationMeasurement } from "@matter/types/clusters/for
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const FormaldehydeConcentrationMeasurementClientConstructor = ClientBehavior(
-    FormaldehydeConcentrationMeasurement.Complete
-);
+export const FormaldehydeConcentrationMeasurementClientConstructor = ClientBehavior(FormaldehydeConcentrationMeasurement);
 export interface FormaldehydeConcentrationMeasurementClient extends InstanceType<typeof FormaldehydeConcentrationMeasurementClientConstructor> {}
 export interface FormaldehydeConcentrationMeasurementClientConstructor extends Identity<typeof FormaldehydeConcentrationMeasurementClientConstructor> {}
 export const FormaldehydeConcentrationMeasurementClient: FormaldehydeConcentrationMeasurementClientConstructor = FormaldehydeConcentrationMeasurementClientConstructor;

@@ -8,7 +8,6 @@
 
 import { NitrogenDioxideConcentrationMeasurement } from "@matter/types/clusters/nitrogen-dioxide-concentration-measurement";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -19,7 +18,7 @@ import { Identity } from "@matter/general";
  * using {@link NitrogenDioxideConcentrationMeasurementBehavior.with}.
  */
 export const NitrogenDioxideConcentrationMeasurementBehaviorConstructor = ClusterBehavior
-    .for(ClusterType(NitrogenDioxideConcentrationMeasurement.Base));
+    .for(NitrogenDioxideConcentrationMeasurement);
 
 export interface NitrogenDioxideConcentrationMeasurementBehaviorConstructor extends Identity<typeof NitrogenDioxideConcentrationMeasurementBehaviorConstructor> {}
 export const NitrogenDioxideConcentrationMeasurementBehavior: NitrogenDioxideConcentrationMeasurementBehaviorConstructor = NitrogenDioxideConcentrationMeasurementBehaviorConstructor;

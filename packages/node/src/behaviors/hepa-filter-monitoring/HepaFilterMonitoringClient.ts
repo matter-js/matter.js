@@ -10,7 +10,7 @@ import { HepaFilterMonitoring } from "@matter/types/clusters/hepa-filter-monitor
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const HepaFilterMonitoringClientConstructor = ClientBehavior(HepaFilterMonitoring.Complete);
+export const HepaFilterMonitoringClientConstructor = ClientBehavior(HepaFilterMonitoring);
 export interface HepaFilterMonitoringClient extends InstanceType<typeof HepaFilterMonitoringClientConstructor> {}
 export interface HepaFilterMonitoringClientConstructor extends Identity<typeof HepaFilterMonitoringClientConstructor> {}
 export const HepaFilterMonitoringClient: HepaFilterMonitoringClientConstructor = HepaFilterMonitoringClientConstructor;

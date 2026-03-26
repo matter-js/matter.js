@@ -8,7 +8,6 @@
 
 import { ThreadNetworkDiagnostics } from "@matter/types/clusters/thread-network-diagnostics";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ThreadNetworkDiagnosticsInterface } from "./ThreadNetworkDiagnosticsInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of ThreadNetworkDiagnostics.Cluster enabled. You can enable additional
  * features using ThreadNetworkDiagnosticsBehavior.with.
  */
-export const ThreadNetworkDiagnosticsBehaviorConstructor = ClusterBehavior
-    .withInterface<ThreadNetworkDiagnosticsInterface>()
-    .for(ThreadNetworkDiagnostics.Cluster);
+export const ThreadNetworkDiagnosticsBehaviorConstructor = ClusterBehavior.for(ThreadNetworkDiagnostics);
 
 export interface ThreadNetworkDiagnosticsBehaviorConstructor extends Identity<typeof ThreadNetworkDiagnosticsBehaviorConstructor> {}
 export const ThreadNetworkDiagnosticsBehavior: ThreadNetworkDiagnosticsBehaviorConstructor = ThreadNetworkDiagnosticsBehaviorConstructor;

@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./BridgedDeviceBasicInformationInterface.js";
 export * from "./BridgedDeviceBasicInformationBehavior.js";
 export * from "./BridgedDeviceBasicInformationServer.js";
 export * from "./BridgedDeviceBasicInformationClient.js";
