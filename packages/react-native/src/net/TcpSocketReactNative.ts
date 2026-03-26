@@ -11,8 +11,8 @@ import {
     TCP_CONNECTION_TIMEOUT_MS,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     Transport,
-    type TcpSocket,
     withTimeout,
+    type TcpSocket,
 } from "@matter/general";
 import { createConnection, type Socket as RnSocket } from "react-native-tcp-socket";
 

@@ -243,8 +243,7 @@ export class SubscriptionsServer extends Behavior {
                         const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
 
                         // If the original subscription was over TCP, prefer TCP for re-establishment
-                        const transportConstraint =
-                            operationalAddress?.type === "tcp" ? ChannelType.TCP : undefined;
+                        const transportConstraint = operationalAddress?.type === "tcp" ? ChannelType.TCP : undefined;
                         session = await peer.connect({
                             connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT,
                             transportConstraint,
