@@ -11,6 +11,7 @@ import {
     ConnectionlessTransport,
     ConnectionlessTransportSet,
     Crypto,
+    ImplementationError,
     InterfaceType,
     Logger,
     Network,
@@ -393,7 +394,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         if (defaultProfile !== undefined) {
             const limits = NetworkProfiles.defaults[defaultProfile as keyof NetworkProfiles.Templates];
             if (limits === undefined) {
-                throw new Error(`Unknown default profile "${defaultProfile}"`);
+                throw new ImplementationError(`Unknown default profile "${defaultProfile}"`);
             }
             logger.info("Fallback network profile set to", defaultProfile);
             return limits;
