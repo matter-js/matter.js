@@ -305,11 +305,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             env.get(PeerSet).timing = timing;
         }
 
-        // Auto-detect the fallback profile for peers with unknown physical properties.  If the node has
-        // application endpoints we derive it from local network capabilities, otherwise keep conservative.
-        // Users can still override via profiles.fallback in config.
-        const autoFallback = this.#detectFallbackProfile();
-        const effectiveProfiles = autoFallback !== undefined ? { fallback: autoFallback, ...profiles } : profiles;
+        // Auto-detect the "unknown" profile for peers with unknown physical properties.  If the node has
+        // application endpoints we derive it from local network capabilities.  Users can still override
+        // via profiles.unknown in config.
+        const autoUnknown = this.#detectFallbackProfile();
+        const effectiveProfiles =
+            autoUnknown !== undefined ? { unknown: autoUnknown, ...profiles } : profiles;
         if (effectiveProfiles) {
             env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
@@ -388,7 +389,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Detect the fallback network profile based on the local node's endpoint structure and network capabilities.
+     * Auto-detect limits for the conservative/unknown profile based on the local node's endpoint structure.
      *
      * Returns profile limits if the node has application endpoints (i.e. it is a device), derived from the root
      * endpoint's NetworkCommissioning supported features.  Returns undefined for pure controller/utility nodes.
@@ -413,11 +414,11 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // TODO - whenever we support WiFi/Thread or secondary network interfaces we need to adjust this logic
         const nc = owner.behaviors.typeFor(NetworkCommissioningBehavior);
         if (nc?.schema.supportedFeatures.has("TH")) {
-            logger.info("Fallback network profile auto-detected as thread");
+            logger.info("Default network profile for unknown peers set to thread");
             return NetworkProfiles.defaults.thread;
         }
 
-        logger.info("Fallback network profile auto-detected as fast");
+        logger.info("Default network profile for unknown peers set to fast");
         return NetworkProfiles.defaults.fast;
     }
 

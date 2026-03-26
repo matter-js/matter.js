@@ -131,7 +131,7 @@ export namespace NetworkServer {
         unlimited?: LimitsConfig;
 
         @field(LimitsConfig)
-        fallback?: LimitsConfig;
+        unknown?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {
