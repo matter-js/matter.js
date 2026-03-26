@@ -23,9 +23,6 @@ const logger = Logger.get("NodeJsTcpServer");
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
 
-/** Timeout for server close to complete. */
-const TCP_CLOSE_TIMEOUT = Seconds(5);
-
 function serverPort(server: Server): number {
     const addr = server.address();
     if (addr === null || typeof addr === "string") {
@@ -40,6 +37,7 @@ function serverPort(server: Server): number {
  */
 export class NodeJsTcpServer implements TcpServerSocket {
     readonly #server: Server;
+    readonly #activeSockets = new Set<Socket>();
 
     static async create(options: TcpServerOptions = {}): Promise<NodeJsTcpServer> {
         const { listeningPort, listeningAddress } = options;
@@ -74,6 +72,12 @@ export class NodeJsTcpServer implements TcpServerSocket {
 
     private constructor(server: Server) {
         this.#server = server;
+
+        // Track all accepted connections for cleanup on close
+        server.on("connection", (socket: Socket) => {
+            this.#activeSockets.add(socket);
+            socket.once("close", () => this.#activeSockets.delete(socket));
+        });
     }
 
     get port(): number {
@@ -93,18 +97,13 @@ export class NodeJsTcpServer implements TcpServerSocket {
     }
 
     async close(): Promise<void> {
-        const closed = new Promise<void>(resolve => {
-            this.#server.close(error => {
-                if (error) {
-                    logger.debug("Error closing TCP server:", error);
-                }
-                resolve();
-            });
-        });
+        // Stop accepting new connections
+        this.#server.close();
 
-        await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
-            // Force close if graceful close hangs
-            logger.debug("TCP server close timeout, forcing");
-        });
+        // Destroy all active connections so server.close() can complete
+        for (const socket of this.#activeSockets) {
+            socket.destroy();
+        }
+        this.#activeSockets.clear();
     }
 }
