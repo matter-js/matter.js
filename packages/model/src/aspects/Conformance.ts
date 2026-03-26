@@ -168,6 +168,10 @@ export namespace Conformance {
               param: Ast.Option;
           }
         | {
+              type: Special.Revision;
+              param: number;
+          }
+        | {
               type:
                   | Operator.AND
                   | Operator.OR
@@ -212,6 +216,9 @@ export namespace Conformance {
         Choice = "choice",
         Otherwise = "otherwise",
         OptionalIf = "optionalIf",
+
+        /** Revision conformance (spec 1.5.1+): "Rev >= vN" — element present at cluster revision ≥ N */
+        Revision = "revision",
     }
 
     export enum Flag {
@@ -364,6 +371,10 @@ export namespace Conformance {
                     );
                 }
                 break;
+
+            case Special.Revision:
+                // Self-contained — no external references to resolve
+                break;
         }
     }
 
@@ -410,6 +421,9 @@ export namespace Conformance {
 
             case Special.OptionalIf:
                 return `[${serialize(ast.param)}]`;
+
+            case Special.Revision:
+                return `Rev >= v${ast.param}`;
 
             case Special.Name:
             case Special.Value:
@@ -639,6 +653,18 @@ function ParsedAst(conformance: Conformance, definition: string): Conformance.As
                     return { type: Conformance.Special.Value, param: false };
             }
 
+            // Revision conformance "Rev >= vN" (spec 1.5.1+) — parse as atomic Revision node
+            if (name === "Rev" && atOperator(">=")) {
+                tokens.next(); // consume ">="
+                if (tokens.token?.type === "word") {
+                    const versionMatch = tokens.token.value.match(/^v(\d+)$/);
+                    if (versionMatch) {
+                        tokens.next(); // consume "vN"
+                        return { type: Conformance.Special.Revision, param: Number.parseInt(versionMatch[1]) };
+                    }
+                }
+            }
+
             return { type: Conformance.Special.Name, param: name };
         }
 
@@ -736,6 +762,7 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
                 return Mandatory;
 
             case Conformance.Special.Desc:
+            case Conformance.Special.Revision:
                 return Conditional;
         }
 
@@ -744,6 +771,9 @@ function computeApplicability(features: Set<string>, supportedFeatures: Set<stri
 
     function assessInnerExpression(ast: Conformance.Ast): Conformance.Applicability {
         switch (ast.type) {
+            case Conformance.Special.Revision:
+                return Conditional;
+
             case Conformance.Special.Name:
                 // Assess features based on configured flags
                 if (features.has(ast.param)) {

@@ -14,6 +14,7 @@ import { resolve } from "node:path";
 const TEST_STORAGE_LOCATION = resolve(tmpdir(), "matterjs-test-storage.json");
 
 async function createJsonFileStorage(path: string) {
+    // Tests use a string path directly (not DataNamespace), so we construct + initialize manually
     const storage = new JsonFileStorageDriver(path);
     await storage.initialize();
     return storage;

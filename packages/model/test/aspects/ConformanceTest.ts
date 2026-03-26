@@ -41,6 +41,11 @@ const TEST_DEFINITIONS = [
     // Dot-field references (qualified field references)
     "SolicitOffer.VideoStreamID",
 
+    // Revision conformance (spec 1.5.1+)
+    "Rev >= v3",
+    "[Rev >= v2]",
+    "Rev >= v4, [Rev >= v2]",
+
     // Enum value comparisons
     "ContainerType == CMAF",
     "TriggerType == Motion",
@@ -336,6 +341,67 @@ describe("Conformance", () => {
                     e.source?.includes("TimeSyncCond"),
             );
             expect(condErrors).deep.equal([]);
+        });
+    });
+
+    describe("revision conformance (spec 1.5.1+)", () => {
+        // Cluster revision 5 — elements with "Rev >= 3" should be mandatory,
+        // "Rev >= 7" should be disallowed, "[Rev >= 4]" should be optional
+        const revCluster = ClusterElement({
+            name: "RevTestCluster",
+            id: 0xfffa,
+            children: [
+                { tag: "attribute", id: 0xfffd, name: "ClusterRevision", type: "ClusterRevision", default: 5 },
+                FieldElement({ name: "AlwaysPresent", id: 0, type: "uint8", conformance: "Rev >= v3" }),
+                FieldElement({ name: "NotYetPresent", id: 1, type: "uint8", conformance: "Rev >= v7" }),
+                FieldElement({ name: "OptionalSinceV2", id: 2, type: "uint8", conformance: "[Rev >= v2]" }),
+                FieldElement({
+                    name: "OptionalThenMandatory",
+                    id: 3,
+                    type: "uint8",
+                    conformance: "Rev >= v4, [Rev >= v2]",
+                }),
+            ],
+        });
+
+        const revMatter = new MatterModel({ name: "RevTestMatter", children: [revCluster] });
+
+        let revResult: ValidateModel.Result | undefined;
+
+        function validateRev() {
+            if (!revResult) {
+                revResult = ValidateModel(revMatter);
+            }
+            return revResult;
+        }
+
+        it("resolves Rev references without errors", () => {
+            const unresolved = validateRev().errors.filter(e => e.code?.includes("UNRESOLVED"));
+            expect(unresolved).deep.equal([]);
+        });
+
+        it("parses Rev >= vN as atomic revision node", () => {
+            const conformance = new Conformance("Rev >= v3");
+            expect(conformance.ast).deep.equal({ type: "revision", param: 3 });
+        });
+
+        it("parses [Rev >= vN] as optional-if wrapping revision", () => {
+            const conformance = new Conformance("[Rev >= v2]");
+            expect(conformance.ast.type).equal("optionalIf");
+            expect((conformance.ast as { param: Conformance.Ast }).param).deep.equal({
+                type: "revision",
+                param: 2,
+            });
+        });
+
+        it("parses Rev >= vN, [Rev >= vM] as otherwise", () => {
+            const conformance = new Conformance("Rev >= v4, [Rev >= v2]");
+            expect(conformance.ast.type).equal("otherwise");
+        });
+
+        it("serializes revision conformance with vN prefix", () => {
+            const conformance = new Conformance("Rev >= v3");
+            expect(conformance.toString()).equal("Rev >= v3");
         });
     });
 });

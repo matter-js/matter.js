@@ -65,6 +65,14 @@ export interface PeerTimingParameters {
     kickThrottleInterval: Duration;
 
     /**
+     * Minimum number of MRP retransmissions before a kick may restart the exchange.
+     *
+     * Gives the peer a fair chance to respond before aborting. A kick arriving while the exchange
+     * has retransmitted fewer than this many times is suppressed.
+     */
+    kickMinRetransmissions: number;
+
+    /**
      * Per-trigger cooldowns for kick-initiated CASE exchange restarts.
      *
      * When a kick fires, the current handshake exchange is aborted and restarted from scratch.
@@ -77,6 +85,14 @@ export interface PeerTimingParameters {
         /** Cooldown after a restart triggered by an explicit {@link Peer.kick} call. */
         connect: Duration;
     };
+
+    /**
+     * Delay after detecting mDNS address changes before probing the session.
+     *
+     * Address changes can arrive in bursts (e.g. Thread network rekey).  We wait this long after the last
+     * change before checking whether the session's IP is still valid.
+     */
+    addressChangeStabilizationDelay: Duration;
 }
 
 const complete = Symbol("complete-timing-parameters");
@@ -129,9 +145,11 @@ export namespace PeerTimingParameters {
         delayAfterPeerError: Minutes(5),
         delayAfterUnhandledError: Minutes(2),
         kickThrottleInterval: Seconds(3),
+        kickMinRetransmissions: 2,
         kickRestartCooldown: {
             addressChange: Minutes(30),
             connect: Minutes(10),
         },
+        addressChangeStabilizationDelay: Seconds(10),
     };
 }

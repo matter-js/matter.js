@@ -433,6 +433,10 @@ export async function PeerConnection(
             using _pairing = attemptLifetime.join("pairing");
 
             kick = kicker?.use((origin: KickOrigin) => {
+                if (exchange.retransmissionCount < context.timing.kickMinRetransmissions) {
+                    return;
+                }
+
                 const threshold =
                     origin === "discover"
                         ? context.timing.kickRestartCooldown.addressChange
@@ -577,8 +581,9 @@ export namespace PeerConnection {
         session: Session,
         network: NetworkProfile,
         protocol = SECURE_CHANNEL_PROTOCOL_ID,
+        addressOverride?: ServerAddressUdp,
     ) {
-        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network });
+        return exchanges.initiateExchangeForSession(session, protocol, { onSend, onReceive, network, addressOverride });
 
         function onSend(_message: Message, retransmission: number) {
             if (retransmission) {
