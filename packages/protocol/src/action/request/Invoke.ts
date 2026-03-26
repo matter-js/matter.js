@@ -52,6 +52,7 @@ export interface CommandDecodeDetails {
 
 export interface ClientInvoke extends Invoke, ClientRequest {
     commands: Map<number | undefined, Invoke.AnyCommandRequest>;
+    skipValidation?: boolean;
 }
 
 /**
@@ -134,6 +135,7 @@ export function Invoke(
         useExtendedFailSafeMessageResponseTimeout,
 
         // Additional meta-data for client side processing
+        skipValidation,
         commands: commandMap,
         [Diagnostic.value]: () =>
             Diagnostic.list(

@@ -388,12 +388,15 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         if (!nsCmd) {
             throw new Error("Command for Cluster not found");
         }
+        // Skip client-side validation because we're proxying commands from the CHIP test framework, which
+        // intentionally sends invalid values to test server-side error handling
         if (suppressResponse) {
             return await client.invokeWithSuppressedResponse({
                 endpointId,
                 clusterId,
                 command: nsCmd,
                 request: commandData,
+                skipValidation: true,
             });
         }
         return await client.invoke({

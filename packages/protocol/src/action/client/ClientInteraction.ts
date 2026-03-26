@@ -47,14 +47,7 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import {
-    Status,
-    TlvAttributeReport,
-    TlvOfModel,
-    TlvSchema,
-    TlvSubscribeResponse,
-    TypeFromSchema,
-} from "@matter/types";
+import { Status, TlvAttributeReport, TlvOfModel, TlvSchema, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
 import { TlvVoid } from "@matter/types/tlv";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
@@ -385,9 +378,7 @@ export class ClientInteraction<
                             } else {
                                 const command = Invoke.commandOf(cmd);
                                 const responseModel = command.schema.responseModel;
-                                responseSchema = responseModel
-                                    ? (TlvOfModel(responseModel) ?? TlvVoid)
-                                    : TlvVoid;
+                                responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
                             }
                             if (commandFields === undefined && responseSchema !== TlvVoid) {
                                 throw new ImplementationError(
@@ -717,7 +708,11 @@ export class ClientInteraction<
             const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            const batchRequest = { ...Invoke({ commands: invokeRequests }), network: batchNetwork } as ClientInvoke;
+            // Always skip validation here — commands were already validated when originally submitted
+            const batchRequest = {
+                ...Invoke({ commands: invokeRequests, skipValidation: true }),
+                network: batchNetwork,
+            } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
