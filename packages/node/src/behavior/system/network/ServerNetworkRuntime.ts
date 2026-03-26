@@ -166,11 +166,13 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         if (netconf.ipv4) {
             try {
+                // Use the same port as IPv6 to ensure consistent operational port across transports
+                const ipv4Port = this.owner.state.network.operationalPort || netconf.port;
                 interfaces.add(
                     await UdpInterface.create(
                         this.owner.env.get(Network),
                         "udp4",
-                        netconf.port,
+                        ipv4Port,
                         netconf.listeningAddressIpv4,
                     ),
                 );
