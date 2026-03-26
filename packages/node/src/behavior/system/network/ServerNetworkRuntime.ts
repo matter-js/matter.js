@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
 import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
@@ -34,6 +35,7 @@ import {
     SecureChannelProtocol,
     SessionManager,
 } from "@matter/protocol";
+import { DeviceClassification } from "@matter/model";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
@@ -298,12 +300,17 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         // Initialize ScannerSet
         env.get(ScannerSet).add(env.get(MdnsService).client);
 
-        const { timing, profiles } = this.owner.state.network;
+        const { timing, profiles, defaultProfile } = this.owner.state.network;
         if (timing) {
             env.get(PeerSet).timing = timing;
         }
-        if (profiles) {
-            env.get(NetworkProfiles).defaults = profiles;
+
+        // Determine the fallback profile for peers with unknown physical properties.  An explicit defaultProfile
+        // takes precedence, otherwise auto-detect from the node's endpoint structure and network capabilities.
+        const fallbackProfile = this.#resolveFallbackProfile(defaultProfile);
+        const effectiveProfiles = fallbackProfile !== undefined ? { ...profiles, fallback: fallbackProfile } : profiles;
+        if (effectiveProfiles) {
+            env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
 
         env.get(PeerSet).exchanges = exchanges;
@@ -377,6 +384,61 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         env.delete(ScannerSet);
+    }
+
+    /**
+     * Resolve the fallback profile limits from an explicit profile name or auto-detection.
+     */
+    #resolveFallbackProfile(defaultProfile: string | undefined): NetworkProfiles.Limits | undefined {
+        if (defaultProfile !== undefined) {
+            const limits = NetworkProfiles.defaults[defaultProfile as keyof NetworkProfiles.Templates];
+            if (limits === undefined) {
+                throw new Error(`Unknown default profile "${defaultProfile}"`);
+            }
+            logger.info("Fallback network profile set to", defaultProfile);
+            return limits;
+        }
+
+        const autoProfile = this.#detectDefaultNetworkProfile();
+        if (autoProfile !== undefined) {
+            logger.info("Fallback network profile auto-detected as", autoProfile);
+            return NetworkProfiles.defaults[autoProfile as keyof NetworkProfiles.Templates];
+        }
+
+        return undefined;
+    }
+
+    /**
+     * Detect the appropriate default network profile based on the local node's structure and capabilities.
+     *
+     * Returns a profile ID if the node has application endpoints (i.e. it is a device).  The profile is derived from
+     * the root endpoint's NetworkCommissioning supported features (e.g. Thread vs non-Thread).  Returns undefined for
+     * pure controller/utility nodes.
+     */
+    #detectDefaultNetworkProfile(): string | undefined {
+        const { owner } = this;
+
+        // Check if any child endpoint is an application device type
+        let hasApplicationEndpoint = false;
+        for (const part of owner.parts) {
+            if (!DeviceClassification.isUtility(part.type.deviceClass)) {
+                hasApplicationEndpoint = true;
+                break;
+            }
+        }
+
+        if (!hasApplicationEndpoint) {
+            return undefined;
+        }
+
+        // We are a device — determine profile from the root endpoint's NetworkCommissioning features.
+        // TODO - whenever we support WiFi/Thread or secondary network interfaces we need to adjust this logic
+        const nc = owner.behaviors.typeFor(NetworkCommissioningBehavior);
+        if (nc?.schema.supportedFeatures.has("TH")) {
+            return "thread";
+        }
+
+        return "fast";
     }
 
     async #initializeGroupNetworking() {

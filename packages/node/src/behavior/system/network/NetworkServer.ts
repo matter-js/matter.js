@@ -129,6 +129,9 @@ export namespace NetworkServer {
 
         @field(LimitsConfig)
         unlimited?: LimitsConfig;
+
+        @field(LimitsConfig)
+        fallback?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {
@@ -146,5 +149,17 @@ export namespace NetworkServer {
 
         @field(ProfilesConfig)
         profiles?: ProfilesConfig;
+
+        /**
+         * The default profile to use for peers with unknown physical properties.
+         *
+         * When undefined, the profile is auto-detected at startup: if the node has application endpoints it is treated
+         * as a device and the fallback profile is derived from the local node's network capabilities (e.g. "fast" for
+         * WiFi or Ethernet, "thread" for Thread-only).  If no application endpoints are present it remains unset,
+         * preserving the conservative fallback.
+         *
+         * Set explicitly to override auto-detection, e.g. `"fast"` or `"unlimited"`.
+         */
+        defaultProfile?: string = undefined;
     }
 }
