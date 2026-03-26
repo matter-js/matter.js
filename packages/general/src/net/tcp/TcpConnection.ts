@@ -87,9 +87,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
 
         const message = Bytes.of(data);
         if (message.length >= this.maxMessageSize) {
-            throw new NetworkError(
-                `Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`,
-            );
+            throw new NetworkError(`Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`);
         }
         const frame = new Uint8Array(FRAMING_HEADER_SIZE + message.length);
         const view = new DataView(frame.buffer, frame.byteOffset, frame.byteLength);

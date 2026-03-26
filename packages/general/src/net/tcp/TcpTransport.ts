@@ -73,9 +73,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
 
                 // Enforce per-IP connection limit
                 if (transport.#countConnectionsFromIp(connection.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
-                    logger.warn(
-                        `Rejecting TCP connection from ${connection.name}: too many connections from this IP`,
-                    );
+                    logger.warn(`Rejecting TCP connection from ${connection.name}: too many connections from this IP`);
                     void connection.close();
                     return;
                 }
@@ -83,16 +81,12 @@ export class TcpTransport implements ConnectionOrientedTransport {
                 transport.#registerConnection(connection);
 
                 // Close new inbound connections that send no data within the idle timeout
-                const idleTimer = Time.getTimer(
-                    "tcp-new-connection-idle",
-                    NEW_CONNECTION_IDLE_TIMEOUT,
-                    () => {
-                        if (!receivedData) {
-                            logger.debug(`Closing idle TCP connection ${connection.name}: no data received`);
-                            void connection.close();
-                        }
-                    },
-                );
+                const idleTimer = Time.getTimer("tcp-new-connection-idle", NEW_CONNECTION_IDLE_TIMEOUT, () => {
+                    if (!receivedData) {
+                        logger.debug(`Closing idle TCP connection ${connection.name}: no data received`);
+                        void connection.close();
+                    }
+                });
                 idleTimer.start();
 
                 let receivedData = false;

@@ -4,7 +4,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, NetworkError, Seconds, TCP_KEEP_ALIVE_INITIAL_DELAY_MS, TcpSocket, Transport, withTimeout } from "@matter/general";
+import {
+    Bytes,
+    NetworkError,
+    Seconds,
+    TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
+    TcpSocket,
+    Transport,
+    withTimeout,
+} from "@matter/general";
 import type { Socket } from "node:net";
 
 /** Time to wait for graceful close before force-destroying the socket. */
