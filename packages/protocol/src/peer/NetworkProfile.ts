@@ -265,7 +265,9 @@ export namespace NetworkProfiles {
         /**
          * Limits for peers with unknown physical properties.
          *
-         * Defaults to {@link conservative}.
+         * Defaults to {@link conservative}.  Note that this template is automatically overwritten at startup for
+         * device nodes based on the node's network capabilities.  Manually setting this may have no effect.  To
+         * adjust limits, override {@link fast}, {@link thread} or {@link conservative} instead.
          */
         unknown: Limits;
 
