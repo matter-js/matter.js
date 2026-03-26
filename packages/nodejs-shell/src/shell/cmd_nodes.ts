@@ -361,7 +361,9 @@ export default function commands(theNode: MatterNode) {
                             peer.transportPreference = pref === "tcp" ? ChannelType.TCP : undefined;
                         }
 
-                        console.log(`Transport preference for node ${nodeIdStr} set to ${pref.toUpperCase()}`);
+                        console.log(
+                            `Transport preference for node ${nodeIdStr} set to ${pref.toUpperCase()}. Reconnect to the  node to take effect.`,
+                        );
                     },
                 )
                 .command(

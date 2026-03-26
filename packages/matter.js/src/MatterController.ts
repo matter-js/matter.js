@@ -134,6 +134,8 @@ export class MatterController {
         adminFabricId?: FabricId;
         adminFabricLabel: string;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         ipv4?: boolean;
         listeningAddressIpv4?: string;
         listeningAddressIpv6?: string;

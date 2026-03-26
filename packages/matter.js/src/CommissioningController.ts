@@ -395,6 +395,8 @@ export class CommissioningController {
             rootCertificateAuthority,
             rootFabric,
             ble: !!(this.#environment.maybeGet(Ble) ?? Environment.default.maybeGet(Ble)),
+            tcp: this.#options.tcp,
+            transportPreference: this.#options.transportPreference,
             ipv4: !this.#ipv4Disabled,
             listeningAddressIpv4: this.#listeningAddressIpv4,
             listeningAddressIpv6: this.#listeningAddressIpv6,
