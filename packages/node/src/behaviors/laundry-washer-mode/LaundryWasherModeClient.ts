@@ -10,7 +10,7 @@ import { LaundryWasherMode } from "@matter/types/clusters/laundry-washer-mode";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const LaundryWasherModeClientConstructor = ClientBehavior(LaundryWasherMode.Complete);
+export const LaundryWasherModeClientConstructor = ClientBehavior(LaundryWasherMode);
 export interface LaundryWasherModeClient extends InstanceType<typeof LaundryWasherModeClientConstructor> {}
 export interface LaundryWasherModeClientConstructor extends Identity<typeof LaundryWasherModeClientConstructor> {}
 export const LaundryWasherModeClient: LaundryWasherModeClientConstructor = LaundryWasherModeClientConstructor;

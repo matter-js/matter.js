@@ -29,15 +29,11 @@ import {
     Attribute,
     ClusterId,
     ClusterType,
-    ClusterTypeModifier,
-    Command,
     CommandId,
     TlvBoolean,
     TlvInt32,
-    TlvNoResponse,
     TlvNullable,
     TlvString,
-    TlvUInt8,
 } from "@matter/types";
 import { MockEndpoint } from "../../endpoint/mock-endpoint.js";
 import { MockEndpointType } from "../mock-behavior.js";
@@ -270,16 +266,8 @@ describe("ClusterBehavior", () => {
 
     describe("alter", () => {
         it("recreates ID", () => {
-            // Test constituent parts
             MyCluster.name satisfies "MyCluster";
 
-            const AlteredCluster = new ClusterTypeModifier(MyCluster).alter({});
-            AlteredCluster.name satisfies "MyCluster";
-
-            const BehaviorForAlteredCluster = MyBehavior.for(AlteredCluster);
-            BehaviorForAlteredCluster.id satisfies "myCluster";
-
-            // Now test all together
             const AlteredBehavior = MyBehavior.alter({});
             AlteredBehavior.id satisfies "myCluster";
             expect(AlteredBehavior.id).equals("myCluster");
@@ -326,7 +314,7 @@ describe("ClusterBehavior", () => {
                 };
             };
 
-            expect(AwesomeBehavior.cluster.supportedFeatures).deep.equals({ awesome: true });
+            expect(AwesomeBehavior.features).deep.equals({ awesome: true });
             expect(AwesomeBehavior.schema.supportedFeatures).deep.equals(new Set(["AWE"]));
         });
 
@@ -345,9 +333,9 @@ describe("ClusterBehavior", () => {
         it("adds feature elements on NetworkCommissioningServer", () => {
             const EthernetCommissioningServer = NetworkCommissioningServer.with("EthernetNetworkInterface");
 
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.ethernetNetworkInterface).true;
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.wiFiNetworkInterface).false;
-            expect(EthernetCommissioningServer.cluster.supportedFeatures.threadNetworkInterface).false;
+            expect(EthernetCommissioningServer.features.ethernetNetworkInterface).true;
+            expect(EthernetCommissioningServer.features.wiFiNetworkInterface).false;
+            expect(EthernetCommissioningServer.features.threadNetworkInterface).false;
         });
 
         it("prevents feature mismatch", async () => {
@@ -376,27 +364,11 @@ describe("ClusterBehavior", () => {
 
     describe("non-Matter methods", () => {
         it("excludes CommandId.NONE from accepted and generated command lists", async () => {
-            // Create a cluster with a regular command and a non-Matter method (id -1)
-            const TestCluster = ClusterType({
-                id: 0xfff1_fc99,
-                name: "TestWithMethod",
-                revision: 1,
-
-                commands: {
-                    realCommand: Command(0x01, TlvUInt8, 0x02, TlvUInt8),
-                    nonMatterMethod: {
-                        ...Command(0x01, TlvUInt8, 0x01, TlvNoResponse),
-                        requestId: CommandId.NONE,
-                        responseId: CommandId.NONE,
-                    },
-                },
-            });
-
             interface TestInterface {
-                components: [
+                Components: [
                     {
                         flags: {};
-                        methods: {
+                        commands: {
                             realCommand(request: number): MaybePromise<number>;
                             nonMatterMethod(request: number): MaybePromise;
                         };
@@ -431,7 +403,8 @@ describe("ClusterBehavior", () => {
                 ],
             });
 
-            const TestBehavior = ClusterBehavior.withInterface<TestInterface>().for(TestCluster, TestSchema);
+            const TestNs = ClusterType(TestSchema) as ClusterType.Concrete & { Typing: TestInterface };
+            const TestBehavior = ClusterBehavior.for(TestNs);
 
             class MyTestBehavior extends TestBehavior {
                 override realCommand() {

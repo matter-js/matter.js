@@ -15,12 +15,15 @@ import {
     CommandId,
     EndpointNumber,
     Status,
+    TlvAny,
     TlvArray,
     TlvEnum,
     TlvField,
     TlvInvokeResponseData,
     TlvNullable,
     TlvObject,
+    TlvOfModel,
+    TlvSchema,
     TlvSubjectId,
     TypeFromSchema,
 } from "@matter/types";
@@ -31,29 +34,30 @@ import { OnOff } from "@matter/types/clusters/on-off";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { MockServerNode } from "../../node/mock-server-node.js";
 import { interaction } from "../../node/node-helpers.js";
+import { readAllAttrs } from "../../node/read-helpers.js";
 
 const FABRICS_PATH = {
     endpointId: EndpointNumber(0),
-    clusterId: OperationalCredentials.Cluster.id,
-    attributeId: OperationalCredentials.Cluster.attributes.fabrics.id,
+    clusterId: OperationalCredentials.id,
+    attributeId: OperationalCredentials.attributes.fabrics.id,
 };
 
 const NOCS_PATH = {
     endpointId: EndpointNumber(0),
-    clusterId: OperationalCredentials.Cluster.id,
-    attributeId: OperationalCredentials.Cluster.attributes.nocs.id,
+    clusterId: OperationalCredentials.id,
+    attributeId: OperationalCredentials.attributes.nocs.id,
 };
 
 const COMMISSIONED_FABRICS_PATH = {
     endpointId: EndpointNumber(0),
-    clusterId: OperationalCredentials.Cluster.id,
-    attributeId: OperationalCredentials.Cluster.attributes.commissionedFabrics.id,
+    clusterId: OperationalCredentials.id,
+    attributeId: OperationalCredentials.attributes.commissionedFabrics.id,
 };
 
 const LEAVE_PATH = {
     endpointId: EndpointNumber(0),
-    clusterId: BasicInformation.Cluster.id,
-    eventId: BasicInformation.Cluster.events.leave.id,
+    clusterId: BasicInformation.id,
+    eventId: BasicInformation.events.leave.id,
 };
 
 class WifiCommissioningServer extends NetworkCommissioningServer.with("WiFiNetworkInterface") {
@@ -67,19 +71,23 @@ class WifiCommissioningServer extends NetworkCommissioningServer.with("WiFiNetwo
 
 // This is AccessControl.AccessControlEntryStruct but not sure how to remove fabric index from payload so just
 // redefining for now
+const TlvAccessControlTarget = TlvOfModel(
+    AccessControl.schema.datatypes.require("AccessControlTargetStruct"),
+) as TlvSchema<AccessControl.AccessControlTarget>;
+
 const AcesWithoutFabric = TlvObject({
     privilege: TlvField(1, TlvEnum<AccessControl.AccessControlEntryPrivilege>()),
     authMode: TlvField(2, TlvEnum<AccessControl.AccessControlEntryAuthMode>()),
     subjects: TlvField(3, TlvNullable(TlvArray(TlvSubjectId))),
-    targets: TlvField(4, TlvNullable(TlvArray(AccessControl.TlvAccessControlTarget))),
+    targets: TlvField(4, TlvNullable(TlvArray(TlvAccessControlTarget))),
 });
 
 async function writeAcl(node: MockServerNode, fabric: Fabric, acl: TypeFromSchema<typeof AcesWithoutFabric>) {
     await interaction.write(node, fabric, {
         path: {
             endpointId: EndpointNumber(0),
-            clusterId: ClusterId(AccessControl.Cluster.id),
-            attributeId: AttributeId(AccessControl.Cluster.attributes.acl.id),
+            clusterId: ClusterId(AccessControl.id),
+            attributeId: AttributeId(AccessControl.attributes.acl.id),
         },
         data: TlvArray(AcesWithoutFabric).encodeTlv([acl]),
     });
@@ -88,8 +96,8 @@ async function writeAcl(node: MockServerNode, fabric: Fabric, acl: TypeFromSchem
 async function readAcls(node: MockServerNode, fabric: Fabric, isFabricFiltered: boolean) {
     return await interaction.read(node, fabric, isFabricFiltered, {
         endpointId: EndpointNumber(0),
-        clusterId: AccessControl.Cluster.id,
-        attributeId: AttributeId(AccessControl.Cluster.attributes.acl.id),
+        clusterId: AccessControl.id,
+        attributeId: AttributeId(AccessControl.attributes.acl.id),
     });
 }
 
@@ -179,9 +187,10 @@ describe("ProtocolServiceTest", () => {
         const fabricsReport = report.attributes[0]?.attributeData;
         expect(fabricsReport?.path).deep.equals(FABRICS_PATH);
         const decodedFabrics =
-            fabricsReport?.data &&
-            OperationalCredentials.Cluster.attributes.fabrics.schema.decodeTlv(fabricsReport?.data);
-        expect(decodedFabrics?.map(({ fabricIndex }) => fabricIndex)).deep.equals([1, 2]);
+            fabricsReport?.data && TlvOfModel(OperationalCredentials.attributes.fabrics).decodeTlv(fabricsReport?.data);
+        expect((decodedFabrics as { fabricIndex: number }[])?.map(({ fabricIndex }) => fabricIndex)).deep.equals([
+            1, 2,
+        ]);
 
         const nocsReport = report.attributes[1]?.attributeData;
         expect(nocsReport?.path).deep.equals(NOCS_PATH);
@@ -191,9 +200,7 @@ describe("ProtocolServiceTest", () => {
 
         const commissionedFabricCount =
             commissionedFabricsReport?.data &&
-            OperationalCredentials.Cluster.attributes.commissionedFabrics.schema.decodeTlv(
-                commissionedFabricsReport.data,
-            );
+            TlvOfModel(OperationalCredentials.attributes.commissionedFabrics).decodeTlv(commissionedFabricsReport.data);
         expect(commissionedFabricCount).deep.equals(2);
 
         // Remove the second fabric so we can capture the leave event notification
@@ -206,11 +213,11 @@ describe("ProtocolServiceTest", () => {
         // Confirm we received leave event for second fabric
         const leaveReport = report.events[0]?.eventData;
         expect(leaveReport?.path).deep.equals(LEAVE_PATH);
-        expect(
-            leaveReport?.data && BasicInformation.Cluster.events.leave.schema.decodeTlv(leaveReport?.data),
-        ).deep.equals({
-            fabricIndex: 2,
-        });
+        expect(leaveReport?.data && TlvOfModel(BasicInformation.events.leave).decodeTlv(leaveReport?.data)).deep.equals(
+            {
+                fabricIndex: 2,
+            },
+        );
 
         await node.close();
     });
@@ -232,23 +239,19 @@ describe("ProtocolServiceTest", () => {
 
         const commands = await interaction.read(node, fabric, false, {
             endpointId: EndpointNumber(1),
-            clusterId: ClusterId(NetworkCommissioning.Cluster.id),
+            clusterId: ClusterId(NetworkCommissioning.id),
             attributeId: AttributeId(AcceptedCommandList.id),
         });
 
-        expect(commands).deep.equals([
-            NetworkCommissioning.WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.scanNetworks.requestId,
-        ]);
+        expect(commands).deep.equals([NetworkCommissioning.commands.scanNetworks.id]);
 
         const commandResponds = await interaction.read(node, fabric, false, {
             endpointId: EndpointNumber(1),
-            clusterId: ClusterId(NetworkCommissioning.Cluster.id),
+            clusterId: ClusterId(NetworkCommissioning.id),
             attributeId: AttributeId(GeneratedCommandList.id),
         });
 
-        expect(commandResponds).deep.equals([
-            NetworkCommissioning.WiFiNetworkInterfaceOrThreadNetworkInterfaceComponent.commands.scanNetworks.responseId,
-        ]);
+        expect(commandResponds).deep.equals([NetworkCommissioning.schema.commands.require("ScanNetworksResponse").id]);
     });
 
     it("publishes correct feature map", async () => {
@@ -260,12 +263,12 @@ describe("ProtocolServiceTest", () => {
 
         const featureMap = await interaction.read(node, await node.addFabric(), false, {
             endpointId: EndpointNumber(1),
-            clusterId: ClusterId(OnOff.Cluster.id),
+            clusterId: ClusterId(OnOff.id),
             attributeId: AttributeId(FeatureMap.id),
         });
 
         expect(() => {
-            OnOff.Cluster.attributes.featureMap.schema.validate(featureMap);
+            TlvOfModel(OnOff.schema.attributes.require("FeatureMap")).validate(featureMap);
         }).not.throws();
 
         expect({ ...featureMap }).deep.equals({
@@ -295,11 +298,11 @@ describe("ProtocolServiceTest", () => {
             {
                 commandPath: {
                     endpointId: EndpointNumber(1),
-                    clusterId: OnOff.Cluster.id,
-                    commandId: CommandId(OnOff.LightingComponent.commands.offWithEffect.requestId),
+                    clusterId: OnOff.id,
+                    commandId: CommandId(OnOff.commands.offWithEffect.id),
                 },
 
-                commandFields: OnOff.TlvOffWithEffectRequest.encodeTlv({
+                commandFields: TlvOfModel(OnOff.commands.offWithEffect).encodeTlv({
                     effectIdentifier: 0,
                     effectVariant: 1,
                 }),
@@ -313,5 +316,45 @@ describe("ProtocolServiceTest", () => {
 
         // Nice, three nested fields called "status"
         expect(sent?.status?.status.status).deep.equals(Status.Success);
+    });
+
+    it("all attribute TLV schemas can encode their values", async () => {
+        const node = await MockServerNode.createOnline(undefined, {
+            device: OnOffLightDevice.with(OnOffServer),
+        });
+
+        // Wildcard read of all attributes
+        const { data } = await readAllAttrs(node);
+
+        let encoded = 0;
+        for (const chunk of data) {
+            for (const report of chunk) {
+                if (report.kind !== "attr-value") {
+                    continue;
+                }
+
+                const { path, value, tlv } = report;
+                const desc = `${path.endpointId}/${path.clusterId}/${path.attributeId}`;
+
+                // Every attr-value report must have a TLV schema
+                expect(tlv, `${desc} missing tlv`).to.exist;
+
+                // The TLV schema must be able to encode the value into a TLV stream
+                expect(() => {
+                    tlv.encodeTlv(value);
+                }, `${desc} encodeTlv failed`).to.not.throw();
+
+                // The encoded TLV stream must be serializable to bytes (catches bad values
+                // in the stream like objects where primitives are expected)
+                const stream = tlv.encodeTlv(value);
+                expect(() => TlvAny.encode(stream), `${desc} encode failed`).to.not.throw();
+
+                encoded++;
+            }
+        }
+
+        expect(encoded).to.be.greaterThan(0);
+
+        await node.close();
     });
 });

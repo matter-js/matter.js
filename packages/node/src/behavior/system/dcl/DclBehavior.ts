@@ -38,7 +38,7 @@ import { DclCertificateService, DclConfig, DclOtaUpdateService, DclVendorInfoSer
 export class DclBehavior extends Behavior {
     static override readonly id = "dcl";
 
-    declare state: DclBehavior.State;
+    declare readonly state: DclBehavior.State;
     declare internal: DclBehavior.Internal;
 
     get #services() {

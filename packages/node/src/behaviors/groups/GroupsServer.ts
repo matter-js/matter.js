@@ -10,54 +10,29 @@ import { ScenesManagementServer } from "#behaviors/scenes-management";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import { RootEndpoint } from "#endpoints/root";
 import { InternalError, Logger } from "@matter/general";
-import { AccessLevel } from "@matter/model";
 import { assertRemoteActor, Fabric } from "@matter/protocol";
-import {
-    Command,
-    StatusCode,
-    StatusResponseError,
-    TlvField,
-    TlvGroupId,
-    TlvNoResponse,
-    TlvObject,
-    TlvString,
-} from "@matter/types";
+import { StatusCode, StatusResponseError } from "@matter/types";
 import { Groups } from "@matter/types/clusters/groups";
 import { GroupsBehavior } from "./GroupsBehavior.js";
 
 const logger = Logger.get("GroupsServer");
 
 /**
- * Monkey patching Tlv Structure of addGroup* commands to prevent data validation of the groupName field to be
- * handled as ConstraintError because we need to return a special error.
- * We do this to leave the model in fact for other validations and only apply the change for our Schema-aware Tlv parsing.
+ * Extend the Groups model to relax constraints on command request fields.  This prevents the interaction layer from
+ * rejecting with ConstraintError so the behavior can validate and return proper Status responses.
  */
-Groups.Cluster.commands = {
-    ...Groups.Cluster.commands,
-    addGroup: Command(
-        0x0,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            groupName: TlvField(1, TlvString),
-        }),
-        0x0,
-        Groups.TlvAddGroupResponse,
-        { invokeAcl: AccessLevel.Manage },
-    ),
-    addGroupIfIdentifying: Command(
-        0x5,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            groupName: TlvField(1, TlvString),
-        }),
-        0x5,
-        TlvNoResponse,
-        { invokeAcl: AccessLevel.Manage },
-    ),
-};
+const { commands } = Groups.schema;
+const addGroup = commands.require("AddGroup");
+const addGroupIfIdentifying = commands.require("AddGroupIfIdentifying");
+
+const GroupsSchema = Groups.schema.extend(
+    undefined,
+    addGroup.extend(undefined, addGroup.fields.extend("GroupName", { constraint: "none" })),
+    addGroupIfIdentifying.extend(undefined, addGroupIfIdentifying.fields.extend("GroupName", { constraint: "none" })),
+);
 
 // We enable group names by default
-const GroupsBase = GroupsBehavior.with(Groups.Feature.GroupNames);
+const GroupsBase = GroupsBehavior.for(Groups, GroupsSchema).with(Groups.Feature.GroupNames);
 
 /**
  * This is the default server implementation of {@link GroupsBehavior}.

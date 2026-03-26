@@ -14,11 +14,6 @@ describe("ThermostatBehavior", () => {
         expect(msd?.default).deep.equals({ type: "celsius", value: 2 });
     });
 
-    it("has correct Thermostat-specific celsius defaults in cluster", () => {
-        const msd = AutoThermo.cluster.attributes.minSetpointDeadBand.default;
-        expect(msd).equals(20);
-    });
-
     it("correctly specifies Thermostat-specific value in defaults", () => {
         const msd = AutoThermo.defaults.minSetpointDeadBand;
         expect(msd).equals(20);

@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * RelativeHumidityMeasurementBehavior is the base class for objects that support interaction with
  * {@link RelativeHumidityMeasurement.Cluster}.
  */
-export const RelativeHumidityMeasurementBehaviorConstructor = ClusterBehavior.for(RelativeHumidityMeasurement.Cluster);
+export const RelativeHumidityMeasurementBehaviorConstructor = ClusterBehavior.for(RelativeHumidityMeasurement);
 
 export interface RelativeHumidityMeasurementBehaviorConstructor extends Identity<typeof RelativeHumidityMeasurementBehaviorConstructor> {}
 export const RelativeHumidityMeasurementBehavior: RelativeHumidityMeasurementBehaviorConstructor = RelativeHumidityMeasurementBehaviorConstructor;

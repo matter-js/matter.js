@@ -4,8 +4,19 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { normalizeAndDecodeEventData, normalizeEventData } from "#interaction/EventDataDecoder.js";
-import { ClusterId, EndpointNumber, EventId, EventNumber, TlvEventData, TlvVoid, TypeFromSchema } from "@matter/types";
+import {
+    ClusterId,
+    EndpointNumber,
+    EventId,
+    EventNumber,
+    TlvEventData,
+    TlvOfModel,
+    TlvVoid,
+    TypeFromSchema,
+} from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+
+const TlvStartUpEvent = TlvOfModel(BasicInformation.events.startUp);
 
 describe("EventDataDecoder", () => {
     describe("normalizeEventData", () => {
@@ -16,7 +27,7 @@ describe("EventDataDecoder", () => {
                     eventNumber: EventNumber(1),
                     priority: 1,
                     epochTimestamp: 0,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
                 },
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), eventId: EventId(1) },
@@ -36,7 +47,7 @@ describe("EventDataDecoder", () => {
                         eventNumber: EventNumber(1),
                         priority: 1,
                         epochTimestamp: 0,
-                        data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                        data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
                     },
                 ],
                 [
@@ -58,7 +69,7 @@ describe("EventDataDecoder", () => {
                     eventNumber: EventNumber(1),
                     priority: 1,
                     epochTimestamp: 0,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
                 },
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), eventId: EventId(1) },
@@ -72,7 +83,7 @@ describe("EventDataDecoder", () => {
                     eventNumber: EventNumber(3),
                     priority: 1,
                     epochTimestamp: 0,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 3 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 3 }),
                 },
             ];
 
@@ -119,7 +130,7 @@ describe("EventDataDecoder", () => {
                     systemTimestamp: undefined,
                     deltaEpochTimestamp: undefined,
                     deltaSystemTimestamp: undefined,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
                 },
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), eventId: EventId(1) },
@@ -191,7 +202,7 @@ describe("EventDataDecoder", () => {
                     systemTimestamp: undefined,
                     deltaEpochTimestamp: undefined,
                     deltaSystemTimestamp: undefined,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
                 },
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x28), eventId: EventId(1) },
@@ -211,7 +222,7 @@ describe("EventDataDecoder", () => {
                     systemTimestamp: undefined,
                     deltaEpochTimestamp: undefined,
                     deltaSystemTimestamp: undefined,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 3 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 3 }),
                 },
             ];
 
@@ -285,7 +296,7 @@ describe("EventDataDecoder", () => {
                     systemTimestamp: undefined,
                     deltaEpochTimestamp: undefined,
                     deltaSystemTimestamp: undefined,
-                    data: BasicInformation.TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
+                    data: TlvStartUpEvent.encodeTlv({ softwareVersion: 1 }),
                 },
                 {
                     path: { endpointId: EndpointNumber(0), clusterId: ClusterId(0x999), eventId: EventId(1) },

@@ -23,7 +23,6 @@ import {
 } from "@matter/general";
 import {
     ChangeNotificationService,
-    ClusterState,
     ContinuousDiscovery,
     Endpoint,
     NetworkClient,
@@ -220,7 +219,7 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
      * Options for the BasicInformation cluster of the Controller node.
      * The vendorId is determined by the adminVendorId!
      */
-    readonly basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+    readonly basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
 };
 
 /**

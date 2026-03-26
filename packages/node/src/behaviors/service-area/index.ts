@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./ServiceAreaInterface.js";
 export * from "./ServiceAreaBehavior.js";
 export * from "./ServiceAreaServer.js";
 export * from "./ServiceAreaClient.js";

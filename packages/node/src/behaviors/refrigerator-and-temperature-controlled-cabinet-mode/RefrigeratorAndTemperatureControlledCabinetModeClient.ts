@@ -13,7 +13,7 @@ import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
 export const RefrigeratorAndTemperatureControlledCabinetModeClientConstructor = ClientBehavior(
-    RefrigeratorAndTemperatureControlledCabinetMode.Complete
+    RefrigeratorAndTemperatureControlledCabinetMode
 );
 export interface RefrigeratorAndTemperatureControlledCabinetModeClient extends InstanceType<typeof RefrigeratorAndTemperatureControlledCabinetModeClientConstructor> {}
 export interface RefrigeratorAndTemperatureControlledCabinetModeClientConstructor extends Identity<typeof RefrigeratorAndTemperatureControlledCabinetModeClientConstructor> {}

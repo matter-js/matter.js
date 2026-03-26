@@ -10,7 +10,7 @@ import { TimeSynchronization } from "@matter/types/clusters/time-synchronization
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const TimeSynchronizationClientConstructor = ClientBehavior(TimeSynchronization.Complete);
+export const TimeSynchronizationClientConstructor = ClientBehavior(TimeSynchronization);
 export interface TimeSynchronizationClient extends InstanceType<typeof TimeSynchronizationClientConstructor> {}
 export interface TimeSynchronizationClientConstructor extends Identity<typeof TimeSynchronizationClientConstructor> {}
 export const TimeSynchronizationClient: TimeSynchronizationClientConstructor = TimeSynchronizationClientConstructor;

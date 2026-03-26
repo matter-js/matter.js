@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * EcosystemInformationBehavior is the base class for objects that support interaction with
  * {@link EcosystemInformation.Cluster}.
  */
-export const EcosystemInformationBehaviorConstructor = ClusterBehavior.for(EcosystemInformation.Cluster);
+export const EcosystemInformationBehaviorConstructor = ClusterBehavior.for(EcosystemInformation);
 
 export interface EcosystemInformationBehaviorConstructor extends Identity<typeof EcosystemInformationBehaviorConstructor> {}
 export const EcosystemInformationBehavior: EcosystemInformationBehaviorConstructor = EcosystemInformationBehaviorConstructor;

@@ -11,7 +11,7 @@ import { LowPowerBehavior } from "./LowPowerBehavior.js";
  * This is the default server implementation of {@link LowPowerBehavior}.
  */
 export class LowPowerServer extends LowPowerBehavior {
-    declare events: LowPowerServer.Events;
+    declare readonly events: LowPowerServer.Events;
 
     override sleep(): MaybePromise {
         this.events.enterLowPowerMode.emit();

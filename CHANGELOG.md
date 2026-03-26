@@ -17,6 +17,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/model
     - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
+    - Enhancement: The fluent API for manipulating the Matter data model is improved
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
@@ -32,6 +33,8 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/types
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
+    - Breaking: A number of semi-internal implementation details of cluster metadata have changed.  The general API shape remains the same but some advanced use cases may require updates
+    - Feature: We've rewritten the typing system for clusters to make types simpler, consume less runtime memory and work better with IDEs
 
 - @matter/protocol
     - Breaking: Removed automatic retry-logic for interactions on node-reachability issues, new session will be initialized automatically afterward

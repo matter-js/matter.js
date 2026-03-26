@@ -16,7 +16,7 @@ export class EventsBehavior extends Behavior {
     static override readonly id = "events";
     static override early = true;
 
-    declare state: EventsBehavior.State;
+    declare readonly state: EventsBehavior.State;
 
     override async initialize() {
         const storage = this.env.get(StorageManager).createContext("events");

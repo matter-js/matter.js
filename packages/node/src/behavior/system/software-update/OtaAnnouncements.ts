@@ -186,7 +186,7 @@ export class OtaAnnouncements {
                         Write(
                             Write.Attribute({
                                 endpoint: otaEndpoint.number,
-                                cluster: OtaSoftwareUpdateRequestor.Complete,
+                                cluster: OtaSoftwareUpdateRequestor,
                                 attributes: ["defaultOtaProviders"],
                                 value: [consideredOtaProviderRecord],
                             }),

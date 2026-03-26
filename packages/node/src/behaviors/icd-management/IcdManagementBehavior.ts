@@ -8,7 +8,6 @@
 
 import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { IcdManagementInterface } from "./IcdManagementInterface.js";
 import { Identity } from "@matter/general";
 
 /**
@@ -17,9 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of IcdManagement.Cluster enabled. You can enable additional features using
  * IcdManagementBehavior.with.
  */
-export const IcdManagementBehaviorConstructor = ClusterBehavior
-    .withInterface<IcdManagementInterface>()
-    .for(IcdManagement.Cluster);
+export const IcdManagementBehaviorConstructor = ClusterBehavior.for(IcdManagement);
 
 export interface IcdManagementBehaviorConstructor extends Identity<typeof IcdManagementBehaviorConstructor> {}
 export const IcdManagementBehavior: IcdManagementBehaviorConstructor = IcdManagementBehaviorConstructor;

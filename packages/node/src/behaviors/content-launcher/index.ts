@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./ContentLauncherInterface.js";
 export * from "./ContentLauncherBehavior.js";
 export * from "./ContentLauncherServer.js";
 export * from "./ContentLauncherClient.js";

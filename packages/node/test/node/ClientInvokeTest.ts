@@ -9,7 +9,7 @@ import { ServerNode } from "#node/ServerNode.js";
 import { Minutes } from "@matter/general";
 import { ClientInteraction, Invoke, NetworkProfiles } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
-import { OnOffCluster } from "@matter/types/clusters/on-off";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientInvoke", () => {
@@ -214,7 +214,7 @@ describe("ClientInvoke", () => {
             commands: [
                 Invoke.ConcreteCommandRequest({
                     endpoint: EndpointNumber(1),
-                    cluster: OnOffCluster,
+                    cluster: OnOff,
                     command: "toggle",
                 }),
             ],
@@ -309,7 +309,7 @@ describe("ClientInvoke", () => {
                     commands: [
                         Invoke.ConcreteCommandRequest({
                             endpoint: EndpointNumber(1),
-                            cluster: OnOffCluster,
+                            cluster: OnOff,
                             command: "toggle",
                         }),
                     ],
@@ -374,13 +374,13 @@ describe("ClientInvoke", () => {
                     commands: [
                         Invoke.ConcreteCommandRequest({
                             endpoint: EndpointNumber(1),
-                            cluster: OnOffCluster,
+                            cluster: OnOff,
                             command: "on",
                             commandRef: 1,
                         }),
                         Invoke.ConcreteCommandRequest({
                             endpoint: EndpointNumber(1),
-                            cluster: OnOffCluster,
+                            cluster: OnOff,
                             command: "off",
                             commandRef: 2,
                         }),
