@@ -244,13 +244,20 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
     }
     device.children.push(...clusters);
 
+    // Index all cluster requirements (both parsed from the table and implicitly created like Descriptor)
     const clusterIndex = new Map<string, RequirementElement[]>();
-    for (const cluster of clusters) {
-        const key = cluster.name.toLowerCase();
-        if (clusterIndex.has(key)) {
-            clusterIndex.get(key)?.push(cluster);
-        } else {
-            clusterIndex.set(key, [cluster]);
+    for (const child of device.children) {
+        const req = child as RequirementElement;
+        if (
+            req.element === RequirementElement.ElementType.ServerCluster ||
+            req.element === RequirementElement.ElementType.ClientCluster
+        ) {
+            const key = req.name.toLowerCase();
+            if (clusterIndex.has(key)) {
+                clusterIndex.get(key)?.push(req);
+            } else {
+                clusterIndex.set(key, [req]);
+            }
         }
     }
 
