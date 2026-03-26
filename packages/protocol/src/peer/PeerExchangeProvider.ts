@@ -48,14 +48,14 @@ export class PeerExchangeProvider extends ExchangeProvider {
     }
 
     override async connect(options?: NewExchangeOptions): Promise<void> {
-        // Only pass transport constraint for explicit requirements (e.g. Large Message Quality).
-        // Transport preference is a soft hint handled during session selection, not a hard
-        // constraint on connection establishment — if TCP fails, UDP should still work.
+        // Use explicit requirement, or fall back to the peer's transport preference
+        const transportConstraint = options?.requiredTransport ?? this.#peer.transportPreference;
+
         await this.#peer.connect({
             abort: options?.abort,
             network: options?.network,
             connectionTimeout: options?.connectionTimeout,
-            transportConstraint: options?.requiredTransport,
+            transportConstraint,
         });
     }
 
@@ -85,22 +85,13 @@ export class PeerExchangeProvider extends ExchangeProvider {
                         this.#peer.address,
                         this.#context.exchanges,
                     );
-                } else if (options?.requiredTransport === ChannelType.TCP) {
-                    // When TCP is explicitly required (e.g. Large Message Quality), only use TCP.
-                    // No fallback — the caller needs TCP or nothing.
+                } else if ((options?.requiredTransport ?? this.#peer.transportPreference) === ChannelType.TCP) {
+                    // When TCP is required or preferred, select a TCP session.
+                    // For requiredTransport: no fallback — the caller needs TCP or nothing.
+                    // For preference: also no fallback here — connect() should have established TCP.
                     session = [...this.#peer.sessions].find(
                         s => !s.isClosing && !s.isPeerLost && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
                     );
-                } else if (this.#peer.transportPreference === ChannelType.TCP) {
-                    // When TCP is preferred, try TCP first but fall back to any available session.
-                    session =
-                        [...this.#peer.sessions].find(
-                            s =>
-                                !s.isClosing &&
-                                !s.isPeerLost &&
-                                !s.isClosed &&
-                                s.channel.channel.type === ChannelType.TCP,
-                        ) ?? this.#peer.newestSession;
                 } else {
                     session = this.#peer.newestSession;
                 }
