@@ -108,7 +108,7 @@ export class ControllerTestInstance extends TestInstance {
                     autoConnect: false, // Do not auto connect to the commissioned nodes
                     adminFabricLabel: "alpha",
                     rootNodeId: NodeId(0x112233),
-                    tcp: tcpEnabled,
+                    tcp: tcpEnabled ? { outgoing: true } : undefined,
                     transportPreference: tcpEnabled ? "tcp" : undefined,
                 }),
             ),
@@ -128,7 +128,7 @@ export class ControllerTestInstance extends TestInstance {
                     autoConnect: false, // Do not auto connect to the commissioned nodes
                     adminFabricLabel: "beta",
                     rootNodeId: NodeId(0x112233),
-                    tcp: tcpEnabled,
+                    tcp: tcpEnabled ? { outgoing: true } : undefined,
                     transportPreference: tcpEnabled ? "tcp" : undefined,
                 }),
             ),
@@ -148,7 +148,7 @@ export class ControllerTestInstance extends TestInstance {
                     autoConnect: false, // Do not auto connect to the commissioned nodes
                     adminFabricLabel: "gamma",
                     rootNodeId: NodeId(0x112233),
-                    tcp: tcpEnabled,
+                    tcp: tcpEnabled ? { outgoing: true } : undefined,
                     transportPreference: tcpEnabled ? "tcp" : undefined,
                 }),
             ),
