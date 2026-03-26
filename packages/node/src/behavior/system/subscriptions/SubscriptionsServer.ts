@@ -7,6 +7,7 @@
 import { InteractionServer, PeerSubscription } from "#node/server/InteractionServer.js";
 import { ServerSubscription } from "#node/server/ServerSubscription.js";
 import {
+    ChannelType,
     deepCopy,
     isIpNetworkChannel,
     Logger,
@@ -240,7 +241,14 @@ export class SubscriptionsServer extends Behavior {
                     let session;
                     try {
                         const peer = peers.addKnownPeer({ address: peerAddress, operationalAddress });
-                        session = await peer.connect({ connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT });
+
+                        // If the original subscription was over TCP, prefer TCP for re-establishment
+                        const transportConstraint =
+                            operationalAddress?.type === "tcp" ? ChannelType.TCP : undefined;
+                        session = await peer.connect({
+                            connectionTimeout: REESTABLISH_SUBSCRIPTIONS_TIMEOUT,
+                            transportConstraint,
+                        });
                         if (GroupSession.is(session)) {
                             // Should never happen but add for easier typing
                             return;
