@@ -99,7 +99,7 @@ export function DiscoveryData(kvs: Map<string, string>) {
 /**
  * Format DiscoveryData for diagnostic output.
  */
-export function discoveryDataDiagnostics(data: DiscoveryData & { addresses?: ServerAddress[] }, kind?: string) {
+export function DiscoveryDataDiagnostics(data: DiscoveryData & { addresses?: ServerAddress[] }, kind?: string) {
     return Diagnostic.dict({
         kind,
         DN: data.DN,
@@ -178,16 +178,6 @@ export type CommissionableDeviceIdentifiers =
 
 export interface Scanner {
     type: ChannelType;
-
-    /**
-     * Send DNS-SD queries to discover commissionable devices by a provided identifier (e.g. discriminator,
-     * vendorId, etc.) and returns as soon as minimum one was found or the timeout is over.
-     */
-    findCommissionableDevices(
-        identifier: CommissionableDeviceIdentifiers,
-        timeout?: Duration,
-        ignoreExistingRecords?: boolean,
-    ): Promise<CommissionableDevice[]>;
 
     /**
      * Send DNS-SD queries to discover commissionable devices by a provided identifier (e.g. discriminator,

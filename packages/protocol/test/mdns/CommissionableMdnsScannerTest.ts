@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { CommissionableDevice } from "#common/Scanner.js";
 import { CommissionableMdnsScanner } from "#mdns/CommissionableMdnsScanner.js";
 import {
     DnsMessageType,
@@ -380,8 +381,16 @@ describe("CommissionableMdnsScanner", () => {
 
         try {
             const identifier = { longDiscriminator: 1234 };
-            const shortPromise = scanner.findCommissionableDevices(identifier, Millis(500));
-            const longPromise = scanner.findCommissionableDevices(identifier, Millis(1000));
+            const shortPromise = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                () => {},
+                Millis(500),
+            );
+            const longPromise = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                () => {},
+                Millis(1000),
+            );
 
             // Both should resolve with empty arrays once their timeouts elapse
             const [shortResult, longResult] = await MockTime.resolve(Promise.all([shortPromise, longPromise]));
@@ -406,8 +415,18 @@ describe("CommissionableMdnsScanner", () => {
 
         try {
             const identifier = { longDiscriminator: 3840 };
-            const promise1 = scanner.findCommissionableDevices(identifier, Seconds(10));
-            const promise2 = scanner.findCommissionableDevices(identifier, Seconds(10));
+            const found1: CommissionableDevice[] = [];
+            const found2: CommissionableDevice[] = [];
+            const promise1 = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                device => found1.push(device),
+                Seconds(10),
+            );
+            const promise2 = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                device => found2.push(device),
+                Seconds(10),
+            );
 
             const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
             await serverSocket.send({
@@ -438,15 +457,18 @@ describe("CommissionableMdnsScanner", () => {
                 additionalRecords: [],
             });
 
-            // Process network messages and allow promises to settle
+            // Process network messages then cancel both discoveries
             await MockTime.advance(10);
+            scanner.cancelCommissionableDeviceDiscovery(identifier);
 
             const [result1, result2] = await MockTime.resolve(Promise.all([promise1, promise2]));
 
+            expect(found1.length).equals(1);
+            expect(found1[0].deviceIdentifier).equals(INSTANCE_ID);
+            expect(found2.length).equals(1);
+            expect(found2[0].deviceIdentifier).equals(INSTANCE_ID);
             expect(result1.length).equals(1);
-            expect(result1[0].deviceIdentifier).equals(INSTANCE_ID);
             expect(result2.length).equals(1);
-            expect(result2[0].deviceIdentifier).equals(INSTANCE_ID);
         } finally {
             await scanner.close();
             await clientNames.close();

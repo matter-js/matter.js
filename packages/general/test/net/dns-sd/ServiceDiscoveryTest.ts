@@ -64,24 +64,12 @@ describe("ServiceDiscovery", () => {
         await using site = new MockSite();
         const { client } = await site.addPair();
 
-        // Track filter additions/removals
-        let filterCount = 0;
-        const origAdd = client.names.addFilter.bind(client.names);
-        const origRemove = client.names.removeFilter.bind(client.names);
-        (client.names as any).addFilter = (f: any) => {
-            filterCount++;
-            origAdd(f);
-        };
-        (client.names as any).removeFilter = (f: any) => {
-            filterCount--;
-            origRemove(f);
-        };
-
+        const filtersBefore = client.names.filters.size;
         const discovery = new CollectingDiscovery(client.names);
-        expect(filterCount).equals(1);
+        expect(client.names.filters.size).equals(filtersBefore + 1);
 
         discovery.stop();
         await discovery;
-        expect(filterCount).equals(0);
+        expect(client.names.filters.size).equals(filtersBefore);
     });
 });

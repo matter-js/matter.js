@@ -54,20 +54,6 @@ export class MdnsService {
             });
 
             this.#server = new MdnsServer(this.#socket, this.#construction);
-
-            this.#names = new DnssdNames({
-                socket: this.#socket,
-                lifetime: this.#construction,
-                entropy: this.#entropy,
-                filter: ({ name }) => {
-                    const lower = name.toLowerCase();
-                    return (
-                        lower.endsWith("._matter._tcp.local") ||
-                        lower.endsWith("._matterc._udp.local") ||
-                        lower.endsWith("._matterd._udp.local")
-                    );
-                },
-            });
         });
     }
 
@@ -80,7 +66,22 @@ export class MdnsService {
     }
 
     get names() {
-        return this.#construction.assert("MDNS service", this.#names);
+        if (this.#names === undefined) {
+            this.#names = new DnssdNames({
+                socket: this.#construction.assert("MDNS socket", this.#socket),
+                lifetime: this.#construction,
+                entropy: this.#entropy,
+                filter: ({ name }) => {
+                    const lower = name.toLowerCase();
+                    return (
+                        lower.endsWith("._matter._tcp.local") ||
+                        lower.endsWith("._matterc._udp.local") ||
+                        lower.endsWith("._matterd._udp.local")
+                    );
+                },
+            });
+        }
+        return this.#names;
     }
 
     get [Diagnostic.value]() {

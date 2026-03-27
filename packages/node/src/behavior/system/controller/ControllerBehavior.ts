@@ -65,9 +65,7 @@ export class ControllerBehavior extends Behavior {
         }
         if (this.state.ip !== false) {
             this.internal.services = this.env.asDependent();
-            const mdns = await this.internal.services.load(MdnsService);
-            this.internal.scanner = new CommissionableMdnsScanner(mdns.names);
-            this.env.get(ScannerSet).add(this.internal.scanner);
+            await this.internal.services.load(MdnsService);
         }
 
         if (this.state.ble === undefined) {
@@ -178,6 +176,13 @@ export class ControllerBehavior extends Behavior {
     }
 
     async #nodeOnline() {
+        // Create the mDNS scanner now that the node is online and discovery is meaningful
+        if (this.state.ip !== false && this.internal.scanner === undefined) {
+            const mdns = this.env.get(MdnsService);
+            this.internal.scanner = new CommissionableMdnsScanner(mdns.names);
+            this.env.get(ScannerSet).add(this.internal.scanner);
+        }
+
         // Configure network connections
         const netTransports = this.env.get(ConnectionlessTransportSet);
         if (this.state.ble) {

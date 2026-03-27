@@ -16,7 +16,6 @@ import {
     IpService,
     MatterAggregateError,
     ObserverGroup,
-    Seconds,
     ServerAddressUdp,
     Time,
 } from "@matter/general";
@@ -71,7 +70,7 @@ export class CommissionableMdnsScanner implements Scanner {
             return lower === base1 || lower.endsWith(suffix1) || lower === base2 || lower.endsWith(suffix2);
         };
 
-        names.addFilter(this.#filter);
+        names.filters.add(this.#filter);
         this.#observers.on(names.discovered, this.#onDiscovered.bind(this));
     }
 
@@ -81,41 +80,13 @@ export class CommissionableMdnsScanner implements Scanner {
             waiter.cancel();
         }
 
-        this.#names.removeFilter(this.#filter);
+        this.#names.filters.delete(this.#filter);
         this.#observers.close();
-        for (const { ipService } of this.#cache.values()) {
-            await ipService.close();
-        }
-        this.#cache.clear();
-    }
-
-    async findCommissionableDevices(
-        identifier: CommissionableDeviceIdentifiers,
-        timeout = Seconds(5),
-        ignoreExistingRecords = false,
-    ): Promise<CommissionableDevice[]> {
-        if (!ignoreExistingRecords) {
-            const existing = this.getDiscoveredCommissionableDevices(identifier);
-            if (existing.length > 0) {
-                return existing;
-            }
-        }
-
-        const found: CommissionableDevice[] = [];
-        let deviceFound!: () => void;
-        const deviceSignal = new Promise<void>(resolve => (deviceFound = resolve));
-        const timeoutSleep = Time.sleep("commissionable device discovery", timeout);
-        const cancelSignal = Promise.race([deviceSignal, timeoutSleep]).then(() => timeoutSleep.cancel());
-        await this.findCommissionableDevicesContinuously(
-            identifier,
-            device => {
-                found.push(device);
-                deviceFound();
-            },
-            undefined, // timeout handled by cancelSignal
-            cancelSignal,
+        await MatterAggregateError.allSettled(
+            [...this.#cache.values()].map(({ ipService }) => ipService.close()),
+            "Error closing cached IpServices",
         );
-        return found;
+        this.#cache.clear();
     }
 
     async findCommissionableDevicesContinuously(

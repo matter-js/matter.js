@@ -84,7 +84,7 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
             return lower === exactType || lower.endsWith(suffix);
         };
 
-        names.addFilter(this.#filter);
+        names.filters.add(this.#filter);
         this.#observers.on(names.discovered, this.#onDiscovered.bind(this));
 
         if (options?.timeout !== undefined) {
@@ -178,7 +178,7 @@ export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
     }
 
     #cleanup() {
-        this.#names.removeFilter(this.#filter);
+        this.#names.filters.delete(this.#filter);
         this.#observers.close();
         for (const svc of this.#ipServices.values()) {
             void svc.close();

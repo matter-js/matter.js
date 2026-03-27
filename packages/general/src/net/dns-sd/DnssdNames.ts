@@ -201,18 +201,11 @@ export class DnssdNames {
     }
 
     /**
-     * Register an additional ingress filter. Records accepted by ANY registered filter are processed.
+     * Dynamic ingress filters. Records accepted by ANY registered filter are processed.
      * If no filters are registered, all records are accepted.
      */
-    addFilter(filter: (record: DnsRecord) => boolean) {
-        this.#filters.add(filter);
-    }
-
-    /**
-     * Unregister a previously added filter.
-     */
-    removeFilter(filter: (record: DnsRecord) => boolean) {
-        this.#filters.delete(filter);
+    get filters() {
+        return this.#filters;
     }
 
     get socket() {
@@ -268,7 +261,7 @@ export namespace DnssdNames {
         entropy: Entropy;
 
         /**
-         * Initial ingress filter. Additional filters may be added via {@link DnssdNames.addFilter}.
+         * Initial ingress filter. Additional filters may be added via {@link DnssdNames.filters}.
          *
          * Observed names are considered relevant even if filtered here.
          */

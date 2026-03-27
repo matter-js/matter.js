@@ -114,7 +114,7 @@ describe("DnssdNames", () => {
 
             // Add a filter that accepts the server's service
             const filter = (record: DnsRecord) => record.name === qnameOf(1);
-            client.names.addFilter(filter);
+            client.names.filters.add(filter);
 
             const discovered = new Promise<void>(resolve => {
                 client.names.discovered.once(() => resolve());
@@ -125,14 +125,14 @@ describe("DnssdNames", () => {
             expect(client.names.has(qnameOf(1))).true;
         });
 
-        it("stops accepting records after removeFilter", async () => {
+        it("stops accepting records after filter removal", async () => {
             await using site = new MockSite();
             const { client, server } = await site.addPair();
 
             const filter = (record: DnsRecord) => record.name === qnameOf(1);
             client.configureNames({ filter: () => false });
-            client.names.addFilter(filter);
-            client.names.removeFilter(filter);
+            client.names.filters.add(filter);
+            client.names.filters.delete(filter);
 
             await server.broadcast();
             await MockTime.advance(100);
@@ -148,8 +148,8 @@ describe("DnssdNames", () => {
 
             const filter1 = (record: DnsRecord) => record.name === qnameOf(1);
             const filter2 = (record: DnsRecord) => record.name === qnameOf(2);
-            client.names.addFilter(filter1);
-            client.names.addFilter(filter2);
+            client.names.filters.add(filter1);
+            client.names.filters.add(filter2);
 
             const discovered = new Promise<void>(resolve => {
                 let count = 0;
@@ -173,11 +173,11 @@ describe("DnssdNames", () => {
 
             const filter1 = (record: DnsRecord) => record.name === qnameOf(1);
             const filter2 = (record: DnsRecord) => record.name === qnameOf(2);
-            client.names.addFilter(filter1);
-            client.names.addFilter(filter2);
+            client.names.filters.add(filter1);
+            client.names.filters.add(filter2);
 
             // Remove filter for service 1 but keep filter for service 2
-            client.names.removeFilter(filter1);
+            client.names.filters.delete(filter1);
 
             await server.broadcast(1);
             await server.broadcast(2);
@@ -194,7 +194,7 @@ describe("DnssdNames", () => {
             client.configureNames({ filter: () => false });
 
             const filter = (record: DnsRecord) => record.name === qnameOf(1);
-            client.names.addFilter(filter);
+            client.names.filters.add(filter);
 
             const discovered = new Promise<void>(resolve => {
                 client.names.discovered.once(() => resolve());
@@ -205,7 +205,7 @@ describe("DnssdNames", () => {
             expect(client.names.has(qnameOf(1))).true;
 
             // Remove filter — existing names should still be present
-            client.names.removeFilter(filter);
+            client.names.filters.delete(filter);
             expect(client.names.has(qnameOf(1))).true;
 
             // But new broadcasts for a different service should not be accepted
