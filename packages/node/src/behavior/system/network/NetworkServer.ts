@@ -22,7 +22,7 @@ const logger = Logger.get("NetworkingServer");
  * implementation.
  */
 export class NetworkServer extends NetworkBehavior {
-    declare state: NetworkServer.State;
+    declare readonly state: NetworkServer.State;
     declare internal: NetworkServer.Internal;
 
     override initialize() {
@@ -126,6 +126,9 @@ export namespace NetworkServer {
 
         @field(LimitsConfig)
         conservative?: LimitsConfig;
+
+        @field(LimitsConfig)
+        unknown?: LimitsConfig;
 
         @field(LimitsConfig)
         unlimited?: LimitsConfig;

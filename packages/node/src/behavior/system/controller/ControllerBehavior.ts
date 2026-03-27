@@ -52,7 +52,7 @@ export class ControllerBehavior extends Behavior {
     static override readonly id = "controller";
 
     declare internal: ControllerBehavior.Internal;
-    declare state: ControllerBehavior.State;
+    declare readonly state: ControllerBehavior.State;
 
     override async initialize() {
         if (this.state.adminFabricLabel === undefined || this.state.adminFabricLabel === "") {

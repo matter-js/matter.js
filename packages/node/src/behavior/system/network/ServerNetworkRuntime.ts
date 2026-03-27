@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
 import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
@@ -21,6 +22,7 @@ import {
     TransportSet,
     UdpInterface,
 } from "@matter/general";
+import { DeviceClassification } from "@matter/model";
 import {
     Advertiser,
     Ble,
@@ -360,8 +362,13 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         if (timing) {
             env.get(PeerSet).timing = timing;
         }
-        if (profiles) {
-            env.get(NetworkProfiles).defaults = profiles;
+        // Auto-detect the "unknown" profile for peers with unknown physical properties.  If the node has
+        // application endpoints we derive it from local network capabilities.  Users can still override
+        // via profiles.unknown in config.
+        const autoUnknown = this.#detectFallbackProfile();
+        const effectiveProfiles = autoUnknown !== undefined ? { unknown: autoUnknown, ...profiles } : profiles;
+        if (effectiveProfiles) {
+            env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
 
         env.get(PeerSet).exchanges = exchanges;
@@ -435,6 +442,34 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         env.delete(ScannerSet);
+    }
+
+    /**
+     * Auto-detect limits for the unknown profile based on the local node's endpoint structure.
+     */
+    #detectFallbackProfile(): NetworkProfiles.Limits | undefined {
+        const { owner } = this;
+
+        let hasApplicationEndpoint = false;
+        for (const part of owner.parts) {
+            if (!DeviceClassification.isUtility(part.type.deviceClass)) {
+                hasApplicationEndpoint = true;
+                break;
+            }
+        }
+
+        if (!hasApplicationEndpoint) {
+            return undefined;
+        }
+
+        const nc = owner.behaviors.typeFor(NetworkCommissioningBehavior);
+        if (nc?.schema.supportedFeatures.has("TH")) {
+            logger.info("Default network profile for unknown peers set to thread");
+            return NetworkProfiles.defaults.thread;
+        }
+
+        logger.info("Default network profile for unknown peers set to fast");
+        return NetworkProfiles.defaults.fast;
     }
 
     async #initializeGroupNetworking() {
