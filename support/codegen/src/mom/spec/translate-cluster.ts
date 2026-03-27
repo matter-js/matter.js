@@ -46,8 +46,9 @@ export function* translateCluster(definition: ClusterReference) {
     const metadata = translateMetadata(definition, children);
     if (!metadata) {
         if (definition.ids) {
-            // Section has a cluster ID table but IDs couldn't be parsed — this is a real cluster that
-            // needs manual handling via overrides (e.g. OccupancySensing).  Skip entirely.
+            // Section has a cluster ID table but IDs couldn't be parsed — likely a table format
+            // issue that needs a column alias fix in translateIds()
+            logger.error(`${definition.name} has a cluster ID section but no parseable IDs`);
             return;
         }
 
@@ -160,8 +161,8 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
             // you're defining a standard?  Normalize to "id"
             //
             // Note that ID is optional because base clusters may have no ID
-            id: Alias(Str, "identifier"),
-            name: Identifier,
+            id: Alias(Str, "identifier", "clusterid"),
+            name: Alias(Identifier, "clustername"),
             pics: Optional(Alias(UpperIdentifier, "picscode")),
         });
 

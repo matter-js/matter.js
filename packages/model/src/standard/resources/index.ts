@@ -28,6 +28,7 @@ import "./temperature-measurement.resource.js";
 import "./pressure-measurement.resource.js";
 import "./flow-measurement.resource.js";
 import "./relative-humidity-measurement.resource.js";
+import "./occupancy-sensing.resource.js";
 import "./resource-monitoring.resource.js";
 import "./hepa-filter-monitoring.resource.js";
 import "./activated-carbon-filter-monitoring.resource.js";
