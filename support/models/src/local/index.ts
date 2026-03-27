@@ -52,8 +52,6 @@ import "./ThermostatOverrides.js";
 import "./TimeFormatLocalizationOverrides.js";
 import "./TimeSynchronizationOverrides.js";
 import "./UserLabelOverrides.js";
-import "./WebRtcTransportProviderOverrides.js";
-import "./WebRtcTransportRequestorOverrides.js";
 import "./WiFiNetworkManagementOverrides.js";
 import "./WildcardPathFlagsBitmap.js";
 import "./WindowCoveringOverrides.js";

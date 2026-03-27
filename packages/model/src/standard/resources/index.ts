@@ -103,6 +103,7 @@ import "./thread-border-router-management.resource.js";
 import "./thread-network-directory.resource.js";
 import "./camera-av-stream-management.resource.js";
 import "./camera-av-settings-user-level-management.resource.js";
+import "./web-rtc-transport-definitions.resource.js";
 import "./web-rtc-transport-provider.resource.js";
 import "./web-rtc-transport-requestor.resource.js";
 import "./push-av-stream-transport.resource.js";

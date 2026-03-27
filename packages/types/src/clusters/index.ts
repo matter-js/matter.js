@@ -179,6 +179,7 @@ export { WakeOnLanCluster, WakeOnLan } from "./wake-on-lan.js";
 export { WaterHeaterManagementCluster, WaterHeaterManagement } from "./water-heater-management.js";
 export { WaterHeaterModeCluster, WaterHeaterMode } from "./water-heater-mode.js";
 export { WaterTankLevelMonitoringCluster, WaterTankLevelMonitoring } from "./water-tank-level-monitoring.js";
+export { WebRtcTransportDefinitions } from "./web-rtc-transport-definitions.js";
 export { WebRtcTransportProviderCluster, WebRtcTransportProvider } from "./web-rtc-transport-provider.js";
 export { WebRtcTransportRequestorCluster, WebRtcTransportRequestor } from "./web-rtc-transport-requestor.js";
 export { WiFiNetworkDiagnosticsCluster, WiFiNetworkDiagnostics } from "./wi-fi-network-diagnostics.js";

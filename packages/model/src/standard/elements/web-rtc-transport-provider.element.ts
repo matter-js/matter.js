@@ -24,7 +24,7 @@ export const WebRtcTransportProvider = Cluster(
     ),
     Attribute(
         { name: "CurrentSessions", id: 0x0, type: "list", access: "R S M", conformance: "M" },
-        Field({ name: "entry", type: "WebRTCSessionStruct" })
+        Field({ name: "entry", type: "WebRtcTransportDefinitions.WebRTCSessionStruct" })
     ),
 
     Command(
@@ -44,7 +44,7 @@ export const WebRtcTransportProvider = Cluster(
         }),
         Field(
             { name: "IceServers", id: 0x4, type: "list", conformance: "O", constraint: "max 10" },
-            Field({ name: "entry", type: "ICEServerStruct" })
+            Field({ name: "entry", type: "WebRtcTransportDefinitions.ICEServerStruct" })
         ),
         Field({ name: "IceTransportPolicy", id: 0x5, type: "string", conformance: "O", constraint: "max 16" }),
         Field({ name: "MetadataEnabled", id: 0x6, type: "bool", conformance: "METADATA" }),
@@ -53,7 +53,7 @@ export const WebRtcTransportProvider = Cluster(
 
     Command(
         { name: "SolicitOfferResponse", id: 0x1, conformance: "M", direction: "response", quality: "L" },
-        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
+        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
         Field({ name: "DeferredOffer", id: 0x1, type: "bool", conformance: "M" }),
         Field({
             name: "VideoStreamId", id: 0x2, type: "CameraAvStreamManagement.VideoStreamID",
@@ -70,7 +70,10 @@ export const WebRtcTransportProvider = Cluster(
             name: "ProvideOffer", id: 0x2, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "ProvideOfferResponse"
         },
-        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M", quality: "X" }),
+        Field({
+            name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID",
+            conformance: "M", quality: "X"
+        }),
         Field({ name: "Sdp", id: 0x1, type: "string", conformance: "M" }),
         Field({ name: "StreamUsage", id: 0x2, type: "StreamUsageEnum", conformance: "M" }),
         Field({ name: "OriginatingEndpointId", id: 0x3, type: "endpoint-no", conformance: "M" }),
@@ -84,7 +87,7 @@ export const WebRtcTransportProvider = Cluster(
         }),
         Field(
             { name: "IceServers", id: 0x6, type: "list", conformance: "O", constraint: "max 10" },
-            Field({ name: "entry", type: "ICEServerStruct" })
+            Field({ name: "entry", type: "WebRtcTransportDefinitions.ICEServerStruct" })
         ),
         Field({ name: "IceTransportPolicy", id: 0x7, type: "string", conformance: "O", constraint: "max 16" }),
         Field({ name: "MetadataEnabled", id: 0x8, type: "bool", conformance: "METADATA" }),
@@ -93,7 +96,7 @@ export const WebRtcTransportProvider = Cluster(
 
     Command(
         { name: "ProvideOfferResponse", id: 0x3, conformance: "M", direction: "response", quality: "L" },
-        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
+        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
         Field({
             name: "VideoStreamId", id: 0x1, type: "CameraAvStreamManagement.VideoStreamID",
             conformance: "ProvideOffer.VideoStreamID", quality: "X"
@@ -109,7 +112,7 @@ export const WebRtcTransportProvider = Cluster(
             name: "ProvideAnswer", id: 0x4, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "status"
         },
-        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
+        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
         Field({ name: "Sdp", id: 0x1, type: "string", conformance: "M" })
     ),
 
@@ -118,10 +121,10 @@ export const WebRtcTransportProvider = Cluster(
             name: "ProvideIceCandidates", id: 0x5, access: "F O", conformance: "M", direction: "request",
             quality: "L", response: "status"
         },
-        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
+        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
         Field(
             { name: "IceCandidates", id: 0x1, type: "list", conformance: "M", constraint: "min 1" },
-            Field({ name: "entry", type: "ICECandidateStruct" })
+            Field({ name: "entry", type: "WebRtcTransportDefinitions.ICECandidateStruct" })
         )
     ),
 
@@ -130,8 +133,8 @@ export const WebRtcTransportProvider = Cluster(
             name: "EndSession", id: 0x6, access: "F O", conformance: "M", direction: "request", quality: "L",
             response: "status"
         },
-        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRTCSessionID", conformance: "M" }),
-        Field({ name: "Reason", id: 0x1, type: "WebRTCEndReasonEnum", conformance: "M" })
+        Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
+        Field({ name: "Reason", id: 0x1, type: "WebRtcTransportDefinitions.WebRTCEndReasonEnum", conformance: "M" })
     ),
 
     Datatype(
@@ -139,36 +142,6 @@ export const WebRtcTransportProvider = Cluster(
         Field({ name: "CipherSuite", id: 0x0, type: "uint16", conformance: "M", constraint: "min 1" }),
         Field({ name: "BaseKey", id: 0x1, type: "octstr", conformance: "M", constraint: "max 128" }),
         Field({ name: "Kid", id: 0x2, type: "octstr", conformance: "M", constraint: "2 to 8" })
-    ),
-
-    Datatype({ name: "WebRTCSessionID", type: "uint16" }),
-
-    Datatype(
-        { name: "WebRTCEndReasonEnum", type: "enum8" },
-        Field({ name: "IceFailed", id: 0x0 }),
-        Field({ name: "IceTimeout", id: 0x1 }),
-        Field({ name: "UserHangup", id: 0x2 }),
-        Field({ name: "PeerHangup", id: 0x3 }),
-        Field({ name: "Busy", id: 0x4 }),
-        Field({ name: "TimedOut", id: 0x5 }),
-        Field({ name: "InternalError", id: 0x6 })
-    ),
-
-    Datatype(
-        { name: "ICECandidateStruct", type: "struct" },
-        Field({ name: "Candidate", id: 0x0, type: "string" }),
-        Field({ name: "SdpMid", id: 0x1, type: "string", quality: "X" }),
-        Field({ name: "SdpMLineIndex", id: 0x2, type: "uint16", quality: "X" })
-    ),
-
-    Datatype(
-        { name: "WebRTCSessionStruct", type: "struct" },
-        Field({ name: "VideoStreamId", id: 0x4, type: "CameraAvStreamManagement.VideoStreamID" }),
-        Field({ name: "AudioStreamId", id: 0x5, type: "CameraAvStreamManagement.AudioStreamID" })
-    ),
-    Datatype(
-        { name: "ICEServerStruct", type: "struct" },
-        Field({ name: "Caid", id: 0x3, type: "TlsCertificateManagement.TLSCAID" })
     )
 );
 

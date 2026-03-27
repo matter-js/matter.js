@@ -9,6 +9,7 @@
 import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
+import type { WebRtcTransportDefinitions } from "./web-rtc-transport-definitions.js";
 import type { MaybePromise, Bytes } from "@matter/general";
 import type { StreamUsage } from "../globals/StreamUsage.js";
 import type { EndpointNumber } from "../datatype/EndpointNumber.js";
@@ -54,7 +55,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.6.1
          */
-        currentSessions: WebRtcSession[];
+        currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
 
     /**
@@ -69,7 +70,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.6.1
          */
-        currentSessions: WebRtcSession[];
+        currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
 
     /**
@@ -160,11 +161,6 @@ export declare namespace WebRtcTransportProvider {
         Metadata = "Metadata"
     }
 
-    export interface WebRtcSession {
-        videoStreamId?: number;
-        audioStreamId?: number;
-    }
-
     /**
      * Requests that the Provider initiates a new session with the Offer / Answer flow in a way that allows for options
      * to be passed and work with devices needing the standby flow.
@@ -220,7 +216,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.5
          */
-        iceServers?: IceServer[];
+        iceServers?: WebRtcTransportDefinitions.IceServer[];
 
         /**
          * This field shall contain a string which dictates the gathering and usage of ICE candidates. Specifically
@@ -377,7 +373,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.7
          */
-        iceServers?: IceServer[];
+        iceServers?: WebRtcTransportDefinitions.IceServer[];
 
         /**
          * This field controls the gathering and usage of ICE candidates and shall have one of the values found in
@@ -490,7 +486,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6.2
          */
-        iceCandidates: IceCandidate[];
+        iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
     }
 
     /**
@@ -511,7 +507,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7.2
          */
-        reason: WebRtcEndReason;
+        reason: WebRtcTransportDefinitions.WebRtcEndReason;
     }
 
     /**
@@ -544,25 +540,6 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1.3
          */
         kid: Bytes;
-    }
-
-    export enum WebRtcEndReason {
-        IceFailed = 0,
-        IceTimeout = 1,
-        UserHangup = 2,
-        PeerHangup = 3,
-        Busy = 4,
-        TimedOut = 5,
-        InternalError = 6
-    }
-
-    export interface IceCandidate {
-        candidate?: string;
-        sdpMid?: string | null;
-        sdpMLineIndex?: number | null;
-    }
-    export interface IceServer {
-        caid?: number;
     }
 
     /**

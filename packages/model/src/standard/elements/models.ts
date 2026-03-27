@@ -110,6 +110,7 @@ export const ThreadBorderRouterManagement = new ClusterModel(definitions.ThreadB
 export const ThreadNetworkDirectory = new ClusterModel(definitions.ThreadNetworkDirectory);
 export const CameraAvStreamManagement = new ClusterModel(definitions.CameraAvStreamManagement);
 export const CameraAvSettingsUserLevelManagement = new ClusterModel(definitions.CameraAvSettingsUserLevelManagement);
+export const WebRtcTransportDefinitions = new ClusterModel(definitions.WebRtcTransportDefinitions);
 export const WebRtcTransportProvider = new ClusterModel(definitions.WebRtcTransportProvider);
 export const WebRtcTransportRequestor = new ClusterModel(definitions.WebRtcTransportRequestor);
 export const PushAvStreamTransport = new ClusterModel(definitions.PushAvStreamTransport);

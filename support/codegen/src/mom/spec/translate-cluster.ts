@@ -45,8 +45,29 @@ export function* translateCluster(definition: ClusterReference) {
 
     const metadata = translateMetadata(definition, children);
     if (!metadata) {
-        // Sections without cluster IDs (e.g. introductory/common sections) are skipped — any shared
-        // datatypes they define will be inherited by derived clusters or declared per-cluster via overrides
+        if (definition.ids) {
+            // Section has a cluster ID table but IDs couldn't be parsed — this is a real cluster that
+            // needs manual handling via overrides (e.g. OccupancySensing).  Skip entirely.
+            return;
+        }
+
+        // Sections without cluster IDs (e.g. common/shared sections like "WebRTC Transport") contain
+        // datatypes shared across related clusters.  Emit as an abstract cluster (no ID) so the types
+        // have a home in the model without being duplicated into each consuming cluster.
+        translateDatatypes(definition, children);
+
+        if (children.length) {
+            const cluster = ClusterElement({
+                name: `${camelize(definition.name, true)}Definitions`,
+                xref: definition.xref,
+                children,
+            });
+
+            logCluster(cluster);
+            addDocumentation(cluster, definition);
+            yield cluster;
+        }
+
         return;
     }
 
@@ -93,7 +114,7 @@ function translateMetadata(definition: ClusterReference, children: Array<Cluster
 
     const ids = translateIds();
     if (!ids) {
-        logger.warn(`no IDs for ${definition.name}, skipping`);
+        logger.debug(`no IDs for ${definition.name}, checking for shared datatypes`);
         return;
     }
 

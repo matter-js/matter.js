@@ -9,6 +9,7 @@
 import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
+import type { WebRtcTransportDefinitions } from "./web-rtc-transport-definitions.js";
 import type { MaybePromise } from "@matter/general";
 
 /**
@@ -52,7 +53,7 @@ export declare namespace WebRtcTransportRequestor {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.4.1
          */
-        currentSessions: WebRtcSession[];
+        currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
 
     /**
@@ -65,7 +66,7 @@ export declare namespace WebRtcTransportRequestor {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.4.1
          */
-        currentSessions: WebRtcSession[];
+        currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
 
     /**
@@ -128,11 +129,6 @@ export declare namespace WebRtcTransportRequestor {
 
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
 
-    export interface WebRtcSession {
-        videoStreamId?: number;
-        audioStreamId?: number;
-    }
-
     /**
      * This command provides the stream requestor with WebRTC session details. It is sent following the receipt of a
      * SolicitOffer command or a re-Offer initiated by the Provider.
@@ -166,7 +162,7 @@ export declare namespace WebRtcTransportRequestor {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.3
          */
-        iceServers?: IceServer[];
+        iceServers?: WebRtcTransportDefinitions.IceServer[];
 
         /**
          * This field controls the gathering and usage of ICE candidates and shall have one of the values found in
@@ -229,7 +225,7 @@ export declare namespace WebRtcTransportRequestor {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3.2
          */
-        iceCandidates: IceCandidate[];
+        iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
     }
 
     /**
@@ -250,26 +246,7 @@ export declare namespace WebRtcTransportRequestor {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4.2
          */
-        reason: WebRtcEndReason;
-    }
-
-    export enum WebRtcEndReason {
-        IceFailed = 0,
-        IceTimeout = 1,
-        UserHangup = 2,
-        PeerHangup = 3,
-        Busy = 4,
-        TimedOut = 5,
-        InternalError = 6
-    }
-
-    export interface IceCandidate {
-        candidate?: string;
-        sdpMid?: string | null;
-        sdpMLineIndex?: number | null;
-    }
-    export interface IceServer {
-        caid?: number;
+        reason: WebRtcTransportDefinitions.WebRtcEndReason;
     }
 
     /**

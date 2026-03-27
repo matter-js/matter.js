@@ -102,6 +102,7 @@ export * from "./thread-border-router-management.element.js";
 export * from "./thread-network-directory.element.js";
 export * from "./camera-av-stream-management.element.js";
 export * from "./camera-av-settings-user-level-management.element.js";
+export * from "./web-rtc-transport-definitions.element.js";
 export * from "./web-rtc-transport-provider.element.js";
 export * from "./web-rtc-transport-requestor.element.js";
 export * from "./push-av-stream-transport.element.js";
