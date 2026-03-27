@@ -25,6 +25,8 @@ function makeThrowingSession(): ProtocolMocks.NodeSession {
     return session;
 }
 
+
+
 /**
  * Creates a MessageExchange with a trackable peerLost spy.
  */
@@ -111,4 +113,5 @@ describe("MessageExchange", () => {
             });
         });
     });
+
 });

@@ -4,7 +4,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MatterAggregateError } from "@matter/general";
+import { CanceledError, MatterAggregateError } from "@matter/general";
+import { PeerCommunicationError } from "@matter/protocol";
 
 /**
  * Tests the promise race pattern used by {@link ParallelPaseDiscovery.registerAttempt} and
@@ -25,6 +26,7 @@ describe("ParallelPaseDiscovery race pattern", () => {
         let winnerAttempt: Promise<unknown> | undefined;
         let winnerExtractor: ((result: unknown) => W | undefined) | undefined;
         let stopped = false;
+        const attemptErrors = new Array<Error>();
 
         function registerAttempt<R>(
             factory: (winOnPase: () => boolean) => R | PromiseLike<R>,
@@ -50,7 +52,11 @@ describe("ParallelPaseDiscovery race pattern", () => {
                         // Winner's error must propagate
                         throw error;
                     }
-                    // Loser: expected race side effect — resolve to prevent unhandled rejection
+                    // Loser: expected race side effect — resolve to prevent unhandled rejection.
+                    // Collect non-cancellation errors for the failure message.
+                    if (!(error instanceof CanceledError)) {
+                        attemptErrors.push(error);
+                    }
                     return undefined;
                 })
                 .finally(() => {
@@ -70,6 +76,9 @@ describe("ParallelPaseDiscovery race pattern", () => {
             }
 
             if (winner === undefined) {
+                if (attemptErrors.length > 0) {
+                    throw new MatterAggregateError(attemptErrors, "No winner");
+                }
                 throw new Error("No winner");
             }
 
@@ -264,5 +273,68 @@ describe("ParallelPaseDiscovery race pattern", () => {
         } finally {
             tracker.dispose();
         }
+    });
+
+    it("collects attempt errors into aggregate error when no winner", async () => {
+        const harness = createRaceHarness<string>();
+        const gate1 = deferred();
+        const gate2 = deferred();
+
+        harness.registerAttempt(
+            async () => {
+                await gate1.promise;
+                throw new PeerCommunicationError("address 1 unreachable");
+            },
+            result => result,
+        );
+
+        harness.registerAttempt(
+            async () => {
+                await gate2.promise;
+                throw new PeerCommunicationError("address 2 unreachable");
+            },
+            result => result,
+        );
+
+        // Both fail
+        gate1.resolve();
+        gate2.resolve();
+        await MockTime.yield3();
+
+        const error = await expect(harness.onComplete()).to.be.rejectedWith(MatterAggregateError);
+        expect(error.errors).length(2);
+        expect(error.errors[0].message).equals("address 1 unreachable");
+        expect(error.errors[1].message).equals("address 2 unreachable");
+    });
+
+    it("excludes CanceledError from collected attempt errors", async () => {
+        const harness = createRaceHarness<string>();
+        const gate1 = deferred();
+        const gate2 = deferred();
+
+        harness.registerAttempt(
+            async () => {
+                await gate1.promise;
+                throw new PeerCommunicationError("unreachable");
+            },
+            result => result,
+        );
+
+        harness.registerAttempt(
+            async () => {
+                await gate2.promise;
+                throw new CanceledError("aborted by race");
+            },
+            result => result,
+        );
+
+        gate1.resolve();
+        gate2.resolve();
+        await MockTime.yield3();
+
+        const error = await expect(harness.onComplete()).to.be.rejectedWith(MatterAggregateError);
+        // Only the PeerCommunicationError should be collected, not the CanceledError
+        expect(error.errors).length(1);
+        expect(error.errors[0].message).equals("unreachable");
     });
 });

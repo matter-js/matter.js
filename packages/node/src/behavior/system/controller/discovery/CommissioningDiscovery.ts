@@ -30,7 +30,7 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
 
         // Default discovery timeout matches the old discoverAndEstablishPase default.
         if (options.timeout === undefined) {
-            options = { ...options, timeout: Seconds(30) };
+            options = { ...options, timeout: Seconds(60) };
         }
 
         // Map discoveryCapabilities to a scannerFilter so BLE scanners are included when requested.
