@@ -7,7 +7,7 @@
 import { Logger } from "#log/Logger.js";
 import { ChannelType, IpNetworkChannel } from "#net/Channel.js";
 import { NetworkError } from "#net/Network.js";
-import { ServerAddressTcp } from "#net/ServerAddress.js";
+import { ServerAddressIp, ServerAddressTcp } from "#net/ServerAddress.js";
 import { Transport } from "#net/Transport.js";
 import { Bytes } from "#util/Bytes.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
@@ -36,7 +36,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
     readonly supportsLargeMessages = true;
     readonly type = ChannelType.TCP;
     readonly maxPayloadSize: number;
-    readonly networkAddressChanged = Observable<[ServerAddressTcp]>();
+    readonly networkAddressChanged = Observable<[ServerAddressIp]>();
 
     readonly #socket: TcpSocket;
     readonly #messageListeners = new Set<(data: Bytes) => void>();
@@ -89,7 +89,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
         }
 
         const message = Bytes.of(data);
-        if (message.length >= this.maxMessageSize) {
+        if (message.length > this.maxMessageSize) {
             throw new NetworkError(`Message size ${message.length} exceeds TCP limit of ${this.maxMessageSize}`);
         }
         const frame = new Uint8Array(FRAMING_HEADER_SIZE + message.length);
@@ -179,9 +179,8 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
             const view = new DataView(flat.buffer, flat.byteOffset, flat.byteLength);
             const messageLength = view.getUint32(0, true);
 
-            // Ignore zero-length messages — invalid framing
+            // Zero-length frames have no payload but are valid — consume the header and continue
             if (messageLength === 0) {
-                // Invalid zero-length frame — skip and continue
                 if (this.#receiveLength > FRAMING_HEADER_SIZE) {
                     const remainder = flat.slice(FRAMING_HEADER_SIZE);
                     this.#receiveChunks = [remainder];
@@ -194,7 +193,7 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
             }
 
             // Oversized message: the total frame (header + message) must fit within maxPayloadSize
-            if (messageLength >= this.maxMessageSize) {
+            if (messageLength > this.maxMessageSize) {
                 logger.error(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
                 // TODO: Send MESSAGE_TOO_LARGE status report (general code 17) before closing,
                 // per spec §4.15.2.3. This requires protocol-layer StatusReport construction

@@ -268,12 +268,12 @@ describe("TcpConnection", () => {
     });
 
     describe("send-side size check", () => {
-        it("rejects messages at or above the size limit", async () => {
+        it("rejects messages above the size limit", async () => {
             const { server } = createPair();
             const conn = new TcpConnection(server);
 
             // maxMessageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE - 4 = 63996
-            const oversized = new Uint8Array(conn.maxMessageSize);
+            const oversized = new Uint8Array(conn.maxMessageSize + 1);
 
             let threw = false;
             try {
@@ -287,14 +287,14 @@ describe("TcpConnection", () => {
             await conn.close();
         });
 
-        it("accepts messages just under the size limit", async () => {
+        it("accepts messages exactly at the size limit", async () => {
             const { server } = createPair();
             const conn = new TcpConnection(server);
 
-            const justUnder = new Uint8Array(conn.maxMessageSize - 1);
+            const atLimit = new Uint8Array(conn.maxMessageSize);
 
-            // Should not throw
-            await conn.send(justUnder);
+            // Should not throw — maxMessageSize is inclusive
+            await conn.send(atLimit);
 
             await conn.close();
         });

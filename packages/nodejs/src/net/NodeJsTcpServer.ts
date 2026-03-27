@@ -96,12 +96,14 @@ export class NodeJsTcpServer implements TcpServerSocket {
     }
 
     async close(): Promise<void> {
-        this.#server.close();
-
-        // server.close() waits for existing connections — destroy them so it completes
+        // Destroy active connections so server.close() can complete
         for (const socket of this.#activeSockets) {
             socket.destroy();
         }
         this.#activeSockets.clear();
+
+        await new Promise<void>((resolve, reject) => {
+            this.#server.close(error => (error ? reject(error) : resolve()));
+        });
     }
 }
