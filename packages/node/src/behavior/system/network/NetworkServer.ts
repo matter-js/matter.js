@@ -129,6 +129,9 @@ export namespace NetworkServer {
 
         @field(LimitsConfig)
         unlimited?: LimitsConfig;
+
+        @field(LimitsConfig)
+        unknown?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {

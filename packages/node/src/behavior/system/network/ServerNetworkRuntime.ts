@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { NetworkCommissioningBehavior } from "#behaviors/network-commissioning";
 import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
+    AddressInUseError,
     ConnectionlessTransport,
     ConnectionlessTransportSet,
     Crypto,
@@ -19,6 +21,7 @@ import {
     ObserverGroup,
     UdpInterface,
 } from "@matter/general";
+import { DeviceClassification } from "@matter/model";
 import {
     Advertiser,
     Ble,
@@ -41,6 +44,8 @@ import { NetworkRuntime } from "./NetworkRuntime.js";
 import { ServerGroupNetworking } from "./ServerGroupNetworking.js";
 
 const logger = Logger.get("ServerNetworkRuntime");
+
+const MAX_PORT_ASSIGNMENT_RETRIES = 10;
 
 function convertNetworkEnvironmentType(type: string | number) {
     const convertedType: InterfaceType =
@@ -143,38 +148,58 @@ export class ServerNetworkRuntime extends NetworkRuntime {
      */
     protected async addTransports(interfaces: ConnectionlessTransportSet) {
         const netconf = this.owner.state.network;
+        const network = this.owner.env.get(Network);
 
         const port = this.owner.state.network.port;
-        try {
-            this.#ipv6UdpInterface = await UdpInterface.create(
-                this.owner.env.get(Network),
-                "udp6",
-                port ? port : undefined,
-                netconf.listeningAddressIpv6,
-            );
-            interfaces.add(this.#ipv6UdpInterface);
 
-            await this.owner.set({ network: { operationalPort: this.#ipv6UdpInterface.port } });
-        } catch (error) {
-            NoAddressAvailableError.accept(error);
-            logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter.`);
-            throw error;
-        }
+        // When port is auto-assigned (0/undefined), we need both IPv6 and IPv4 UDP on the same port.
+        // The OS may assign an IPv6 port already taken on IPv4, so we retry up to 10 times.
+        const maxPortRetries = port ? 1 : MAX_PORT_ASSIGNMENT_RETRIES;
 
-        if (netconf.ipv4) {
+        for (let attempt = 1; attempt <= maxPortRetries; attempt++) {
+            let ipv6Interface: UdpInterface;
             try {
-                interfaces.add(
-                    await UdpInterface.create(
-                        this.owner.env.get(Network),
-                        "udp4",
-                        netconf.port,
-                        netconf.listeningAddressIpv4,
-                    ),
+                ipv6Interface = await UdpInterface.create(
+                    network,
+                    "udp6",
+                    port ? port : undefined,
+                    netconf.listeningAddressIpv6,
                 );
             } catch (error) {
                 NoAddressAvailableError.accept(error);
-                logger.info(`IPv4 UDP interface not created because IPv4 is not available`);
+                logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required by Matter.`);
+                throw error;
             }
+
+            let ipv4Interface: UdpInterface | undefined;
+            if (netconf.ipv4) {
+                try {
+                    ipv4Interface = await UdpInterface.create(
+                        network,
+                        "udp4",
+                        ipv6Interface.port,
+                        netconf.listeningAddressIpv4,
+                    );
+                } catch (error) {
+                    if (error instanceof AddressInUseError && attempt < maxPortRetries) {
+                        logger.info(
+                            `IPv4 UDP port ${ipv6Interface.port} already in use, retrying with new port (attempt ${attempt}/${maxPortRetries})`,
+                        );
+                        await ipv6Interface.close();
+                        continue;
+                    }
+                    NoAddressAvailableError.accept(error);
+                    logger.info(`IPv4 UDP interface not created because IPv4 is not available`);
+                }
+            }
+
+            this.#ipv6UdpInterface = ipv6Interface;
+            interfaces.add(ipv6Interface);
+            if (ipv4Interface !== undefined) {
+                interfaces.add(ipv4Interface);
+            }
+            await this.owner.set({ network: { operationalPort: ipv6Interface.port } });
+            break;
         }
 
         if (netconf.ble) {
@@ -302,8 +327,14 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         if (timing) {
             env.get(PeerSet).timing = timing;
         }
-        if (profiles) {
-            env.get(NetworkProfiles).defaults = profiles;
+
+        // Auto-detect the "unknown" profile for peers with unknown physical properties.  If the node has
+        // application endpoints we derive it from local network capabilities.  Users can still override
+        // via profiles.unknown in config.
+        const autoUnknown = this.#detectFallbackProfile();
+        const effectiveProfiles = autoUnknown !== undefined ? { unknown: autoUnknown, ...profiles } : profiles;
+        if (effectiveProfiles) {
+            env.get(NetworkProfiles).defaults = effectiveProfiles;
         }
 
         env.get(PeerSet).exchanges = exchanges;
@@ -377,6 +408,40 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         }
 
         env.delete(ScannerSet);
+    }
+
+    /**
+     * Auto-detect limits for the conservative/unknown profile based on the local node's endpoint structure.
+     *
+     * Returns profile limits if the node has application endpoints (i.e. it is a device), derived from the root
+     * endpoint's NetworkCommissioning supported features.  Returns undefined for pure controller/utility nodes.
+     */
+    #detectFallbackProfile(): NetworkProfiles.Limits | undefined {
+        const { owner } = this;
+
+        // Check if any child endpoint is an application device type
+        let hasApplicationEndpoint = false;
+        for (const part of owner.parts) {
+            if (!DeviceClassification.isUtility(part.type.deviceClass)) {
+                hasApplicationEndpoint = true;
+                break;
+            }
+        }
+
+        if (!hasApplicationEndpoint) {
+            return undefined;
+        }
+
+        // We are a device — determine profile from the root endpoint's NetworkCommissioning features.
+        // TODO - whenever we support WiFi/Thread or secondary network interfaces we need to adjust this logic
+        const nc = owner.behaviors.typeFor(NetworkCommissioningBehavior);
+        if (nc?.schema.supportedFeatures.has("TH")) {
+            logger.info("Default network profile for unknown peers set to thread");
+            return NetworkProfiles.defaults.thread;
+        }
+
+        logger.info("Default network profile for unknown peers set to fast");
+        return NetworkProfiles.defaults.fast;
     }
 
     async #initializeGroupNetworking() {
