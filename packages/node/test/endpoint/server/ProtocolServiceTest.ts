@@ -14,6 +14,7 @@ import {
     AcceptedCommandList,
     ClusterModel,
     CommandElement,
+    EventList,
     FeatureMap,
     FieldElement,
     GeneratedCommandList,
@@ -337,8 +338,6 @@ describe("ProtocolServiceTest", () => {
             device: OnOffLightDevice.with(OnOffServer),
         });
 
-        const EVENT_LIST_ID = 0xfffa;
-
         // Verify no cluster on any endpoint exposes EventList (deprecated, conformance "D").
         // On the client side, a remote device may report EventList in its attributeList causing
         // it to appear in supportedElements.  Without the deprecated-element guard in
@@ -347,7 +346,7 @@ describe("ProtocolServiceTest", () => {
         for (const ep of node.protocol) {
             for (const cluster of ep) {
                 expect(
-                    cluster.type.attributes[EVENT_LIST_ID],
+                    cluster.type.attributes[EventList.id],
                     `cluster ${cluster.type.id} on endpoint ${ep.id} should not expose deprecated EventList`,
                 ).to.be.undefined;
             }
@@ -356,10 +355,10 @@ describe("ProtocolServiceTest", () => {
         // Also verify that calling TlvOfModel on the deprecated EventList model would indeed
         // throw — confirming the guard in clusterTypeProtocolOf is necessary
         const onOffSchema = OnOff.schema;
-        const eventListModel = onOffSchema.attributes.find(m => m.id === EVENT_LIST_ID);
+        const eventListModel = onOffSchema.attributes.find(m => m.id === EventList.id);
         expect(eventListModel, "EventList should be present as unfiltered member").to.exist;
         expect(eventListModel!.isDeprecated, "EventList should be deprecated").to.be.true;
-        expect(() => TlvOfModel(eventListModel!)).to.throw("No metabase for model EventList");
+        expect(() => TlvOfModel(eventListModel!)).to.throw(/No metabase for model/);
 
         await node.close();
     });
