@@ -106,6 +106,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
 
         this.#reader = new WalReader(walDir);
         this.#writer = new WalWriter(walDir, {
+            name: this.root?.namespace,
             maxSegmentSize: this.#options.maxSegmentSize,
             fsync: this.#options.fsync,
             onRotate: compressLog

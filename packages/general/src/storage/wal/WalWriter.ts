@@ -21,6 +21,7 @@ import {
  */
 export class WalWriter {
     readonly #walDir: Directory;
+    readonly #name: string;
     readonly #maxSegmentSize: number;
     readonly #fsync: boolean;
     readonly #onRotate?: (closedSegment: number) => void;
@@ -32,6 +33,7 @@ export class WalWriter {
 
     constructor(walDir: Directory, options?: WalWriter.Options) {
         this.#walDir = walDir;
+        this.#name = options?.name ?? "unknown";
         this.#maxSegmentSize = options?.maxSegmentSize ?? 16 * 1024 * 1024; // 16 MB default
         this.#fsync = options?.fsync ?? true;
         this.#onRotate = options?.onRotate;
@@ -127,7 +129,7 @@ export class WalWriter {
                     this.#currentSegment = maxSegment;
                     this.#currentOffset = lineCount;
                     this.#currentSize = byteSize;
-                    this.#handle = await lastFile.open("a");
+                    this.#handle = await lastFile.open(this.#handlePurpose, "a");
                     return;
                 }
 
@@ -141,7 +143,7 @@ export class WalWriter {
         this.#currentOffset = 0;
         this.#currentSize = 0;
         const file = this.#walDir.file(segmentFilename(this.#currentSegment));
-        this.#handle = await file.open("a");
+        this.#handle = await file.open(this.#handlePurpose, "a");
     }
 
     async #rotate(): Promise<void> {
@@ -153,13 +155,19 @@ export class WalWriter {
         this.#currentOffset = 0;
         this.#currentSize = 0;
         const file = this.#walDir.file(segmentFilename(this.#currentSegment));
-        this.#handle = await file.open("a");
+        this.#handle = await file.open(this.#handlePurpose, "a");
         this.#onRotate?.(closedSegment);
+    }
+
+    get #handlePurpose() {
+        return `WAL writer ${this.#name} segment ${this.#currentSegment}`;
     }
 }
 
 export namespace WalWriter {
     export interface Options {
+        /** Storage name, used in file handle leak diagnostics. */
+        name?: string;
         /** Maximum segment size in bytes before rotation. Default 16 MB. */
         maxSegmentSize?: number;
         /** Whether to fsync after each write. Default true. */
