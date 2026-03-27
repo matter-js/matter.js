@@ -4,7 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FieldElement } from "@matter/model";
+import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
+import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
+import { ClusterModel, CommandModel, DataModelPath, FeatureMap, FieldElement, FieldModel } from "@matter/model";
 import { ConformanceError, EnumValueConformanceError, UnknownEnumValueError } from "@matter/protocol";
 import { Features, Fields, Tests, testValidation } from "./validation-test-utils.js";
 
@@ -541,6 +543,40 @@ const AllTests = Tests({
             },
         ),
 
+        "enum equality": Tests(
+            Fields(
+                {
+                    name: "Status",
+                    type: "enum8",
+                    children: [FieldElement({ id: 0, name: "Idle" }), FieldElement({ id: 1, name: "UpdateAvailable" })],
+                },
+                {
+                    name: "ImageUri",
+                    type: "string",
+                    conformance: "Status == UpdateAvailable",
+                },
+            ),
+            {
+                "allows if enum matches": {
+                    record: { status: 1, imageUri: "https://example.com" },
+                },
+
+                "requires if enum matches": {
+                    record: { status: 1 },
+                    error: missing("Status == UpdateAvailable", "imageUri"),
+                },
+
+                "disallows if enum does not match": {
+                    record: { status: 0, imageUri: "https://example.com" },
+                    error: disallowed("Status == UpdateAvailable", "imageUri"),
+                },
+
+                "allows omission if enum does not match": {
+                    record: { status: 0 },
+                },
+            },
+        ),
+
         "optional field dependency": Tests(
             Fields(
                 {
@@ -642,7 +678,118 @@ const AllTests = Tests({
                 },
             },
         ),
+
+        "qualified field reference": Tests(
+            Fields(
+                {
+                    name: "Opts",
+                    type: "struct",
+                    children: [
+                        FieldElement({ name: "Enable", id: 0, type: "uint8" }),
+                        FieldElement({ name: "Mode", id: 1, type: "uint8" }),
+                    ],
+                },
+                { name: "Dependent", type: "uint8", conformance: "Opts.Enable" },
+            ),
+            {
+                "allows if qualified ref is present": {
+                    record: { opts: { enable: 1 }, dependent: 42 },
+                },
+
+                "requires if qualified ref is present": {
+                    record: { opts: { enable: 1 } },
+                    error: missing("Opts.Enable", "dependent"),
+                },
+
+                "disallows if qualified ref is absent": {
+                    record: { opts: { mode: 1 }, dependent: 42 },
+                    error: disallowed("Opts.Enable", "dependent"),
+                },
+
+                "allows omission if qualified ref is absent": {
+                    record: { opts: { mode: 1 } },
+                },
+
+                "allows omission if parent is absent": {
+                    record: {},
+                },
+            },
+        ),
     }),
 });
 
-testValidation("conformance", AllTests);
+describe("conformance", () => {
+    testValidation("conformance", AllTests);
+
+    describe("outerResolve", () => {
+        // Field "Dependent" has conformance "ExtValue" — ExtValue is not a sibling, but provided via outerResolve
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                FeatureMap.clone(),
+                new FieldModel({ name: "Dependent", type: "uint8", conformance: "ExtValue" }),
+            ],
+        });
+
+        const root = RootSupervisor.for(cluster);
+        const manager = root.get(cluster);
+
+        function validateWith(record: Record<string, unknown>, outerResolve?: (name: string) => unknown) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, {
+                path: new DataModelPath(cluster.path),
+                outerResolve,
+            });
+        }
+
+        it("resolves name via outerResolve when not in siblings", () => {
+            expect(() => validateWith({ dependent: 42 }, name => (name === "extValue" ? 1 : undefined))).not.throw();
+        });
+
+        it("requires field when outerResolve returns truthy", () => {
+            expect(() => validateWith({}, name => (name === "extValue" ? 1 : undefined))).throw(ConformanceError);
+        });
+
+        it("disallows field when outerResolve returns undefined", () => {
+            expect(() => validateWith({ dependent: 42 }, () => undefined)).throw(ConformanceError);
+        });
+
+        it("allows omission when outerResolve returns undefined", () => {
+            expect(() => validateWith({}, () => undefined)).not.throw();
+        });
+
+        it("allows omission without outerResolve", () => {
+            expect(() => validateWith({})).not.throw();
+        });
+    });
+
+    describe("element references", () => {
+        // Field conformance references a command name — should be treated as conformant since element-level
+        // conformance is structural (enforced by ValidatedElements), not the data validator
+        const cluster = new ClusterModel({
+            name: "Test",
+            children: [
+                FeatureMap.clone(),
+                new CommandModel({ name: "Pause", id: 1, direction: "request" }),
+                new CommandModel({ name: "Resume", id: 2, direction: "request" }),
+                new FieldModel({ name: "Dependent", type: "uint8", conformance: "Pause | Resume" }),
+            ],
+        });
+
+        const root = RootSupervisor.for(cluster);
+        const manager = root.get(cluster);
+
+        function validate(record: Record<string, unknown>) {
+            manager.validate?.(record, LocalActorContext.ReadOnly, {
+                path: new DataModelPath(cluster.path),
+            });
+        }
+
+        it("accepts field when conformance references cluster element", () => {
+            expect(() => validate({ dependent: 42 })).not.throw();
+        });
+
+        it("requires field when conformance references cluster element", () => {
+            expect(() => validate({})).throw(ConformanceError);
+        });
+    });
+});

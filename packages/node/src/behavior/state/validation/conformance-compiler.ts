@@ -7,7 +7,16 @@
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { camelize } from "@matter/general";
 import type { Schema } from "@matter/model";
-import { Conformance, DataModelPath, FeatureSet, FieldValue, Metatype, ValueModel } from "@matter/model";
+import {
+    ClusterModel,
+    Conformance,
+    DataModelPath,
+    ElementTag,
+    FeatureSet,
+    FieldValue,
+    Metatype,
+    ValueModel,
+} from "@matter/model";
 import {
     AccessControl,
     ConformanceError,
@@ -71,7 +80,8 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
     // Name resolution scope may change as we visit the AST; the base version creates a name reference if the the name
     // is visible in scope.  Other nodes may temporarily override this though
     let createNameReference = (name: string): DynamicNode => {
-        const resolver = NameResolver(supervisor, schema.parent, camelize(name));
+        const camelized = camelize(name);
+        const resolver = NameResolver(supervisor, schema.parent, camelized);
         if (resolver) {
             return {
                 code: Code.Evaluate,
@@ -85,8 +95,17 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             };
         }
 
-        // Unresolved names are always undefined
-        return { code: Code.Value, value: undefined };
+        // Name not in schema hierarchy — fall back to outerResolve at runtime
+        return {
+            code: Code.Evaluate,
+
+            evaluate: (_value, options) => {
+                return {
+                    code: Code.Value,
+                    value: options?.outerResolve?.(camelized),
+                };
+            },
+        };
     };
 
     // Compile the AST
@@ -216,6 +235,9 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
 
             case Conformance.Flag.Mandatory:
                 return createMandatory();
+
+            case Conformance.Operator.DOT:
+                return createDotAccess(ast.param);
 
             case Conformance.Operator.AND:
             case Conformance.Operator.OR:
@@ -367,9 +389,68 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             return NonconformantNode;
         }
 
+        // Check if name references a top-level cluster element (command, event, datatype).  Element-level
+        // conformance is structural, enforced by ValidatedElements, not the data validator
+        const resolved = schema.parent?.resolve(param, {
+            tags: [ElementTag.Command, ElementTag.Event],
+        });
+        if (resolved) {
+            return ConformantNode;
+        }
+
         // Name references another value.  This results in a value node but must be evaluated at runtime against a
         // specific struct
         return createNameReference(param);
+    }
+
+    /**
+     * A DOT node represents a qualified field access like `Opts.Enable`.  Compile the LHS to get the parent value, then
+     * access the RHS property name on it.
+     */
+    function createDotAccess({ lhs, rhs }: Conformance.Ast.BinaryOperands): DynamicNode {
+        let compiledLhs = compile(lhs);
+
+        // RHS must be a name node
+        if (rhs.type !== Conformance.Special.Name) {
+            throw new SchemaImplementationError(
+                new DataModelPath(schema.path),
+                `DOT operator RHS must be a name, got ${rhs.type}`,
+            );
+        }
+        const propertyName = camelize(rhs.param);
+
+        // If LHS resolved statically to a cluster element (e.g. a command name), recompile as a name reference.
+        // Dot access needs the actual data value to access a property on, and the data is provided via outerResolve
+        if (compiledLhs.code === Code.Conformant && lhs.type === Conformance.Special.Name) {
+            compiledLhs = createNameReference(lhs.param);
+        }
+
+        // If LHS is static (e.g. undefined from unresolved name), the dot access is also static
+        if (compiledLhs.code === Code.Value) {
+            const lhsVal = compiledLhs.value;
+            if (lhsVal === undefined || lhsVal === null) {
+                return { code: Code.Value, value: undefined };
+            }
+            return { code: Code.Value, value: (lhsVal as Val.Struct)[propertyName] };
+        }
+
+        // LHS requires runtime evaluation — chain the property access
+        if (compiledLhs.code === Code.Evaluate) {
+            const { evaluate } = compiledLhs;
+            return {
+                code: Code.Evaluate,
+                evaluate: (value, options) => {
+                    const lhsResult = evaluate(value, options);
+                    if (lhsResult.code !== Code.Value || lhsResult.value === undefined || lhsResult.value === null) {
+                        return { code: Code.Value, value: undefined };
+                    }
+                    return { code: Code.Value, value: (lhsResult.value as Val.Struct)[propertyName] };
+                },
+            };
+        }
+
+        // Conformant/nonconformant/etc. — dot access doesn't apply
+        return { code: Code.Value, value: undefined };
     }
 
     /**
@@ -548,7 +629,12 @@ export function astToFunction(schema: ValueModel, supervisor: RootSupervisor): V
             // completeness
             if (lhs.type === Conformance.Special.Name) {
                 const name = camelize(lhs.param, false);
-                const field = supervisor.membersOf(schema).find(model => model.propertyName === name);
+                const siblingScope =
+                    schema.parent instanceof ValueModel || schema.parent instanceof ClusterModel
+                        ? schema.parent
+                        : undefined;
+                const field =
+                    siblingScope && supervisor.membersOf(siblingScope).find(model => model.propertyName === name);
                 if (field?.effectiveMetatype === Metatype.enum) {
                     let enumValues: undefined | Record<string, number | undefined>;
                     createNameReference = (name: string) => {

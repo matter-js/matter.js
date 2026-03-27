@@ -18,8 +18,10 @@ import {
 } from "@matter/general";
 import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val } from "@matter/protocol";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
+import { GlobalConfig, LocalConfig } from "../../supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { StateType } from "../StateType.js";
+import type { ValReference } from "./ValReference.js";
 
 const logger = Logger.get("Datasource");
 
@@ -122,13 +124,17 @@ export function Datasource<const T extends StateType = StateType>(options: Datas
             if (!validate) {
                 return;
             }
-            validate(values ?? internals.values, session, { path: internals.location.path });
+            validate(values ?? internals.values, session, {
+                path: internals.location.path,
+                config: internals.supervisionConfig,
+            });
         },
 
         get view() {
             if (!readOnlyView) {
                 const session: ValueSupervisor.Session = {
                     transaction: viewTx,
+                    supervisionMode: "global",
                 };
                 readOnlyView = createReference(this, internals, session).managed as InstanceType<T>;
             }
@@ -289,6 +295,7 @@ interface Internals extends Datasource.Options {
     changedEventFor(key: string): undefined | Datasource.Events[any];
     persistentFields: Set<string>;
     externalChangeListener?: (changes: Val.StructMap) => Promise<void>;
+    supervisionConfig?: GlobalConfig;
 }
 
 /**
@@ -506,7 +513,7 @@ function configureExternalChanges(internals: Internals) {
 }
 
 /**
- * The bulk of {@link Datasource} logic resides with a specific {@link Val.Reference} created by this function.
+ * The bulk of {@link Datasource} logic resides with a specific {@link ValReference} created by this function.
  *
  * This reference provides external access to the {@link Val.Struct} in the context of a specific session.
  */
@@ -546,7 +553,7 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
     const fields = internals.supervisor.memberNames;
 
     // This is the actual reference
-    const reference: Val.Reference<Val.Struct> = {
+    const reference: ValReference<Val.Struct> = {
         primaryKey: internals.primaryKey,
 
         get original() {
@@ -625,6 +632,18 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
     };
 
     reference.toString = () => `ref<${resource}>`;
+
+    // Wire supervision config.  Lazily create the shared GlobalConfig on first access.  Global-mode sessions
+    // (view, initialization) get direct access; local-mode sessions get a LocalConfig wrapper so overrides are
+    // session-scoped
+    if (!internals.supervisionConfig) {
+        internals.supervisionConfig = new GlobalConfig();
+    }
+    if (session.supervisionMode === "global") {
+        reference.supervisionConfig = internals.supervisionConfig;
+    } else {
+        reference.supervisionConfig = new LocalConfig(internals.supervisionConfig);
+    }
 
     // Register a listener on the datasource so we can update our reference when the datasource changes
     const context: SessionContext = {

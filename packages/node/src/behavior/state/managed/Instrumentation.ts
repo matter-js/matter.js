@@ -7,6 +7,7 @@
 import type { Val } from "@matter/protocol";
 import type { Behavior } from "../../Behavior.js";
 import type { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
+import type { ValReference } from "./ValReference.js";
 
 /**
  * Instrumentation points for the managed values used for {@link Behavior.state}.
@@ -15,7 +16,7 @@ export namespace Instrumentation {
     /**
      * A constructor for the generated class associated with a {@link Val.Struct}.
      */
-    export type StructFactory = new (ref: Val.Reference<Val.Struct>, session: ValueSupervisor.Session) => Val.Struct;
+    export type StructFactory = new (ref: ValReference<Val.Struct>, session: ValueSupervisor.Session) => Val.Struct;
 
     /**
      * Instrument the class generated for Matter structs.

@@ -4,19 +4,32 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { NetworkCommissioningServer } from "#behaviors/network-commissioning";
 import { OnOffServer } from "#behaviors/on-off";
 import { OnOffLightDevice } from "#devices/on-off-light";
-import { AcceptedCommandList, FeatureMap, GeneratedCommandList, Specification } from "@matter/model";
+import { MutableEndpoint } from "#endpoint/type/MutableEndpoint.js";
+import { MaybePromise } from "@matter/general";
+import {
+    AcceptedCommandList,
+    ClusterModel,
+    CommandElement,
+    FeatureMap,
+    FieldElement,
+    GeneratedCommandList,
+    Specification,
+} from "@matter/model";
 import { Fabric } from "@matter/protocol";
 import {
     AttributeId,
     ClusterId,
+    ClusterType,
     CommandId,
     EndpointNumber,
     Status,
     TlvAny,
     TlvArray,
+    TlvBoolean,
     TlvEnum,
     TlvField,
     TlvInvokeResponseData,
@@ -25,6 +38,7 @@ import {
     TlvOfModel,
     TlvSchema,
     TlvSubjectId,
+    TlvUInt8,
     TypeFromSchema,
 } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
@@ -358,3 +372,152 @@ describe("ProtocolServiceTest", () => {
         await node.close();
     });
 });
+
+describe("command validation", () => {
+    testCommandValidation();
+});
+
+function testCommandValidation() {
+    // TLV schemas for request and response
+    const TlvTestRequest = TlvObject({ enable: TlvField(0, TlvBoolean), value: TlvField(1, TlvUInt8) });
+    // Schema with qualified conformance: response field "Result" is mandatory when "TestRequest.Enable" is true
+    const TestSchema = new ClusterModel({
+        id: 0xfff1_fc01,
+        name: "TestCluster",
+        children: [
+            CommandElement(
+                { id: 1, name: "TestRequest", response: "TestResponse", conformance: "M" },
+                FieldElement({ id: 0, name: "Enable", type: "bool", conformance: "M" }),
+                FieldElement({ id: 1, name: "Value", type: "uint8", conformance: "M", constraint: "max 10" }),
+            ),
+            CommandElement(
+                { id: 1, name: "TestResponse", direction: "response", conformance: "M" },
+                FieldElement({ id: 0, name: "Result", type: "uint8", conformance: "TestRequest.Enable" }),
+            ),
+        ],
+    });
+
+    // Cluster type from schema
+    interface TestInterface {
+        Components: [
+            {
+                flags: {};
+                commands: {
+                    testRequest(request: { enable: boolean; value: number }): MaybePromise<{ result?: number }>;
+                };
+            },
+        ];
+    }
+
+    const TestCluster = ClusterType(TestSchema) as ClusterType.Concrete & { Typing: TestInterface };
+    const TestBehavior = ClusterBehavior.for(TestCluster);
+
+    // Endpoint type
+    const TestDevice = MutableEndpoint({ name: "TestDevice", deviceType: 0xfff1_fc01, deviceRevision: 1 });
+
+    it("validates response with qualified conformance", async () => {
+        // Behavior that returns result when enable=true
+        class TestServer extends TestBehavior {
+            override testRequest(request: { enable: boolean; value: number }) {
+                if (request.enable) {
+                    return { result: request.value };
+                }
+                return {};
+            }
+        }
+
+        const device = TestDevice.with(TestServer);
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        // Invoke with enable=true; response includes result — should succeed
+        let hasCommandResponse = false;
+        await interaction.invoke(
+            node,
+            await node.addFabric(),
+            {
+                commandPath: {
+                    endpointId: EndpointNumber(1),
+                    clusterId: ClusterId(TestCluster.id),
+                    commandId: CommandId(TestCluster.commands!.testRequest.id),
+                },
+                commandFields: TlvTestRequest.encodeTlv({ enable: true, value: 5 }),
+            },
+            response => {
+                hasCommandResponse = response?.command !== undefined;
+            },
+        );
+
+        // Successful invoke returns a command response (not a status response)
+        expect(hasCommandResponse).equals(true);
+
+        await node.close();
+    });
+
+    it("rejects request with constraint violation", async () => {
+        class TestServer extends TestBehavior {
+            override testRequest(request: { enable: boolean; value: number }) {
+                return { result: request.value };
+            }
+        }
+
+        const device = TestDevice.with(TestServer);
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+
+        // Send value=99 which violates the "max 10" constraint on Value
+        await interaction.invoke(
+            node,
+            await node.addFabric(),
+            {
+                commandPath: {
+                    endpointId: EndpointNumber(1),
+                    clusterId: ClusterId(TestCluster.id),
+                    commandId: CommandId(TestCluster.commands!.testRequest.id),
+                },
+                commandFields: TlvTestRequest.encodeTlv({ enable: true, value: 99 }),
+            },
+            response => {
+                sent = response;
+            },
+        );
+
+        // Constraint violation returns a status error, not a command response
+        expect(sent?.status?.status?.status).equals(Status.ConstraintError);
+
+        await node.close();
+    });
+
+    it("rejects response missing required field per qualified conformance", async () => {
+        // Behavior that always omits result, even when enable=true
+        class BadTestServer extends TestBehavior {
+            override testRequest(_request: { enable: boolean; value: number }) {
+                return {};
+            }
+        }
+
+        const device = TestDevice.with(BadTestServer);
+        const node = await MockServerNode.createOnline(undefined, { device });
+
+        let sent: undefined | TypeFromSchema<typeof TlvInvokeResponseData>;
+        await interaction.invoke(
+            node,
+            await node.addFabric(),
+            {
+                commandPath: {
+                    endpointId: EndpointNumber(1),
+                    clusterId: ClusterId(TestCluster.id),
+                    commandId: CommandId(TestCluster.commands!.testRequest.id),
+                },
+                commandFields: TlvTestRequest.encodeTlv({ enable: true, value: 5 }),
+            },
+            response => {
+                sent = response;
+            },
+        );
+
+        expect(sent?.status?.status.status).equals(Status.Failure);
+
+        await node.close();
+    });
+}
