@@ -14,6 +14,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     override tag: RequirementElement.Tag = RequirementElement.Tag;
     declare element: RequirementElement.ElementType;
     declare default?: any;
+    declare instance?: number;
 
     #constraint: Constraint;
     #conformance: Conformance;
@@ -82,6 +83,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
 
         this.element = definition.element as RequirementElement.ElementType;
         this.default = definition.default;
+        this.instance = definition.instance;
         this.#constraint = Constraint.create(definition.constraint);
         this.#conformance = Conformance.create(definition.conformance);
         this.#access = Access.create(definition.access);
@@ -91,6 +93,7 @@ export class RequirementModel extends Model<RequirementElement, RequirementModel
     override toElement(omitResources = false, extra?: Record<string, unknown>) {
         return super.toElement(omitResources, {
             element: this.element,
+            instance: this.instance,
             default: this.default,
             constraint: this.#constraint.valueOf(),
             conformance: this.#conformance.valueOf(),

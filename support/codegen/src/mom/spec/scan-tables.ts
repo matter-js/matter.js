@@ -83,7 +83,7 @@ function convertTable(el: HTMLTableElement, previous: Table | undefined) {
         }
 
         if (cells.length === 1) {
-            table.notes.push(cells[0] as HTMLElement);
+            table.notes.push({ note: cells[0] as HTMLElement, beforeRowIndex: table.rows.length });
             for (const span of rowspans) {
                 if (span.remaining) {
                     span.remaining--;

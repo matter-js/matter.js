@@ -24,9 +24,6 @@ export function* translateNamespace(nsRef: HtmlReference) {
         throw new Error("Multiple namespace IDs detected");
     }
 
-    const props = ids[0];
-    props.name = props.name.replace(/^Common/, "");
-
     const ns = SemanticNamespaceElement(ids[0]);
 
     addDocumentation(ns, nsRef);

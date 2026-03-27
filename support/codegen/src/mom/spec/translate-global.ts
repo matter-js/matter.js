@@ -92,6 +92,7 @@ function* translateDatatypes(ref: GlobalReference): Generator<DatatypeElement> {
                     break;
 
                 case "LocationDescriptorStruct":
+                case "LocationDescriptorStruct Type":
                     detail.name = "locationdesc";
             }
         }

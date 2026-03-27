@@ -153,6 +153,22 @@ const VarianceMatchers: VarianceMatcher[] = [
         },
     },
 
+    // [FOO<& BAR>*].a+ (e.g. [LF & PA_LF].a+)
+    {
+        pattern: pattern("[", CONJUNCT_FEATURES, "]", "\\.[a-z][0-9-]*[+\\-]?"),
+        processor(add, match) {
+            add(true, { allOf: splitConjunction(match[0]) });
+        },
+    },
+
+    // [FOO & !BAR]
+    {
+        pattern: pattern("[", FEATURE, AND, NOT, FEATURE, "]"),
+        processor(add, match) {
+            add(true, { allOf: [match[0]], not: match[1] });
+        },
+    },
+
     // [FOO<| BAR>+]
     {
         pattern: pattern("[", DISJUNCT_FEATURES, "]"),
@@ -192,6 +208,14 @@ const VarianceMatchers: VarianceMatcher[] = [
             // Must add to two sets because optionality differs
             add(false, { allOf: [match[0]] });
             add(true, { allOf: [match[1]] });
+        },
+    },
+
+    // FOO & (BAR | BIZ | ...)
+    {
+        pattern: pattern(FEATURE, AND, "\\(", DISJUNCT_FEATURES, "\\)"),
+        processor(add, match) {
+            add(false, { allOf: [match[0]], anyOf: splitDisjunction(match[1]) });
         },
     },
 
