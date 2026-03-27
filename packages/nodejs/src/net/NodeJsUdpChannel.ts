@@ -293,7 +293,22 @@ export class NodeJsUdpChannel implements UdpChannel {
         // IPv6 multicast addresses require interface scoping for the kernel to route them correctly
         let sendHost = host;
         if (host.startsWith("ff") && !host.includes("%")) {
-            const effectiveInterface = this.#netInterface ?? this.#observedInterface;
+            let effectiveInterface = this.#netInterface ?? this.#observedInterface;
+            if (!effectiveInterface) {
+                // No interface known yet (e.g. no inbound UDP messages received because
+                // sessions were established over TCP). Detect from the socket's bound address.
+                const boundAddress = this.#socket.address();
+                if ("address" in boundAddress && boundAddress.address !== "::") {
+                    effectiveInterface = NodeJsNetwork.getNetInterfaceForIp(boundAddress.address);
+                }
+                if (!effectiveInterface) {
+                    // Fallback: use any available IPv6 interface
+                    effectiveInterface = NodeJsNetwork.getDefaultNetInterface();
+                }
+                if (effectiveInterface) {
+                    this.#observedInterface = effectiveInterface;
+                }
+            }
             if (effectiveInterface) {
                 sendHost = `${host}%${effectiveInterface}`;
             } else {

@@ -9,7 +9,7 @@ import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
+import { ChannelType, Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
@@ -18,8 +18,8 @@ import { NetworkBehavior } from "./NetworkBehavior.js";
 
 export class NetworkClient extends NetworkBehavior {
     declare internal: NetworkClient.Internal;
-    declare readonly state: NetworkClient.State;
-    declare readonly events: NetworkClient.Events;
+    declare state: NetworkClient.State;
+    declare events: NetworkClient.Events;
 
     override initialize() {
         if (this.#node.isGroup) {
@@ -53,6 +53,14 @@ export class NetworkClient extends NetworkBehavior {
             if (peer) {
                 peer.protocol = this.#node.protocol;
                 peer.physicalProperties = ClientNodePhysicalProperties(this.#node);
+
+                // Set transport preference: per-peer override from NetworkClient, or inherit
+                // from the controller (owner) NetworkServer default. Maps "tcp"/"udp" string to ChannelType.
+                const pref =
+                    this.state.transportPreference ?? (this.#node.owner?.state as any)?.network?.transportPreference;
+                if (pref === "tcp") {
+                    peer.transportPreference = ChannelType.TCP;
+                }
             }
         }
 
@@ -203,6 +211,13 @@ export class NetworkClient extends NetworkBehavior {
                 quality: "N",
                 default: EventNumber(0),
             }),
+
+            FieldElement({
+                name: "transportPreference",
+                type: "string",
+                conformance: "O",
+                quality: "N",
+            }),
         ],
     });
 }
@@ -261,6 +276,12 @@ export namespace NetworkClient {
          * The highest event number seen from this node for the default read/subscription.
          */
         maxEventNumber = EventNumber(0);
+
+        /**
+         * Per-peer transport preference override. If set by the user, persisted.
+         * If not set, inherits from NetworkServer.transportPreference.
+         */
+        transportPreference?: "tcp" | "udp";
     }
 
     export class Events extends NetworkBehavior.Events {

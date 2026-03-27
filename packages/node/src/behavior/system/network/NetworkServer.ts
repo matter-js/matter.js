@@ -22,7 +22,7 @@ const logger = Logger.get("NetworkingServer");
  * implementation.
  */
 export class NetworkServer extends NetworkBehavior {
-    declare readonly state: NetworkServer.State;
+    declare state: NetworkServer.State;
     declare internal: NetworkServer.Internal;
 
     override initialize() {
@@ -129,9 +129,6 @@ export namespace NetworkServer {
 
         @field(LimitsConfig)
         unlimited?: LimitsConfig;
-
-        @field(LimitsConfig)
-        unknown?: LimitsConfig;
     }
 
     export class State extends NetworkBehavior.State {
@@ -144,10 +141,39 @@ export namespace NetworkServer {
         };
         subscriptionOptions?: ServerSubscriptionConfig = undefined;
 
+        /**
+         * Enable TCP transport. `true` enables both incoming (server) and outgoing (client).
+         * Fine-grained control via `{ incoming?: boolean; outgoing?: boolean }`.
+         * Disabled by default.
+         */
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean } = undefined;
+
+        /**
+         * Preferred transport for outgoing connections. Default "udp".
+         * Revisit once TCP device stability is proven.
+         */
+        transportPreference?: "tcp" | "udp" = "udp";
+
         @field(TimingConfig)
         timing?: TimingConfig;
 
         @field(ProfilesConfig)
         profiles?: ProfilesConfig;
+    }
+
+    /**
+     * Resolve the tcp shorthand to explicit incoming/outgoing booleans.
+     */
+    export function resolveTcpConfig(tcp?: boolean | { incoming?: boolean; outgoing?: boolean }): {
+        incoming: boolean;
+        outgoing: boolean;
+    } {
+        if (tcp === true) {
+            return { incoming: true, outgoing: true };
+        }
+        if (tcp === false || tcp === undefined) {
+            return { incoming: false, outgoing: false };
+        }
+        return { incoming: tcp.incoming ?? false, outgoing: tcp.outgoing ?? false };
     }
 }

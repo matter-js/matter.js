@@ -19,7 +19,7 @@ export class NetworkBehavior extends Behavior {
     static override readonly early = true;
 
     declare internal: NetworkBehavior.Internal;
-    declare readonly state: NetworkBehavior.State;
+    declare state: NetworkBehavior.State;
 
     override [Symbol.asyncDispose]() {
         return this.internal.runtime?.close();
