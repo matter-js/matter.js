@@ -23,7 +23,6 @@ import {
 } from "@matter/general";
 import {
     ChangeNotificationService,
-    ClusterState,
     ContinuousDiscovery,
     Endpoint,
     NetworkClient,
@@ -199,16 +198,6 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
     readonly rootNodeId?: NodeId;
 
     /**
-     * Enable TCP transport. true = both incoming+outgoing. Default: false (UDP only).
-     */
-    readonly tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
-
-    /**
-     * Preferred transport for outgoing connections. Default: "udp".
-     */
-    readonly transportPreference?: "tcp" | "udp";
-
-    /**
      * If provided this Certificate Authority instance is used to fetch or get all relevant certificates for the
      * Controller. If not provided a new Certificate Authority instance is created and certificates will be self-generated.
      */
@@ -227,10 +216,20 @@ export type CommissioningControllerOptions = CommissioningControllerNodeOptions 
     readonly enableOtaProvider?: boolean;
 
     /**
+     * Enable TCP transport. true = both incoming+outgoing. Default: false (UDP only).
+     */
+    readonly tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+
+    /**
+     * Preferred transport for outgoing connections. Default: "udp".
+     */
+    readonly transportPreference?: "tcp" | "udp";
+
+    /**
      * Options for the BasicInformation cluster of the Controller node.
      * The vendorId is determined by the adminVendorId!
      */
-    readonly basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+    readonly basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
 };
 
 /**

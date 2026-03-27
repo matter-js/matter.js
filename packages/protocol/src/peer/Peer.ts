@@ -36,7 +36,6 @@ import {
     Time,
     Timestamp,
 } from "@matter/general";
-import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
 import { PeerAddressMonitor } from "./PeerAddressMonitor.js";
@@ -65,8 +64,7 @@ export class Peer {
     #abort = new Abort();
 
     /**
-     * Preferred transport for outgoing connections to this peer. When set, influences whether
-     * TCP or UDP is preferred for new sessions. Set by the node layer from NetworkClient/NetworkServer config.
+     * Preferred transport for outgoing connections to this peer.
      */
     transportPreference?: ChannelType;
     #connecting?: ConnectionProcess;
@@ -193,7 +191,7 @@ export class Peer {
     }
 
     get basicInformation() {
-        return this.#protocol?.[0]?.[BasicInformation.Cluster.id]?.readState({}) as Peer.BasicInformation | undefined;
+        return this.#protocol?.[0]?.[BasicInformation.id]?.readState({}) as Peer.BasicInformation | undefined;
     }
 
     get limits() {
@@ -388,10 +386,6 @@ export class Peer {
         await this.#updated.emit(this);
     }
 
-    /**
-     * Get the newest active session, optionally filtered by transport type.
-     * When type is specified and no matching session exists, returns undefined.
-     */
     newestSession(type?: ChannelType) {
         // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
         let found: NodeSession | undefined;
@@ -479,10 +473,7 @@ export namespace Peer {
     }
 
     export interface BasicInformation extends Identity<{
-        readonly [N in keyof Omit<
-            typeof BasicInformation.Complete.attributes,
-            keyof typeof GlobalAttributes
-        >]?: TypeFromSchema<(typeof BasicInformation.Complete.attributes)[N]["schema"]>;
+        readonly [N in keyof BasicInformation.Attributes]?: BasicInformation.Attributes[N];
     }> {}
 
     export interface ConnectOptions {
@@ -522,8 +513,7 @@ export namespace Peer {
         timing?: Partial<PeerTimingParameters>;
 
         /**
-         * Constrain the transport type for this connection.  When set to {@link ChannelType.TCP}, the connection
-         * will be established over TCP.  When undefined, the default transport (UDP/MRP) is used.
+         * Constrain the transport type for this connection.
          */
         transportConstraint?: ChannelType;
     }

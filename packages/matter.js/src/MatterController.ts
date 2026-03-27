@@ -50,7 +50,6 @@ import {
 import {
     ClientNode,
     ClientNodePhysicalProperties,
-    ClusterState,
     CommissioningClient,
     ControllerBehavior,
     Endpoint,
@@ -142,7 +141,7 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
-        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+        basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
     }): Promise<MatterController> {
         const {
             rootFabric,
@@ -228,6 +227,8 @@ export class MatterController {
         adminFabricLabel: string;
         adminFabricId?: FabricId;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         ipv4?: boolean;
         listeningAddressIpv4?: string;
         listeningAddressIpv6?: string;
@@ -304,7 +305,7 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
-        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+        basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
@@ -644,11 +645,11 @@ export class MatterController {
             allowUnknownPeer: true,
         }); // Wait maximum 120s to find the operational device for a commissioning process
         const generalCommissioningClusterClient = ClusterClient(
-            GeneralCommissioning.Cluster,
+            GeneralCommissioning,
             EndpointNumber(0),
             interactionClient,
         );
-        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete(undefined, {
+        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete({
             useExtendedFailSafeMessageResponseTimeout: true,
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
