@@ -420,6 +420,12 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
+        // Deprecated and disallowed elements have no type information so TLV generation would fail.  They are
+        // treated like unknown elements — invisible to the protocol layer on both server and client side
+        if (member.isDeprecated || member.isDisallowed) {
+            continue;
+        }
+
         const name = member.propertyName;
         switch (tag) {
             case "attribute": {

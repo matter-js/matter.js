@@ -332,6 +332,38 @@ describe("ProtocolServiceTest", () => {
         expect(sent?.status?.status.status).deep.equals(Status.Success);
     });
 
+    it("excludes deprecated global attributes like EventList from protocol", async () => {
+        const node = await MockServerNode.createOnline(undefined, {
+            device: OnOffLightDevice.with(OnOffServer),
+        });
+
+        const EVENT_LIST_ID = 0xfffa;
+
+        // Verify no cluster on any endpoint exposes EventList (deprecated, conformance "D").
+        // On the client side, a remote device may report EventList in its attributeList causing
+        // it to appear in supportedElements.  Without the deprecated-element guard in
+        // clusterTypeProtocolOf this would crash with "No metabase for model EventList" because
+        // the deprecated attribute has no type definition.
+        for (const ep of node.protocol) {
+            for (const cluster of ep) {
+                expect(
+                    cluster.type.attributes[EVENT_LIST_ID],
+                    `cluster ${cluster.type.id} on endpoint ${ep.id} should not expose deprecated EventList`,
+                ).to.be.undefined;
+            }
+        }
+
+        // Also verify that calling TlvOfModel on the deprecated EventList model would indeed
+        // throw — confirming the guard in clusterTypeProtocolOf is necessary
+        const onOffSchema = OnOff.schema;
+        const eventListModel = onOffSchema.attributes.find(m => m.id === EVENT_LIST_ID);
+        expect(eventListModel, "EventList should be present as unfiltered member").to.exist;
+        expect(eventListModel!.isDeprecated, "EventList should be deprecated").to.be.true;
+        expect(() => TlvOfModel(eventListModel!)).to.throw("No metabase for model EventList");
+
+        await node.close();
+    });
+
     it("all attribute TLV schemas can encode their values", async () => {
         const node = await MockServerNode.createOnline(undefined, {
             device: OnOffLightDevice.with(OnOffServer),
