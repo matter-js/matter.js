@@ -381,16 +381,8 @@ describe("CommissionableMdnsScanner", () => {
 
         try {
             const identifier = { longDiscriminator: 1234 };
-            const shortPromise = scanner.findCommissionableDevicesContinuously(
-                identifier,
-                () => {},
-                Millis(500),
-            );
-            const longPromise = scanner.findCommissionableDevicesContinuously(
-                identifier,
-                () => {},
-                Millis(1000),
-            );
+            const shortPromise = scanner.findCommissionableDevicesContinuously(identifier, () => {}, Millis(500));
+            const longPromise = scanner.findCommissionableDevicesContinuously(identifier, () => {}, Millis(1000));
 
             // Both should resolve with empty arrays once their timeouts elapse
             const [shortResult, longResult] = await MockTime.resolve(Promise.all([shortPromise, longPromise]));
