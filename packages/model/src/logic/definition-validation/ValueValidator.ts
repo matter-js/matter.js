@@ -139,7 +139,10 @@ export class ValueValidator<T extends ValueModel> extends ModelValidator<T> {
         }
 
         if (cast === FieldValue.Invalid) {
-            this.error("INVALID_VALUE", `Value "${defaultValue}" is not a ${metatype}`);
+            this.error(
+                "INVALID_VALUE",
+                `Value ${JSON.stringify(defaultValue)} is not a ${metatype}`,
+            );
             return;
         }
         defaultValue = cast;
