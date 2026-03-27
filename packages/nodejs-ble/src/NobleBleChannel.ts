@@ -8,7 +8,6 @@ import {
     Bytes,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
     Diagnostic,
     InternalError,
     Logger,
@@ -17,6 +16,7 @@ import {
     ServerAddress,
     Time,
     Timer,
+    Transport,
     asError,
     createPromise,
 } from "@matter/general";
@@ -71,7 +71,7 @@ type BleConnectionGuard = {
     disconnectTimeout: Timer;
 };
 
-export class NobleBleCentralInterface implements ConnectionlessTransport {
+export class NobleBleCentralInterface implements Transport {
     #bleScanner: BleScanner;
     #connectionsInProgress = new Set<ServerAddress>();
     #connectionGuards = new Set<BleConnectionGuard>();
@@ -396,7 +396,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
         });
     }
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener {
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),

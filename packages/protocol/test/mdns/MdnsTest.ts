@@ -15,7 +15,6 @@ import {
     ServiceDescription,
 } from "#index.js";
 import {
-    ConnectionlessTransport,
     DnsCodec,
     DnsMessage,
     DnsMessageType,
@@ -32,6 +31,7 @@ import {
     NetworkSimulator,
     Seconds,
     Time,
+    Transport,
     UdpChannel,
 } from "@matter/general";
 import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
@@ -231,7 +231,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         }
 
         class MessageCollector extends Array<DnsMessage> {
-            #listener: ConnectionlessTransport.Listener;
+            #listener: Transport.Listener;
 
             constructor(onMessage?: (message: DnsMessage) => void) {
                 super();

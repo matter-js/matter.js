@@ -59,7 +59,10 @@ export type ServerAddressBle = {
     peripheralAddress: string;
 } & AddressStatus;
 
-export type ServerAddress = ServerAddressUdp | ServerAddressTcp | ServerAddressBle;
+/** Union of IP-based server address types. */
+export type ServerAddressIp = ServerAddressUdp | ServerAddressTcp;
+
+export type ServerAddress = ServerAddressIp | ServerAddressBle;
 
 export function ServerAddress(definition: ServerAddress) {
     return {
@@ -120,6 +123,10 @@ export namespace ServerAddress {
         }
 
         if (a.type === "udp" && b.type === "udp") {
+            return a.ip === b.ip && a.port === b.port;
+        }
+
+        if (a.type === "tcp" && b.type === "tcp") {
             return a.ip === b.ip && a.port === b.port;
         }
 

@@ -12,21 +12,21 @@ import { Channel, ChannelType } from "./Channel.js";
 import { ServerAddress } from "./ServerAddress.js";
 
 /**
- * A local network endpoint associated with a specific {@link ServerAddress} for a connectionless protocol.
+ * A local network endpoint for message transport.
  */
-export interface ConnectionlessTransport {
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener;
+export interface Transport {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener;
     close(): Promise<void>;
     supports(type: ChannelType, address?: string): boolean;
     openChannel(address: ServerAddress): Promise<Channel<Bytes>>;
 }
 
-export namespace ConnectionlessTransport {
+export namespace Transport {
     export interface Listener {
         close(): Promise<void>;
     }
 
-    export interface Provider<T extends ConnectionlessTransport = ConnectionlessTransport> {
+    export interface Provider<T extends Transport = Transport> {
         /**
          * Obtain an interface capable of routing an address.
          */
@@ -40,19 +40,28 @@ export namespace ConnectionlessTransport {
 }
 
 /**
- * A collection of {@link ConnectionlessTransport}s managed as a unit.
+ * Extension of {@link Transport} for connection-oriented protocols (TCP).
+ * Adds lifecycle hooks for connection/disconnection events.
+ * Methods are optional — a transport may only implement one direction.
  */
-export class ConnectionlessTransportSet<T extends ConnectionlessTransport = ConnectionlessTransport>
-    extends BasicSet<T>
-    implements ConnectionlessTransport.Provider<T>
-{
+export interface ConnectionOrientedTransport extends Transport {
+    /** Fires when a remote peer connects (server role). */
+    onConnect?(listener: (channel: Channel<Bytes>) => void): Transport.Listener;
+    /** Fires when a connection drops. */
+    onDisconnect?(listener: (channel: Channel<Bytes>) => void): Transport.Listener;
+}
+
+/**
+ * A collection of {@link Transport}s managed as a unit.
+ */
+export class TransportSet<T extends Transport = Transport> extends BasicSet<T> implements Transport.Provider<T> {
     constructor(...initialInterfaces: T[]) {
         super(...initialInterfaces);
     }
 
     static [Environmental.create](env: Environment) {
-        const instance = new ConnectionlessTransportSet();
-        env.set(ConnectionlessTransportSet, instance);
+        const instance = new TransportSet();
+        env.set(TransportSet, instance);
         return instance;
     }
 

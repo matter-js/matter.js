@@ -90,7 +90,7 @@ export class PeerAddressMonitor {
     }
 
     async #check() {
-        const session = this.#peer.newestSession;
+        const session = this.#peer.newestSession();
         const interaction = this.#peer.interaction;
         if (!session || !interaction) {
             return;

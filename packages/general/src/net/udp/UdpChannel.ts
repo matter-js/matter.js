@@ -6,7 +6,7 @@
 
 import { Bytes, Lifetime, MaybePromise } from "#util/index.js";
 import { ChannelType } from "../Channel.js";
-import { ConnectionlessTransport } from "../ConnectionlessTransport.js";
+import { Transport } from "../Transport.js";
 
 /** @see {@link MatterSpecification.v12.Core} § 4.4.4 */
 export const MAX_UDP_MESSAGE_SIZE = 1280 - 48; // 48 bytes IP and UDP header size for IPv6
@@ -62,7 +62,7 @@ export interface UdpChannel {
     maxPayloadSize: number;
     addMembership(address: string): MaybePromise<void>;
     dropMembership(address: string): MaybePromise<void>;
-    onData(listener: UdpChannel.Callback): ConnectionlessTransport.Listener;
+    onData(listener: UdpChannel.Callback): Transport.Listener;
     send(host: string, port: number, data: Bytes): Promise<void>;
     close(): Promise<void>;
     get port(): number;
