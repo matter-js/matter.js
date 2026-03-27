@@ -13,6 +13,5 @@ packages/node/src/devices/*
 packages/node/src/behaviors/index.ts
 packages/node/src/behaviors/*/index.ts
 packages/node/src/behaviors/*/*Behavior.ts
-packages/node/src/behaviors/*/*Server.ts
 packages/node/src/behaviors/*/*Interface.ts
 packages/node/src/behaviors/*/*Client.ts
