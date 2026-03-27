@@ -24,6 +24,12 @@ export function NameResolver(
         return;
     }
 
+    // Handle qualified names (e.g. "fooField.bar") — resolve first segment via hierarchy, chain property accesses for
+    // remaining segments
+    if (name.includes(".")) {
+        return resolveQualifiedName(supervisor, model, name);
+    }
+
     // Optimization for root schema
     if (
         model === supervisor.schema ||
@@ -78,4 +84,32 @@ export function NameResolver(
             }
         };
     }
+}
+
+/**
+ * Resolve a qualified (dotted) name like "opts.enable".  The first segment resolves via the normal hierarchy; remaining
+ * segments are plain property accesses on the resolved value.
+ */
+function resolveQualifiedName(
+    supervisor: RootSupervisor,
+    model: Model | undefined,
+    name: string,
+): ((val: Val) => Val) | undefined {
+    const segments = name.split(".");
+    const baseResolver = NameResolver(supervisor, model, segments[0]);
+    if (!baseResolver) {
+        return;
+    }
+
+    const rest = segments.slice(1);
+    return (val: Val) => {
+        let result = baseResolver(val);
+        for (const segment of rest) {
+            if (result === undefined || result === null) {
+                return undefined;
+            }
+            result = (result as Val.Struct)?.[segment];
+        }
+        return result;
+    };
 }

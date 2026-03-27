@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Events } from "#behavior/Events.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
+import { Events } from "#behavior/Events.js";
+import { Supervision } from "#behavior/supervision/Supervision.js";
 import { BasicSet, deepCopy, InternalError, Logger, MaybePromise, ObserverGroup, serialize } from "@matter/general";
 import {
     any,
@@ -59,6 +60,18 @@ const logger = Logger.get("ScenesManagementServer");
 
 /** Used in FabricSceneInfo to denote that it is unknown which scene is or was last active */
 const UNDEFINED_SCENE_ID = 0xff;
+
+/**
+ * Build a ConstraintError response that echoes back an out-of-range sceneId.
+ *
+ * The response must include the invalid sceneId so the client knows which request failed.  Since the spec constraint
+ * is `max 254`, we use {@link Supervision} to suppress constraint validation on the echoed field.
+ */
+function constraintErrorWithSceneId(groupId: GroupId, sceneId: number) {
+    const response = { status: Status.ConstraintError, groupId, sceneId };
+    Supervision(response, "sceneId").constraint = false;
+    return response;
+}
 
 /** Defines the Global Scene together with UNDEFINED_GROUP */
 const GLOBAL_SCENE_ID = 0;
@@ -268,7 +281,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         extensionFieldSetStructs,
     }: ScenesManagement.AddSceneRequest): ScenesManagement.AddSceneResponse {
         if (sceneId > 254 || transitionTime > 60000000) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { fabricIndex, groupId, existingSceneIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -300,7 +313,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         sceneId,
     }: ScenesManagement.ViewSceneRequest): ScenesManagement.ViewSceneResponse {
         if (sceneId > 254) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { groupId, existingSceneIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -329,7 +342,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         sceneId,
     }: ScenesManagement.RemoveSceneRequest): ScenesManagement.RemoveSceneResponse {
         if (sceneId > 254) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { groupId, existingSceneIndex, fabricIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -378,7 +391,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         sceneId,
     }: ScenesManagement.StoreSceneRequest): ScenesManagement.StoreSceneResponse {
         if (sceneId > 254) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { groupId, existingSceneIndex, fabricIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);

@@ -10,11 +10,13 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { DescriptorBehavior } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Node } from "#node/Node.js";
 import {
+    asError,
     camelize,
     Diagnostic,
     ImplementationError,
@@ -27,7 +29,9 @@ import {
 import {
     AcceptedCommandList,
     AttributeList,
+    ClusterModel,
     CommandModel,
+    DataModelPath,
     ElementTag,
     GeneratedCommandList,
     Matter,
@@ -63,6 +67,7 @@ import {
     EventId,
     EventPath,
     FabricIndex,
+    StatusResponse,
     TlvOfModel,
     TlvVoid,
     WildcardPathFlags as WildcardPathFlagsType,
@@ -312,8 +317,28 @@ class ClusterState implements ClusterProtocol {
         this.#endpointId = backing.endpoint.number;
 
         for (const cmd of type.commands) {
-            this.commands[cmd.id] = (args, session) => invokeCommand(backing, cmd, args, session);
+            const commandModels = this.#commandModels(backing, cmd);
+            this.commands[cmd.id] = (args, session) => invokeCommand(backing, cmd, args, session, commandModels);
         }
+    }
+
+    #commandModels(backing: BehaviorBacking, cmd: CommandTypeProtocol): CommandModels | undefined {
+        const { schema } = backing.type;
+        if (!(schema instanceof ClusterModel)) {
+            return;
+        }
+
+        const requestModel = schema.commands.find(c => c.id === cmd.id && c.isRequest);
+        if (!requestModel) {
+            logger.warn(`No schema for command ${cmd.name} (${cmd.id})`);
+            return;
+        }
+
+        return {
+            supervisor: backing.type.supervisor,
+            requestModel,
+            responseModel: requestModel.responseModel,
+        };
     }
 
     get version() {
@@ -392,6 +417,13 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
         const { id, tag, effectiveQuality: quality } = member;
 
         if (id === undefined) {
+            continue;
+        }
+
+        // Deprecated and disallowed elements are excluded from the protocol layer and treated like unknown
+        // elements — invisible on both server and client side.  Some deprecated/disallowed members in the
+        // standard model also lack type information; including those would cause TLV generation to fail.
+        if (member.isDeprecated || member.isDisallowed) {
             continue;
         }
 
@@ -529,6 +561,34 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
     return descriptor;
 }
 
+interface CommandModels {
+    supervisor: RootSupervisor;
+    requestModel: CommandModel;
+    responseModel?: CommandModel;
+}
+
+function validateCommandData(
+    data: Val.Struct | undefined,
+    model: CommandModel,
+    supervisor: RootSupervisor,
+    session: InteractionSession,
+    outerResolve?: (name: string) => Val,
+) {
+    if (data === undefined) {
+        return;
+    }
+
+    const validate = supervisor.get(model).validate;
+    if (!validate) {
+        return;
+    }
+
+    validate(data, session as ValueSupervisor.Session, {
+        path: new DataModelPath(model.path),
+        outerResolve,
+    });
+}
+
 /**
  * Invokes a command on a backing behavior
  */
@@ -537,6 +597,7 @@ function invokeCommand(
     command: CommandTypeProtocol,
     request: Val.Struct | undefined,
     session: InteractionSession,
+    commandModels?: CommandModels,
 ): MaybePromise<Val.Struct | undefined> {
     if (session.transaction === undefined) {
         throw new ImplementationError("Cluster protocol must be opened with a supervisor session");
@@ -561,6 +622,19 @@ function invokeCommand(
         session.transaction.via,
         requestDiagnostic,
     );
+
+    if (commandModels) {
+        try {
+            validateCommandData(request, commandModels.requestModel, commandModels.supervisor, session);
+        } catch (e) {
+            logger.warn("Request validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+        }
+    }
+
+    const outerResolve =
+        commandModels && request
+            ? (name: string) => (name === camelize(commandModels.requestModel.name) ? request : undefined)
+            : undefined;
 
     const agent = endpoint.agentFor(context);
     const behavior = agent.get(backing.type);
@@ -601,6 +675,24 @@ function invokeCommand(
             isAsync = true;
             result = Promise.resolve(result)
                 .then(result => {
+                    if (commandModels?.responseModel) {
+                        try {
+                            validateCommandData(
+                                result as Val.Struct | undefined,
+                                commandModels.responseModel,
+                                commandModels.supervisor,
+                                session,
+                                outerResolve,
+                            );
+                        } catch (e) {
+                            logger.error(
+                                "Response validation error for",
+                                command.name,
+                                Diagnostic.errorMessage(asError(e)),
+                            );
+                            throw new StatusResponse.FailureError(`Response validation failed for ${command.name}`);
+                        }
+                    }
                     if (isObject(result)) {
                         logger.info(
                             "Invoke",
@@ -614,6 +706,20 @@ function invokeCommand(
                 })
                 .finally(() => activity?.[Symbol.dispose]());
         } else {
+            if (commandModels?.responseModel) {
+                try {
+                    validateCommandData(
+                        result as Val.Struct | undefined,
+                        commandModels.responseModel,
+                        commandModels.supervisor,
+                        session,
+                        outerResolve,
+                    );
+                } catch (e) {
+                    logger.error("Response validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+                    throw new StatusResponse.FailureError(`Response validation failed for ${command.name}`);
+                }
+            }
             if (isObject(result)) {
                 logger.info(
                     "Invoke",

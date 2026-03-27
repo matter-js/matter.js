@@ -7,6 +7,7 @@
 import { Conformance } from "#aspects/Conformance.js";
 import {
     ClusterElement,
+    CommandElement,
     ConditionElement,
     DatatypeElement,
     DeviceTypeElement,
@@ -40,6 +41,10 @@ const TEST_DEFINITIONS = [
 
     // Dot-field references (qualified field references)
     "SolicitOffer.VideoStreamID",
+    "Foo.Bar.Baz",
+    "[Foo.Bar]",
+    "Foo.Bar & FEAT",
+    "foo.barBaz",
 
     // Revision conformance (spec 1.5.1+)
     "Rev >= v3",
@@ -242,6 +247,109 @@ describe("Conformance", () => {
                     },
                 },
             });
+        });
+    });
+
+    describe("qualified name validation", () => {
+        // Cluster with a struct "Foo" containing field "Bar", and a sibling field with conformance "Foo.Bar"
+        const cluster = ClusterElement({
+            name: "QualifiedRefCluster",
+            id: 0xfffd,
+            children: [
+                DatatypeElement({
+                    name: "FooStruct",
+                    type: "struct",
+                    children: [
+                        FieldElement({ name: "Bar", id: 0, type: "uint8" }),
+                        FieldElement({ name: "Baz", id: 1, type: "uint8" }),
+                    ],
+                }),
+                FieldElement({ name: "FooField", id: 0, type: "FooStruct" }),
+                FieldElement({ name: "QualifiedRef", id: 1, type: "uint8", conformance: "FooField.Bar" }),
+                FieldElement({
+                    name: "DeepRef",
+                    id: 2,
+                    type: "uint8",
+                    conformance: "FooField.Bar & FooField.Baz",
+                }),
+                FieldElement({ name: "BadRef", id: 3, type: "uint8", conformance: "FooField.NonExistent" }),
+            ],
+        });
+
+        const matter = new MatterModel({ name: "QualifiedRefMatter", children: [cluster] });
+
+        let errors: ValidateModel.Result["errors"] | undefined;
+
+        function validate() {
+            if (!errors) {
+                errors = ValidateModel(matter).errors.filter(e => e.code?.includes("UNRESOLVED_CONFORMANCE"));
+            }
+            return errors;
+        }
+
+        it("resolves qualified field reference", () => {
+            const refErrors = validate().filter(e => e.source?.endsWith(".QualifiedRef"));
+            expect(refErrors).deep.equal([]);
+        });
+
+        it("resolves multiple qualified references in expression", () => {
+            const deepErrors = validate().filter(e => e.source?.endsWith(".DeepRef"));
+            expect(deepErrors).deep.equal([]);
+        });
+
+        it("reports unresolved qualified reference", () => {
+            const badErrors = validate().filter(e => e.source?.endsWith(".BadRef"));
+            expect(badErrors.length).equal(1);
+        });
+    });
+
+    describe("command response outer scope", () => {
+        // Request command "Foo" with field "Bar", response "FooResponse" with field conformance "Foo.Bar"
+        const cluster = ClusterElement({
+            name: "OuterScopeCluster",
+            id: 0xfffc,
+            children: [
+                CommandElement({
+                    name: "Foo",
+                    id: 0,
+                    direction: CommandElement.Direction.Request,
+                    response: "FooResponse",
+                    children: [
+                        FieldElement({ name: "Bar", id: 0, type: "uint8" }),
+                        FieldElement({ name: "Baz", id: 1, type: "uint8" }),
+                    ],
+                }),
+                CommandElement({
+                    name: "FooResponse",
+                    id: 1,
+                    direction: CommandElement.Direction.Response,
+                    children: [
+                        FieldElement({ name: "ValidRef", id: 0, type: "uint8", conformance: "Foo.Bar" }),
+                        FieldElement({ name: "InvalidRef", id: 1, type: "uint8", conformance: "Foo.NonExistent" }),
+                    ],
+                }),
+            ],
+        });
+
+        const matter = new MatterModel({ name: "OuterScopeMatter", children: [cluster] });
+
+        let errors: ValidateModel.Result["errors"] | undefined;
+
+        function validate() {
+            if (!errors) {
+                errors = ValidateModel(matter).errors.filter(e => e.code?.includes("UNRESOLVED_CONFORMANCE"));
+            }
+            return errors;
+        }
+
+        it("resolves response field reference to request command field", () => {
+            const refErrors = validate().filter(e => e.source?.endsWith(".validRef"));
+            expect(refErrors).deep.equal([]);
+        });
+
+        it("reports unresolved response field reference", () => {
+            const badErrors = validate().filter(e => e.source?.endsWith(".invalidRef"));
+            expect(badErrors.length).equal(1);
         });
     });
 

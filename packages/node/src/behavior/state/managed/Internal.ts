@@ -5,6 +5,7 @@
  */
 
 import type { Val } from "@matter/protocol";
+import type { ValReference } from "./ValReference.js";
 
 /**
  * API for bypassing managed collections and accessing the internal object containing raw data.
@@ -14,6 +15,6 @@ export namespace Internal {
     export const session = Symbol("session");
 
     export interface Collection {
-        [reference]: Val.Reference<Val.Collection>;
+        [reference]: ValReference<Val.Collection>;
     }
 }

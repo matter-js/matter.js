@@ -5,6 +5,7 @@
  */
 
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
+import type { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
 
@@ -36,7 +37,7 @@ type Container = Record<string | number, Val>;
  * @returns a reference to the property
  */
 export function ManagedReference(
-    parent: Val.Reference<Val.Collection>,
+    parent: ValReference<Val.Collection>,
     primaryKey: "name" | "id",
     name: string | number,
     id: number | undefined,
@@ -73,7 +74,7 @@ export function ManagedReference(
         }
     }
 
-    const reference: Val.Reference = {
+    const reference: ValReference = {
         primaryKey,
         parent,
 
@@ -206,6 +207,11 @@ export function ManagedReference(
             replaceValue(value);
         },
     };
+
+    // Propagate supervision config from parent
+    if (parent.supervisionConfig) {
+        reference.supervisionConfig = parent.supervisionConfig.readonlyChild(key);
+    }
 
     if (!parent.subrefs) {
         parent.subrefs = {};

@@ -23,6 +23,7 @@ import type { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
 import { ManagedReference } from "../ManagedReference.js";
+import type { ValReference } from "../ValReference.js";
 import { PrimitiveManager } from "./PrimitiveManager.js";
 
 /**
@@ -49,7 +50,7 @@ export function ListManager(owner: RootSupervisor, schema: Schema): ValueSupervi
             );
         }
 
-        return createProxy(config, list as Val.Reference<Val.List>, session);
+        return createProxy(config, list as ValReference<Val.List>, session);
     };
 }
 
@@ -86,7 +87,7 @@ interface ListConfig {
     authorizeWrite: AccessControl["authorizeWrite"];
 }
 
-function createProxy(config: ListConfig, reference: Val.Reference<Val.List>, session: ValueSupervisor.Session) {
+function createProxy(config: ListConfig, reference: ValReference<Val.List>, session: ValueSupervisor.Session) {
     const { manageEntries, manageEntry, validateEntry, authorizeRead, authorizeWrite } = config;
 
     // On read we treat nullish as an empty array.  This prevents errors on expired references

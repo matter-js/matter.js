@@ -138,9 +138,12 @@ export class MatterNode {
     }
 
     async close() {
-        await this.commissioningController?.close();
-        this.#observers?.close();
-        await this.#storageManager?.close();
+        try {
+            await this.commissioningController?.close();
+        } finally {
+            this.#observers?.close();
+            await this.#storageManager?.close();
+        }
     }
 
     async start() {
