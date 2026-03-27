@@ -7,7 +7,7 @@
 import { Behavior } from "#behavior/Behavior.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterBehaviorType } from "#behavior/cluster/ClusterBehaviorType.js";
-import { camelize, InternalError } from "@matter/general";
+import { camelize, capitalize, InternalError } from "@matter/general";
 import {
     AttributeModel,
     ClusterModel,
@@ -16,11 +16,22 @@ import {
     EncodedBitmap,
     EventModel,
     FeatureBitmap,
-    FeatureSet,
     Matter,
     type ValueModel,
 } from "@matter/model";
-import { AttributeId, ClusterId, CommandId } from "@matter/types";
+import {
+    AttributeId,
+    ClusterComposer,
+    ClusterId,
+    ClusterRegistry,
+    ClusterType,
+    CommandId,
+    MutableCluster,
+    TlvAny,
+    TlvNoResponse,
+    UnknownAttribute,
+    UnknownCommand,
+} from "@matter/types";
 import { ClientCommandMethod } from "./ClientCommandMethod.js";
 
 const BIT_BLOCK_SIZE = Math.log2(Number.MAX_SAFE_INTEGER);
@@ -100,15 +111,10 @@ function instrumentDiscoveredShape(shape: PeerBehavior.DiscoveredClusterShape) {
         return type;
     }
 
-    // Find a base behavior for the standard cluster, if available
     let baseType: Behavior.Type | undefined;
-    const standardSchema = Matter.get(ClusterModel, shape.id);
-    if (standardSchema) {
-        // Create a base behavior from the standard schema
-        baseType = ClusterBehaviorType({
-            base: ClusterBehavior,
-            schema: standardSchema,
-        });
+    const standardCluster = ClusterRegistry.get(shape.id);
+    if (standardCluster && !standardCluster.name.startsWith("Unknown cluster 0x")) {
+        baseType = ClusterBehavior.for(standardCluster);
     }
 
     type = cache[fingerprint] = generateDiscoveredType(analysis, baseType, factory);
@@ -133,7 +139,7 @@ function instrumentKnownShape(shape: PeerBehavior.KnownClusterShape) {
 
     type = ClusterBehaviorType({
         base,
-        namespace: base.cluster,
+        cluster: base.cluster,
         schema: base.schema,
         name: `${base.schema.name}Client`,
         forClient: true,
@@ -152,14 +158,23 @@ function generateDiscoveredType(
 ): ClusterBehavior.Type {
     let { schema } = analysis;
 
-    let isExtended = !baseType;
+    let isExtended: boolean;
+    let cluster: ClusterType;
 
     if (baseType) {
+        isExtended = false;
+
         // Ensure the input type is a ClusterBehavior
         if (!ClusterBehavior.is(baseType)) {
             throw new InternalError(`Base for cluster ${analysis.schema.name} is not a ClusterBehavior`);
         }
+
+        cluster = baseType.cluster;
     } else {
+        isExtended = true;
+
+        cluster = MutableCluster({ id: schema.id, name: schema.name, revision: schema.revision });
+
         baseType = ClusterBehavior;
     }
 
@@ -168,42 +183,35 @@ function generateDiscoveredType(
     // Identify known features the device supports
     let supportedFeatures = analysis.shape.features;
     if (typeof supportedFeatures === "number") {
-        // Decode numeric feature bitmap using the schema's featureMap
-        const featureMap = schema.featureMap;
-        const decoded: FeatureBitmap = {};
-        for (const child of featureMap.children) {
-            const bitValue = child.constraint.value;
-            if (typeof bitValue === "number") {
-                const key = camelize(child.title ?? child.name);
-                decoded[key] = !!(supportedFeatures & (1 << bitValue));
-            }
-        }
-        supportedFeatures = decoded;
+        supportedFeatures = cluster.attributes.featureMap.schema.decode(supportedFeatures as any) as FeatureBitmap;
     }
     if (supportedFeatures === undefined) {
         supportedFeatures = {};
     }
 
-    // If there are features supported, set them on the schema
+    // If there are features supported, customize the ClusterModel and ClusterType accordingly.  Filter to features
+    // defined on the cluster — the numeric bitmap path silently drops unknown bits and named bitmaps from wire changes
+    // may include features added in newer spec revisions that the local model doesn't know about
     const featureNames = Object.entries(supportedFeatures)
         .filter(([, v]) => v)
-        .map(([k]) => k);
+        .map(([k]) => k)
+        .filter(name => cluster.features[name] !== undefined);
     if (featureNames.length) {
         extendSchema();
 
-        // Map user-facing feature names to model feature codes for FeatureSet
-        const featureSet = new FeatureSet();
-        for (const child of schema.featureMap.children) {
-            const key = camelize(child.title ?? child.name);
-            if (featureNames.includes(key)) {
-                featureSet.add(child.name);
-            }
-        }
-        schema.supportedFeatures = featureSet;
+        // Update the cluster.  Note that we do not validate feature combinations.  What the device sends we work with
+        cluster = new ClusterComposer(cluster, true).compose(featureNames.map(capitalize));
     }
 
-    // If the schema does not match what the device actually returned, further augment the schema
-    // with unknown attributes and/or commands
+    // Always include all events regardless of detected features.  Unlike attributes and commands
+    // (reported via attributeList/acceptedCommandList), there is no EventList global attribute to
+    // discover which events a device supports, so we copy them from the complete cluster definition
+    if (baseType !== ClusterBehavior) {
+        cluster = { ...cluster, events: (baseType as ClusterBehavior.Type).cluster.events };
+    }
+
+    // If the schema does not match what the device actually returned, further augment both the ClusterModel and
+    // ClusterType with unknown attributes and/or commands
     if (
         schema.revision !== analysis.shape.revision ||
         extraAttrs.size ||
@@ -213,6 +221,13 @@ function generateDiscoveredType(
     ) {
         extendSchema();
 
+        cluster = {
+            ...cluster,
+            supportedFeatures,
+            attributes: { ...cluster.attributes },
+            commands: { ...cluster.commands },
+        };
+
         if (attrSupportOverrides.size) {
             for (const [attr, isSupported] of attrSupportOverrides.entries()) {
                 schema.children.push(attr.extend({ operationalIsSupported: isSupported }));
@@ -221,6 +236,7 @@ function generateDiscoveredType(
 
         for (const id of extraAttrs) {
             const name = createUnknownName("attr", id);
+            cluster.attributes[camelize(name, false)] = UnknownAttribute(id);
             schema.children.push(new AttributeModel({ id, name, type: "any" }));
         }
 
@@ -232,13 +248,15 @@ function generateDiscoveredType(
 
         for (const id of extraCommands) {
             const name = createUnknownName("command", id);
+            cluster.commands[camelize(name, false)] = UnknownCommand(id, TlvAny, 0, TlvNoResponse);
             schema.children.push(new CommandModel({ id, name, type: "any" }));
         }
     }
 
-    // Specialize for the specific cluster and schema — namespace is constructed from schema by ClusterBehaviorType
+    // Specialize for the specific cluster and schema
     return ClusterBehaviorType({
         base: baseType,
+        cluster,
         schema,
         name: `${schema.name}Client`,
         forClient: true,

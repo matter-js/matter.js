@@ -10,13 +10,11 @@ import { Diagnostic, Duration, isObject } from "@matter/general";
 import {
     ClusterType,
     CommandData,
-    CommandId,
     FabricIndex,
     InvokeRequest,
     ObjectSchema,
-    TlvOfModel,
     TlvSchema,
-    TlvVoid,
+    TypeFromSchema,
 } from "@matter/types";
 import { MalformedRequestError } from "./MalformedRequestError.js";
 import { resolvePathForSpecifier, Specifier } from "./Specifier.js";
@@ -51,8 +49,13 @@ export interface CommandDecodeDetails {
 }
 
 export interface ClientInvoke extends Invoke, ClientRequest {
-    commands: Map<number | undefined, Invoke.AnyCommandRequest>;
-    skipValidation?: boolean;
+    commands: Map<number | undefined, Invoke.CommandRequest<any>>;
+
+    /**
+     * When true, the command has Large Message Quality — it may exceed the IPv6 MTU and
+     * requires TCP transport. Such commands are excluded from auto-batching.
+     */
+    largeMessage?: boolean;
 }
 
 /**
@@ -72,7 +75,7 @@ export function Invoke(...commands: Invoke.CommandRequest<any>[]): ClientInvoke;
 
 export function Invoke(
     optionsOrData: Invoke.Definition | Invoke.CommandRequest<any>,
-    ...commands: (Invoke.CommandRequest<any> | Invoke.LegacyCommandRequest)[]
+    ...commands: Invoke.CommandRequest<any>[]
 ): ClientInvoke {
     if (optionsOrData === undefined) {
         throw new MalformedRequestError(`Invocation requires at least one command`);
@@ -114,7 +117,7 @@ export function Invoke(
         }
     }
 
-    const commandMap = new Map<number | undefined, Invoke.AnyCommandRequest>();
+    const commandMap = new Map<number | undefined, Invoke.CommandRequest<any>>();
     const invokeRequests: InvokeCommandData[] = commands.map(cmd => {
         const cmdData = Invoke.Command(cmd, skipValidation);
         if (options.timed !== false) {
@@ -135,7 +138,6 @@ export function Invoke(
         useExtendedFailSafeMessageResponseTimeout,
 
         // Additional meta-data for client side processing
-        skipValidation,
         commands: commandMap,
         [Diagnostic.value]: () =>
             Diagnostic.list(
@@ -144,7 +146,7 @@ export function Invoke(
                     const fields = "fields" in cmd ? cmd.fields : undefined;
 
                     return [
-                        Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                        Diagnostic.strong(resolvePathForSpecifier(cmd)),
                         "with",
                         isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
                         commandRef !== undefined ? `(ref ${commandRef})` : "",
@@ -157,7 +159,7 @@ export function Invoke(
 export namespace Invoke {
     export interface Definition {
         /** List of commands to invoke */
-        commands: (Invoke.CommandRequest<any> | Invoke.LegacyCommandRequest)[];
+        commands: Invoke.CommandRequest<any>[];
 
         /** Tell the server to not send a response */
         suppressResponse?: boolean;
@@ -181,40 +183,12 @@ export namespace Invoke {
         skipValidation?: boolean;
     }
 
-    export function Command<const C extends Specifier.ClusterLike>(
+    export function Command<const C extends ClusterType>(
         request: Invoke.CommandRequest<C>,
-        skipValidation?: boolean,
-    ): InvokeCommandData;
-
-    /**
-     * @deprecated
-     * Use {@link CommandRequest} with {@link ClusterType.Command}.
-     */
-    export function Command(request: Invoke.LegacyCommandRequest, skipValidation?: boolean): InvokeCommandData;
-
-    export function Command(request: Invoke.AnyCommandRequest, skipValidation?: boolean): InvokeCommandData;
-
-    export function Command(
-        request: Invoke.CommandRequest<any> | Invoke.LegacyCommandRequest,
         skipValidation = false,
     ): InvokeCommandData {
-        let requestSchema: TlvSchema<any>;
-        let requestId: CommandId;
-        let timed: boolean;
-
-        if (typeof request.command !== "string" && "requestId" in request.command) {
-            // Legacy ClusterTypeCommand — extract fields directly
-            const legacy = request.command as Specifier.ClusterTypeCommand;
-            requestSchema = legacy.requestSchema;
-            requestId = legacy.requestId;
-            timed = legacy.timed;
-        } else {
-            const command = Invoke.commandOf(request as CommandRequest);
-            requestSchema = TlvOfModel(command.schema) ?? TlvVoid;
-            requestId = command.id;
-            timed = command.schema.effectiveAccess.timed === true;
-        }
-
+        const command = Invoke.commandOf(request);
+        const { requestSchema, requestId, timed } = command;
         const { commandRef } = request;
 
         let fields: any = "fields" in request ? request.fields : undefined;
@@ -255,32 +229,6 @@ export namespace Invoke {
         return result;
     }
 
-    /**
-     * @deprecated
-     * Legacy command request using ClusterType commands.  Use {@link CommandRequest} with
-     * {@link ClusterType.Command}.
-     */
-    export interface LegacyCommandRequest {
-        cluster: Specifier.Cluster;
-        command: Specifier.ClusterTypeCommand;
-        endpoint?: Specifier.Endpoint;
-        fields?: unknown;
-        commandName?: string;
-        commandRef?: number;
-    }
-
-    /**
-     * Union of new-style and legacy command requests.
-     */
-    export type AnyCommandRequest = CommandRequest<any> | LegacyCommandRequest;
-
-    /**
-     * Type guard for legacy command requests.
-     */
-    export function isLegacy(request: AnyCommandRequest): request is LegacyCommandRequest {
-        return typeof request.command !== "string" && "requestId" in request.command;
-    }
-
     export type CommandRequest<
         C extends Specifier.Cluster = Specifier.Cluster,
         CMD extends Specifier.Command<Specifier.ClusterFor<C>> = Specifier.Command<Specifier.ClusterFor<C>>,
@@ -291,19 +239,9 @@ export namespace Invoke {
         CMD extends Specifier.Command<Specifier.ClusterFor<C>> = Specifier.Command<Specifier.ClusterFor<C>>,
     > = WildcardCommandRequest<C, CMD> & { endpoint: Specifier.Endpoint };
 
-    /**
-     * @deprecated
-     * Use the overload accepting {@link ConcreteCommandRequest}.
-     */
-    export function ConcreteCommandRequest(data: Invoke.LegacyCommandRequest): Invoke.LegacyCommandRequest;
-
-    export function ConcreteCommandRequest<const C extends Specifier.ClusterLike>(
+    export function ConcreteCommandRequest<const C extends ClusterType>(
         data: Invoke.ConcreteCommandRequest<C>,
-    ): Invoke.ConcreteCommandRequest<any>;
-
-    export function ConcreteCommandRequest(
-        data: Invoke.ConcreteCommandRequest<any> | Invoke.LegacyCommandRequest,
-    ): Invoke.ConcreteCommandRequest<any> | Invoke.LegacyCommandRequest {
+    ): Invoke.ConcreteCommandRequest<any> {
         if (data.endpoint === undefined) {
             throw new MalformedRequestError(`ConcreteCommandRequest requires an endpoint`);
         }
@@ -318,56 +256,33 @@ export namespace Invoke {
         command: CMD;
         commandName?: string;
         commandRef?: number;
-    } & Fields<Specifier.CommandFor<Specifier.ClusterFor<C>, CMD>>;
+    } & Fields<Specifier.CommandFor<Specifier.ClusterFor<C>, CMD>["requestSchema"]>;
 
-    /**
-     * @deprecated
-     * Use the overload accepting {@link WildcardCommandRequest}.
-     */
-    export function WildcardCommandRequest(data: Invoke.LegacyCommandRequest): Invoke.LegacyCommandRequest;
-
-    export function WildcardCommandRequest<const C extends Specifier.ClusterLike>(
+    export function WildcardCommandRequest<const C extends ClusterType>(
         data: Invoke.WildcardCommandRequest<C>,
-    ): Invoke.WildcardCommandRequest<any>;
-
-    export function WildcardCommandRequest(
-        data: Invoke.WildcardCommandRequest<any> | Invoke.LegacyCommandRequest,
-    ): Invoke.WildcardCommandRequest<any> | Invoke.LegacyCommandRequest {
+    ): Invoke.WildcardCommandRequest<any> {
         if ("endpoint" in data && data.endpoint !== undefined) {
             throw new MalformedRequestError(`ConcreteCommandRequest must not have an endpoint`);
         }
         return data;
     }
 
-    /**
-     * Extract the command element from a command request.
-     */
     export function commandOf<const R extends CommandRequest>(request: R): ClusterType.Command {
         if (typeof request.command === "string") {
             const cluster = Specifier.clusterFor(request.cluster);
-            const command = cluster.commands?.[request.command];
+            const command = cluster.commands[request.command];
             if (command === undefined) {
                 throw new MalformedRequestError(`Cluster ${cluster.name} does not define command ${request.command}`);
             }
-            return command;
+            return command as Specifier.CommandFor<Specifier.ClusterOf<R>, R["command"]>;
         }
-        return request.command;
+        return request.command as Specifier.CommandFor<Specifier.ClusterOf<R>, R["command"]>;
     }
 
-    /**
-     * Extract the request type from a command's function signature phantom type.
-     */
-    export type RequestOf<C extends ClusterType.Command = ClusterType.Command> =
-        C extends ClusterType.Command<infer F>
-            ? F extends (request: infer R, ...args: unknown[]) => unknown
-                ? R
-                : void
-            : void;
-
-    export type Fields<C extends ClusterType.Command> =
-        RequestOf<C> extends void
+    export type Fields<S extends TlvSchema<any>> =
+        S extends TlvSchema<void>
             ? {}
-            : undefined extends RequestOf<C>
-              ? { fields?: RequestOf<C> }
-              : { fields: RequestOf<C> };
+            : S extends TlvSchema<null>
+              ? { fields?: TypeFromSchema<S> }
+              : { fields: TypeFromSchema<S> };
 }

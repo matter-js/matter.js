@@ -27,6 +27,7 @@ import {
     AbortedError,
     AsyncIterator,
     BasicSet,
+    ChannelType,
     ClosedError,
     createPromise,
     Diagnostic,
@@ -47,8 +48,7 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { Status, TlvAttributeReport, TlvOfModel, TlvSchema, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
-import { TlvVoid } from "@matter/types/tlv";
+import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -372,29 +372,22 @@ export class ClientInteraction<
                                     `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
-                            let responseSchema: TlvSchema<any>;
-                            if (Invoke.isLegacy(cmd)) {
-                                responseSchema = cmd.command.responseSchema ?? TlvVoid;
-                            } else {
-                                const command = Invoke.commandOf(cmd);
-                                const responseModel = command.schema.responseModel;
-                                responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
-                            }
-                            if (commandFields === undefined && responseSchema !== TlvVoid) {
+                            const responseSchema = Invoke.commandOf(cmd).responseSchema;
+                            if (commandFields === undefined && responseSchema !== TlvNoResponse) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
 
                             const data =
-                                commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
+                                commandFields === undefined ? undefined : responseSchema.decodeTlv(commandFields);
 
                             logger.info(
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
                                 messenger.exchange.diagnostics,
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
 
@@ -434,7 +427,7 @@ export class ClientInteraction<
                                     Mark.INBOUND,
                                     messenger.exchange.via,
                                     messenger.exchange.diagnostics,
-                                    Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
                                     Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
                                 );
                             }
@@ -485,7 +478,7 @@ export class ClientInteraction<
                             const { commandRef } = cmd;
                             const fields = "fields" in cmd ? cmd.fields : undefined;
                             return [
-                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
                                 "with",
                                 isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
                                 commandRef !== undefined ? `(ref ${commandRef})` : "",
@@ -509,6 +502,12 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        // Large Message Quality commands must not be batched and require TCP
+        if (request.largeMessage) {
+            yield* this.#invokeSingle(request, session);
+            return;
+        }
+
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
 
         // Single command with batching support — auto-batch
@@ -708,11 +707,7 @@ export class ClientInteraction<
             const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
 
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            // Always skip validation here — commands were already validated when originally submitted
-            const batchRequest = {
-                ...Invoke({ commands: invokeRequests, skipValidation: true }),
-                network: batchNetwork,
-            } as ClientInvoke;
+            const batchRequest = { ...Invoke({ commands: invokeRequests }), network: batchNetwork } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
@@ -962,6 +957,9 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
+        // Large Message Quality commands require TCP transport
+        const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
+
         let messenger: InteractionClientMessenger;
         try {
             messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
@@ -969,6 +967,7 @@ export class ClientInteraction<
                 abort,
                 connectionTimeout: session?.connectionTimeout,
                 addressOverride: request.addressOverride,
+                requiredTransport,
             });
         } catch (e) {
             abort[Symbol.dispose]();

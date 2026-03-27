@@ -35,10 +35,11 @@ import {
     ClusterType,
     EndpointNumber,
     FabricIndex,
-    Global,
     NodeId,
     Status,
     StatusResponseError,
+    TypeFromPartialBitSchema,
+    TypeFromSchema,
     VendorId,
 } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
@@ -147,15 +148,15 @@ type CommissioningStep = {
 
 /** Data that are collected initially or through the commissioning process and can be used also by other steps. */
 type CollectedCommissioningData = {
-    basicCommissioningInfo?: GeneralCommissioning.BasicCommissioningInfo;
+    basicCommissioningInfo?: TypeFromSchema<typeof GeneralCommissioning.TlvBasicCommissioningInfo>;
     productName?: string;
     networkFeatures?: {
         endpointId: EndpointNumber;
-        value: ClusterType.FeaturesOf<NetworkCommissioning>;
+        value: TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>;
     }[];
     networkStatus?: {
         endpointId: EndpointNumber;
-        value: NetworkCommissioning.NetworkInfo[];
+        value: TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[];
     }[];
     otaRequestorList?: EndpointNumber[];
     rootPartsList?: EndpointNumber[];
@@ -393,7 +394,7 @@ export class ControllerCommissioningFlow {
     }
 
     // TODO improve response typing
-    async #invokeCommand<const C extends ClusterType.Concrete>(
+    async #invokeCommand<const C extends ClusterType>(
         request: Invoke.ConcreteCommandRequest<C>,
         options: Omit<Invoke.Definition, "commands"> = {},
     ) {
@@ -563,7 +564,7 @@ export class ControllerCommissioningFlow {
     /** Helper method to check for errorCode/debugTest responses and throw error on failure */
     #ensureOperationalCredentialsSuccess(
         context: string,
-        { statusCode, debugText, fabricIndex }: OperationalCredentials.NocResponse,
+        { statusCode, debugText, fabricIndex }: TypeFromSchema<typeof OperationalCredentials.TlvNocResponse>,
     ) {
         logger.debug(
             `Commissioning step ${context} returned ${OperationalCredentials.NodeOperationalCertStatus[statusCode]} (${statusCode}), ${debugText}${
@@ -622,22 +623,22 @@ export class ControllerCommissioningFlow {
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: OperationalCredentials,
+                    cluster: OperationalCredentials.Complete,
                     attributes: ["supportedFabrics", "commissionedFabrics"],
                 }),
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: Descriptor,
+                    cluster: Descriptor.Complete,
                     attributes: ["partsList", "serverList"],
                 }),
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: BasicInformation,
+                    cluster: BasicInformation.Complete,
                     attributes: ["vendorId", "productId", "productName"],
                 }),
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: GeneralCommissioning,
+                    cluster: GeneralCommissioning.Complete,
                     attributes: ["supportsConcurrentConnection"],
                 }),
             ),
@@ -660,11 +661,11 @@ export class ControllerCommissioningFlow {
         const networkData = this.interaction.read(
             Read(
                 Read.Attribute({
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     attributes: ["featureMap", "networks"],
                 }),
                 Read.Attribute({
-                    cluster: OtaSoftwareUpdateRequestor,
+                    cluster: OtaSoftwareUpdateRequestor.Complete,
                     attributes: ["defaultOtaProviders"],
                 }),
             ),
@@ -672,11 +673,11 @@ export class ControllerCommissioningFlow {
 
         const networkFeatures = new Array<{
             endpointId: EndpointNumber;
-            value: ClusterType.FeaturesOf<NetworkCommissioning>;
+            value: TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>;
         }>();
         const networkStatus = new Array<{
             endpointId: EndpointNumber;
-            value: NetworkCommissioning.NetworkInfo[];
+            value: TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[];
         }>();
         const otaRequestors = new Array<EndpointNumber>();
 
@@ -690,19 +691,19 @@ export class ControllerCommissioningFlow {
                     value,
                 } = entry;
                 switch (attributeId) {
-                    case Global.attributes.featureMap.id:
+                    case NetworkCommissioning.Complete.attributes.featureMap.id:
                         networkFeatures.push({
                             endpointId,
-                            value: value as ClusterType.FeaturesOf<NetworkCommissioning>,
+                            value: value as TypeFromPartialBitSchema<typeof NetworkCommissioning.Complete.features>,
                         });
                         break;
-                    case NetworkCommissioning.attributes.networks.id:
+                    case NetworkCommissioning.Complete.attributes.networks.id:
                         networkStatus.push({
                             endpointId,
-                            value: value as NetworkCommissioning.NetworkInfo[],
+                            value: value as TypeFromSchema<typeof NetworkCommissioning.TlvNetworkInfo>[],
                         });
                         break;
-                    case OtaSoftwareUpdateRequestor.attributes.defaultOtaProviders.id:
+                    case OtaSoftwareUpdateRequestor.Complete.attributes.defaultOtaProviders.id:
                         otaRequestors.push(endpointId);
                         break;
                 }
@@ -734,7 +735,7 @@ export class ControllerCommissioningFlow {
                 Read(
                     Read.Attribute({
                         endpoint: RootEndpointNumber,
-                        cluster: GeneralCommissioning,
+                        cluster: GeneralCommissioning.Complete,
                         attributes: ["basicCommissioningInfo"],
                     }),
                 ),
@@ -752,7 +753,7 @@ export class ControllerCommissioningFlow {
             "armFailSafe",
             await this.#invokeCommand({
                 endpoint: RootEndpointNumber,
-                cluster: GeneralCommissioning,
+                cluster: GeneralCommissioning.Complete,
                 command: "armFailSafe",
                 fields: {
                     breadcrumb: this.lastBreadcrumb,
@@ -818,7 +819,7 @@ export class ControllerCommissioningFlow {
         try {
             await this.#invokeCommand({
                 endpoint: RootEndpointNumber,
-                cluster: GeneralCommissioning,
+                cluster: GeneralCommissioning.Complete,
                 command: "armFailSafe",
                 fields: {
                     breadcrumb: this.lastBreadcrumb,
@@ -855,7 +856,7 @@ export class ControllerCommissioningFlow {
                 Read(
                     Read.Attribute({
                         endpoint: RootEndpointNumber,
-                        cluster: GeneralCommissioning,
+                        cluster: GeneralCommissioning.Complete,
                         attributes: ["locationCapability"],
                     }),
                 ),
@@ -874,7 +875,7 @@ export class ControllerCommissioningFlow {
             const regulatoryResult = await this.#invokeCommand(
                 {
                     endpoint: RootEndpointNumber,
-                    cluster: GeneralCommissioning,
+                    cluster: GeneralCommissioning.Complete,
                     command: "setRegulatoryConfig",
                     fields: {
                         breadcrumb: this.lastBreadcrumb++,
@@ -899,7 +900,7 @@ export class ControllerCommissioningFlow {
                     await this.#invokeCommand(
                         {
                             endpoint: RootEndpointNumber,
-                            cluster: GeneralCommissioning,
+                            cluster: GeneralCommissioning.Complete,
                             command: "setRegulatoryConfig",
                             fields: {
                                 breadcrumb: this.lastBreadcrumb,
@@ -960,7 +961,7 @@ export class ControllerCommissioningFlow {
         const { certificate: deviceAttestation } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: OperationalCredentials,
+                cluster: OperationalCredentials.Complete,
                 command: "certificateChainRequest",
                 fields: {
                     certificateType: OperationalCredentials.CertificateChainType.DacCertificate,
@@ -975,7 +976,7 @@ export class ControllerCommissioningFlow {
         const { certificate: productAttestation } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: OperationalCredentials,
+                cluster: OperationalCredentials.Complete,
                 command: "certificateChainRequest",
                 fields: {
                     certificateType: OperationalCredentials.CertificateChainType.PaiCertificate,
@@ -990,7 +991,7 @@ export class ControllerCommissioningFlow {
         const { attestationElements, attestationSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: OperationalCredentials,
+                cluster: OperationalCredentials.Complete,
                 command: "attestationRequest",
                 fields: {
                     attestationNonce: this.fabric.crypto.randomBytes(32),
@@ -1039,7 +1040,7 @@ export class ControllerCommissioningFlow {
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: OperationalCredentials,
+                cluster: OperationalCredentials.Complete,
                 command: "csrRequest",
                 fields: { csrNonce: this.fabric.crypto.randomBytes(32) },
             },
@@ -1059,7 +1060,7 @@ export class ControllerCommissioningFlow {
         await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: OperationalCredentials,
+                cluster: OperationalCredentials.Complete,
                 command: "addTrustedRootCertificate",
                 fields: {
                     rootCaCertificate: this.ca.rootCert,
@@ -1079,7 +1080,7 @@ export class ControllerCommissioningFlow {
         const addNocResponse = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: OperationalCredentials,
+                cluster: OperationalCredentials.Complete,
                 command: "addNoc",
                 fields: {
                     nocValue: peerOperationalCert,
@@ -1126,7 +1127,7 @@ export class ControllerCommissioningFlow {
                 "updateFabricLabel",
                 await this.#invokeCommand({
                     endpoint: RootEndpointNumber,
-                    cluster: OperationalCredentials,
+                    cluster: OperationalCredentials.Complete,
                     command: "updateFabricLabel",
                     fields: {
                         label: this.fabric.label,
@@ -1262,7 +1263,7 @@ export class ControllerCommissioningFlow {
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     attributes: ["scanMaxTimeSeconds", "connectMaxTimeSeconds"],
                 }),
             ),
@@ -1275,7 +1276,7 @@ export class ControllerCommissioningFlow {
             const { networkingStatus, wiFiScanResults, debugText } = await this.#invokeCommand(
                 {
                     endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     command: "scanNetworks",
                     fields: {
                         ssid,
@@ -1304,7 +1305,7 @@ export class ControllerCommissioningFlow {
         } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
+                cluster: NetworkCommissioning.Complete,
                 command: "addOrUpdateWiFiNetwork",
                 fields: {
                     ssid,
@@ -1331,7 +1332,7 @@ export class ControllerCommissioningFlow {
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     attributes: ["networks"],
                 }),
             ),
@@ -1358,7 +1359,7 @@ export class ControllerCommissioningFlow {
         const connectResult = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
+                cluster: NetworkCommissioning.Complete,
                 command: "connectNetwork",
                 fields: {
                     networkId,
@@ -1439,7 +1440,7 @@ export class ControllerCommissioningFlow {
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     attributes: ["scanMaxTimeSeconds", "connectMaxTimeSeconds"],
                 }),
             ),
@@ -1454,7 +1455,7 @@ export class ControllerCommissioningFlow {
             const { networkingStatus, threadScanResults, debugText } = (await this.#invokeCommand(
                 {
                     endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     command: "scanNetworks",
                     fields: { breadcrumb: this.lastBreadcrumb++ },
                 },
@@ -1497,7 +1498,7 @@ export class ControllerCommissioningFlow {
         } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
+                cluster: NetworkCommissioning.Complete,
                 command: "addOrUpdateThreadNetwork",
                 fields: {
                     operationalDataset: Bytes.fromHex(this.commissioningOptions.threadNetwork.operationalDataset),
@@ -1525,7 +1526,7 @@ export class ControllerCommissioningFlow {
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
-                    cluster: NetworkCommissioning,
+                    cluster: NetworkCommissioning.Complete,
                     attributes: ["networks"],
                 }),
             ),
@@ -1552,7 +1553,7 @@ export class ControllerCommissioningFlow {
         const { networkingStatus, debugText } = await this.#invokeCommand(
             {
                 endpoint: RootEndpointNumber,
-                cluster: NetworkCommissioning,
+                cluster: NetworkCommissioning.Complete,
                 command: "connectNetwork",
                 fields: {
                     networkId,
@@ -1649,7 +1650,7 @@ export class ControllerCommissioningFlow {
             await this.#invokeCommand(
                 {
                     endpoint: RootEndpointNumber,
-                    cluster: GeneralCommissioning,
+                    cluster: GeneralCommissioning.Complete,
                     command: "commissioningComplete",
                 },
                 {
@@ -1691,7 +1692,7 @@ export class ControllerCommissioningFlow {
                     Write(
                         Write.Attribute({
                             endpoint: requestorEndpoint,
-                            cluster: OtaSoftwareUpdateRequestor,
+                            cluster: OtaSoftwareUpdateRequestor.Complete,
                             attributes: ["defaultOtaProviders"],
                             value: [
                                 {

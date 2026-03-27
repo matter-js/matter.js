@@ -25,7 +25,6 @@ import {
     causedBy,
     ChannelType,
     ClassExtends,
-    ConnectionlessTransportSet,
     Construction,
     Crypto,
     Diagnostic,
@@ -45,11 +44,13 @@ import {
     StorageService,
     SupportedStorageTypes,
     Time,
+    TransportSet,
     UnexpectedDataError,
 } from "@matter/general";
 import {
     ClientNode,
     ClientNodePhysicalProperties,
+    ClusterState,
     CommissioningClient,
     ControllerBehavior,
     Endpoint,
@@ -133,13 +134,15 @@ export class MatterController {
         adminFabricId?: FabricId;
         adminFabricLabel: string;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         ipv4?: boolean;
         listeningAddressIpv4?: string;
         listeningAddressIpv6?: string;
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
-        basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
+        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
     }): Promise<MatterController> {
         const {
             rootFabric,
@@ -256,7 +259,7 @@ export class MatterController {
         await controller.construction;
 
         // Verify an appropriate network interface is available
-        const netInterfaces = environment.get(ConnectionlessTransportSet);
+        const netInterfaces = environment.get(TransportSet);
         if (!netInterfaces.hasInterfaceFor(ChannelType.BLE)) {
             if (
                 !environment.get(ScannerSet).hasScannerFor(ChannelType.UDP) ||
@@ -288,6 +291,8 @@ export class MatterController {
         id: string;
         fabric?: Fabric;
         ble?: boolean;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
+        transportPreference?: "tcp" | "udp";
         adminFabricId?: FabricId;
         adminFabricLabel: string;
         adminVendorId?: VendorId;
@@ -299,11 +304,13 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
-        basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
+        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
             ble = false,
+            tcp,
+            transportPreference,
             adminFabricLabel,
             adminFabricId = FabricId(crypto.randomBigInt(8)),
             adminVendorId,
@@ -331,6 +338,8 @@ export class MatterController {
                     listeningAddressIpv4,
                     listeningAddressIpv6,
                     port: localPort,
+                    tcp,
+                    transportPreference,
                 },
                 basicInformation: {
                     ...basicInformation,
@@ -635,11 +644,11 @@ export class MatterController {
             allowUnknownPeer: true,
         }); // Wait maximum 120s to find the operational device for a commissioning process
         const generalCommissioningClusterClient = ClusterClient(
-            GeneralCommissioning,
+            GeneralCommissioning.Cluster,
             EndpointNumber(0),
             interactionClient,
         );
-        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete({
+        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete(undefined, {
             useExtendedFailSafeMessageResponseTimeout: true,
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
