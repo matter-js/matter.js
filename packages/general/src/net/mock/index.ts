@@ -6,5 +6,7 @@
 
 export * from "./MockNetwork.js";
 export * from "./MockRouter.js";
+export * from "./MockTcpServer.js";
+export * from "./MockTcpSocket.js";
 export * from "./MockUdpChannel.js";
 export * from "./NetworkSimulator.js";

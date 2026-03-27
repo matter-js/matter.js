@@ -15,10 +15,17 @@ import {
     NetworkInterface,
     NetworkInterfaceDetails,
     onSameNetwork,
+    TCP_CONNECTION_TIMEOUT_MS,
+    TcpServerOptions,
+    TcpServerSocket,
+    TcpSocket,
     UdpChannel,
     UdpChannelOptions,
 } from "@matter/general";
+import { createConnection } from "node:net";
 import { NetworkInterfaceInfo, networkInterfaces } from "node:os";
+import { NodeJsTcpServer } from "./NodeJsTcpServer.js";
+import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
 import { NodeJsUdpChannel } from "./NodeJsUdpChannel.js";
 
 const logger = Logger.get("NetworkNode");
@@ -72,6 +79,18 @@ export class NodeJsNetwork extends Network {
         const netInterfaceInfo = networkInterfaces()[netInterface];
         if (netInterfaceInfo === undefined) throw new NetworkError(`Unknown interface: ${netInterface}`);
         return this.getNetInterfaceZoneIpv6Internal(netInterface, netInterfaceInfo);
+    }
+
+    /** Get the first non-internal IPv6 network interface zone ID as fallback for multicast. */
+    static getDefaultNetInterface(): string | undefined {
+        const interfaces = networkInterfaces();
+        for (const name in interfaces) {
+            const infos = interfaces[name] as NetworkInterfaceInfo[];
+            if (infos.some(info => familyIs(6, info) && !info.internal)) {
+                return this.getNetInterfaceZoneIpv6Internal(name, infos);
+            }
+        }
+        return undefined;
     }
 
     static getNetInterfaceForIp(ip: string) {
@@ -163,6 +182,42 @@ export class NodeJsNetwork extends Network {
 
     override createUdpChannel(options: UdpChannelOptions): Promise<UdpChannel> {
         return NodeJsUdpChannel.create(options);
+    }
+
+    override createTcpServer(options: TcpServerOptions): Promise<TcpServerSocket> {
+        return NodeJsTcpServer.create(options);
+    }
+
+    override async connectTcp(host: string, port: number): Promise<TcpSocket> {
+        return new Promise((resolve, reject) => {
+            let settled = false;
+
+            const settle = (fn: () => void) => {
+                if (!settled) {
+                    settled = true;
+                    fn();
+                }
+            };
+
+            const socket = createConnection({ host, port, noDelay: true }, () => {
+                socket.setTimeout(0);
+                socket.off("error", rejectOnce);
+                settle(() => resolve(new NodeJsTcpSocket(socket)));
+            });
+
+            const rejectOnce = (error: Error) =>
+                settle(() => {
+                    socket.destroy();
+                    reject(error);
+                });
+
+            socket.setTimeout(TCP_CONNECTION_TIMEOUT_MS);
+            socket.once("timeout", () => {
+                socket.destroy();
+                settle(() => reject(new NetworkError("TCP connection timeout")));
+            });
+            socket.on("error", rejectOnce);
+        });
     }
 }
 

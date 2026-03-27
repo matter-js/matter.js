@@ -6,5 +6,7 @@
 
 export * from "./NodeJsHttpEndpoint.js";
 export * from "./NodeJsNetwork.js";
+export * from "./NodeJsTcpServer.js";
+export * from "./NodeJsTcpSocket.js";
 export * from "./NodeJsUdpChannel.js";
 export * from "./WsAdapter.js";
