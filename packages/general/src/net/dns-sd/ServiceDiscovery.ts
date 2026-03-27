@@ -5,194 +5,120 @@
  */
 
 import type { DnsRecord } from "#codec/DnsCodec.js";
-import { Diagnostic } from "#log/Diagnostic.js";
-import type { Duration } from "#time/Duration.js";
-import { Time, Timer } from "#time/Time.js";
-import { CancelablePromise } from "#util/Cancelable.js";
 import { ObserverGroup } from "#util/Observable.js";
-import { MaybePromise } from "#util/Promises.js";
 import type { DnssdName } from "./DnssdName.js";
 import type { DnssdNames } from "./DnssdNames.js";
-import { IpService } from "./IpService.js";
 
 /**
- * A service instance discovered via DNS-SD.
+ * Async iterable that yields discovered {@link DnssdName}s.
+ *
+ * Since `DnssdName` extends `BasicObservable` (making it `AsyncIterable<DnssdName.Changes>`), using
+ * `AsyncIterableIterator<DnssdName>` directly causes TypeScript to infer the wrong yield type.  This dedicated
+ * interface avoids that issue.
  */
-export interface DiscoveredService {
-    /** Full instance qname, e.g. "MyBorderRouter._meshcop._udp.local" */
-    instanceName: string;
-
-    /** Service type without ".local", e.g. "_meshcop._udp" */
-    serviceType: string;
-
-    /** Resolved IP addresses, port, and TXT parameters for this instance */
-    ipService: IpService;
+export interface NameDiscovery {
+    next(): Promise<IteratorResult<DnssdName>>;
+    return(): Promise<IteratorResult<DnssdName>>;
+    [Symbol.asyncIterator](): NameDiscovery;
 }
 
 /**
- * Discovers DNS-SD service instances of a given service type.
+ * Discover DNS-SD service instances matching a suffix.
  *
- * Extend this class and implement {@link onDiscovered} and {@link onComplete} to collect results.
- * The discovery is a {@link CancelablePromise} that resolves when stopped or timed out.
+ * Returns an async iterable that yields each newly discovered {@link DnssdName} whose qname ends with the given
+ * suffix.  The caller controls lifetime via {@link AbortSignal}: abort to stop discovery.  Cleanup (filter
+ * removal, observer detach) happens automatically — whether stopped by abort or by `break`/`return` in a
+ * `for await` loop.
  *
  * Example:
  * ```typescript
- * class MyDiscovery extends ServiceDiscovery<MyService[]> {
- *     #found: MyService[] = [];
+ * const controller = new AbortController();
+ * setTimeout(() => controller.abort(), 5000);
  *
- *     constructor(names: DnssdNames) {
- *         super(names, "_myservice._tcp", { timeout: Duration.seconds(5) });
- *     }
- *
- *     protected onDiscovered(service: DiscoveredService) {
- *         this.#found.push(parseMyService(service));
- *     }
- *
- *     protected onComplete() { return this.#found; }
+ * for await (const name of discoverNames(names, "_myservice._tcp.local", controller.signal)) {
+ *     console.log("found", name.qname);
  * }
- * const results = await new MyDiscovery(mdnsService.names);
  * ```
  */
-export abstract class ServiceDiscovery<T> extends CancelablePromise<T> {
-    readonly #names: DnssdNames;
-    readonly #serviceType: string;
-    readonly #filter: (record: DnsRecord) => boolean;
-    readonly #observers = new ObserverGroup();
-    readonly #ipServices = new Map<string, IpService>();
-    #isStopped = false;
-    #resolve!: (value: T) => void;
-    #reject!: (cause?: unknown) => void;
-    #timeout?: Timer;
+export function discoverNames(names: DnssdNames, suffix: string, signal: AbortSignal): NameDiscovery {
+    const normalizedSuffix = `.${suffix.toLowerCase().replace(/\.local$/, "")}.local`;
+    const exactType = suffix.toLowerCase().replace(/\.local$/, "") + ".local";
 
-    constructor(names: DnssdNames, serviceType: string, options?: ServiceDiscovery.Options) {
-        let resolve!: (value: T) => void;
-        let reject!: (cause?: unknown) => void;
-        super((res, rej) => {
-            resolve = res;
-            reject = rej;
-        });
-        this.#resolve = resolve;
-        this.#reject = reject;
-        this.#names = names;
-        this.#serviceType = serviceType.toLowerCase().replace(/\.local$/, "");
+    const filter = (record: DnsRecord) => {
+        const lower = record.name.toLowerCase();
+        return lower === exactType || lower.endsWith(normalizedSuffix);
+    };
 
-        // Accept records whose name matches the service type or is an instance of it
-        const suffix = `.${this.#serviceType}.local`;
-        const exactType = `${this.#serviceType}.local`;
-        this.#filter = (record: DnsRecord) => {
-            const lower = record.name.toLowerCase();
-            return lower === exactType || lower.endsWith(suffix);
-        };
+    names.filters.add(filter);
 
-        names.filters.add(this.#filter);
-        this.#observers.on(names.discovered, this.#onDiscovered.bind(this));
+    const observers = new ObserverGroup();
+    const queue: DnssdName[] = [];
+    let waiting: ((value: IteratorResult<DnssdName>) => void) | undefined;
+    let done = false;
 
-        if (options?.timeout !== undefined) {
-            this.#timeout = Time.getTimer("service-discovery timeout", options.timeout, () => this.stop()).start();
-        }
-    }
-
-    /**
-     * Called when a new service instance is discovered.
-     */
-    protected abstract onDiscovered(service: DiscoveredService): void;
-
-    /**
-     * Called when discovery completes (after stop() or timeout). Return the final result.
-     */
-    protected abstract onComplete(): MaybePromise<T>;
-
-    /**
-     * Stop discovery and resolve the promise with the result of {@link onComplete}.
-     */
-    stop() {
-        if (this.#isStopped) {
-            return;
-        }
-        this.#isStopped = true;
-
-        if (this.#timeout !== undefined) {
-            this.#timeout.stop();
-            this.#timeout = undefined;
-        }
-
-        let result: MaybePromise<T>;
-        try {
-            result = this.onComplete();
-        } catch (e) {
-            this.#cleanup();
-            this.#reject(e);
-            return;
-        }
-
-        if (MaybePromise.is(result)) {
-            result.then(
-                value => {
-                    this.#cleanup();
-                    this.#resolve(value);
-                },
-                error => {
-                    this.#cleanup();
-                    this.#reject(error);
-                },
-            );
-        } else {
-            this.#cleanup();
-            this.#resolve(result);
-        }
-    }
-
-    protected override onCancel(reason: Error) {
-        this.#isStopped = true;
-        this.#timeout?.stop();
-        this.#timeout = undefined;
-        this.#cleanup();
-        this.#reject(reason);
-    }
-
-    #onDiscovered(name: DnssdName) {
-        if (this.#isStopped) {
-            return;
-        }
-
+    const push = (name: DnssdName) => {
+        if (done) return;
         const lower = name.qname.toLowerCase();
-        const suffix = `.${this.#serviceType}.local`;
-
-        // Only process instance names (those with a prefix label before the service type)
-        if (!lower.endsWith(suffix)) {
-            return;
+        if (lower.endsWith(normalizedSuffix)) {
+            if (waiting) {
+                const resolve = waiting;
+                waiting = undefined;
+                resolve({ value: name, done: false });
+            } else {
+                queue.push(name);
+            }
         }
+    };
 
-        if (this.#ipServices.has(lower)) {
-            return;
+    const cleanup = () => {
+        if (done) return;
+        done = true;
+        observers.close();
+        names.filters.delete(filter);
+        signal.removeEventListener("abort", onAbort);
+        if (waiting) {
+            const resolve = waiting;
+            waiting = undefined;
+            resolve({ value: undefined as any, done: true });
         }
+    };
 
-        const ipService = new IpService(name.qname, Diagnostic.via("service-discovery"), this.#names);
-        this.#ipServices.set(lower, ipService);
+    const onAbort = () => cleanup();
+    signal.addEventListener("abort", onAbort, { once: true });
+    observers.on(names.discovered, push);
 
-        this.onDiscovered({
-            instanceName: name.qname,
-            serviceType: this.#serviceType,
-            ipService,
-        });
+    // Seed with already-discovered names
+    for (const name of names.discoveredNames()) {
+        push(name);
     }
 
-    #cleanup() {
-        this.#names.filters.delete(this.#filter);
-        this.#observers.close();
-        for (const svc of this.#ipServices.values()) {
-            void svc.close();
-        }
-        this.#ipServices.clear();
+    // Check if already aborted
+    if (signal.aborted) {
+        cleanup();
     }
-}
 
-export namespace ServiceDiscovery {
-    export interface Options {
-        /**
-         * Stop discovery after this duration and resolve with whatever was found.
-         * {@link Duration} is in milliseconds.
-         */
-        timeout?: Duration;
-    }
+    const iterator: NameDiscovery = {
+        next(): Promise<IteratorResult<DnssdName>> {
+            if (done) {
+                return Promise.resolve({ value: undefined as any, done: true });
+            }
+            if (queue.length > 0) {
+                return Promise.resolve({ value: queue.shift()!, done: false });
+            }
+            return new Promise(resolve => {
+                waiting = resolve;
+            });
+        },
+
+        return(): Promise<IteratorResult<DnssdName>> {
+            cleanup();
+            return Promise.resolve({ value: undefined as any, done: true });
+        },
+
+        [Symbol.asyncIterator]() {
+            return iterator;
+        },
+    };
+
+    return iterator;
 }

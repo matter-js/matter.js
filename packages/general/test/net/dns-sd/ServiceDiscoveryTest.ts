@@ -4,72 +4,74 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { DnssdNames } from "#net/dns-sd/DnssdNames.js";
-import { DiscoveredService, ServiceDiscovery } from "#net/dns-sd/ServiceDiscovery.js";
+import type { DnssdName } from "#net/dns-sd/DnssdName.js";
+import { discoverNames } from "#net/dns-sd/ServiceDiscovery.js";
 import { MOCK_SERVICE_DOMAIN, MockSite, qnameOf } from "./dns-sd-helpers.js";
 
-// Concrete subclass for testing
-class CollectingDiscovery extends ServiceDiscovery<DiscoveredService[]> {
-    readonly found: DiscoveredService[] = [];
-
-    constructor(names: DnssdNames) {
-        // MOCK_SERVICE_DOMAIN is "_foo._tcp.local"; strip ".local"
-        const serviceType = MOCK_SERVICE_DOMAIN.replace(/\.local$/, "");
-        super(names, serviceType);
-    }
-
-    protected onDiscovered(service: DiscoveredService) {
-        this.found.push(service);
-    }
-
-    protected onComplete() {
-        return this.found;
-    }
-}
-
-describe("ServiceDiscovery", () => {
+describe("discoverNames", () => {
     before(() => {
         MockTime.enable();
     });
 
-    it("discovers a service instance via onDiscovered", async () => {
+    it("discovers a service instance", async () => {
         await using site = new MockSite();
         const { client, server } = await site.addPair();
 
-        const discovery = new CollectingDiscovery(client.names);
+        const controller = new AbortController();
+        const found: DnssdName[] = [];
+
+        const iter = discoverNames(client.names, MOCK_SERVICE_DOMAIN, controller.signal);
+
+        // Consume in the background
+        const collecting = (async () => {
+            let result = await iter.next();
+            while (!result.done) {
+                found.push(result.value);
+                controller.abort();
+                result = await iter.next();
+            }
+        })();
+
         await server.broadcast();
-
-        // Allow async discovery processing
         await MockTime.advance(10);
-        discovery.stop();
-        const results = await discovery;
+        await collecting;
 
-        expect(results).length(1);
-        expect(results[0].instanceName).equals(qnameOf(1));
-        expect(results[0].serviceType).equals(MOCK_SERVICE_DOMAIN.replace(/\.local$/, ""));
+        expect(found).length(1);
+        expect(found[0].qname).equals(qnameOf(1));
     });
 
-    it("resolves with empty array when no services found before stop", async () => {
+    it("yields nothing when aborted before discovery", async () => {
         await using site = new MockSite();
         const { client } = await site.addPair();
 
-        const discovery = new CollectingDiscovery(client.names);
-        discovery.stop();
-        const results = await discovery;
+        const controller = new AbortController();
+        controller.abort();
 
-        expect(results).deep.equals([]);
+        const found: DnssdName[] = [];
+        const iter = discoverNames(client.names, MOCK_SERVICE_DOMAIN, controller.signal);
+        let result = await iter.next();
+        while (!result.done) {
+            found.push(result.value);
+            result = await iter.next();
+        }
+
+        expect(found).deep.equals([]);
     });
 
-    it("removes filter from DnssdNames after stop", async () => {
+    it("removes filter from DnssdNames after abort", async () => {
         await using site = new MockSite();
         const { client } = await site.addPair();
 
         const filtersBefore = client.names.filters.size;
-        const discovery = new CollectingDiscovery(client.names);
+        const controller = new AbortController();
+
+        const iter = discoverNames(client.names, MOCK_SERVICE_DOMAIN, controller.signal);
         expect(client.names.filters.size).equals(filtersBefore + 1);
 
-        discovery.stop();
-        await discovery;
+        controller.abort();
+        // Drain the iterator so cleanup runs
+        await iter.next();
+
         expect(client.names.filters.size).equals(filtersBefore);
     });
 });
