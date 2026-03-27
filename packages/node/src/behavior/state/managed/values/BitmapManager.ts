@@ -13,6 +13,7 @@ import { ValueSupervisor } from "../../../supervision/ValueSupervisor.js";
 import { assertBoolean, assertNumber } from "../../validation/assertions.js";
 import { Instrumentation } from "../Instrumentation.js";
 import { Internal } from "../Internal.js";
+import type { ValReference } from "../ValReference.js";
 
 const SESSION = Symbol("options");
 
@@ -20,7 +21,7 @@ interface Wrapper extends Val.Struct, Internal.Collection {
     /**
      * A reference to the raw value.
      */
-    [Internal.reference]: Val.Reference<Val.Struct>;
+    [Internal.reference]: ValReference<Val.Struct>;
 
     /**
      * Information regarding the current user session.
@@ -58,7 +59,7 @@ export function BitmapManager(owner: RootSupervisor, schema: Schema): ValueSuper
     const Wrapper = GeneratedClass({
         name: schema.name,
 
-        initialize(this: Wrapper, ref: Val.Reference<Val.Struct>, session: ValueSupervisor.Session) {
+        initialize(this: Wrapper, ref: ValReference<Val.Struct>, session: ValueSupervisor.Session) {
             // Only objects are acceptable
             if (!isObject(ref.value)) {
                 throw new SchemaImplementationError(

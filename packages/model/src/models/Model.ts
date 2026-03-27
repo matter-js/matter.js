@@ -11,6 +11,7 @@ import { ModelTraversal } from "../logic/ModelTraversal.js";
 import { Children, InternalChildren } from "./Children.js";
 import { ModelTreePosition } from "./ModelTreePosition.js";
 import { Resource, ResourceBundle } from "./Resource.js";
+import type { ScopeModel } from "./ScopeModel.js";
 
 /**
  * Thrown when model API is used incorrectly.
@@ -470,8 +471,32 @@ export abstract class Model<E extends BaseElement = BaseElement, C extends Model
     /**
      * Search the inheritance chain for a child property.
      */
-    member(key: Children.Selector, allowedTags = [ElementTag.Field, ElementTag.Attribute]): Model | undefined {
+    member(
+        key: Children.Selector,
+        allowedTags: ElementTag[] = [ElementTag.Field, ElementTag.Attribute],
+    ): Model | undefined {
         return new ModelTraversal().findMember(this, key, allowedTags);
+    }
+
+    /**
+     * Resolve a qualified name (e.g., "Foo.Bar") to a model.
+     *
+     * Searches for a member by name within this model's scope.  For qualified paths, each segment narrows into the
+     * previous match's children.
+     */
+    resolve(name: string | string[], options?: Model.ResolveOptions): Model | undefined {
+        const path = typeof name === "string" ? name.split(".") : name;
+        const leafTags = options?.tags ?? [ElementTag.Field, ElementTag.Attribute];
+        const traversal = new ModelTraversal();
+        return traversal.findQualified(
+            this,
+            path,
+            (name, scope, isLeaf) => traversal.findMember(scope, name, isLeaf ? leafTags : undefined),
+            {
+                boundary: options?.boundary ?? (scope => !!(scope as ScopeModel).isScope),
+                outerResolve: options?.outerResolve,
+            },
+        );
     }
 
     /**
@@ -805,6 +830,28 @@ export namespace Model {
         operationalBase?: Model;
         operationalShadow?: Model;
     };
+
+    /**
+     * Options for {@link Model.resolve}.
+     */
+    export interface ResolveOptions {
+        /**
+         * Allowed element tags for member matching.  Defaults to member()'s default of [Field, Attribute].
+         */
+        tags?: ElementTag[];
+
+        /**
+         * Predicate that stops the parent walk.  When a scope matches the boundary, its inherited scopes are
+         * still searched but its parent is not.  Defaults to stopping at Cluster or Matter elements.
+         */
+        boundary?: (scope: Model) => boolean;
+
+        /**
+         * Outermost fallback resolver, called after all scopes within the boundary are exhausted.  Receives
+         * the full path segments and the boundary scope (the last scope searched before the walk stopped).
+         */
+        outerResolve?: (path: string[], boundaryScope: Model | undefined) => Model | undefined;
+    }
 
     export type LookupPredicate<T extends Model> = Type<T> | { type: Type<T>; test: (model: Model) => boolean };
 
