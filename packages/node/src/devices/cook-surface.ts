@@ -6,13 +6,13 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import {
     TemperatureControlServer as BaseTemperatureControlServer
 } from "../behaviors/temperature-control/TemperatureControlServer.js";
 import {
     TemperatureMeasurementServer as BaseTemperatureMeasurementServer
 } from "../behaviors/temperature-measurement/TemperatureMeasurementServer.js";
-import { OnOffServer as BaseOnOffServer } from "../behaviors/on-off/OnOffServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -26,6 +26,13 @@ import { Identity } from "@matter/general";
 export interface CookSurfaceDevice extends Identity<typeof CookSurfaceDeviceDefinition> {}
 
 export namespace CookSurfaceRequirements {
+    /**
+     * The OnOff cluster is optional per the Matter specification.
+     *
+     * This version of {@link OnOffServer} is specialized per the specification.
+     */
+    export const OnOffServer = BaseOnOffServer.with("OffOnly");
+
     /**
      * The TemperatureControl cluster is optional per the Matter specification.
      *
@@ -41,20 +48,13 @@ export namespace CookSurfaceRequirements {
     export const TemperatureMeasurementServer = BaseTemperatureMeasurementServer;
 
     /**
-     * The OnOff cluster is optional per the Matter specification.
-     *
-     * This version of {@link OnOffServer} is specialized per the specification.
-     */
-    export const OnOffServer = BaseOnOffServer.with("OffOnly");
-
-    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         optional: {
+            OnOff: OnOffServer,
             TemperatureControl: TemperatureControlServer,
-            TemperatureMeasurement: TemperatureMeasurementServer,
-            OnOff: OnOffServer
+            TemperatureMeasurement: TemperatureMeasurementServer
         },
         mandatory: {}
     };

@@ -271,6 +271,8 @@ export declare namespace BooleanStateConfiguration {
      */
     export interface VisualOrAudibleCommands {
         /**
+         * This command allows setting the enable or disable value for the specified alarm modes.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
          */
         enableDisableAlarm(request: EnableDisableAlarmRequest): MaybePromise;
@@ -281,6 +283,8 @@ export declare namespace BooleanStateConfiguration {
      */
     export interface AlarmSuppressCommands {
         /**
+         * This command will suppress the alarm modes specified.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
          */
         suppressAlarm(request: SuppressAlarmRequest): MaybePromise;
@@ -453,6 +457,8 @@ export declare namespace BooleanStateConfiguration {
     }
 
     /**
+     * This command allows setting the enable or disable value for the specified alarm modes.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
      */
     export interface EnableDisableAlarmRequest {
@@ -466,6 +472,8 @@ export declare namespace BooleanStateConfiguration {
     }
 
     /**
+     * This command will suppress the alarm modes specified.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
      */
     export interface SuppressAlarmRequest {

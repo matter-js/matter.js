@@ -33,7 +33,7 @@ export declare namespace WindowCovering {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 6;
+    export const revision: 7;
 
     /**
      * Canonical metadata for the WindowCovering cluster.
@@ -67,14 +67,14 @@ export declare namespace WindowCovering {
          * To change settings, devices shall write to the Mode attribute. The behavior causing the setting or clearing
          * of each bit is vendor specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.8
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.4
          */
         configStatus: ConfigStatus;
 
         /**
          * Indicates the currently ongoing operations and applies to all type of devices.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.15
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.11
          */
         operationalStatus: OperationalStatus;
 
@@ -92,7 +92,7 @@ export declare namespace WindowCovering {
          *
          * The table below helps to match the EndProductType attribute with the Type attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.16
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.12
          */
         endProductType: EndProductType;
 
@@ -106,124 +106,18 @@ export declare namespace WindowCovering {
          * interaction to the Mode attribute, with an unsupported mode bit or any out of bounds bits set, must be
          * ignored and a response containing the status of CONSTRAINT_ERROR will be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.21
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.13
          */
         mode: Mode;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        velocityLift?: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        accelerationTimeLift?: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        decelerationTimeLift?: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        intermediateSetpointsLift?: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        intermediateSetpointsTilt?: any;
 
         /**
          * The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing
          * movements. By default for nominal operation all flags are cleared (0). A device might support none, one or
          * several bit flags from this attribute (all optional).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.22
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.14
          */
         safetyStatus?: SafetyStatus;
-    }
-
-    /**
-     * {@link WindowCovering} supports these elements if it supports feature
-     * "LiftAndPositionAwareLiftAndAbsolutePosition".
-     */
-    export interface LiftAndPositionAwareLiftAndAbsolutePositionAttributes {
-        /**
-         * Indicates the open limit for lifting the window covering whether position (in centimeters) is encoded or
-         * timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.17
-         */
-        installedOpenLimitLift: number;
-
-        /**
-         * Indicates the closed limit for lifting the window covering whether position (in centimeters) is encoded or
-         * timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.18
-         */
-        installedClosedLimitLift: number;
-
-        /**
-         * Indicates the maximum possible encoder position possible (Unit cm, centimeters) to position the height of the
-         * window covering lift.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.2
-         */
-        physicalClosedLimitLift?: number;
-
-        /**
-         * Indicates the actual lift position (Unit cm, centimeters) of the window covering from the fully-open
-         * position.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.4
-         */
-        currentPositionLift?: number | null;
-    }
-
-    /**
-     * {@link WindowCovering} supports these elements if it supports feature
-     * "TiltAndPositionAwareTiltAndAbsolutePosition".
-     */
-    export interface TiltAndPositionAwareTiltAndAbsolutePositionAttributes {
-        /**
-         * Indicates the open limit for tilting the window covering whether position (in tenth of a degree) is encoded
-         * or timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.19
-         */
-        installedOpenLimitTilt: number;
-
-        /**
-         * Indicates the closed limit for tilting the window covering whether position (in tenth of a degree) is encoded
-         * or timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.20
-         */
-        installedClosedLimitTilt: number;
-
-        /**
-         * Indicates the maximum possible encoder position possible (Unit 0.1°, tenths of a degree) to position the
-         * angle of the window covering tilt.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.3
-         */
-        physicalClosedLimitTilt?: number;
-
-        /**
-         * Indicates the actual tilt position (Unit 0.1°, tenths of a degree) of the window covering from the fully-open
-         * position.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.5
-         */
-        currentPositionTilt?: number | null;
     }
 
     /**
@@ -234,7 +128,7 @@ export declare namespace WindowCovering {
          * Indicates the total number of lift/slide actuations applied to the window covering since the device was
          * installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.6
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.2
          */
         numberOfActuationsLift?: number;
     }
@@ -246,7 +140,7 @@ export declare namespace WindowCovering {
         /**
          * Indicates the total number of tilt actuations applied to the window covering since the device was installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.3
          */
         numberOfActuationsTilt?: number;
     }
@@ -258,14 +152,14 @@ export declare namespace WindowCovering {
         /**
          * Indicates the position where the window covering lift will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.13
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.9
          */
         targetPositionLiftPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.9
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.5
          */
         currentPositionLiftPercent100ths: number | null;
 
@@ -273,7 +167,7 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionLiftPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.11
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.7
          */
         currentPositionLiftPercentage?: number | null;
     }
@@ -285,14 +179,14 @@ export declare namespace WindowCovering {
         /**
          * Indicates the position where the window covering tilt will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.14
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.10
          */
         targetPositionTiltPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.10
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.6
          */
         currentPositionTiltPercent100ths: number | null;
 
@@ -300,7 +194,7 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionTiltPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.12
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.8
          */
         currentPositionTiltPercentage?: number | null;
     }
@@ -333,14 +227,14 @@ export declare namespace WindowCovering {
          * To change settings, devices shall write to the Mode attribute. The behavior causing the setting or clearing
          * of each bit is vendor specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.8
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.4
          */
         configStatus: ConfigStatus;
 
         /**
          * Indicates the currently ongoing operations and applies to all type of devices.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.15
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.11
          */
         operationalStatus: OperationalStatus;
 
@@ -358,7 +252,7 @@ export declare namespace WindowCovering {
          *
          * The table below helps to match the EndProductType attribute with the Type attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.16
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.12
          */
         endProductType: EndProductType;
 
@@ -372,139 +266,45 @@ export declare namespace WindowCovering {
          * interaction to the Mode attribute, with an unsupported mode bit or any out of bounds bits set, must be
          * ignored and a response containing the status of CONSTRAINT_ERROR will be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.21
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.13
          */
         mode: Mode;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        velocityLift: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        accelerationTimeLift: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        decelerationTimeLift: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        intermediateSetpointsLift: any;
-
-        /**
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6
-         * @deprecated
-         */
-        intermediateSetpointsTilt: any;
 
         /**
          * The SafetyStatus attribute reflects the state of the safety sensors and the common issues preventing
          * movements. By default for nominal operation all flags are cleared (0). A device might support none, one or
          * several bit flags from this attribute (all optional).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.22
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.14
          */
         safetyStatus: SafetyStatus;
-
-        /**
-         * Indicates the open limit for lifting the window covering whether position (in centimeters) is encoded or
-         * timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.17
-         */
-        installedOpenLimitLift: number;
-
-        /**
-         * Indicates the closed limit for lifting the window covering whether position (in centimeters) is encoded or
-         * timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.18
-         */
-        installedClosedLimitLift: number;
-
-        /**
-         * Indicates the maximum possible encoder position possible (Unit cm, centimeters) to position the height of the
-         * window covering lift.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.2
-         */
-        physicalClosedLimitLift: number;
-
-        /**
-         * Indicates the actual lift position (Unit cm, centimeters) of the window covering from the fully-open
-         * position.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.4
-         */
-        currentPositionLift: number | null;
-
-        /**
-         * Indicates the open limit for tilting the window covering whether position (in tenth of a degree) is encoded
-         * or timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.19
-         */
-        installedOpenLimitTilt: number;
-
-        /**
-         * Indicates the closed limit for tilting the window covering whether position (in tenth of a degree) is encoded
-         * or timed.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.20
-         */
-        installedClosedLimitTilt: number;
-
-        /**
-         * Indicates the maximum possible encoder position possible (Unit 0.1°, tenths of a degree) to position the
-         * angle of the window covering tilt.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.3
-         */
-        physicalClosedLimitTilt: number;
-
-        /**
-         * Indicates the actual tilt position (Unit 0.1°, tenths of a degree) of the window covering from the fully-open
-         * position.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.5
-         */
-        currentPositionTilt: number | null;
 
         /**
          * Indicates the total number of lift/slide actuations applied to the window covering since the device was
          * installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.6
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.2
          */
         numberOfActuationsLift: number;
 
         /**
          * Indicates the total number of tilt actuations applied to the window covering since the device was installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.3
          */
         numberOfActuationsTilt: number;
 
         /**
          * Indicates the position where the window covering lift will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.13
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.9
          */
         targetPositionLiftPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.9
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.5
          */
         currentPositionLiftPercent100ths: number | null;
 
@@ -512,21 +312,21 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionLiftPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.11
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.7
          */
         currentPositionLiftPercentage: number | null;
 
         /**
          * Indicates the position where the window covering tilt will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.14
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.10
          */
         targetPositionTiltPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.10
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.6
          */
         currentPositionTiltPercent100ths: number | null;
 
@@ -534,7 +334,7 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionTiltPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.12
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.8
          */
         currentPositionTiltPercentage: number | null;
     }
@@ -650,7 +450,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
          */
         goToLiftPercentage(request: GoToLiftPercentageRequest): MaybePromise;
     }
@@ -679,7 +479,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
          */
         goToTiltPercentage(request: GoToTiltPercentageRequest): MaybePromise;
     }
@@ -708,7 +508,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
          */
         goToLiftPercentage(request: GoToLiftPercentageRequest): MaybePromise;
     }
@@ -737,35 +537,9 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
+         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
          */
         goToTiltPercentage(request: GoToTiltPercentageRequest): MaybePromise;
-    }
-
-    /**
-     * {@link WindowCovering} supports these elements if it supports feature "LiftAndAbsolutePosition".
-     */
-    export interface LiftAndAbsolutePositionCommands {
-        /**
-         * This command is used to set the target lift position of the window covering to the value specified in the
-         * command.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
-         */
-        goToLiftValue(request: GoToLiftValueRequest): MaybePromise;
-    }
-
-    /**
-     * {@link WindowCovering} supports these elements if it supports feature "TiltAndAbsolutePosition".
-     */
-    export interface TiltAndAbsolutePositionCommands {
-        /**
-         * This command is used to set the target tilt position of the window covering to the value specified in the
-         * command.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6
-         */
-        goToTiltValue(request: GoToTiltValueRequest): MaybePromise;
     }
 
     /**
@@ -776,21 +550,11 @@ export declare namespace WindowCovering {
         LiftCommands,
         TiltCommands,
         LiftAndPositionAwareLiftCommands,
-        TiltAndPositionAwareTiltCommands,
-        LiftAndAbsolutePositionCommands,
-        TiltAndAbsolutePositionCommands
+        TiltAndPositionAwareTiltCommands
     {}
 
     export type Components = [
         { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
-        {
-            flags: { lift: true, positionAwareLift: true, absolutePosition: true },
-            attributes: LiftAndPositionAwareLiftAndAbsolutePositionAttributes
-        },
-        {
-            flags: { tilt: true, positionAwareTilt: true, absolutePosition: true },
-            attributes: TiltAndPositionAwareTiltAndAbsolutePositionAttributes
-        },
         { flags: { lift: true }, attributes: LiftAttributes, commands: LiftCommands },
         { flags: { tilt: true }, attributes: TiltAttributes, commands: TiltCommands },
         {
@@ -802,12 +566,10 @@ export declare namespace WindowCovering {
             flags: { tilt: true, positionAwareTilt: true },
             attributes: TiltAndPositionAwareTiltAttributes,
             commands: TiltAndPositionAwareTiltCommands
-        },
-        { flags: { lift: true, absolutePosition: true }, commands: LiftAndAbsolutePositionCommands },
-        { flags: { tilt: true, absolutePosition: true }, commands: TiltAndAbsolutePositionCommands }
+        }
     ];
 
-    export type Features = "Lift" | "Tilt" | "PositionAwareLift" | "AbsolutePosition" | "PositionAwareTilt";
+    export type Features = "Lift" | "Tilt" | "PositionAwareLift" | "PositionAwareTilt";
 
     /**
      * These are optional features supported by WindowCoveringCluster.
@@ -841,19 +603,6 @@ export declare namespace WindowCovering {
          * Position aware lift control is supported.
          */
         PositionAwareLift = "PositionAwareLift",
-
-        /**
-         * AbsolutePosition (ABS)
-         *
-         * The percentage attributes shall indicate the position as a percentage between the InstalledOpenLimits and
-         * InstalledClosedLimits attributes of the window covering starting at the open (0.00%).
-         *
-         * As a general rule, absolute positioning (in centimeters or tenth of a degrees) SHOULD NOT be supported for
-         * new implementations.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.4.4
-         */
-        AbsolutePosition = "AbsolutePosition",
 
         /**
          * PositionAwareTilt (PA_TL)
@@ -1328,7 +1077,7 @@ export declare namespace WindowCovering {
      * command and a non-zero percentage shall be treated as an DownOrClose command. If the device is only a tilt
      * control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
      */
     export interface GoToLiftPercentageRequest {
         liftPercent100thsValue: number;
@@ -1353,40 +1102,10 @@ export declare namespace WindowCovering {
      * command and a non-zero percentage shall be treated as an DownOrClose command. If the device is only a tilt
      * control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
+     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
      */
     export interface GoToTiltPercentageRequest {
         tiltPercent100thsValue: number;
-    }
-
-    /**
-     * This command is used to set the target lift position of the window covering to the value specified in the
-     * command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
-     */
-    export interface GoToLiftValueRequest {
-        /**
-         * This field shall specify the requested physical lift/slide position in unit cm (centimeters).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4.1
-         */
-        liftValue: number;
-    }
-
-    /**
-     * This command is used to set the target tilt position of the window covering to the value specified in the
-     * command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6
-     */
-    export interface GoToTiltValueRequest {
-        /**
-         * This field shall specify the requested physical tilt position in unit 0.1° (tenth of a degrees).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6.1
-         */
-        tiltValue: number;
     }
 
     /**

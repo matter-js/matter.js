@@ -16,14 +16,11 @@ Resource.add({
     children: [
         { tag: "requirement", name: "DeviceEnergyManagement", xref: "device§2.7.4" },
         { tag: "requirement", name: "DeviceEnergyManagementMode", xref: "device§2.7.4" },
-
+        { tag: "requirement", name: "ElectricalGridConditions", xref: "device§2.7.4" },
         {
-            tag: "field", name: "conditions",
-            children: [{
-                tag: "field", name: "ControllableEsa",
-                description: "The DEM cluster on this endpoint accepts commands to adjust its energy operation.",
-                xref: "device§2.7.3"
-            }]
+            tag: "condition", name: "ControllableEsa",
+            description: "The DEM cluster on this endpoint accepts commands to adjust its energy operation.",
+            xref: "device§2.7.3"
         }
     ]
 });

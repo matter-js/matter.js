@@ -328,7 +328,7 @@ Resource.add({
                 { tag: "field", name: "Navy", description: "Approximately RGB #000080." },
                 { tag: "field", name: "Green", description: "Approximately RGB #008000." },
                 { tag: "field", name: "Teal", description: "Approximately RGB #008080." },
-                { tag: "field", name: "Maroon", description: "Approximately RGB #800080." },
+                { tag: "field", name: "Maroon", description: "Approximately RGB #800000." },
                 { tag: "field", name: "Purple", description: "Approximately RGB #800080." },
                 { tag: "field", name: "Olive", description: "Approximately RGB #808000." },
                 { tag: "field", name: "Gray", description: "Approximately RGB #808080." },

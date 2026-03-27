@@ -612,6 +612,8 @@ export declare namespace GroupKeyManagement {
          * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.9
          */
         groupKeyMulticastPolicy?: GroupKeyMulticastPolicy;
+
+        fabricIndex?: FabricIndex;
     }
 
     /**

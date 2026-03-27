@@ -219,7 +219,7 @@ export declare namespace DiagnosticLogs {
         Success = 0,
 
         /**
-         * All logs has been transferred
+         * All logs have been transferred
          *
          * shall be used when a BDX session is requested, however, all available logs were provided in a LogContent
          * field.

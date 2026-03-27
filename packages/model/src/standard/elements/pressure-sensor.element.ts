@@ -15,8 +15,8 @@ export const PressureSensorDt = DeviceType(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 773, revision: 2 } ], element: "attribute" })
     ),
-    Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" })
+    Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
+    Requirement({ name: "PressureMeasurement", id: 0x403, conformance: "M", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(PressureSensorDt);

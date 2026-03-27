@@ -91,7 +91,7 @@ export declare namespace NetworkCommissioning {
          * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which is
          * used to write the value. In that case, it is possible that the Administrator would have to await expiry of
          * the fail-safe, and associated recovery of network configuration to prior safe values, before being able to
-         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
+         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe”).
          *
          * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a write
          * to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled, an
@@ -257,7 +257,7 @@ export declare namespace NetworkCommissioning {
          * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which is
          * used to write the value. In that case, it is possible that the Administrator would have to await expiry of
          * the fail-safe, and associated recovery of network configuration to prior safe values, before being able to
-         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
+         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe”).
          *
          * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a write
          * to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled, an
@@ -390,8 +390,8 @@ export declare namespace NetworkCommissioning {
          * SSID) is provided in the command arguments. Directed scanning shall restrict the result set to the specified
          * network only.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The client shall NOT expect the server to be done scanning and have responded with ScanNetworksResponse
          * before ScanMaxTimeSeconds seconds have elapsed. Enough transport time affordances for retries SHOULD be
@@ -426,8 +426,8 @@ export declare namespace NetworkCommissioning {
          * configuration with the same NetworkID. The relative order of the entries in the Networks attribute shall
          * remain unchanged, except for the removal of the requested network configuration.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * If the Networks attribute does not contain a matching entry, the command shall immediately respond with
          * NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound.
@@ -450,8 +450,8 @@ export declare namespace NetworkCommissioning {
          * to proceed with such an operation, such as if it is currently attempting to connect in the background, or is
          * already proceeding with a prior ConnectNetwork.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * Before connecting to the new network, the Node shall disconnect the operational network connections managed
          * by any other Network Commissioning cluster instances (whether under the Root Node or a Secondary Network
@@ -483,16 +483,18 @@ export declare namespace NetworkCommissioning {
          * The precedence order of any entry subject to ConnectNetwork shall NOT change within the Networks attribute.
          *
          * Even after successfully connecting to a network, the configuration shall revert to the prior state of
-         * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete Command”)
-         * is not successfully invoked before expiry of the Fail-Safe timer.
+         * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete”) is not
+         * successfully invoked before expiry of the Fail-Safe timer.
          *
          * When non-concurrent commissioning is being used by a Commissioner or Administrator, the
          * ConnectNetworkResponse shall be sent with the NetworkingStatus field set to Success prior to closing the
          * commissioning channel, even if not yet connected to the operational network, unless the device would be
          * incapable of joining that network, in which case the usual failure path described in the prior paragraphs
-         * shall be followed. Once the commissioning channel is closed, the operational channel will be started. It is
-         * possible that the only method to determine success of the operation is operational discovery of the Node on
-         * the new operational network. Therefore, before invoking the ConnectNetwork command, the client SHOULD
+         * shall be followed. Once the commissioning channel is closed, if the attribute IsCommissioningWithoutPower is
+         * absent or false, the operational channel shall start without waiting. However, if IsCommissioningWithoutPower
+         * is true, the operational channel shall start automatically as soon as the device is powered up and running.
+         * It is possible that the only method to determine success of the operation is operational discovery of the
+         * Node on the new operational network. Therefore, before invoking the ConnectNetwork command, the client SHOULD
          * re-invoke the Arm Fail-Safe command with a duration that meets the following:
          *
          *   1. Sufficient time to meet the minimum required time (see Section 11.9.6.4, “ConnectMaxTimeSeconds
@@ -539,14 +541,14 @@ export declare namespace NetworkCommissioning {
          *
          * This command shall be used to add or modify Wi-Fi network configurations.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The Credentials associated with the network are not readable after execution of this command, as they do not
-         * appear in the Networks attribute, for security reasons.
+         * appear in the Section 11.9.6.2, “Networks” attribute, for security reasons.
          *
-         * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
-         * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
+         * If this command contains a ClientIdentifier, and the Section 11.9.6.2, “Networks” list does not contain an
+         * entry with a matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
          *
          * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior
          * of addition/update.
@@ -565,8 +567,8 @@ export declare namespace NetworkCommissioning {
          *
          * This command shall be used to add or modify Thread network configurations.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior
          * of addition/update.
@@ -853,8 +855,8 @@ export declare namespace NetworkCommissioning {
      * Scanning for a specific network (i.e. directed scanning) takes place if a network identifier (e.g. Wi-Fi SSID) is
      * provided in the command arguments. Directed scanning shall restrict the result set to the specified network only.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * The client shall NOT expect the server to be done scanning and have responded with ScanNetworksResponse before
      * ScanMaxTimeSeconds seconds have elapsed. Enough transport time affordances for retries SHOULD be expected before
@@ -983,8 +985,8 @@ export declare namespace NetworkCommissioning {
      * with the same NetworkID. The relative order of the entries in the Networks attribute shall remain unchanged,
      * except for the removal of the requested network configuration.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * If the Networks attribute does not contain a matching entry, the command shall immediately respond with
      * NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound.
@@ -1072,8 +1074,8 @@ export declare namespace NetworkCommissioning {
      * proceed with such an operation, such as if it is currently attempting to connect in the background, or is already
      * proceeding with a prior ConnectNetwork.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * Before connecting to the new network, the Node shall disconnect the operational network connections managed by
      * any other Network Commissioning cluster instances (whether under the Root Node or a Secondary Network Interface),
@@ -1105,14 +1107,16 @@ export declare namespace NetworkCommissioning {
      * The precedence order of any entry subject to ConnectNetwork shall NOT change within the Networks attribute.
      *
      * Even after successfully connecting to a network, the configuration shall revert to the prior state of
-     * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete Command”) is
-     * not successfully invoked before expiry of the Fail-Safe timer.
+     * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete”) is not
+     * successfully invoked before expiry of the Fail-Safe timer.
      *
      * When non-concurrent commissioning is being used by a Commissioner or Administrator, the ConnectNetworkResponse
      * shall be sent with the NetworkingStatus field set to Success prior to closing the commissioning channel, even if
      * not yet connected to the operational network, unless the device would be incapable of joining that network, in
      * which case the usual failure path described in the prior paragraphs shall be followed. Once the commissioning
-     * channel is closed, the operational channel will be started. It is possible that the only method to determine
+     * channel is closed, if the attribute IsCommissioningWithoutPower is absent or false, the operational channel shall
+     * start without waiting. However, if IsCommissioningWithoutPower is true, the operational channel shall start
+     * automatically as soon as the device is powered up and running. It is possible that the only method to determine
      * success of the operation is operational discovery of the Node on the new operational network. Therefore, before
      * invoking the ConnectNetwork command, the client SHOULD re-invoke the Arm Fail-Safe command with a duration that
      * meets the following:
@@ -1312,14 +1316,14 @@ export declare namespace NetworkCommissioning {
      *
      * This command shall be used to add or modify Wi-Fi network configurations.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * The Credentials associated with the network are not readable after execution of this command, as they do not
-     * appear in the Networks attribute, for security reasons.
+     * appear in the Section 11.9.6.2, “Networks” attribute, for security reasons.
      *
-     * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
-     * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
+     * If this command contains a ClientIdentifier, and the Section 11.9.6.2, “Networks” list does not contain an entry
+     * with a matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
      *
      * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior of
      * addition/update.
@@ -1385,8 +1389,8 @@ export declare namespace NetworkCommissioning {
      *
      * This command shall be used to add or modify Thread network configurations.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior of
      * addition/update.

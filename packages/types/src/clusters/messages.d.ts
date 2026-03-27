@@ -129,6 +129,8 @@ export declare namespace Messages {
         presentMessagesRequest(request: PresentMessagesRequest): MaybePromise;
 
         /**
+         * This command will cancel the message IDs specified.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
          */
         cancelMessagesRequest(request: CancelMessagesRequest): MaybePromise;
@@ -395,6 +397,8 @@ export declare namespace Messages {
     }
 
     /**
+     * This command will cancel the message IDs specified.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
      */
     export interface CancelMessagesRequest {

@@ -188,6 +188,8 @@ export declare namespace OnOff {
      */
     export interface BaseCommands {
         /**
+         * This command allows devices to be turned off.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.1
          */
         off(): MaybePromise;
@@ -227,11 +229,15 @@ export declare namespace OnOff {
      */
     export interface NotOffOnlyCommands {
         /**
+         * This command allows devices to be turned on.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.2
          */
         on(): MaybePromise;
 
         /**
+         * This command allows devices to be toggled.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.3
          */
         toggle(): MaybePromise;

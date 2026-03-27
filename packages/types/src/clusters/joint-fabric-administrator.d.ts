@@ -86,11 +86,16 @@ export declare namespace JointFabricAdministrator {
          * This command shall be generated during Joint Commissioning Method and subsequently be responded in the form
          * of an ICACCSRResponse command.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * ### Effect on Receipt
          *
-         * If this command is received from a peer against FabricFabric Table Vendor ID Verification Procedure hasn’t
-         * been executed then it shall fail with a JfVidNotVerified status code sent back to the initiator.
+         * This command shall be received over a CASE session otherwise it shall fail with an INVALID_COMMAND status
+         * code.
+         *
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         *
+         * If the FabricFabric Table Vendor ID Verification Procedure has not been executed against the initiator of
+         * this command, the command shall fail with a JfVidNotVerified status code shall be sent back to the initiator.
          *
          * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
          * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
@@ -123,7 +128,7 @@ export declare namespace JointFabricAdministrator {
          *   Refer to the OpenCommissioningWindow command for a description of the command behavior and parameters.
          *
          * This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the initiator if the
-         * AdministratorFabricIndex field has the value of null.
+         * AdministratorFabricIndex attribute has the value of null.
          *
          * The parameters for OpenJointCommissioningWindow command are as follows:
          *
@@ -203,11 +208,14 @@ export declare namespace JointFabricAdministrator {
          *
          * ### Effect on Receipt
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
-         *
          * This command shall be received over a CASE session otherwise it shall fail with an INVALID_COMMAND status
          * code.
+         *
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         *
+         * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
+         * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
          *
          * Upon receipt, the ICACValue shall be validated in the following ways:
          *
@@ -254,7 +262,7 @@ export declare namespace JointFabricAdministrator {
      *   to the OpenCommissioningWindow command for a description of the command behavior and parameters.
      *
      * This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the initiator if the
-     * AdministratorFabricIndex field has the value of null.
+     * AdministratorFabricIndex attribute has the value of null.
      *
      * The parameters for OpenJointCommissioningWindow command are as follows:
      *
@@ -291,7 +299,7 @@ export declare namespace JointFabricAdministrator {
     }
 
     /**
-     * This enumeration is used by the ICACResponse command to convey the outcome of this cluster’s operations.
+     * This enumeration is used by the AddICAC command to convey the outcome of this cluster’s operations.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.4.1
      */

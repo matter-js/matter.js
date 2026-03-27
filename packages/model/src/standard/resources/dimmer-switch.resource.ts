@@ -18,8 +18,8 @@ Resource.add({
         { tag: "requirement", name: "Identify", discriminator: "M:serverCluster", xref: "device§6.2.4" },
         { tag: "requirement", name: "Identify", discriminator: "M:clientCluster", xref: "device§6.2.4" },
         { tag: "requirement", name: "Groups", xref: "device§6.2.4" },
-        { tag: "requirement", name: "ScenesManagement", xref: "device§6.2.4" },
         { tag: "requirement", name: "OnOff", xref: "device§6.2.4" },
-        { tag: "requirement", name: "LevelControl", xref: "device§6.2.4" }
+        { tag: "requirement", name: "LevelControl", xref: "device§6.2.4" },
+        { tag: "requirement", name: "ScenesManagement", xref: "device§6.2.4" }
     ]
 });

@@ -416,21 +416,29 @@ export declare namespace LevelControl {
      */
     export interface BaseCommands {
         /**
+         * This command will move the device to the specified level.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
          */
         moveToLevel(request: MoveToLevelRequest): MaybePromise;
 
         /**
+         * This command will move the device using the specified values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
          */
         move(request: MoveRequest): MaybePromise;
 
         /**
+         * This command will do a relative step change of the device using the specified values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
          */
         step(request: StepRequest): MaybePromise;
 
         /**
+         * This command will stop the actions of various other commands that are still in progress.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
          */
         stop(request: StopRequest): MaybePromise;
@@ -461,6 +469,8 @@ export declare namespace LevelControl {
      */
     export interface FrequencyCommands {
         /**
+         * This command will cause the device to change the current frequency to the requested value.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
          */
         moveToClosestFrequency(request: MoveToClosestFrequencyRequest): MaybePromise;
@@ -553,6 +563,8 @@ export declare namespace LevelControl {
     }
 
     /**
+     * This command will move the device to the specified level.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
      */
     export interface MoveToLevelRequest {
@@ -563,6 +575,8 @@ export declare namespace LevelControl {
     }
 
     /**
+     * This command will move the device using the specified values.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
      */
     export interface MoveRequest {
@@ -589,6 +603,8 @@ export declare namespace LevelControl {
     }
 
     /**
+     * This command will do a relative step change of the device using the specified values.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
      */
     export interface StepRequest {
@@ -622,6 +638,8 @@ export declare namespace LevelControl {
     }
 
     /**
+     * This command will stop the actions of various other commands that are still in progress.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
      */
     export interface StopRequest {
@@ -630,6 +648,8 @@ export declare namespace LevelControl {
     }
 
     /**
+     * This command will cause the device to change the current frequency to the requested value.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
      */
     export interface MoveToClosestFrequencyRequest {

@@ -39,7 +39,7 @@ export namespace BatteryStorageRequirements {
 export const BatteryStorageDeviceDefinition = MutableEndpoint({
     name: "BatteryStorage",
     deviceType: 0x18,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: BatteryStorageRequirements,
     behaviors: SupportedBehaviors()
 });

@@ -30,6 +30,13 @@ import type { SubjectId } from "../datatype/SubjectId.js";
  * Ecosystem Administrators to maintain a consistent view of the Joint Fabric including Nodes, Groups, settings and
  * privileges.
  *
+ * The Joint Fabric Datastore contains the access control configuration for the Joint Fabric - the groups, the group
+ * keys, the group membership (expressed in terms of binding and ACL entries), as well as the CAT value and version for
+ * each group. This section describes how all changes to the Joint Fabric access control configuration are made via the
+ * Joint Fabric Datastore: a change is first made to the Datastore where the impacted configuration of individual nodes
+ * is marked as pending; the Datastore is then responsible for propagating the change to all impacted nodes and then
+ * updating its per-node (and sometimes per-endpoint) pending state to committed.
+ *
  * The Joint Fabric Datastore cluster server shall only be accessible on a Node which is acting as the Joint Fabric
  * Anchor Administrator. When not acting as the Joint Fabric Anchor Administrator, the Joint Fabric Datastore cluster
  * shall NOT be accessible.
@@ -1479,7 +1486,7 @@ export declare namespace JointFabricDatastore {
         groupKeySetId: number | null;
         groupCat: number | null;
         groupCatVersion: number | null;
-        groupPermission: DatastoreAccessControlEntryPrivilege;
+        groupPermission: DatastoreAccessControlEntryPrivilege | null;
     }
 
     /**

@@ -41,7 +41,7 @@ export declare namespace ColorControl {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 7;
+    export const revision: 8;
 
     /**
      * Canonical metadata for the ColorControl cluster.
@@ -1113,36 +1113,50 @@ export declare namespace ColorControl {
      */
     export interface HueSaturationCommands {
         /**
+         * This command will move the device to the requested hue value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
          */
         moveToHue(request: MoveToHueRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested hue value using a step rate.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
          */
         moveHue(request: MoveHueRequest): MaybePromise;
 
         /**
+         * This command will change the device to the requested hue value using a step and transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
          */
         stepHue(request: StepHueRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested saturation value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
          */
         moveToSaturation(request: MoveToSaturationRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested saturation value using a rate.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
          */
         moveSaturation(request: MoveSaturationRequest): MaybePromise;
 
         /**
+         * This command will change the device to the requested saturation value using a step transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
          */
         stepSaturation(request: StepSaturationRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested hue and saturation value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
          */
         moveToHueAndSaturation(request: MoveToHueAndSaturationRequest): MaybePromise;
@@ -1153,16 +1167,22 @@ export declare namespace ColorControl {
      */
     export interface XyCommands {
         /**
+         * This command will move the device to the requested color value using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
          */
         moveToColor(request: MoveToColorRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested color using a step rate.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
          */
         moveColor(request: MoveColorRequest): MaybePromise;
 
         /**
+         * This command will move the device to the requested color using a step transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
          */
         stepColor(request: StepColorRequest): MaybePromise;
@@ -1173,6 +1193,8 @@ export declare namespace ColorControl {
      */
     export interface ColorTemperatureCommands {
         /**
+         * This command will move the device to the requested color temperate using a transition.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
          */
         moveToColorTemperature(request: MoveToColorTemperatureRequest): MaybePromise;
@@ -1483,6 +1505,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested hue value using a transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
      */
     export interface MoveToHueRequest {
@@ -1512,6 +1536,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested hue value using a step rate.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
      */
     export interface MoveHueRequest {
@@ -1535,6 +1561,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will change the device to the requested hue value using a step and transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
      */
     export interface StepHueRequest {
@@ -1571,6 +1599,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested saturation value using a transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
      */
     export interface MoveToSaturationRequest {
@@ -1581,6 +1611,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested saturation value using a rate.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
      */
     export interface MoveSaturationRequest {
@@ -1604,6 +1636,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will change the device to the requested saturation value using a step transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
      */
     export interface StepSaturationRequest {
@@ -1640,6 +1674,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested hue and saturation value using a transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
      */
     export interface MoveToHueAndSaturationRequest {
@@ -1651,6 +1687,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested color value using a transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
      */
     export interface MoveToColorRequest {
@@ -1662,6 +1700,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested color using a step rate.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
      */
     export interface MoveColorRequest {
@@ -1686,6 +1726,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested color using a step transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
      */
     export interface StepColorRequest {
@@ -1704,6 +1746,8 @@ export declare namespace ColorControl {
     }
 
     /**
+     * This command will move the device to the requested color temperate using a transition.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
      */
     export interface MoveToColorTemperatureRequest {

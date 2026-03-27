@@ -41,7 +41,7 @@ Resource.add({
                 "NamespaceID." +
                 "\n" +
                 "A device may expose tags from the common or device-specific namespaces and from " +
-                "manufacturer-specific namespaces in a single TagList."
+                "manufacturer-specific namespaces in a single Section 9.5.6.5, “TagList”."
         },
 
         {

@@ -18,6 +18,8 @@ import type { VendorId } from "../datatype/VendorId.js";
 /**
  * Definitions for the OtaSoftwareUpdateRequestor cluster.
  *
+ * This cluster implements the Requestor role in the OTA process.
+ *
  * @see {@link MatterSpecification.v142.Core} § 11.20.7
  */
 export declare namespace OtaSoftwareUpdateRequestor {

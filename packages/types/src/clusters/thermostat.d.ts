@@ -741,6 +741,10 @@ export declare namespace Thermostat {
          * Indicates the supported PresetScenarioEnum values, limits on how many presets can be created for each
          * PresetScenarioEnum, and whether or not a thermostat can transition automatically to a given scenario.
          *
+         * The list shall contain at least one entry. The list shall NOT be larger than the number of supported
+         * PresetScenarioEnum values (maximum 7). The list shall NOT contain any PresetTypeStruct entries with duplicate
+         * PresetScenarioEnum values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.51
          */
         presetTypes: PresetType[];
@@ -846,6 +850,10 @@ export declare namespace Thermostat {
          * SystemMode value, and whether or not a given SystemMode value supports transitions to Presets, target
          * setpoints, or both.
          *
+         * The list shall contain at least one entry. The list shall NOT be larger than the number of supported schedule
+         * SystemMode values (maximum 3, since the data type only allows Auto, Heat and Cool). The list shall NOT
+         * contain any ScheduleTypeStruct entries with duplicate SystemModeEnum values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.52
          */
         scheduleTypes: ScheduleType[];
@@ -865,7 +873,10 @@ export declare namespace Thermostat {
         numberOfScheduleTransitions: number;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
+         * Indicates the maximum number of transitions per day of the week supported by each Schedules attribute entry.
+         * If this value is null, there is no limit on the number of transitions per day.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.56
          */
         numberOfScheduleTransitionPerDay: number | null;
 
@@ -909,8 +920,8 @@ export declare namespace Thermostat {
          *     d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the status
          *        code RESOURCE_EXHAUSTED shall be returned.
          *
-         *     e. If the value of the NumberOfScheduleTransitionsPerDay attribute is not null, and the number of
-         *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay value, a
+         *     e. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
+         *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a
          *        response with the status code RESOURCE_EXHAUSTED shall be returned.
          *
          *     f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
@@ -1637,6 +1648,10 @@ export declare namespace Thermostat {
          * Indicates the supported PresetScenarioEnum values, limits on how many presets can be created for each
          * PresetScenarioEnum, and whether or not a thermostat can transition automatically to a given scenario.
          *
+         * The list shall contain at least one entry. The list shall NOT be larger than the number of supported
+         * PresetScenarioEnum values (maximum 7). The list shall NOT contain any PresetTypeStruct entries with duplicate
+         * PresetScenarioEnum values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.51
          */
         presetTypes: PresetType[];
@@ -1737,6 +1752,10 @@ export declare namespace Thermostat {
          * SystemMode value, and whether or not a given SystemMode value supports transitions to Presets, target
          * setpoints, or both.
          *
+         * The list shall contain at least one entry. The list shall NOT be larger than the number of supported schedule
+         * SystemMode values (maximum 3, since the data type only allows Auto, Heat and Cool). The list shall NOT
+         * contain any ScheduleTypeStruct entries with duplicate SystemModeEnum values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.52
          */
         scheduleTypes: ScheduleType[];
@@ -1756,7 +1775,10 @@ export declare namespace Thermostat {
         numberOfScheduleTransitions: number;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.9
+         * Indicates the maximum number of transitions per day of the week supported by each Schedules attribute entry.
+         * If this value is null, there is no limit on the number of transitions per day.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.9.56
          */
         numberOfScheduleTransitionPerDay: number | null;
 
@@ -1800,8 +1822,8 @@ export declare namespace Thermostat {
          *     d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the status
          *        code RESOURCE_EXHAUSTED shall be returned.
          *
-         *     e. If the value of the NumberOfScheduleTransitionsPerDay attribute is not null, and the number of
-         *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay value, a
+         *     e. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
+         *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a
          *        response with the status code RESOURCE_EXHAUSTED shall be returned.
          *
          *     f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
@@ -1887,6 +1909,8 @@ export declare namespace Thermostat {
      */
     export interface BaseCommands {
         /**
+         * This command will raise or lower the setpoint based on the provided values.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
          */
         setpointRaiseLower(request: SetpointRaiseLowerRequest): MaybePromise;
@@ -1910,6 +1934,8 @@ export declare namespace Thermostat {
         setWeeklySchedule(request: SetWeeklyScheduleRequest): MaybePromise;
 
         /**
+         * This command will return the weekly schedule for the values provided.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
          */
         getWeeklySchedule(request: GetWeeklyScheduleRequest): MaybePromise<GetWeeklyScheduleResponse>;
@@ -1930,7 +1956,9 @@ export declare namespace Thermostat {
      */
     export interface PresetsCommands {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+         * This command will set the active preset to the provided preset handle.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
          */
         setActivePresetRequest(request: SetActivePresetRequest): MaybePromise;
     }
@@ -1940,7 +1968,9 @@ export declare namespace Thermostat {
      */
     export interface MatterScheduleConfigurationCommands {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+         * This command will set the active schedule to the provided schedule handle.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
          */
         setActiveScheduleRequest(request: SetActiveScheduleRequest): MaybePromise;
     }
@@ -2079,7 +2109,7 @@ export declare namespace Thermostat {
      * > Systems which support cooling or heating, requiring external intervention to change modes or where the whole
      *   building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.20
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.17
      */
     export enum ControlSequenceOfOperation {
         /**
@@ -2114,7 +2144,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21
      */
     export enum SystemMode {
         /**
@@ -2153,7 +2183,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2
      */
     export interface HvacSystemType {
         /**
@@ -2169,7 +2199,7 @@ export declare namespace Thermostat {
          *
          *   - 11 = Reserved
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.1
          */
         coolingStage?: number;
 
@@ -2186,7 +2216,7 @@ export declare namespace Thermostat {
          *
          *   - 11 = Reserved
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.2
          */
         heatingStage?: number;
 
@@ -2199,7 +2229,7 @@ export declare namespace Thermostat {
          *
          *   - 1 = Heat Pump
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.3
          */
         heatingIsHeatPump?: boolean;
 
@@ -2212,13 +2242,13 @@ export declare namespace Thermostat {
          *
          *   - 1 = Uses fuel
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.4
          */
         heatingUsesFuel?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.10
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.7
      */
     export interface RemoteSensing {
         /**
@@ -2238,7 +2268,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.23
      */
     export enum TemperatureSetpointHold {
         /**
@@ -2253,7 +2283,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5
      */
     export interface ProgrammingOperationMode {
         /**
@@ -2273,7 +2303,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.9
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6
      */
     export interface RelayState {
         /**
@@ -2313,7 +2343,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.22
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.19
      */
     export enum SetpointChangeSource {
         /**
@@ -2333,7 +2363,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.15
      */
     export enum AcType {
         /**
@@ -2363,7 +2393,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.17
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.14
      */
     export enum AcRefrigerantType {
         /**
@@ -2388,7 +2418,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.15
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.12
      */
     export enum AcCompressorType {
         /**
@@ -2413,7 +2443,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.4
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.1
      */
     export interface AcErrorCode {
         /**
@@ -2443,7 +2473,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.16
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.13
      */
     export enum AcLouverPosition {
         /**
@@ -2473,7 +2503,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.14
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11
      */
     export enum AcCapacityFormat {
         /**
@@ -2483,7 +2513,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.3
      */
     export interface Occupancy {
         /**
@@ -2492,13 +2522,13 @@ export declare namespace Thermostat {
          * If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall indicate the
          * unoccupied state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.3.1
          */
         occupied?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.22
      */
     export enum ThermostatRunningMode {
         /**
@@ -2518,7 +2548,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.23
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.20
      */
     export enum StartOfWeek {
         Sunday = 0,
@@ -2531,33 +2561,33 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25
      */
     export interface PresetType {
         /**
          * This field shall specify a PresetScenarioEnum value supported by this thermostat.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.1
          */
         presetScenario: PresetScenario;
 
         /**
          * This field shall specify a limit for the number of presets for this PresetScenarioEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.2
          */
         numberOfPresets: number;
 
         /**
          * This field shall specify a bitmap of features for this PresetTypeStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.3
          */
         presetTypeFeatures: PresetTypeFeatures;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
      */
     export interface Preset {
         /**
@@ -2567,14 +2597,14 @@ export declare namespace Thermostat {
          * This field shall only be null when the encompassing PresetStruct is appended to the Presets attribute for the
          * purpose of creating a new Preset. Refer to Presets for the creation of Preset handles.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.1
          */
         presetHandle: Bytes | null;
 
         /**
          * This field shall indicate the associated PresetScenarioEnum value for this preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.2
          */
         presetScenario: PresetScenario;
 
@@ -2584,7 +2614,7 @@ export declare namespace Thermostat {
          * Within each subset of presets sharing the same PresetScenario field value, there shall NOT be any presets
          * with the same value, including null as a value, in the Name field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.3
          */
         name?: string | null;
 
@@ -2592,7 +2622,7 @@ export declare namespace Thermostat {
          * This field shall indicate the cooling setpoint for the preset. Refer to Setpoint Limits for value
          * constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.4
          */
         coolingSetpoint?: number;
 
@@ -2600,7 +2630,7 @@ export declare namespace Thermostat {
          * This field shall indicate the heating setpoint for the preset. Refer to Setpoint Limits for value
          * constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.5
          */
         heatingSetpoint?: number;
 
@@ -2608,27 +2638,27 @@ export declare namespace Thermostat {
          * This field shall indicate whether the preset is marked as "built-in", meaning that it can be modified, but it
          * cannot be deleted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.6
          */
         builtIn: boolean | null;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
      */
     export interface ScheduleType {
         /**
          * This field shall specify a SystemModeEnum supported by this thermostat for Schedules. The only valid values
          * for this field shall be Auto, Heat, and Cool.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.1
          */
         systemMode: SystemMode;
 
         /**
          * This field shall specify a limit for the number of Schedules for this SystemMode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.2
          */
         numberOfSchedules: number;
 
@@ -2636,13 +2666,13 @@ export declare namespace Thermostat {
          * This field shall specify a bitmap of features for this schedule entry. At least one of SupportsPresets and
          * SupportsSetpoints shall be set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.32.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.3
          */
         scheduleTypeFeatures: ScheduleTypeFeatures;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
      */
     export interface Schedule {
         /**
@@ -2652,7 +2682,7 @@ export declare namespace Thermostat {
          * This field shall only be null when the encompassing ScheduleStruct is appended to the Schedules attribute for
          * the purpose of creating a new Schedule. Refer to Schedules for the creation of Schedule handles.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.1
          */
         scheduleHandle: Bytes | null;
 
@@ -2660,21 +2690,21 @@ export declare namespace Thermostat {
          * This field shall specify the default thermostat system mode for transitions in this schedule. The only valid
          * values for this field shall be Auto, Heat, and Cool.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.2
          */
         systemMode: SystemMode;
 
         /**
          * This field shall specify a name for the ScheduleStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.3
          */
         name?: string;
 
         /**
          * This field shall indicate the default PresetHandle value for transitions in this schedule.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.4
          */
         presetHandle?: Bytes;
 
@@ -2684,9 +2714,9 @@ export declare namespace Thermostat {
          * This field shall NOT contain more than one ScheduleStruct with the same TransitionTime field and overlapping
          * DayOfWeek fields; i.e. there shall be no duplicate transitions.
          *
-         * If the NumberOfScheduleTransitionsPerDay attribute is not null, then for each bit in ScheduleDayOfWeekBitmap,
+         * If the NumberOfScheduleTransitionPerDay attribute is not null, then for each bit in ScheduleDayOfWeekBitmap,
          * the number of transitions with that bit set in DayOfWeek shall NOT be greater than the value of the
-         * NumberOfScheduleTransitionsPerDay attribute.
+         * NumberOfScheduleTransitionPerDay attribute.
          *
          * For the purposes of determining which ScheduleStruct in this list is currently active, the current time shall
          * be the number of minutes past midnight in the display value of the current time, not the actual number of
@@ -2706,7 +2736,7 @@ export declare namespace Thermostat {
          * ScheduleTransitionStruct with the largest TransitionTime field from the set of ScheduleTransitionStructs
          * whose DayOfWeek field matches the current day of the week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.5
          */
         transitions: ScheduleTransition[];
 
@@ -2714,12 +2744,14 @@ export declare namespace Thermostat {
          * This field shall indicate whether the schedule is marked as "built-in", meaning that it can be modified, but
          * it cannot be deleted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.30.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.6
          */
         builtIn: boolean | null;
     }
 
     /**
+     * This command will raise or lower the setpoint based on the provided values.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
      */
     export interface SetpointRaiseLowerRequest {
@@ -2807,6 +2839,8 @@ export declare namespace Thermostat {
     }
 
     /**
+     * This command will return the weekly schedule for the values provided.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
      */
     export interface GetWeeklyScheduleRequest {
@@ -2840,26 +2874,30 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9
+     * This command will set the active preset to the provided preset handle.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
      */
     export interface SetActivePresetRequest {
         /**
          * This field shall specify the value of the PresetHandle field on the PresetStruct to be made active. If the
          * field is set to null, that indicates there should be no active preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.9.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7.1
          */
         presetHandle: Bytes | null;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8
+     * This command will set the active schedule to the provided schedule handle.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
      */
     export interface SetActiveScheduleRequest {
         /**
          * This field shall specify the value of the ScheduleHandle field on the ScheduleStruct to be made active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.8.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6.1
          */
         scheduleHandle: Bytes;
     }
@@ -2876,7 +2914,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.7
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.4
      */
     export interface PresetTypeFeatures {
         /**
@@ -2891,7 +2929,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8
      */
     export interface ScheduleTypeFeatures {
         /**
@@ -2901,7 +2939,7 @@ export declare namespace Thermostat {
          * field on the encompassing ScheduleTypeStruct supports specifying presets on ScheduleTransitionStructs
          * contained in its Transitions field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.1
          */
         supportsPresets?: boolean;
 
@@ -2912,7 +2950,7 @@ export declare namespace Thermostat {
          * field on the encompassing ScheduleTypeStruct supports specifying setpoints on ScheduleTransitionStructs
          * contained in its Transitions field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.2
          */
         supportsSetpoints?: boolean;
 
@@ -2922,7 +2960,7 @@ export declare namespace Thermostat {
          * This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the SystemMode
          * field on the encompassing ScheduleTypeStruct supports setting the value of the Name field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.3
          */
         supportsNames?: boolean;
 
@@ -2932,13 +2970,13 @@ export declare namespace Thermostat {
          * This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the SystemMode
          * field on the encompassing ScheduleTypeStruct supports setting its SystemMode field to Off.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.11.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.4
          */
         supportsOff?: boolean;
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.12
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.9
      */
     export interface ScheduleDayOfWeek {
         /**
@@ -2983,7 +3021,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.13
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.10
      */
     export interface ScheduleMode {
         /**
@@ -2998,7 +3036,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.19
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.16
      */
     export enum SetpointRaiseLowerMode {
         /**
@@ -3018,7 +3056,7 @@ export declare namespace Thermostat {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18
      */
     export enum PresetScenario {
         /**
@@ -3027,7 +3065,7 @@ export declare namespace Thermostat {
          * This value shall indicate the preset for periods when the thermostat’s temperature-controlled area is
          * occupied. It is intended for thermostats that can automatically determine occupancy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.2
          */
         Occupied = 1,
 
@@ -3037,7 +3075,7 @@ export declare namespace Thermostat {
          * This value shall indicate the preset for periods when the thermostat’s temperature-controlled area is
          * unoccupied. It is intended for thermostats that can automatically determine occupancy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.3
          */
         Unoccupied = 2,
 
@@ -3046,7 +3084,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be asleep.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.4
          */
         Sleep = 3,
 
@@ -3055,7 +3093,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be waking up.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.5
          */
         Wake = 4,
 
@@ -3065,7 +3103,7 @@ export declare namespace Thermostat {
          * This value shall indicate the preset for periods when users are on vacation, or otherwise out-of-home for
          * extended periods of time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.6
          */
         Vacation = 5,
 
@@ -3074,7 +3112,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate the preset for periods when users are likely to be going to sleep.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.7
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.7
          */
         GoingToSleep = 6,
 
@@ -3083,7 +3121,7 @@ export declare namespace Thermostat {
          *
          * This value shall indicate a free-form preset; when set, the Name field on PresetStruct shall NOT be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.21.8
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.18.8
          */
         UserDefined = 254
     }
@@ -3091,7 +3129,7 @@ export declare namespace Thermostat {
     /**
      * This represents a single transition in a Thermostat schedule
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26
      */
     export interface WeeklyScheduleTransition {
         /**
@@ -3099,21 +3137,21 @@ export declare namespace Thermostat {
          * be represented by a 16 bits unsigned integer to designate the minutes since midnight. For example, 6am will
          * be represented by 360 minutes since midnight and 11:30pm will be represented by 1410 minutes since midnight.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.1
          */
         transitionTime: number;
 
         /**
          * This field shall represent the heat setpoint to be applied at this associated transition start time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.2
          */
         heatSetpoint: number | null;
 
         /**
          * This field shall represent the cool setpoint to be applied at this associated transition start time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.3
          */
         coolSetpoint: number | null;
     }
@@ -3178,14 +3216,14 @@ export declare namespace Thermostat {
      *   - The SystemMode field is provided and has the value Cool or Auto, or the SystemMode field on the parent
      *     ScheduleStruct has the value Cool or Auto
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31
+     * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
      */
     export interface ScheduleTransition {
         /**
          * This field shall specify a bitmask of days of the week that the transition applies to. The Vacation bit shall
          * NOT be set; vacation schedules shall be set via the vacation preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.1
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.1
          */
         dayOfWeek: ScheduleDayOfWeek;
 
@@ -3195,7 +3233,7 @@ export declare namespace Thermostat {
          *
          * Handling of transitions during the changeover of Daylight Saving Time is implementation-dependent.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.2
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.2
          */
         transitionTime: number;
 
@@ -3203,7 +3241,7 @@ export declare namespace Thermostat {
          * This field shall specify the preset used at the TransitionTime. If this field is provided, then the
          * SystemMode, CoolingSetpoint and HeatingSetpoint fields shall NOT be provided.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.3
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.3
          */
         presetHandle?: Bytes;
 
@@ -3212,7 +3250,7 @@ export declare namespace Thermostat {
          * default for the schedule. The only valid values for this field shall be Auto, Heat, Cool and Off. This field
          * shall only be included when the required system mode differs from the schedule’s default SystemMode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.4
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.4
          */
         systemMode?: SystemMode;
 
@@ -3220,7 +3258,7 @@ export declare namespace Thermostat {
          * This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field shall
          * NOT be included. Refer to Setpoint Limits for value constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.5
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.5
          */
         coolingSetpoint?: number;
 
@@ -3228,7 +3266,7 @@ export declare namespace Thermostat {
          * This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field shall
          * NOT be included. Refer to Setpoint Limits for value constraints.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.31.6
+         * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.6
          */
         heatingSetpoint?: number;
     }

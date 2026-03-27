@@ -108,6 +108,8 @@ export declare namespace ScenesManagement {
      */
     export interface BaseCommands {
         /**
+         * This command is used to add a new scene.
+         *
          * It is not mandatory for an extension field set to be included in the command for every cluster on that
          * endpoint that has a defined extension field set. Extension field sets may be omitted, including the case of
          * no extension field sets at all.
@@ -117,26 +119,36 @@ export declare namespace ScenesManagement {
         addScene(request: AddSceneRequest): MaybePromise<AddSceneResponse>;
 
         /**
+         * This command returns the details for the requested scene.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
          */
         viewScene(request: ViewSceneRequest): MaybePromise<ViewSceneResponse>;
 
         /**
+         * This command removes the specified scene.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
          */
         removeScene(request: RemoveSceneRequest): MaybePromise<RemoveSceneResponse>;
 
         /**
+         * This command removes all scenes for the specified GroupID.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
          */
         removeAllScenes(request: RemoveAllScenesRequest): MaybePromise<RemoveAllScenesResponse>;
 
         /**
+         * This command will create a new entry for the requested scene.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
          */
         storeScene(request: StoreSceneRequest): MaybePromise<StoreSceneResponse>;
 
         /**
+         * This command will cause the specified scene to be recalled.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
          */
         recallScene(request: RecallSceneRequest): MaybePromise;
@@ -244,6 +256,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is used to add a new scene.
+     *
      * It is not mandatory for an extension field set to be included in the command for every cluster on that endpoint
      * that has a defined extension field set. Extension field sets may be omitted, including the case of no extension
      * field sets at all.
@@ -288,6 +302,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the AddScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
     export interface AddSceneResponse {
@@ -314,6 +330,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command returns the details for the requested scene.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
      */
     export interface ViewSceneRequest {
@@ -333,6 +351,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the ViewScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
      */
     export interface ViewSceneResponse {
@@ -380,6 +400,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command removes the specified scene.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
      */
     export interface RemoveSceneRequest {
@@ -399,6 +421,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the RemoveScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
      */
     export interface RemoveSceneResponse {
@@ -425,6 +449,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command removes all scenes for the specified GroupID.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
      */
     export interface RemoveAllScenesRequest {
@@ -437,6 +463,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the RemoveAllScenes command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
      */
     export interface RemoveAllScenesResponse {
@@ -456,6 +484,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command will create a new entry for the requested scene.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
      */
     export interface StoreSceneRequest {
@@ -475,6 +505,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the StoreScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
      */
     export interface StoreSceneResponse {
@@ -501,6 +533,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command will cause the specified scene to be recalled.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
      */
     export interface RecallSceneRequest {
@@ -542,6 +576,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the GetSceneMembership command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
      */
     export interface GetSceneMembershipResponse {
@@ -636,6 +672,8 @@ export declare namespace ScenesManagement {
     }
 
     /**
+     * This command is sent in response to the CopyScene command.
+     *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
     export interface CopySceneResponse {

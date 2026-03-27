@@ -18,6 +18,7 @@ import {
     ApplicationBasicBehavior as BaseApplicationBasicBehavior
 } from "../behaviors/application-basic/ApplicationBasicBehavior.js";
 import { LevelControlBehavior as BaseLevelControlBehavior } from "../behaviors/level-control/LevelControlBehavior.js";
+import { MessagesBehavior as BaseMessagesBehavior } from "../behaviors/messages/MessagesBehavior.js";
 import { WakeOnLanBehavior as BaseWakeOnLanBehavior } from "../behaviors/wake-on-lan/WakeOnLanBehavior.js";
 import { ChannelBehavior as BaseChannelBehavior } from "../behaviors/channel/ChannelBehavior.js";
 import {
@@ -34,7 +35,6 @@ import { AccountLoginBehavior as BaseAccountLoginBehavior } from "../behaviors/a
 import {
     ContentControlBehavior as BaseContentControlBehavior
 } from "../behaviors/content-control/ContentControlBehavior.js";
-import { MessagesBehavior as BaseMessagesBehavior } from "../behaviors/messages/MessagesBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -91,6 +91,13 @@ export namespace CastingVideoClientRequirements {
      * We provide this alias to the default implementation {@link LevelControlBehavior} for convenience.
      */
     export const LevelControlBehavior = BaseLevelControlBehavior;
+
+    /**
+     * The Messages cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link MessagesBehavior} for convenience.
+     */
+    export const MessagesBehavior = BaseMessagesBehavior;
 
     /**
      * The WakeOnLan cluster is optional per the Matter specification.
@@ -163,13 +170,6 @@ export namespace CastingVideoClientRequirements {
     export const ContentControlBehavior = BaseContentControlBehavior;
 
     /**
-     * The Messages cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link MessagesBehavior} for convenience.
-     */
-    export const MessagesBehavior = BaseMessagesBehavior;
-
-    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = { optional: { ContentAppObserver: ContentAppObserverServer }, mandatory: {} };
@@ -187,6 +187,7 @@ export namespace CastingVideoClientRequirements {
 
         optional: {
             LevelControl: LevelControlBehavior,
+            Messages: MessagesBehavior,
             WakeOnLan: WakeOnLanBehavior,
             Channel: ChannelBehavior,
             TargetNavigator: TargetNavigatorBehavior,
@@ -196,8 +197,7 @@ export namespace CastingVideoClientRequirements {
             AudioOutput: AudioOutputBehavior,
             ApplicationLauncher: ApplicationLauncherBehavior,
             AccountLogin: AccountLoginBehavior,
-            ContentControl: ContentControlBehavior,
-            Messages: MessagesBehavior
+            ContentControl: ContentControlBehavior
         }
     };
 }

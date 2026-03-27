@@ -6,10 +6,10 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
+import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import {
     PressureMeasurementServer as BasePressureMeasurementServer
 } from "../behaviors/pressure-measurement/PressureMeasurementServer.js";
-import { IdentifyServer as BaseIdentifyServer } from "../behaviors/identify/IdentifyServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -23,13 +23,6 @@ export interface PressureSensorDevice extends Identity<typeof PressureSensorDevi
 
 export namespace PressureSensorRequirements {
     /**
-     * The PressureMeasurement cluster is required by the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link PressureMeasurementServer} for convenience.
-     */
-    export const PressureMeasurementServer = BasePressureMeasurementServer;
-
-    /**
      * The Identify cluster is required by the Matter specification.
      *
      * We provide this alias to the default implementation {@link IdentifyServer} for convenience.
@@ -37,9 +30,16 @@ export namespace PressureSensorRequirements {
     export const IdentifyServer = BaseIdentifyServer;
 
     /**
+     * The PressureMeasurement cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link PressureMeasurementServer} for convenience.
+     */
+    export const PressureMeasurementServer = BasePressureMeasurementServer;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
-    export const server = { mandatory: { PressureMeasurement: PressureMeasurementServer, Identify: IdentifyServer } };
+    export const server = { mandatory: { Identify: IdentifyServer, PressureMeasurement: PressureMeasurementServer } };
 }
 
 export const PressureSensorDeviceDefinition = MutableEndpoint({
@@ -48,8 +48,8 @@ export const PressureSensorDeviceDefinition = MutableEndpoint({
     deviceRevision: 2,
     requirements: PressureSensorRequirements,
     behaviors: SupportedBehaviors(
-        PressureSensorRequirements.server.mandatory.PressureMeasurement,
-        PressureSensorRequirements.server.mandatory.Identify
+        PressureSensorRequirements.server.mandatory.Identify,
+        PressureSensorRequirements.server.mandatory.PressureMeasurement
     )
 });
 

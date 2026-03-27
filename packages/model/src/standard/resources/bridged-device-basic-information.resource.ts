@@ -99,11 +99,12 @@ Resource.add({
         {
             tag: "attribute", name: "ConfigurationVersion", xref: "core§9.13.5.4",
 
-            details: "This attribute shall contain the current version number for the configuration of the bridged device." +
+            details: "This attribute shall contain the current version number for the configuration of the bridged device. " +
+                "A larger value of ConfigurationVersion shall indicate a newer configuration than a lower value." +
                 "\n" +
                 "If the bridge detects a change on a bridged device, which it deems as a change in the configuration " +
-                "of the bridged device, it shall increase this attribute as described in Section 9.2.9, “Node " +
-                "Configuration Changes”." +
+                "of the bridged device, it shall increase this attribute (and the corresponding attribute on the " +
+                "bridge itself) as described in Section 9.2.11, “Node Configuration Changes”." +
                 "\n" +
                 "The ability and the method used to detect such a change on a bridged device is manufacturer " +
                 "specific."

@@ -35,7 +35,7 @@ export declare namespace RvcRunMode {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the RvcRunMode cluster.
@@ -113,7 +113,7 @@ export declare namespace RvcRunMode {
     export interface Commands extends BaseCommands {}
 
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
-    export type Features = "OnOff";
+    export type Features = "OnOff" | "DirectModeChange";
 
     /**
      * These are optional features supported by RvcRunModeCluster.
@@ -126,7 +126,19 @@ export declare namespace RvcRunMode {
          *
          * Dependency with the OnOff cluster
          */
-        OnOff = "OnOff"
+        OnOff = "OnOff",
+
+        /**
+         * DirectModeChange (DIRECTMODECH)
+         *
+         * This feature indicates whether the cluster implementation supports changing the run modes while the RVC Run
+         * Mode cluster’s CurrentMode attribute is set to a mode without the Idle mode tag. If the implementation does
+         * not support such a change, the ChangeToModeResponse command shall have the StatusCode field set to the
+         * InvalidInMode value.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 7.2.4.1
+         */
+        DirectModeChange = "DirectModeChange"
     }
 
     /**

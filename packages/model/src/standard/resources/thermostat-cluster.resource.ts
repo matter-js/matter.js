@@ -591,16 +591,26 @@ Resource.add(
 
             {
                 tag: "attribute", name: "PresetTypes", xref: "cluster§4.3.9.51",
+
                 details: "Indicates the supported PresetScenarioEnum values, limits on how many presets can be created for " +
                     "each PresetScenarioEnum, and whether or not a thermostat can transition automatically to a given " +
-                    "scenario."
+                    "scenario." +
+                    "\n" +
+                    "The list shall contain at least one entry. The list shall NOT be larger than the number of supported " +
+                    "PresetScenarioEnum values (maximum 7). The list shall NOT contain any PresetTypeStruct entries with " +
+                    "duplicate PresetScenarioEnum values."
             },
 
             {
                 tag: "attribute", name: "ScheduleTypes", xref: "cluster§4.3.9.52",
+
                 details: "Indicates the supported SystemMode values for Schedules, limits on how many schedules can be created " +
                     "for each SystemMode value, and whether or not a given SystemMode value supports transitions to " +
-                    "Presets, target setpoints, or both."
+                    "Presets, target setpoints, or both." +
+                    "\n" +
+                    "The list shall contain at least one entry. The list shall NOT be larger than the number of supported " +
+                    "schedule SystemMode values (maximum 3, since the data type only allows Auto, Heat and Cool). The " +
+                    "list shall NOT contain any ScheduleTypeStruct entries with duplicate SystemModeEnum values."
             },
 
             {
@@ -615,7 +625,11 @@ Resource.add(
                 tag: "attribute", name: "NumberOfScheduleTransitions", xref: "cluster§4.3.9.55",
                 details: "Indicates the maximum number of transitions per Schedules attribute entry."
             },
-            { tag: "attribute", name: "NumberOfScheduleTransitionPerDay", xref: "cluster§4.3.9" },
+            {
+                tag: "attribute", name: "NumberOfScheduleTransitionPerDay", xref: "cluster§4.3.9.56",
+                details: "Indicates the maximum number of transitions per day of the week supported by each Schedules " +
+                    "attribute entry. If this value is null, there is no limit on the number of transitions per day."
+            },
             {
                 tag: "attribute", name: "ActivePresetHandle", xref: "cluster§4.3.9.57",
                 details: "Indicates the PresetHandle of the active preset. If this attribute is null, then there is no active " +
@@ -740,9 +754,9 @@ Resource.add(
                     "    d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with " +
                     "the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
-                    "    e. If the value of the NumberOfScheduleTransitionsPerDay attribute is not null, and the number " +
-                    "of transitions on any single day of the week exceeds the NumberOfScheduleTransitionsPerDay " +
-                    "value, a response with the status code RESOURCE_EXHAUSTED shall be returned." +
+                    "    e. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of " +
+                    "transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, " +
+                    "a response with the status code RESOURCE_EXHAUSTED shall be returned." +
                     "\n" +
                     "    f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the " +
                     "SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned." +
@@ -836,6 +850,7 @@ Resource.add(
 
             {
                 tag: "command", name: "SetpointRaiseLower", xref: "cluster§4.3.10.1",
+                details: "This command will raise or lower the setpoint based on the provided values.",
 
                 children: [
                     {
@@ -917,6 +932,7 @@ Resource.add(
 
             {
                 tag: "command", name: "GetWeeklySchedule", xref: "cluster§4.3.10.3",
+                details: "This command will return the weekly schedule for the values provided.",
 
                 children: [
                     {
@@ -946,110 +962,27 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GetRelayStatusLogResponse", xref: "cluster§4.3.10.7",
-                details: "This command is sent from the thermostat cluster server in response to the Get Relay Status Log. " +
-                    "After the Relay Status Entry is sent over the air to the requesting client, the specific entry will " +
-                    "be cleared from the thermostat internal log.",
-
-                children: [
-                    {
-                        tag: "field", name: "TimeOfDay", xref: "cluster§4.3.10.7.1",
-                        details: "This field shall indicate the sample time of the day, in minutes since midnight, when the relay " +
-                            "status was captured for this associated log entry. For example, 6am will be represented by 360 " +
-                            "minutes since midnight and 11:30pm will be represented by 1410 minutes since midnight."
-                    },
-
-                    {
-                        tag: "field", name: "RelayStatus", xref: "cluster§4.3.10.7.2",
-                        details: "This field shall indicate the relay status for thermostat when the log is captured. Each bit " +
-                            "represents one relay used by the thermostat. If the bit is on, the associated relay is on and " +
-                            "active. Each thermostat manufacturer can create its own mapping between the bitmap and the " +
-                            "associated relay."
-                    },
-
-                    {
-                        tag: "field", name: "LocalTemperature", xref: "cluster§4.3.10.7.3",
-                        details: "This field shall indicate the LocalTemperature when the log is captured. The null value indicates " +
-                            "that LocalTemperature was invalid or unavailable."
-                    },
-                    {
-                        tag: "field", name: "Setpoint", xref: "cluster§4.3.10.7.5",
-                        details: "This field shall indicate the target setpoint temperature when the log is captured."
-                    },
-                    {
-                        tag: "field", name: "UnreadEntries", xref: "cluster§4.3.10.7.6",
-                        details: "This field shall indicate the number of unread entries within the thermostat internal log system."
-                    }
-                ]
-            },
-
-            {
-                tag: "command", name: "SetActiveScheduleRequest", xref: "cluster§4.3.10.8",
+                tag: "command", name: "SetActiveScheduleRequest", xref: "cluster§4.3.10.6",
+                details: "This command will set the active schedule to the provided schedule handle.",
                 children: [{
-                    tag: "field", name: "ScheduleHandle", xref: "cluster§4.3.10.8.1",
+                    tag: "field", name: "ScheduleHandle", xref: "cluster§4.3.10.6.1",
                     details: "This field shall specify the value of the ScheduleHandle field on the ScheduleStruct to be made " +
                         "active."
                 }]
             },
 
             {
-                tag: "command", name: "SetActivePresetRequest", xref: "cluster§4.3.10.9",
+                tag: "command", name: "SetActivePresetRequest", xref: "cluster§4.3.10.7",
+                details: "This command will set the active preset to the provided preset handle.",
                 children: [{
-                    tag: "field", name: "PresetHandle", xref: "cluster§4.3.10.9.1",
+                    tag: "field", name: "PresetHandle", xref: "cluster§4.3.10.7.1",
                     details: "This field shall specify the value of the PresetHandle field on the PresetStruct to be made active. " +
                         "If the field is set to null, that indicates there should be no active preset."
                 }]
             },
 
             {
-                tag: "datatype", name: "TemperatureDifference", xref: "cluster§4.3.8.1",
-
-                details: "This data type is derived from int16 and represents a temperature difference with a resolution of " +
-                    "0.01°C." +
-                    "\n" +
-                    "  - value = (temperature in °C) x 100" +
-                    "\n" +
-                    "  - -4°C ⇒ -400" +
-                    "\n" +
-                    "  - 123.45°C ⇒ 12345" +
-                    "\n" +
-                    "The full (non-null) range of -327.67°C to 327.67°C may be used."
-            },
-
-            {
-                tag: "datatype", name: "SignedTemperature", xref: "cluster§4.3.8.2",
-
-                details: "This data type is derived from int8 and represents a temperature from -12.7°C to 12.7°C with a " +
-                    "resolution of 0.1°C." +
-                    "\n" +
-                    "  - value = (temperature in °C) x 10" +
-                    "\n" +
-                    "  - -4°C ⇒ -40" +
-                    "\n" +
-                    "  - 12.3°C ⇒ 123" +
-                    "\n" +
-                    "This type is employed where compactness of representation is important and where the resolution and " +
-                    "range are still satisfactory."
-            },
-
-            {
-                tag: "datatype", name: "UnsignedTemperature", xref: "cluster§4.3.8.3",
-
-                details: "This data type is derived from uint8 and represents a temperature from 0°C to 25.5°C with a " +
-                    "resolution of 0.1°C." +
-                    "\n" +
-                    "  - value = (temperature in °C) x 10" +
-                    "\n" +
-                    "  - 4°C ⇒ 40" +
-                    "\n" +
-                    "  - 12.3°C ⇒ 123" +
-                    "\n" +
-                    "This type is employed where compactness of representation is important and where the resolution and " +
-                    "range are still satisfactory."
-            },
-
-            {
-                tag: "datatype", name: "ACErrorCodeBitmap", xref: "cluster§4.3.8.4",
+                tag: "datatype", name: "ACErrorCodeBitmap", xref: "cluster§4.3.8.1",
 
                 children: [
                     { tag: "field", name: "CompressorFail", description: "Compressor Failure or Refrigerant Leakage" },
@@ -1061,12 +994,12 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "HVACSystemTypeBitmap", xref: "cluster§4.3.8.5",
+                tag: "datatype", name: "HVACSystemTypeBitmap", xref: "cluster§4.3.8.2",
 
                 children: [
                     {
                         tag: "field", name: "CoolingStage", description: "Stage of cooling the HVAC system is using.",
-                        xref: "cluster§4.3.8.5.1",
+                        xref: "cluster§4.3.8.2.1",
 
                         details: "These bits shall indicate what stage of cooling the HVAC system is using." +
                             "\n" +
@@ -1081,7 +1014,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "HeatingStage", description: "Stage of heating the HVAC system is using.",
-                        xref: "cluster§4.3.8.5.2",
+                        xref: "cluster§4.3.8.2.2",
 
                         details: "These bits shall indicate what stage of heating the HVAC system is using." +
                             "\n" +
@@ -1096,7 +1029,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "HeatingIsHeatPump", description: "Is the heating type Heat Pump.",
-                        xref: "cluster§4.3.8.5.3",
+                        xref: "cluster§4.3.8.2.3",
                         details: "This bit shall indicate whether the HVAC system is conventional or a heat pump." +
                             "\n" +
                             "  - 0 = Conventional" +
@@ -1106,7 +1039,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "HeatingUsesFuel", description: "Does the HVAC system use fuel.",
-                        xref: "cluster§4.3.8.5.4",
+                        xref: "cluster§4.3.8.2.4",
                         details: "This bit shall indicate whether the HVAC system uses fuel." +
                             "\n" +
                             "  - 0 = Does not use fuel" +
@@ -1117,18 +1050,18 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "OccupancyBitmap", xref: "cluster§4.3.8.6",
+                tag: "datatype", name: "OccupancyBitmap", xref: "cluster§4.3.8.3",
 
                 children: [{
                     tag: "field", name: "Occupied", description: "Indicates the occupancy state",
-                    xref: "cluster§4.3.8.6.1",
+                    xref: "cluster§4.3.8.3.1",
                     details: "If this bit is set, it shall indicate the occupied state else if the bit if not set, it shall " +
                         "indicate the unoccupied state."
                 }]
             },
 
             {
-                tag: "datatype", name: "PresetTypeFeaturesBitmap", xref: "cluster§4.3.8.7",
+                tag: "datatype", name: "PresetTypeFeaturesBitmap", xref: "cluster§4.3.8.4",
 
                 children: [
                     {
@@ -1140,7 +1073,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ProgrammingOperationModeBitmap", xref: "cluster§4.3.8.8",
+                tag: "datatype", name: "ProgrammingOperationModeBitmap", xref: "cluster§4.3.8.5",
 
                 children: [
                     {
@@ -1153,7 +1086,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "RelayStateBitmap", xref: "cluster§4.3.8.9",
+                tag: "datatype", name: "RelayStateBitmap", xref: "cluster§4.3.8.6",
 
                 children: [
                     { tag: "field", name: "Heat", description: "Heat Stage On" },
@@ -1167,7 +1100,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "RemoteSensingBitmap", xref: "cluster§4.3.8.10",
+                tag: "datatype", name: "RemoteSensingBitmap", xref: "cluster§4.3.8.7",
 
                 children: [
                     {
@@ -1183,11 +1116,11 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ScheduleTypeFeaturesBitmap", xref: "cluster§4.3.8.11",
+                tag: "datatype", name: "ScheduleTypeFeaturesBitmap", xref: "cluster§4.3.8.8",
 
                 children: [
                     {
-                        tag: "field", name: "SupportsPresets", description: "Supports presets", xref: "cluster§4.3.8.11.1",
+                        tag: "field", name: "SupportsPresets", description: "Supports presets", xref: "cluster§4.3.8.8.1",
                         details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                             "SystemMode field on the encompassing ScheduleTypeStruct supports specifying presets on " +
                             "ScheduleTransitionStructs contained in its Transitions field."
@@ -1195,7 +1128,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "SupportsSetpoints", description: "Supports setpoints",
-                        xref: "cluster§4.3.8.11.2",
+                        xref: "cluster§4.3.8.8.2",
                         details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                             "SystemMode field on the encompassing ScheduleTypeStruct supports specifying setpoints on " +
                             "ScheduleTransitionStructs contained in its Transitions field."
@@ -1203,7 +1136,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "SupportsNames", description: "Supports user-provided names",
-                        xref: "cluster§4.3.8.11.3",
+                        xref: "cluster§4.3.8.8.3",
                         details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                             "SystemMode field on the encompassing ScheduleTypeStruct supports setting the value of the Name " +
                             "field."
@@ -1211,7 +1144,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "SupportsOff", description: "Supports transitioning to SystemModeOff",
-                        xref: "cluster§4.3.8.11.4",
+                        xref: "cluster§4.3.8.8.4",
                         details: "This bit shall indicate that any ScheduleStruct with a SystemMode field whose value matches the " +
                             "SystemMode field on the encompassing ScheduleTypeStruct supports setting its SystemMode field to " +
                             "Off."
@@ -1220,7 +1153,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ScheduleDayOfWeekBitmap", xref: "cluster§4.3.8.12",
+                tag: "datatype", name: "ScheduleDayOfWeekBitmap", xref: "cluster§4.3.8.9",
 
                 children: [
                     { tag: "field", name: "Sunday", description: "Sunday" },
@@ -1235,7 +1168,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ScheduleModeBitmap", xref: "cluster§4.3.8.13",
+                tag: "datatype", name: "ScheduleModeBitmap", xref: "cluster§4.3.8.10",
                 children: [
                     { tag: "field", name: "HeatSetpointPresent", description: "Adjust Heat Setpoint" },
                     { tag: "field", name: "CoolSetpointPresent", description: "Adjust Cool Setpoint" }
@@ -1243,12 +1176,12 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ACCapacityFormatEnum", xref: "cluster§4.3.8.14",
+                tag: "datatype", name: "ACCapacityFormatEnum", xref: "cluster§4.3.8.11",
                 children: [{ tag: "field", name: "BtUh", description: "British Thermal Unit per Hour" }]
             },
 
             {
-                tag: "datatype", name: "ACCompressorTypeEnum", xref: "cluster§4.3.8.15",
+                tag: "datatype", name: "ACCompressorTypeEnum", xref: "cluster§4.3.8.12",
 
                 children: [
                     { tag: "field", name: "Unknown", description: "Unknown compressor type" },
@@ -1259,7 +1192,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ACLouverPositionEnum", xref: "cluster§4.3.8.16",
+                tag: "datatype", name: "ACLouverPositionEnum", xref: "cluster§4.3.8.13",
 
                 children: [
                     { tag: "field", name: "Closed", description: "Fully Closed" },
@@ -1271,7 +1204,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ACRefrigerantTypeEnum", xref: "cluster§4.3.8.17",
+                tag: "datatype", name: "ACRefrigerantTypeEnum", xref: "cluster§4.3.8.14",
 
                 children: [
                     { tag: "field", name: "Unknown", description: "Unknown Refrigerant Type" },
@@ -1282,7 +1215,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ACTypeEnum", xref: "cluster§4.3.8.18",
+                tag: "datatype", name: "ACTypeEnum", xref: "cluster§4.3.8.15",
 
                 children: [
                     { tag: "field", name: "Unknown", description: "Unknown AC Type" },
@@ -1294,7 +1227,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "SetpointRaiseLowerModeEnum", xref: "cluster§4.3.8.19",
+                tag: "datatype", name: "SetpointRaiseLowerModeEnum", xref: "cluster§4.3.8.16",
                 children: [
                     { tag: "field", name: "Heat", description: "Adjust Heat Setpoint" },
                     { tag: "field", name: "Cool", description: "Adjust Cool Setpoint" },
@@ -1303,7 +1236,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ControlSequenceOfOperationEnum", xref: "cluster§4.3.8.20",
+                tag: "datatype", name: "ControlSequenceOfOperationEnum", xref: "cluster§4.3.8.17",
 
                 details: "> [!NOTE]" +
                     "\n" +
@@ -1327,45 +1260,45 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "PresetScenarioEnum", xref: "cluster§4.3.8.21",
+                tag: "datatype", name: "PresetScenarioEnum", xref: "cluster§4.3.8.18",
 
                 children: [
                     {
                         tag: "field", name: "Occupied", description: "The thermostat-controlled area is occupied",
-                        xref: "cluster§4.3.8.21.2",
+                        xref: "cluster§4.3.8.18.2",
                         details: "This value shall indicate the preset for periods when the thermostat’s temperature-controlled area " +
                             "is occupied. It is intended for thermostats that can automatically determine occupancy."
                     },
 
                     {
                         tag: "field", name: "Unoccupied", description: "The thermostat-controlled area is unoccupied",
-                        xref: "cluster§4.3.8.21.3",
+                        xref: "cluster§4.3.8.18.3",
                         details: "This value shall indicate the preset for periods when the thermostat’s temperature-controlled area " +
                             "is unoccupied. It is intended for thermostats that can automatically determine occupancy."
                     },
 
                     {
                         tag: "field", name: "Sleep", description: "Users are likely to be sleeping",
-                        xref: "cluster§4.3.8.21.4",
+                        xref: "cluster§4.3.8.18.4",
                         details: "This value shall indicate the preset for periods when users are likely to be asleep."
                     },
                     {
                         tag: "field", name: "Wake", description: "Users are likely to be waking up",
-                        xref: "cluster§4.3.8.21.5",
+                        xref: "cluster§4.3.8.18.5",
                         details: "This value shall indicate the preset for periods when users are likely to be waking up."
                     },
                     {
-                        tag: "field", name: "Vacation", description: "Users are on vacation", xref: "cluster§4.3.8.21.6",
+                        tag: "field", name: "Vacation", description: "Users are on vacation", xref: "cluster§4.3.8.18.6",
                         details: "This value shall indicate the preset for periods when users are on vacation, or otherwise " +
                             "out-of-home for extended periods of time."
                     },
                     {
                         tag: "field", name: "GoingToSleep", description: "Users are likely to be going to sleep",
-                        xref: "cluster§4.3.8.21.7",
+                        xref: "cluster§4.3.8.18.7",
                         details: "This value shall indicate the preset for periods when users are likely to be going to sleep."
                     },
                     {
-                        tag: "field", name: "UserDefined", description: "Custom presets", xref: "cluster§4.3.8.21.8",
+                        tag: "field", name: "UserDefined", description: "Custom presets", xref: "cluster§4.3.8.18.8",
                         details: "This value shall indicate a free-form preset; when set, the Name field on PresetStruct shall NOT be " +
                             "null."
                     }
@@ -1373,7 +1306,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "SetpointChangeSourceEnum", xref: "cluster§4.3.8.22",
+                tag: "datatype", name: "SetpointChangeSourceEnum", xref: "cluster§4.3.8.19",
 
                 children: [
                     {
@@ -1391,10 +1324,10 @@ Resource.add(
                 ]
             },
 
-            { tag: "datatype", name: "StartOfWeekEnum", xref: "cluster§4.3.8.23" },
+            { tag: "datatype", name: "StartOfWeekEnum", xref: "cluster§4.3.8.20" },
 
             {
-                tag: "datatype", name: "SystemModeEnum", xref: "cluster§4.3.8.24",
+                tag: "datatype", name: "SystemModeEnum", xref: "cluster§4.3.8.21",
 
                 children: [
                     {
@@ -1416,7 +1349,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ThermostatRunningModeEnum", xref: "cluster§4.3.8.25",
+                tag: "datatype", name: "ThermostatRunningModeEnum", xref: "cluster§4.3.8.22",
 
                 children: [
                     {
@@ -1429,7 +1362,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "TemperatureSetpointHoldEnum", xref: "cluster§4.3.8.26",
+                tag: "datatype", name: "TemperatureSetpointHoldEnum", xref: "cluster§4.3.8.23",
 
                 children: [
                     { tag: "field", name: "SetpointHoldOff", description: "Follow scheduling program" },
@@ -1441,11 +1374,11 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "PresetStruct", xref: "cluster§4.3.8.27",
+                tag: "datatype", name: "PresetStruct", xref: "cluster§4.3.8.24",
 
                 children: [
                     {
-                        tag: "field", name: "PresetHandle", xref: "cluster§4.3.8.27.1",
+                        tag: "field", name: "PresetHandle", xref: "cluster§4.3.8.24.1",
 
                         details: "This field shall indicate a device generated identifier for this preset. It shall be unique on the " +
                             "device, and shall NOT be reused after the associated preset has been deleted." +
@@ -1456,12 +1389,12 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "PresetScenario", xref: "cluster§4.3.8.27.2",
+                        tag: "field", name: "PresetScenario", xref: "cluster§4.3.8.24.2",
                         details: "This field shall indicate the associated PresetScenarioEnum value for this preset."
                     },
 
                     {
-                        tag: "field", name: "Name", xref: "cluster§4.3.8.27.3",
+                        tag: "field", name: "Name", xref: "cluster§4.3.8.24.3",
                         details: "This field shall indicate a name provided by a user. The null value shall indicate no name." +
                             "\n" +
                             "Within each subset of presets sharing the same PresetScenario field value, there shall NOT be any " +
@@ -1469,17 +1402,17 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "CoolingSetpoint", xref: "cluster§4.3.8.27.4",
+                        tag: "field", name: "CoolingSetpoint", xref: "cluster§4.3.8.24.4",
                         details: "This field shall indicate the cooling setpoint for the preset. Refer to Setpoint Limits for value " +
                             "constraints."
                     },
                     {
-                        tag: "field", name: "HeatingSetpoint", xref: "cluster§4.3.8.27.5",
+                        tag: "field", name: "HeatingSetpoint", xref: "cluster§4.3.8.24.5",
                         details: "This field shall indicate the heating setpoint for the preset. Refer to Setpoint Limits for value " +
                             "constraints."
                     },
                     {
-                        tag: "field", name: "BuiltIn", xref: "cluster§4.3.8.27.6",
+                        tag: "field", name: "BuiltIn", xref: "cluster§4.3.8.24.6",
                         details: "This field shall indicate whether the preset is marked as \"built-in\", meaning that it can be " +
                             "modified, but it cannot be deleted."
                     }
@@ -1487,31 +1420,31 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "PresetTypeStruct", xref: "cluster§4.3.8.28",
+                tag: "datatype", name: "PresetTypeStruct", xref: "cluster§4.3.8.25",
 
                 children: [
                     {
-                        tag: "field", name: "PresetScenario", xref: "cluster§4.3.8.28.1",
+                        tag: "field", name: "PresetScenario", xref: "cluster§4.3.8.25.1",
                         details: "This field shall specify a PresetScenarioEnum value supported by this thermostat."
                     },
                     {
-                        tag: "field", name: "NumberOfPresets", xref: "cluster§4.3.8.28.2",
+                        tag: "field", name: "NumberOfPresets", xref: "cluster§4.3.8.25.2",
                         details: "This field shall specify a limit for the number of presets for this PresetScenarioEnum."
                     },
                     {
-                        tag: "field", name: "PresetTypeFeatures", xref: "cluster§4.3.8.28.3",
+                        tag: "field", name: "PresetTypeFeatures", xref: "cluster§4.3.8.25.3",
                         details: "This field shall specify a bitmap of features for this PresetTypeStruct."
                     }
                 ]
             },
 
             {
-                tag: "datatype", name: "WeeklyScheduleTransitionStruct", xref: "cluster§4.3.8.29",
+                tag: "datatype", name: "WeeklyScheduleTransitionStruct", xref: "cluster§4.3.8.26",
                 details: "This represents a single transition in a Thermostat schedule",
 
                 children: [
                     {
-                        tag: "field", name: "TransitionTime", xref: "cluster§4.3.8.29.1",
+                        tag: "field", name: "TransitionTime", xref: "cluster§4.3.8.26.1",
                         details: "This field shall represent the start time of the schedule transition during the associated day. The " +
                             "time will be represented by a 16 bits unsigned integer to designate the minutes since midnight. For " +
                             "example, 6am will be represented by 360 minutes since midnight and 11:30pm will be represented by " +
@@ -1519,22 +1452,22 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "HeatSetpoint", xref: "cluster§4.3.8.29.2",
+                        tag: "field", name: "HeatSetpoint", xref: "cluster§4.3.8.26.2",
                         details: "This field shall represent the heat setpoint to be applied at this associated transition start time."
                     },
                     {
-                        tag: "field", name: "CoolSetpoint", xref: "cluster§4.3.8.29.3",
+                        tag: "field", name: "CoolSetpoint", xref: "cluster§4.3.8.26.3",
                         details: "This field shall represent the cool setpoint to be applied at this associated transition start time."
                     }
                 ]
             },
 
             {
-                tag: "datatype", name: "ScheduleStruct", xref: "cluster§4.3.8.30",
+                tag: "datatype", name: "ScheduleStruct", xref: "cluster§4.3.8.27",
 
                 children: [
                     {
-                        tag: "field", name: "ScheduleHandle", xref: "cluster§4.3.8.30.1",
+                        tag: "field", name: "ScheduleHandle", xref: "cluster§4.3.8.27.1",
 
                         details: "This field shall indicate a device generated identifier for this schedule. It shall be unique on the " +
                             "device, and shall NOT be reused after the associated schedule has been deleted." +
@@ -1545,30 +1478,30 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "SystemMode", xref: "cluster§4.3.8.30.2",
+                        tag: "field", name: "SystemMode", xref: "cluster§4.3.8.27.2",
                         details: "This field shall specify the default thermostat system mode for transitions in this schedule. The " +
                             "only valid values for this field shall be Auto, Heat, and Cool."
                     },
                     {
-                        tag: "field", name: "Name", xref: "cluster§4.3.8.30.3",
+                        tag: "field", name: "Name", xref: "cluster§4.3.8.27.3",
                         details: "This field shall specify a name for the ScheduleStruct."
                     },
                     {
-                        tag: "field", name: "PresetHandle", xref: "cluster§4.3.8.30.4",
+                        tag: "field", name: "PresetHandle", xref: "cluster§4.3.8.27.4",
                         details: "This field shall indicate the default PresetHandle value for transitions in this schedule."
                     },
 
                     {
-                        tag: "field", name: "Transitions", xref: "cluster§4.3.8.30.5",
+                        tag: "field", name: "Transitions", xref: "cluster§4.3.8.27.5",
 
                         details: "This field shall specify a list of transitions for the schedule." +
                             "\n" +
                             "This field shall NOT contain more than one ScheduleStruct with the same TransitionTime field and " +
                             "overlapping DayOfWeek fields; i.e. there shall be no duplicate transitions." +
                             "\n" +
-                            "If the NumberOfScheduleTransitionsPerDay attribute is not null, then for each bit in " +
+                            "If the NumberOfScheduleTransitionPerDay attribute is not null, then for each bit in " +
                             "ScheduleDayOfWeekBitmap, the number of transitions with that bit set in DayOfWeek shall NOT be " +
-                            "greater than the value of the NumberOfScheduleTransitionsPerDay attribute." +
+                            "greater than the value of the NumberOfScheduleTransitionPerDay attribute." +
                             "\n" +
                             "For the purposes of determining which ScheduleStruct in this list is currently active, the current " +
                             "time shall be the number of minutes past midnight in the display value of the current time, not the " +
@@ -1590,7 +1523,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "BuiltIn", xref: "cluster§4.3.8.30.6",
+                        tag: "field", name: "BuiltIn", xref: "cluster§4.3.8.27.6",
                         details: "This field shall indicate whether the schedule is marked as \"built-in\", meaning that it can be " +
                             "modified, but it cannot be deleted."
                     }
@@ -1598,7 +1531,7 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ScheduleTransitionStruct", xref: "cluster§4.3.8.31",
+                tag: "datatype", name: "ScheduleTransitionStruct", xref: "cluster§4.3.8.28",
 
                 details: "This struct provides a time of day and a set of days of the week for a state transition within a " +
                     "schedule. The thermostat shall use the following order of precedence for determining a new setpoint " +
@@ -1662,13 +1595,13 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "DayOfWeek", xref: "cluster§4.3.8.31.1",
+                        tag: "field", name: "DayOfWeek", xref: "cluster§4.3.8.28.1",
                         details: "This field shall specify a bitmask of days of the week that the transition applies to. The Vacation " +
                             "bit shall NOT be set; vacation schedules shall be set via the vacation preset."
                     },
 
                     {
-                        tag: "field", name: "TransitionTime", xref: "cluster§4.3.8.31.2",
+                        tag: "field", name: "TransitionTime", xref: "cluster§4.3.8.28.2",
                         details: "This shall specify the time of day at which the transition becomes active, in terms of minutes " +
                             "within the day representing the wall clock, where 0 is 00:00:00, 1 is 00:01:00 and 1439 is 23:59:00." +
                             "\n" +
@@ -1676,13 +1609,13 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "PresetHandle", xref: "cluster§4.3.8.31.3",
+                        tag: "field", name: "PresetHandle", xref: "cluster§4.3.8.28.3",
                         details: "This field shall specify the preset used at the TransitionTime. If this field is provided, then the " +
                             "SystemMode, CoolingSetpoint and HeatingSetpoint fields shall NOT be provided."
                     },
 
                     {
-                        tag: "field", name: "SystemMode", xref: "cluster§4.3.8.31.4",
+                        tag: "field", name: "SystemMode", xref: "cluster§4.3.8.28.4",
                         details: "This shall specify the default mode to which the thermostat will switch for this transition, " +
                             "overriding the default for the schedule. The only valid values for this field shall be Auto, Heat, " +
                             "Cool and Off. This field shall only be included when the required system mode differs from the " +
@@ -1690,12 +1623,12 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "CoolingSetpoint", xref: "cluster§4.3.8.31.5",
+                        tag: "field", name: "CoolingSetpoint", xref: "cluster§4.3.8.28.5",
                         details: "This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field " +
                             "shall NOT be included. Refer to Setpoint Limits for value constraints."
                     },
                     {
-                        tag: "field", name: "HeatingSetpoint", xref: "cluster§4.3.8.31.6",
+                        tag: "field", name: "HeatingSetpoint", xref: "cluster§4.3.8.28.6",
                         details: "This field shall specify the cooling setpoint for the transition. If PresetHandle is set, this field " +
                             "shall NOT be included. Refer to Setpoint Limits for value constraints."
                     }
@@ -1703,24 +1636,71 @@ Resource.add(
             },
 
             {
-                tag: "datatype", name: "ScheduleTypeStruct", xref: "cluster§4.3.8.32",
+                tag: "datatype", name: "ScheduleTypeStruct", xref: "cluster§4.3.8.29",
 
                 children: [
                     {
-                        tag: "field", name: "SystemMode", xref: "cluster§4.3.8.32.1",
+                        tag: "field", name: "SystemMode", xref: "cluster§4.3.8.29.1",
                         details: "This field shall specify a SystemModeEnum supported by this thermostat for Schedules. The only valid " +
                             "values for this field shall be Auto, Heat, and Cool."
                     },
                     {
-                        tag: "field", name: "NumberOfSchedules", xref: "cluster§4.3.8.32.2",
+                        tag: "field", name: "NumberOfSchedules", xref: "cluster§4.3.8.29.2",
                         details: "This field shall specify a limit for the number of Schedules for this SystemMode."
                     },
                     {
-                        tag: "field", name: "ScheduleTypeFeatures", xref: "cluster§4.3.8.32.3",
+                        tag: "field", name: "ScheduleTypeFeatures", xref: "cluster§4.3.8.29.3",
                         details: "This field shall specify a bitmap of features for this schedule entry. At least one of " +
                             "SupportsPresets and SupportsSetpoints shall be set."
                     }
                 ]
+            },
+
+            {
+                tag: "datatype", name: "TemperatureDifference", xref: "cluster§4.3.8.30",
+
+                details: "This data type is derived from int16 and represents a temperature difference with a resolution of " +
+                    "0.01°C." +
+                    "\n" +
+                    "  - value = (temperature in °C) x 100" +
+                    "\n" +
+                    "  - -4°C ⇒ -400" +
+                    "\n" +
+                    "  - 123.45°C ⇒ 12345" +
+                    "\n" +
+                    "The full (non-null) range of -327.67°C to 327.67°C may be used."
+            },
+
+            {
+                tag: "datatype", name: "SignedTemperature", xref: "cluster§4.3.8.31",
+
+                details: "This data type is derived from int8 and represents a temperature from -12.7°C to 12.7°C with a " +
+                    "resolution of 0.1°C." +
+                    "\n" +
+                    "  - value = (temperature in °C) x 10" +
+                    "\n" +
+                    "  - -4°C ⇒ -40" +
+                    "\n" +
+                    "  - 12.3°C ⇒ 123" +
+                    "\n" +
+                    "This type is employed where compactness of representation is important and where the resolution and " +
+                    "range are still satisfactory."
+            },
+
+            {
+                tag: "datatype", name: "UnsignedTemperature", xref: "cluster§4.3.8.32",
+
+                details: "This data type is derived from uint8 and represents a temperature from 0°C to 25.5°C with a " +
+                    "resolution of 0.1°C." +
+                    "\n" +
+                    "  - value = (temperature in °C) x 10" +
+                    "\n" +
+                    "  - 4°C ⇒ 40" +
+                    "\n" +
+                    "  - 12.3°C ⇒ 123" +
+                    "\n" +
+                    "This type is employed where compactness of representation is important and where the resolution and " +
+                    "range are still satisfactory."
             }
         ]
     }

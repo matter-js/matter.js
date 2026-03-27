@@ -51,8 +51,7 @@ export declare namespace ApplicationBasic {
     export interface BaseAttributes {
         /**
          * This attribute shall specify a human readable (displayable) name of the Content App assigned by the vendor.
-         * For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of UTF-8
-         * characters.
+         * For example, "NPR On Demand".
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
          */
@@ -74,7 +73,7 @@ export declare namespace ApplicationBasic {
 
         /**
          * This attribute shall specify a human readable (displayable) version of the Content App assigned by the
-         * vendor. The maximum length of the ApplicationVersion attribute is 32 bytes of UTF-8 characters.
+         * vendor.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.7
          */
@@ -120,8 +119,7 @@ export declare namespace ApplicationBasic {
     export interface Attributes {
         /**
          * This attribute shall specify a human readable (displayable) name of the Content App assigned by the vendor.
-         * For example, "NPR On Demand". The maximum length of the ApplicationName attribute is 256 bytes of UTF-8
-         * characters.
+         * For example, "NPR On Demand".
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.3
          */
@@ -143,7 +141,7 @@ export declare namespace ApplicationBasic {
 
         /**
          * This attribute shall specify a human readable (displayable) version of the Content App assigned by the
-         * vendor. The maximum length of the ApplicationVersion attribute is 32 bytes of UTF-8 characters.
+         * vendor.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.5.7
          */

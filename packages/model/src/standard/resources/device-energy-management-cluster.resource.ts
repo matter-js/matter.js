@@ -491,7 +491,7 @@ Resource.add(
                         tag: "field", name: "RequestedStartTime", xref: "cluster§9.2.9.3.1",
 
                         details: "This field shall indicate the requested start time, in UTC, that the client would like the appliance " +
-                            "to shift its Forecast to. This value MUST be in the future." +
+                            "to shift its Forecast to. This value shall be in the future." +
                             "\n" +
                             "A client can estimate the entire Forecast sequence duration by computing the EndTime - StartTime " +
                             "fields from the Forecast attribute, and therefore avoid scheduling the start time too late." +
@@ -1157,7 +1157,7 @@ Resource.add(
                     {
                         tag: "field", name: "NominalPower", xref: "cluster§9.2.7.15.2",
 
-                        details: "This field shall indicate the new requested power that the ESA shall operate at. It MUST be between " +
+                        details: "This field shall indicate the new requested power that the ESA shall operate at. It shall be between " +
                             "the AbsMinPower and AbsMaxPower attributes as advertised by the ESA if it supports PFR." +
                             "\n" +
                             "This is a signed value and can be used to indicate charging or discharging." +
@@ -1168,8 +1168,8 @@ Resource.add(
                     {
                         tag: "field", name: "Duration", xref: "cluster§9.2.7.15.3",
                         details: "This field shall indicate the new requested duration, in seconds, that the ESA shall extend or " +
-                            "shorten the slot duration to. It MUST be between the MinDurationAdjustment and MaxDurationAdjustment " +
-                            "for the slot as advertised by the ESA."
+                            "shorten the slot duration to. It shall be between the MinDurationAdjustment and " +
+                            "MaxDurationAdjustment for the slot as advertised by the ESA."
                     }
                 ]
             },
@@ -1186,7 +1186,7 @@ Resource.add(
                         details: "This field shall indicate the start time of the constraint period that the client wishes the ESA to " +
                             "compute a new Forecast." +
                             "\n" +
-                            "This value is in UTC and MUST be in the future."
+                            "This value is in UTC and shall be in the future."
                     },
 
                     {
@@ -1197,7 +1197,7 @@ Resource.add(
                     {
                         tag: "field", name: "NominalPower", xref: "cluster§9.2.7.16.3",
                         details: "This field shall indicate the nominal power that client wishes the ESA to operate at during the " +
-                            "constrained period. It MUST be between the AbsMinPower and AbsMaxPower attributes as advertised by " +
+                            "constrained period. It shall be between the AbsMinPower and AbsMaxPower attributes as advertised by " +
                             "the ESA if it supports PFR." +
                             "\n" +
                             "This is a signed value and can be used to indicate charging or discharging."

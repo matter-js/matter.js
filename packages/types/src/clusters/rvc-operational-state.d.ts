@@ -269,6 +269,9 @@ export declare namespace RvcOperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
+         *   - After the device reaches the dock and completes its docking activities, the RVC Run Mode cluster’s
+         *     CurrentMode attribute shall be set to an Idle mode.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 7.4.5.1
          */
         goHome(): MaybePromise<OperationalCommandResponse>;
@@ -578,7 +581,7 @@ export declare namespace RvcOperationalState {
         DirtyWaterTankFull = 74,
 
         /**
-         * The device has detected that its dirty water is missing
+         * The device has detected that its dirty water tank is missing
          */
         DirtyWaterTankMissing = 75,
 

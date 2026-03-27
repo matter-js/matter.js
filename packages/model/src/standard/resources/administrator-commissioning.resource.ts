@@ -88,14 +88,14 @@ Resource.add({
 
             details: "This command is used by a current Administrator to instruct a Node to go into commissioning mode. " +
                 "The Enhanced Commissioning Method specifies a window of time during which an already commissioned " +
-                "Node accepts PASE sessions. The current Administrator MUST specify a timeout value for the duration " +
+                "Node accepts PASE sessions. The current Administrator shall specify a timeout value for the duration " +
                 "of the OpenCommissioningWindow command." +
                 "\n" +
                 "When the OpenCommissioningWindow command expires or commissioning completes, the Node shall remove " +
                 "the Passcode by deleting the PAKE passcode verifier as well as stop publishing the DNS-SD record " +
                 "corresponding to this command as described in Section 4.3.1, “Commissionable Node Discovery”. The " +
-                "commissioning into a new Fabric completes when the Node successfully receives a " +
-                "CommissioningComplete command, see Section 5.5, “Commissioning Flows”." +
+                "commissioning into a new Fabric completes when the Node successfully receives a Section 11.10.7.6, " +
+                "“CommissioningComplete” command, see Section 5.5, “Commissioning Flows”." +
                 "\n" +
                 "The parameters for OpenCommissioningWindow command are as follows:" +
                 "\n" +
@@ -120,11 +120,13 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "CommissioningTimeout", xref: "core§11.19.8.1.1",
+
                     details: "This field shall specify the time in seconds during which commissioning session establishment is " +
-                        "allowed by the Node. This timeout value shall follow guidance as specified in the initial " +
-                        "Announcement Duration. The CommissioningTimeout applies only to cessation of any announcements and " +
-                        "to accepting of new commissioning sessions; it does not apply to abortion of connections, i.e., a " +
-                        "commissioning session SHOULD NOT abort prematurely upon expiration of this timeout."
+                        "allowed by the Node. This timeout value shall follow guidance as specified in the initial Section " +
+                        "5.4.2.3, “Announcement Duration”. The CommissioningTimeout applies only to cessation of any " +
+                        "announcements and to accepting of new commissioning sessions; it does not apply to abortion of " +
+                        "connections, i.e., a commissioning session SHOULD NOT abort prematurely upon expiration of this " +
+                        "timeout."
                 },
 
                 {
@@ -149,11 +151,13 @@ Resource.add({
 
                 {
                     tag: "field", name: "Iterations", xref: "core§11.19.8.1.4",
+
                     details: "This field shall be used by the Node as the PAKE iteration count associated with the ephemeral PAKE " +
                         "passcode verifier to be used for this commissioning, which shall be sent by the Node to the new " +
-                        "Administrator’s software as response to the PBKDFParamRequest during PASE negotiation. The permitted " +
-                        "range of values shall match the range specified in Section 3.9, “Password-Based Key Derivation " +
-                        "Function (PBKDF)”, within the definition of the Crypto_PBKDFParameterSet."
+                        "Administrator’s software as response to the Section 4.14.1.2.3, “PBKDFParamRequest” during PASE " +
+                        "negotiation. The permitted range of values shall match the range specified in Section 3.9, " +
+                        "“Password-Based Key Derivation Function (PBKDF)”, within the definition of the " +
+                        "Crypto_PBKDFParameterSet."
                 },
 
                 {
@@ -161,13 +165,14 @@ Resource.add({
 
                     details: "This field shall be used by the Node as the PAKE Salt associated with the ephemeral PAKE passcode " +
                         "verifier to be used for this commissioning, which shall be sent by the Node to the new " +
-                        "Administrator’s software as response to the PBKDFParamRequest during PASE negotiation. The " +
-                        "constraints on the value shall match those specified in Section 3.9, “Password-Based Key Derivation " +
-                        "Function (PBKDF)”, within the definition of the Crypto_PBKDFParameterSet." +
+                        "Administrator’s software as response to the Section 4.14.1.2.3, “PBKDFParamRequest” during PASE " +
+                        "negotiation. The constraints on the value shall match those specified in Section 3.9, " +
+                        "“Password-Based Key Derivation Function (PBKDF)”, within the definition of the " +
+                        "Crypto_PBKDFParameterSet." +
                         "\n" +
-                        "When a Node receives the OpenCommissioningWindow command, it shall begin advertising on DNS-SD as " +
-                        "described in Section 4.3.1, “Commissionable Node Discovery” and for a time period as described in " +
-                        "CommissioningTimeout." +
+                        "When a Node receives the Section 11.19.8.1, “OpenCommissioningWindow” command, it shall begin " +
+                        "advertising on DNS-SD as described in Section 4.3.1, “Commissionable Node Discovery” and for a time " +
+                        "period as described in Section 11.19.8.1.1, “CommissioningTimeout”." +
                         "\n" +
                         "When the command is received by a ICD, it shall enter into active mode. The ICD shall remain in " +
                         "Active Mode as long as one of these conditions is met:" +
@@ -197,21 +202,23 @@ Resource.add({
                 "\n" +
                 "In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID." +
                 "\n" +
-                "The commissioning into a new Fabric completes when the Node successfully receives a " +
-                "CommissioningComplete command, see Section 5.5, “Commissioning Flows”. The new Administrator shall " +
-                "discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.",
+                "The commissioning into a new Fabric completes when the Node successfully receives a Section " +
+                "11.10.7.6, “CommissioningComplete” command, see Section 5.5, “Commissioning Flows”. The new " +
+                "Administrator shall discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) " +
+                "for commissioning.",
 
             children: [{
                 tag: "field", name: "CommissioningTimeout", xref: "core§11.19.8.2.1",
 
                 details: "This field shall specify the time in seconds during which commissioning session establishment is " +
-                    "allowed by the Node. This timeout shall follow guidance as specified in the initial Announcement " +
-                    "Duration." +
+                    "allowed by the Node. This timeout shall follow guidance as specified in the initial Section 5.4.2.3, " +
+                    "“Announcement Duration”." +
                     "\n" +
-                    "When a Node receives the OpenBasicCommissioningWindow command, it shall begin advertising on DNS-SD " +
-                    "as described in Section 4.3.1, “Commissionable Node Discovery” and for a time period as described in " +
-                    "CommissioningTimeout. When the command is received by a ICD, it shall enter into active mode. The " +
-                    "ICD shall remain in Active Mode as long as one of these conditions is met:" +
+                    "When a Node receives the Section 11.19.8.2, “OpenBasicCommissioningWindow” command, it shall begin " +
+                    "advertising on DNS-SD as described in Section 4.3.1, “Commissionable Node Discovery” and for a time " +
+                    "period as described in Section 11.19.8.2.1, “CommissioningTimeout”. When the command is received by " +
+                    "a ICD, it shall enter into active mode. The ICD shall remain in Active Mode as long as one of these " +
+                    "conditions is met:" +
                     "\n" +
                     "  - A commissioning window is open." +
                     "\n" +
@@ -222,11 +229,13 @@ Resource.add({
         {
             tag: "command", name: "RevokeCommissioning", xref: "core§11.19.8.3",
 
-            details: "This command is used by a current Administrator to instruct a Node to revoke any active " +
-                "OpenCommissioningWindow or OpenBasicCommissioningWindow command. This is an idempotent command and " +
-                "the Node shall (for ECM) delete the temporary PAKEPasscodeVerifier and associated data, and stop " +
-                "publishing the DNS-SD record associated with the OpenCommissioningWindow or " +
-                "OpenBasicCommissioningWindow command, see Section 4.3.1, “Commissionable Node Discovery”." +
+            details: "This command is used by a current Administrator to instruct a Node to revoke any active Section " +
+                "11.19.8.1, “OpenCommissioningWindow” or Section 11.19.8.2, “OpenBasicCommissioningWindow” command. " +
+                "This is an idempotent command and the Node shall (for ECM) delete the temporary PAKEPasscodeVerifier " +
+                "and associated data, terminate any open PASE sessions or sessions in the process of being " +
+                "established, and stop publishing the DNS-SD record associated with the Section 11.19.8.1, " +
+                "“OpenCommissioningWindow” or Section 11.19.8.2, “OpenBasicCommissioningWindow” command, see Section " +
+                "4.3.1, “Commissionable Node Discovery”." +
                 "\n" +
                 "If no commissioning window was open at time of receipt, this command shall fail with a cluster " +
                 "specific status code of WindowNotOpen." +
