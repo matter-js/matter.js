@@ -30,7 +30,6 @@ import {
     Channel,
     ChannelType,
     ClassExtends,
-    ConnectionlessTransportSet,
     Duration,
     Environment,
     Environmental,
@@ -43,6 +42,7 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
+    TransportSet,
 } from "@matter/general";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
@@ -169,7 +169,7 @@ export interface EstablishPaseResult {
  */
 export interface ControllerCommissionerContext {
     peers: PeerSet;
-    transports: ConnectionlessTransportSet;
+    transports: TransportSet;
     sessions: SessionManager;
     exchanges: ExchangeManager;
     ca: CertificateAuthority;
@@ -191,7 +191,7 @@ export class ControllerCommissioner {
     static [Environmental.create](env: Environment) {
         const instance = new ControllerCommissioner({
             peers: env.get(PeerSet),
-            transports: env.get(ConnectionlessTransportSet),
+            transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
             ca: env.get(CertificateAuthority),
@@ -345,6 +345,10 @@ export class ControllerCommissioner {
                 }
                 paseChannel = await Abort.attempt(signal, ble.openChannel(address));
                 break;
+
+            case "tcp":
+                // PASE always uses UDP or BLE — TCP is for operational CASE sessions only
+                throw new ImplementationError("PASE sessions cannot use TCP transport");
 
             default:
                 throw new ImplementationError(

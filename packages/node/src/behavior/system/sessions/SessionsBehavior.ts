@@ -17,8 +17,8 @@ import { Behavior } from "../../Behavior.js";
 export class SessionsBehavior extends Behavior {
     static override readonly id = "sessions";
 
-    declare readonly state: SessionsBehavior.State;
-    declare readonly events: SessionsBehavior.Events;
+    declare state: SessionsBehavior.State;
+    declare events: SessionsBehavior.Events;
 
     override initialize() {
         const env = this.env;

@@ -19,6 +19,7 @@ import {
     Bytes,
     causedBy,
     Channel,
+    ChannelType,
     Diagnostic,
     Duration,
     Heap,
@@ -27,6 +28,7 @@ import {
     Millis,
     Observable,
     ServerAddress,
+    ServerAddressIp,
     ServerAddressSet,
     ServerAddressUdp,
     Time,
@@ -92,6 +94,7 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
+    const useTcp = options?.transportConstraint === ChannelType.TCP;
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -113,7 +116,7 @@ export async function PeerConnection(
     const service = peer.service;
 
     // Active connection attempts, keyed by address
-    const attempts = new Map<ServerAddressUdp, Attempt>();
+    const attempts = new Map<ServerAddressIp, Attempt>();
 
     // The result
     let outputSession: NodeSession | undefined;
@@ -125,16 +128,16 @@ export async function PeerConnection(
     const workers = new BasicMultiplex();
 
     // Address set used for interning
-    const addresses = ServerAddressSet<ServerAddressUdp>();
+    const addresses = ServerAddressSet<ServerAddressIp>();
 
     // Addresses we will attempt to connect to in priority order
-    const pendingAddresses = new Heap<ServerAddressUdp>(
+    const pendingAddresses = new Heap<ServerAddressIp>(
         ServerAddressSet.compareDesirability,
         addresses.add.bind(addresses),
     );
 
     // When the service is undiscovered, we attempt to connect to the last-known good address and store it here
-    let attemptingFallback: ServerAddressUdp | undefined;
+    let attemptingFallback: ServerAddressIp | undefined;
 
     // Time of last attempt initiation, used to delay next initiation
     let lastAttemptAt: undefined | Timestamp;
@@ -207,7 +210,7 @@ export async function PeerConnection(
                 if (delayInterval > 0) {
                     using _delaying = scheduling.join("delaying");
 
-                    const changed = await overallAbort.race<ServerAddressUdp | void>(
+                    const changed = await overallAbort.race<ServerAddressIp | void>(
                         Abort.sleep("connection delay", overallAbort, delayInterval),
                         pendingAddresses.added,
                         pendingAddresses.deleted,
@@ -232,9 +235,21 @@ export async function PeerConnection(
     }
 
     /**
+     * When TCP transport is required, convert an IP address to TCP type.
+     * DNS-SD discovers UDP addresses but TCP uses the same IP:port.
+     */
+    function applyTransportConstraint(address: ServerAddressIp): ServerAddressIp {
+        if (useTcp && address.type !== "tcp") {
+            return { ...address, type: "tcp" };
+        }
+        return address;
+    }
+
+    /**
      * Enqueue an address if not already attempting.
      */
-    function addAddress(address: ServerAddressUdp) {
+    function addAddress(address: ServerAddressIp) {
+        address = applyTransportConstraint(address);
         address = addresses.add(address);
 
         // Skip if we're already attempting connection to this address
@@ -260,7 +275,8 @@ export async function PeerConnection(
             return;
         }
 
-        attemptingFallback = peer.descriptor.operationalAddress;
+        const fallback = peer.descriptor.operationalAddress;
+        attemptingFallback = fallback ? applyTransportConstraint(fallback) : undefined;
         if (attemptingFallback) {
             pendingAddresses.add(attemptingFallback);
         }
@@ -269,7 +285,7 @@ export async function PeerConnection(
     /**
      * Begin connection attempt to specific address.  Continues until aborted.
      */
-    function initiateAttempt(address: ServerAddressUdp) {
+    function initiateAttempt(address: ServerAddressIp) {
         address = addresses.add(address);
 
         // Skip if we're already attempting connection to this address
@@ -300,7 +316,7 @@ export async function PeerConnection(
     /**
      * End connection attempt.
      */
-    function deleteAddress(address: ServerAddressUdp, why: string) {
+    function deleteAddress(address: ServerAddressIp, why: string) {
         address = addresses.add(address);
         const attempt = attempts.get(address);
 
@@ -324,30 +340,30 @@ export async function PeerConnection(
         pendingAddresses.delete(address);
     }
 
-    function error(address: ServerAddressUdp, ...message: unknown[]) {
+    function error(address: ServerAddressIp, ...message: unknown[]) {
         logger.error(logHeaderFor(address), ...message);
     }
 
-    function warn(address: ServerAddressUdp, ...message: unknown[]) {
+    function warn(address: ServerAddressIp, ...message: unknown[]) {
         logger.warn(logHeaderFor(address), ...message);
     }
 
-    function info(via: string, address: ServerAddressUdp, ...message: unknown[]) {
+    function info(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.info(logHeaderFor(address, via), ...message);
     }
 
-    function debug(via: string, address: ServerAddressUdp, ...message: unknown[]) {
+    function debug(via: string, address: ServerAddressIp, ...message: unknown[]) {
         logger.debug(logHeaderFor(address, via), ...message);
     }
 
-    function logHeaderFor(address: ServerAddressUdp, localVia = via) {
+    function logHeaderFor(address: ServerAddressIp, localVia = via) {
         return [localVia, Diagnostic.strong(ServerAddress.urlFor(address))];
     }
 
     /**
      * Perform connection to specific address until successful.
      */
-    async function connect(address: ServerAddressUdp, addressAbort: Abort) {
+    async function connect(address: ServerAddressIp, addressAbort: Abort) {
         const addrNo = ++addrsAttempted;
         let attemptNo = 1;
 
@@ -377,7 +393,7 @@ export async function PeerConnection(
      * Make a single attempt to connect to a specific address.
      */
     async function attemptOnce(
-        address: ServerAddressUdp,
+        address: ServerAddressIp,
         addressAbort: Abort,
         attemptLifetime: Lifetime,
         addrNo: number,
@@ -481,7 +497,7 @@ export async function PeerConnection(
     /**
      * Log error information and pause before next retry.
      */
-    async function handleConnectionError(e: Error, address: ServerAddressUdp, addressAbort: Abort, lifetime: Lifetime) {
+    async function handleConnectionError(e: Error, address: ServerAddressIp, addressAbort: Abort, lifetime: Lifetime) {
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
@@ -547,7 +563,7 @@ export namespace PeerConnection {
         /**
          * Open byte channel to a specific address.
          */
-        openSocket(address: ServerAddressUdp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
+        openSocket(address: ServerAddressIp, abort: AbortSignal): Promise<Channel<Bytes> | void>;
 
         timing: PeerTimingParameters;
 
@@ -565,6 +581,13 @@ export namespace PeerConnection {
         abort?: AbortSignal;
         network?: string;
         kicker?: Observable<[KickOrigin]>;
+
+        /**
+         * Constrain the transport type for this connection. When set to `ChannelType.TCP`, the
+         * connection will be established over TCP (requires peer TCP Server support and local
+         * TCP outgoing enabled). When undefined, the default transport (UDP/MRP) is used.
+         */
+        transportConstraint?: ChannelType;
 
         /**
          * Per-call overrides for timing parameters.

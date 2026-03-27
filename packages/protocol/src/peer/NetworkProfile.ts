@@ -164,7 +164,7 @@ export class NetworkProfiles {
             defaults = this.#defaults.fast;
         } else if (pp === undefined) {
             id = "unknown";
-            defaults = this.#defaults.unknown;
+            defaults = this.#defaults.conservative;
         } else if (pp.threadActive || (pp.threadActive === undefined && pp.supportsThread)) {
             if (pp.threadChannel) {
                 id = `thread:${pp.threadChannel}`;
@@ -182,7 +182,7 @@ export class NetworkProfiles {
             defaults = this.#defaults.fast;
         } else {
             id = "unknown";
-            defaults = this.#defaults.unknown;
+            defaults = this.#defaults.conservative;
         }
 
         return this.#networks.get(id) ?? this.configure(id, defaults);
@@ -258,18 +258,9 @@ export namespace NetworkProfiles {
         thread: Limits;
 
         /**
-         * Conservative limits used as the base for constrained networks.
+         * Fallback limits for unknown profiles.
          */
         conservative: Limits;
-
-        /**
-         * Limits for peers with unknown physical properties.
-         *
-         * Defaults to {@link conservative}.  Note that this template is automatically overwritten at startup for
-         * device nodes based on the node's network capabilities.  Manually setting this may have no effect.  To
-         * adjust limits, override {@link fast}, {@link thread} or {@link conservative} instead.
-         */
-        unknown: Limits;
 
         /**
          * Limit for "unlimited" networks.
@@ -302,6 +293,5 @@ export namespace NetworkProfiles {
         fast: { exchanges: 200 },
         thread: conservative,
         conservative,
-        unknown: conservative,
     };
 }

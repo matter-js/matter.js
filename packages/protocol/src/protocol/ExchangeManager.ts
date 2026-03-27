@@ -19,8 +19,7 @@ import {
     causedBy,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
-    ConnectionlessTransportSet,
+    ConnectionOrientedTransport,
     Diagnostic,
     Entropy,
     Environment,
@@ -32,6 +31,8 @@ import {
     MatterFlowError,
     ObserverGroup,
     Time,
+    Transport,
+    TransportSet,
     UdpInterface,
     UnexpectedDataError,
 } from "@matter/general";
@@ -57,18 +58,19 @@ const MAXIMUM_CONCURRENT_OUTGOING_EXCHANGES_PER_SESSION = 30;
 export interface ExchangeManagerContext {
     lifetime: Lifetime.Owner;
     entropy: Entropy;
-    transports: ConnectionlessTransportSet;
+    transports: TransportSet;
     sessions: SessionManager;
 }
 
-export class ExchangeManager implements ConnectionlessTransport.Provider {
+export class ExchangeManager implements Transport.Provider {
     readonly #lifetime: Lifetime;
-    readonly #transports: ConnectionlessTransportSet;
+    readonly #transports: TransportSet;
     readonly #sessions: SessionManager;
     readonly #exchangeCounter: ExchangeCounter;
     readonly #exchanges = new Map<number, MessageExchange>();
     readonly #protocols = new Map<number, ProtocolHandler>();
-    readonly #listeners = new Map<ConnectionlessTransport, ConnectionlessTransport.Listener>();
+    readonly #listeners = new Map<Transport, Transport.Listener>();
+    readonly #disconnectListeners = new Map<Transport, Transport.Listener>();
     readonly #workers: BasicMultiplex;
     readonly #observers = new ObserverGroup(this);
     readonly #sessionObservers = new Map<Session, ObserverGroup>();
@@ -95,7 +97,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         const instance = new ExchangeManager({
             lifetime: env,
             entropy: env.get(Entropy),
-            transports: env.get(ConnectionlessTransportSet),
+            transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
         });
         env.set(ExchangeManager, instance);
@@ -117,7 +119,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         this.#protocols.set(protocol.id, protocol);
     }
 
-    interfaceFor(type: ChannelType, address?: string): ConnectionlessTransport | undefined {
+    interfaceFor(type: ChannelType, address?: string): Transport | undefined {
         return this.#transports.interfaceFor(type, address);
     }
 
@@ -176,6 +178,13 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         }
 
         this.#exchanges.clear();
+
+        // Clean up any remaining session observers (safety net for shutdown ordering)
+        for (const observers of this.#sessionObservers.values()) {
+            observers.close();
+        }
+        this.#sessionObservers.clear();
+
         this.#observers.close();
     }
 
@@ -492,7 +501,7 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
         };
     }
 
-    #addTransport(netInterface: ConnectionlessTransport) {
+    #addTransport(netInterface: Transport) {
         const udpInterface = netInterface instanceof UdpInterface;
         this.#listeners.set(
             netInterface,
@@ -506,16 +515,87 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
                 this.#workers.add(this.#onMessage(socket, data));
             }),
         );
+
+        // For connection-oriented transports (TCP), subscribe to disconnect events so we can
+        // evict all sessions bound to a dropped connection.
+        // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
+        const connectionOriented = netInterface as ConnectionOrientedTransport;
+        if (typeof connectionOriented.onDisconnect === "function") {
+            this.#disconnectListeners.set(
+                netInterface,
+                connectionOriented.onDisconnect(channel => {
+                    this.#workers.add(this.#onConnectionDisconnect(channel));
+                }),
+            );
+        }
     }
 
-    #deleteTransport(netInterface: ConnectionlessTransport) {
+    #deleteTransport(netInterface: Transport) {
         const listener = this.#listeners.get(netInterface);
         if (listener === undefined) {
             return;
         }
         this.#listeners.delete(netInterface);
-
         this.#workers.add(listener.close());
+
+        const disconnectListener = this.#disconnectListeners.get(netInterface);
+        if (disconnectListener !== undefined) {
+            this.#disconnectListeners.delete(netInterface);
+            this.#workers.add(disconnectListener.close());
+        }
+    }
+
+    /**
+     * Handle a TCP connection drop by evicting all sessions bound to that connection.
+     *
+     * Mimics CHIP SDK behavior: when a TCP connection drops, all sessions on that connection
+     * are evicted and all their exchanges are closed.
+     */
+    /** Find all active sessions whose underlying transport channel matches by identity. */
+    #sessionsOnChannel(channel: Channel<Bytes>): Array<Session> {
+        const result = new Array<Session>();
+
+        const check = (session: Session) => {
+            if (session.isClosed) return;
+            if (session.channel.channel === channel) {
+                result.push(session);
+            }
+        };
+
+        for (const session of this.#sessions.sessions) check(session);
+        for (const session of this.#sessions.unsecuredSessions.values()) check(session);
+
+        return result;
+    }
+
+    async #onConnectionDisconnect(channel: Channel<Bytes>) {
+        logger.info("TCP connection dropped, evicting bound sessions:", channel.name);
+
+        // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
+        for (const session of this.#sessionsOnChannel(channel)) {
+            logger.debug("Evicting session due to TCP disconnect:", session.via);
+
+            for (const exchange of [...session.exchanges]) {
+                await exchange.close(new Error("TCP connection dropped"));
+            }
+
+            await session.initiateForceClose({ cause: new Error("TCP connection dropped") });
+        }
+    }
+
+    /**
+     * When a session over TCP is removed, check if it was the last session referencing that
+     * TCP connection. If so, close the connection.
+     *
+     * Mimics CHIP SDK behavior: close TCP connection when last session is removed.
+     */
+    async #closeTcpConnectionIfLastSession(tcpChannel: Channel<Bytes>) {
+        if (this.#sessionsOnChannel(tcpChannel).length > 0) {
+            return;
+        }
+
+        logger.info("Last session on TCP connection removed, closing connection:", tcpChannel.name);
+        await tcpChannel.close();
     }
 
     #addSession(session: Session) {
@@ -539,6 +619,16 @@ export class ExchangeManager implements ConnectionlessTransport.Provider {
 
         observers.close();
         this.#sessionObservers.delete(session);
+
+        // When a session over TCP is removed, check if the TCP connection should be closed
+        try {
+            const underlyingChannel = session.channel.channel;
+            if (underlyingChannel.type === ChannelType.TCP) {
+                this.#workers.add(this.#closeTcpConnectionIfLastSession(underlyingChannel));
+            }
+        } catch {
+            // Session channel may already be detached/closed, ignore
+        }
     }
 
     async #sendCloseSession(session: NodeSession) {

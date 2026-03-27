@@ -18,6 +18,7 @@ import {
     AsyncObservable,
     BasicMultiplex,
     BasicSet,
+    ChannelType,
     ClosedError,
     Diagnostic,
     DnssdNames,
@@ -31,10 +32,11 @@ import {
     Millis,
     ObserverGroup,
     QuietObservable,
-    ServerAddressUdp,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
+import type { GlobalAttributes, TypeFromSchema } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
 import type { NetworkProfiles } from "./NetworkProfile.js";
 import { PeerAddressMonitor } from "./PeerAddressMonitor.js";
@@ -61,6 +63,12 @@ export class Peer {
     #protocol?: NodeProtocol;
     #physicalProperties?: PhysicalDeviceProperties;
     #abort = new Abort();
+
+    /**
+     * Preferred transport for outgoing connections to this peer. When set, influences whether
+     * TCP or UDP is preferred for new sessions. Set by the node layer from NetworkClient/NetworkServer config.
+     */
+    transportPreference?: ChannelType;
     #connecting?: ConnectionProcess;
     #service: IpService;
     #observers = new ObserverGroup();
@@ -111,7 +119,7 @@ export class Peer {
         });
 
         this.#observers.on(this.#sessions.added, session => {
-            const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
+            const updateNetworkAddress = (networkAddress: ServerAddressIp) => {
                 this.#descriptor.operationalAddress = networkAddress;
             };
 
@@ -120,12 +128,23 @@ export class Peer {
                 this.#sessions.delete(session);
             });
 
-            // Ensure the operational address is always set to the most recent IP
             if (!session.isClosed) {
                 const { channel } = session.channel;
                 if (isIpNetworkChannel(channel)) {
-                    updateNetworkAddress(channel.networkAddress);
-                    channel.networkAddressChanged.on(updateNetworkAddress);
+                    if (channel.type === ChannelType.TCP) {
+                        // For incoming TCP the remote port is ephemeral — use the mDNS port
+                        const discoveredPort = [...this.#service.addresses][0]?.port;
+                        if (discoveredPort !== undefined) {
+                            updateNetworkAddress({
+                                type: "tcp",
+                                ip: channel.networkAddress.ip,
+                                port: discoveredPort,
+                            });
+                        }
+                    } else {
+                        updateNetworkAddress(channel.networkAddress);
+                        channel.networkAddressChanged.on(updateNetworkAddress);
+                    }
                 }
             }
 
@@ -174,7 +193,7 @@ export class Peer {
     }
 
     get basicInformation() {
-        return this.#protocol?.[0]?.[BasicInformation.id]?.readState({}) as Peer.BasicInformation | undefined;
+        return this.#protocol?.[0]?.[BasicInformation.Cluster.id]?.readState({}) as Peer.BasicInformation | undefined;
     }
 
     get limits() {
@@ -258,7 +277,7 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession;
+            const session = this.newestSession();
             if (session) {
                 return session;
             }
@@ -369,12 +388,20 @@ export class Peer {
         await this.#updated.emit(this);
     }
 
-    get newestSession() {
+    /**
+     * Get the newest active session, optionally filtered by transport type.
+     * When type is specified and no matching session exists, returns undefined.
+     */
+    newestSession(type?: ChannelType) {
         // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
         let found: NodeSession | undefined;
 
         for (const session of this.#sessions) {
             if (session.isClosing || session.isPeerLost) {
+                continue;
+            }
+
+            if (type !== undefined && session.channel.channel.type !== type) {
                 continue;
             }
 
@@ -427,6 +454,7 @@ export class Peer {
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
                 timing: options?.timing,
+                transportConstraint: options?.transportConstraint,
                 abort,
                 kicker,
             }).finally(() => {
@@ -451,7 +479,10 @@ export namespace Peer {
     }
 
     export interface BasicInformation extends Identity<{
-        readonly [N in keyof BasicInformation.Attributes]?: BasicInformation.Attributes[N];
+        readonly [N in keyof Omit<
+            typeof BasicInformation.Complete.attributes,
+            keyof typeof GlobalAttributes
+        >]?: TypeFromSchema<(typeof BasicInformation.Complete.attributes)[N]["schema"]>;
     }> {}
 
     export interface ConnectOptions {
@@ -489,6 +520,12 @@ export namespace Peer {
          * ongoing attempt.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Constrain the transport type for this connection.  When set to {@link ChannelType.TCP}, the connection
+         * will be established over TCP.  When undefined, the default transport (UDP/MRP) is used.
+         */
+        transportConstraint?: ChannelType;
     }
 }
 
