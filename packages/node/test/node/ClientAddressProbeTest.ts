@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Minutes, MockNetwork, Network, Seconds, ServerAddressUdp, Time } from "@matter/general";
+import { Minutes, MockNetwork, Network, Seconds, ServerAddressIp, Time } from "@matter/general";
 import { Peer } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
@@ -13,7 +13,7 @@ import { subscribedPeer } from "./node-helpers.js";
  * Simulate an address change on the peer's IpService by removing old addresses and adding new ones,
  * then emitting the changed event so the Peer's monitoring logic triggers.
  */
-async function simulateAddressChange(protopeer: Peer, remove: ServerAddressUdp[], add: ServerAddressUdp[]) {
+async function simulateAddressChange(protopeer: Peer, remove: ServerAddressIp[], add: ServerAddressIp[]) {
     for (const addr of remove) {
         protopeer.service.addresses.delete(addr);
     }
@@ -57,7 +57,7 @@ describe("ClientAddressProbeTest", () => {
         // *** SIMULATE ADDRESS CHANGE — replace discovered addresses with a different IP ***
 
         const oldAddresses = [...protopeer.service.addresses];
-        const newAddress: ServerAddressUdp = { type: "udp", ip: "abcd::99", port: currentAddress!.port };
+        const newAddress: ServerAddressIp = { type: "udp", ip: "abcd::99", port: currentAddress!.port };
 
         await simulateAddressChange(protopeer, oldAddresses, [newAddress]);
         expect(protopeer.service.addresses.size).equals(1);
@@ -112,7 +112,7 @@ describe("ClientAddressProbeTest", () => {
         // *** SIMULATE ADDRESS CHANGE ***
 
         const oldAddresses = [...protopeer.service.addresses];
-        const newAddress: ServerAddressUdp = { type: "udp", ip: "abcd::99", port: currentAddress!.port };
+        const newAddress: ServerAddressIp = { type: "udp", ip: "abcd::99", port: currentAddress!.port };
 
         probedAddresses.length = 0;
         await simulateAddressChange(protopeer, oldAddresses, [newAddress]);
