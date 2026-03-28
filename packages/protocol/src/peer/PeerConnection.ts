@@ -494,14 +494,23 @@ export async function PeerConnection(
                     address,
                     `Peer requested to delay and retry no earlier than ${Duration.format(csre.busyDelay)} from now (retry in ${Duration.format(delay)})`,
                 );
-            } else if (
-                csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
-                (await context.sessions.deleteResumptionRecord(peer.address))
-            ) {
-                warn(
-                    address,
-                    "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
-                );
+            } else if (csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots) {
+                if (await context.sessions.deleteResumptionRecord(peer.address)) {
+                    warn(
+                        address,
+                        "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
+                    );
+                } else {
+                    // Device doesn't recognise our fabric yet. During commissioning this
+                    // is transient: the device is still initialising after a network
+                    // transition (BLE to Wi-Fi). Retry quickly instead of the 2-minute
+                    // delayAfterPeerError which burns the 4-minute connection timeout.
+                    delay = timing.delayAfterNetworkError;
+                    warn(
+                        address,
+                        `Peer reports no shared trust roots (device may still be initialising), retrying in ${Duration.format(delay)}`,
+                    );
+                }
             } else {
                 delay = timing.delayAfterPeerError;
                 error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
