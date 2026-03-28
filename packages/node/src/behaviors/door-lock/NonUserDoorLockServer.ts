@@ -5,15 +5,23 @@
  */
 
 import { Supervision } from "#behavior/supervision/Supervision.js";
-import { AesCipher, Bytes, type Cipher, Crypto, Logger, MaybePromise, Seconds, Time, Timer } from "@matter/general";
+import {
+    AesCipher,
+    Bytes,
+    type Cipher,
+    Crypto,
+    ImplementationError,
+    MaybePromise,
+    Seconds,
+    Time,
+    Timer,
+} from "@matter/general";
 import { field, listOf, nonvolatile, octstr } from "@matter/model";
 import { FabricIndex, NodeId, StatusCode, StatusResponseError } from "@matter/types";
 import { DoorLock } from "@matter/types/clusters/door-lock";
 import { DoorLockBehavior } from "./DoorLockBehavior.js";
 import { LockAuth } from "./LockAuth.js";
 import { LockSchedule } from "./LockSchedule.js";
-
-const logger = Logger.get("DoorLockServer");
 
 import AlarmCode = DoorLock.AlarmCode;
 import CredentialRule = DoorLock.CredentialRule;
@@ -58,8 +66,9 @@ export class NonUserDoorLockServer extends NonUserBase {
         if (!Object.values(state.supportedOperatingModes).some(v => v)) {
             state.supportedOperatingModes = { vacation: true, privacy: true, passage: true, alwaysSet: 2047 };
         } else if (state.supportedOperatingModes.alwaysSet !== 2047) {
-            logger.warn(
-                "The 'alwaysSet' bit-range in supportedOperatingModes must be 2047. Bits are inverted in this field.",
+            throw new ImplementationError(
+                `DoorLockServer: The "alwaysSet" bit-range in supportedOperatingModes must be set. Please check the` +
+                    ` specification about the meaning of this field because bits are inverted here!`,
             );
         }
 
