@@ -160,7 +160,7 @@ export class MemoryStorageDriver extends StorageDriver implements CloneableStora
                 const subKeys = key.substring(startContextKey.length).split(".");
                 if (subKeys.length < 1) return; // should never happen
                 const context = subKeys[0];
-                if (!foundContexts.includes(context)) {
+                if (context.length && !foundContexts.includes(context)) {
                     foundContexts.push(context);
                 }
             }

@@ -195,6 +195,31 @@ describe("StorageDrivers", () => {
                 assert.deepEqual(await storage.keys([]), []);
             });
 
+            it("root-level keys coexist with context keys", async () => {
+                await storage.set([], "rootKey", "rootValue");
+                await storage.set([], { rootA: "a", rootB: "b" });
+                await storage.set(CONTEXTx1, "ctxKey", "ctxValue");
+                await storage.set(CONTEXTx2, "subKey", "subValue");
+
+                // Root-level keys are isolated
+                expect(await storage.keys([])).deep.members(["rootKey", "rootA", "rootB"]);
+                assert.equal(await storage.get([], "rootKey"), "rootValue");
+                assert.equal(await storage.get([], "rootA"), "a");
+                assert.equal(await storage.get([], "rootB"), "b");
+
+                // Context keys are unaffected
+                expect(await storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+                assert.equal(await storage.get(CONTEXTx1, "ctxKey"), "ctxValue");
+
+                // contexts([]) still returns top-level contexts
+                expect(await storage.contexts([])).deep.members(["context"]);
+
+                // Delete root key doesn't affect context keys
+                await storage.delete([], "rootKey");
+                expect(await storage.keys([])).deep.members(["rootA", "rootB"]);
+                expect(await storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+            });
+
             it("Rejects with error when context segment is empty on set", async () => {
                 await assert.rejects(
                     async () => {

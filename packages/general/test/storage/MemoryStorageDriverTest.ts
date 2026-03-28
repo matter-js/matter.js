@@ -120,6 +120,33 @@ describe("MemoryStorageDriver", () => {
         expect(storage.keys([])).deep.equal([]);
     });
 
+    it("root-level keys coexist with context keys", async () => {
+        const storage = createMemoryStorage();
+
+        // Write at root and at various context levels
+        storage.set([], "rootKey", "rootValue");
+        storage.set([], { rootA: "a", rootB: "b" });
+        storage.set(CONTEXTx1, "ctxKey", "ctxValue");
+        storage.set(CONTEXTx2, "subKey", "subValue");
+
+        // Root-level keys are isolated from context keys
+        expect(storage.keys([])).deep.members(["rootKey", "rootA", "rootB"]);
+        expect(storage.get([], "rootKey")).equal("rootValue");
+        expect(storage.values([])).deep.equal({ rootKey: "rootValue", rootA: "a", rootB: "b" });
+
+        // Context keys are unaffected
+        expect(storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+        expect(storage.get(CONTEXTx1, "ctxKey")).equal("ctxValue");
+
+        // contexts([]) still returns top-level contexts
+        expect(storage.contexts([])).deep.equal(["context"]);
+
+        // Delete root key doesn't affect context keys
+        storage.delete([], "rootKey");
+        expect(storage.keys([])).deep.members(["rootA", "rootB"]);
+        expect(storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+    });
+
     it("Throws error when context segment is empty on set", async () => {
         const storage = createMemoryStorage();
         expect(() => {
