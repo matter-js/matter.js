@@ -61,9 +61,7 @@ export class WebStorageDriver extends StorageDriver {
     getContextBaseKey(contexts: string[]) {
         for (const ctx of contexts) {
             if (!ctx.length || ctx.includes(".")) {
-                throw new StorageError(
-                    "Context must not contain empty segments or leading or trailing dots.",
-                );
+                throw new StorageError("Context must not contain empty segments or leading or trailing dots.");
             }
         }
         return contexts.join(".");
