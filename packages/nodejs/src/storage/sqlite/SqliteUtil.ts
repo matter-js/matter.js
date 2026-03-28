@@ -17,7 +17,7 @@ export function buildContextPath(contexts: string[]) {
             throw new SqliteStorageDriverError(
                 "build",
                 `{${contexts.join(",")}}`,
-                "Context must not be an empty and not contain dots.",
+                "Context must not contain empty segments or leading or trailing dots.",
             );
         }
     }
