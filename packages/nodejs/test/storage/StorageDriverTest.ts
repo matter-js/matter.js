@@ -187,14 +187,22 @@ describe("StorageDrivers", () => {
                 expect(await storage.keys(CONTEXTx3)).deep.equal([]);
             });
 
-            it("Rejects with error when context is empty on set", async () => {
+            it("Allows root-level keys with empty context", async () => {
+                await storage.set([], "key", "value");
+                assert.equal(await storage.get([], "key"), "value");
+                assert.deepEqual(await storage.keys([]), ["key"]);
+                await storage.delete([], "key");
+                assert.deepEqual(await storage.keys([]), []);
+            });
+
+            it("Rejects with error when context segment is empty on set", async () => {
                 await assert.rejects(
                     async () => {
                         await storage.set([""], "key", "value");
                     },
                     (error: StorageError) => {
                         const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
-                        assert.equal(message, "Context must not be an empty and not contain dots.");
+                        assert.equal(message, "Context must not contain empty segments or leading or trailing dots.");
                         return true;
                     },
                 );
@@ -213,27 +221,27 @@ describe("StorageDrivers", () => {
                 );
             });
 
-            it("Rejects with error when context is empty on get", async () => {
+            it("Rejects with error when context segment is empty on get", async () => {
                 await assert.rejects(
                     async () => {
                         await storage.get([""], "key");
                     },
                     (error: StorageError) => {
                         const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
-                        assert.equal(message, "Context must not be an empty and not contain dots.");
+                        assert.equal(message, "Context must not contain empty segments or leading or trailing dots.");
                         return true;
                     },
                 );
             });
 
-            it("Rejects with error when context is empty on get with subcontext", async () => {
+            it("Rejects with error when context segment is empty on get with subcontext", async () => {
                 await assert.rejects(
                     async () => {
                         await storage.get(["ok", ""], "key");
                     },
                     (error: StorageError) => {
                         const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
-                        assert.equal(message, "Context must not be an empty and not contain dots.");
+                        assert.equal(message, "Context must not contain empty segments or leading or trailing dots.");
                         return true;
                     },
                 );

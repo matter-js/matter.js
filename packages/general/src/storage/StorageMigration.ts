@@ -87,7 +87,7 @@ async function migrateContext(args: {
     result: StorageMigration.MigrationResult;
 }) {
     const { source, target, contexts, result } = args;
-    const keys = contexts.length ? await source.keys(contexts) : []; // No keys allowed on root
+    const keys = await source.keys(contexts);
 
     for (const key of keys) {
         try {

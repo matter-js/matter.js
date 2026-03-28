@@ -518,11 +518,12 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
     }
 
     #contextKey(contexts: string[]): string {
-        const key = contexts.join(".");
-        if (!key.length || key.includes("..") || key.startsWith(".") || key.endsWith(".")) {
-            throw new StorageError("Context must not be an empty string.");
+        for (const ctx of contexts) {
+            if (!ctx.length || ctx.includes(".")) {
+                throw new StorageError("Context must not contain empty segments or leading or trailing dots.");
+            }
         }
-        return key;
+        return contexts.join(".");
     }
 
     #blobPath(contexts: string[], key: string): string {
