@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Mutex } from "#util/Mutex.js";
 import type { Directory } from "../../fs/Directory.js";
 import type { File } from "../../fs/File.js";
 import {
@@ -25,6 +26,7 @@ export class WalWriter {
     readonly #maxSegmentSize: number;
     readonly #fsync: boolean;
     readonly #onRotate?: (closedSegment: number) => void;
+    readonly #mutex = new Mutex(this);
 
     #handle?: File.Handle;
     #currentSegment = 0;
@@ -50,37 +52,40 @@ export class WalWriter {
      * Write a commit to the WAL, returning its commit ID and timestamp.
      */
     async write(ops: WalOp[]): Promise<{ id: WalCommitId; ts: number }> {
-        if (!this.#handle) {
-            await this.#openSegment();
-        }
+        return this.#mutex.produce(async () => {
+            if (!this.#handle) {
+                await this.#openSegment();
+            }
 
-        // Check if rotation is needed (size threshold or line overflow)
-        if (
-            this.#currentSize > 0 &&
-            (this.#currentSize >= this.#maxSegmentSize || this.#currentOffset >= MAX_SEGMENT_LINES)
-        ) {
-            await this.#rotate();
-        }
+            // Check if rotation is needed (size threshold or line overflow)
+            if (
+                this.#currentSize > 0 &&
+                (this.#currentSize >= this.#maxSegmentSize || this.#currentOffset >= MAX_SEGMENT_LINES)
+            ) {
+                await this.#rotate();
+            }
 
-        const ts = Date.now();
-        const line = serializeCommit({ ts, ops }) + "\n";
-        const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
+            const ts = Date.now();
+            const line = serializeCommit({ ts, ops }) + "\n";
+            const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
 
-        await this.#handle!.writeHandle(line);
-        if (this.#fsync) {
-            await this.#handle!.fsync();
-        }
+            await this.#handle!.writeHandle(line);
+            if (this.#fsync) {
+                await this.#handle!.fsync();
+            }
 
-        this.#currentOffset++;
-        this.#currentSize += new TextEncoder().encode(line).length;
+            this.#currentOffset++;
+            this.#currentSize += new TextEncoder().encode(line).length;
 
-        return { id, ts };
+            return { id, ts };
+        });
     }
 
     /**
      * Close the current file handle.
      */
     async close(): Promise<void> {
+        await this.#mutex.close();
         if (this.#handle) {
             await this.#handle.close();
             this.#handle = undefined;

@@ -62,6 +62,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
     readonly #storageDir: Directory;
     readonly #options: WalStorageDriver.Options;
     #cache?: StoreData;
+    #cacheLoading?: Promise<StoreData>;
     #abort = new Abort();
     #workers = new BasicMultiplex();
     #initialized = false;
@@ -261,6 +262,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             this.#lastCommitId = id;
             this.#lastCommitTs = ts;
             this.#cache = undefined;
+            this.#cacheLoading = undefined;
         });
     }
 
@@ -357,6 +359,20 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             return this.#cache;
         }
 
+        if (this.#cacheLoading) {
+            return this.#cacheLoading;
+        }
+
+        this.#cacheLoading = this.#doLoadCache();
+
+        try {
+            return await this.#cacheLoading;
+        } finally {
+            this.#cacheLoading = undefined;
+        }
+    }
+
+    async #doLoadCache(): Promise<StoreData> {
         const store: StoreData = {};
         let afterCommitId: WalCommitId | undefined;
 

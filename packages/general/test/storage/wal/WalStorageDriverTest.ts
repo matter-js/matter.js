@@ -125,6 +125,36 @@ describe("WalStorageDriver", () => {
         await storage.close();
     });
 
+    it("handles concurrent writes without data loss", async () => {
+        const storageDir = fs.directory("storage");
+        const storage = new WalStorageDriver(undefined, {
+            storageDir,
+            fsync: false,
+            snapshotInterval: Seconds(600),
+            cleanInterval: Seconds(1200),
+        });
+        await storage.initialize();
+
+        // Fire 20 concurrent set() calls to different keys
+        const count = 20;
+        await Promise.all(Array.from({ length: count }, (_, i) => storage.set(["ctx"], `key${i}`, `value${i}`)));
+        await storage.close();
+
+        // Reopen and verify every write landed
+        const storage2 = new WalStorageDriver(undefined, {
+            storageDir,
+            fsync: false,
+            snapshotInterval: Seconds(600),
+            cleanInterval: Seconds(1200),
+        });
+        await storage2.initialize();
+
+        for (let i = 0; i < count; i++) {
+            expect(await storage2.get(["ctx"], `key${i}`)).equal(`value${i}`);
+        }
+        await storage2.close();
+    });
+
     describe("transactions", () => {
         it("buffers writes until commit", async () => {
             const storage = await createStorage();
