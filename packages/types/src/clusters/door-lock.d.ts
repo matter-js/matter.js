@@ -1430,9 +1430,9 @@ export declare namespace DoorLock {
 
     /**
      * {@link DoorLock} supports these elements if it supports feature
-     * "PinCredentialAndRfidCredentialAndFingerCredentialsNotUser".
+     * "PinCredentialOrRfidCredentialOrFingerCredentialsNotUser".
      */
-    export interface PinCredentialAndRfidCredentialAndFingerCredentialsNotUserCommands {
+    export interface PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands {
         /**
          * Set the status of a user ID.
          *
@@ -1541,7 +1541,7 @@ export declare namespace DoorLock {
         HolidaySchedulesCommands,
         PinCredentialNotUserCommands,
         AliroProvisioningCommands,
-        PinCredentialAndRfidCredentialAndFingerCredentialsNotUserCommands,
+        PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands,
         RfidCredentialNotUserCommands,
         UnboltingCommands
     {}
@@ -1730,8 +1730,16 @@ export declare namespace DoorLock {
         },
         { flags: { aliroBleuwb: true }, attributes: AliroBleuwbAttributes },
         {
-            flags: { pinCredential: true, rfidCredential: true, fingerCredentials: true, user: false },
-            commands: PinCredentialAndRfidCredentialAndFingerCredentialsNotUserCommands
+            flags: { user: false, pinCredential: true },
+            commands: PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands
+        },
+        {
+            flags: { user: false, rfidCredential: true },
+            commands: PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands
+        },
+        {
+            flags: { user: false, fingerCredentials: true },
+            commands: PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands
         },
         { flags: { rfidCredential: true, user: false }, commands: RfidCredentialNotUserCommands },
         { flags: { unbolting: true }, commands: UnboltingCommands }

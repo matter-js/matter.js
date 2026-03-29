@@ -223,7 +223,7 @@ const VarianceMatchers: VarianceMatcher[] = [
     {
         pattern: pattern(NOT, FEATURE, AND, "(", DISJUNCT_FEATURES, ")"),
         processor(add, match) {
-            add(true, { allOf: splitDisjunction(match[1]), not: match[0] });
+            add(false, { anyOf: splitDisjunction(match[1]), not: match[0] });
         },
     },
 

@@ -193,10 +193,8 @@ function createProxy(config: ListConfig, reference: ValReference<Val.List>, sess
             throw new ReadError(location, `Index ${index} is greater than allowed maximum of 65535`);
         }
 
-        // Unwrap incoming managed values
-        if (value && (value as Internal.Collection)[Internal.reference]) {
-            value = (value as Internal.Collection)[Internal.reference].value;
-        }
+        // Unwrap incoming managed values (including nested)
+        value = Internal.unmanage(value);
 
         reference.change(() => (writeVal()[index] = value));
     };

@@ -231,10 +231,8 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
                     target = struct;
                 }
 
-                // Unwrap if incoming value is managed
-                if (value && (value as Internal.Collection)[Internal.reference]) {
-                    value = (value as Internal.Collection)[Internal.reference].value;
-                }
+                // Unwrap if incoming value (or nested children) is managed
+                value = Internal.unmanage(value);
 
                 // Modify the value
                 if (isFabricScopedList && Array.isArray(value) && Array.isArray(oldValue)) {
