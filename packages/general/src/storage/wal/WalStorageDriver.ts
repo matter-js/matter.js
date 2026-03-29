@@ -62,6 +62,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
     readonly #storageDir: Directory;
     readonly #options: WalStorageDriver.Options;
     #cache?: StoreData;
+    #cacheLoading?: Promise<StoreData>;
     #abort = new Abort();
     #workers = new BasicMultiplex();
     #initialized = false;
@@ -106,6 +107,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
 
         this.#reader = new WalReader(walDir);
         this.#writer = new WalWriter(walDir, {
+            name: this.root?.namespace,
             maxSegmentSize: this.#options.maxSegmentSize,
             fsync: this.#options.fsync,
             onRotate: compressLog
@@ -260,6 +262,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             this.#lastCommitId = id;
             this.#lastCommitTs = ts;
             this.#cache = undefined;
+            this.#cacheLoading = undefined;
         });
     }
 
@@ -356,6 +359,20 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             return this.#cache;
         }
 
+        if (this.#cacheLoading) {
+            return this.#cacheLoading;
+        }
+
+        this.#cacheLoading = this.#doLoadCache();
+
+        try {
+            return await this.#cacheLoading;
+        } finally {
+            this.#cacheLoading = undefined;
+        }
+    }
+
+    async #doLoadCache(): Promise<StoreData> {
         const store: StoreData = {};
         let afterCommitId: WalCommitId | undefined;
 
@@ -501,11 +518,12 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
     }
 
     #contextKey(contexts: string[]): string {
-        const key = contexts.join(".");
-        if (!key.length || key.includes("..") || key.startsWith(".") || key.endsWith(".")) {
-            throw new StorageError("Context must not be an empty string.");
+        for (const ctx of contexts) {
+            if (!ctx.length || ctx.includes(".")) {
+                throw new StorageError("Context must not contain empty segments or leading or trailing dots.");
+            }
         }
-        return key;
+        return contexts.join(".");
     }
 
     #blobPath(contexts: string[], key: string): string {

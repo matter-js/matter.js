@@ -214,15 +214,17 @@ export function applyCommit(store: StoreData, commit: WalCommit): void {
             }
             Object.assign(store[op.key], op.values);
         } else if (op.op === "del") {
-            if (op.key === "") {
-                for (const k of Object.keys(store)) {
-                    delete store[k];
-                }
-            } else if (op.values) {
+            if (op.values) {
+                // Delete specific keys within a context
                 if (store[op.key]) {
                     for (const k of op.values) {
                         delete store[op.key][k];
                     }
+                }
+            } else if (op.key === "") {
+                // clearAll at root — wipe everything
+                for (const k of Object.keys(store)) {
+                    delete store[k];
                 }
             } else {
                 delete store[op.key];

@@ -367,10 +367,14 @@ export class StorageService {
             await this.#writeDescriptor(tempDir, toDescriptor);
 
             // Phase 4 — Swap: rename source → backup, temp → namespace
+            // Use a fresh directory handle for the rename — sourceDir may be shared with a DatafileRoot and
+            // Directory.rename() mutates the object in place, which would leave the caller's root pointing at
+            // the backup path instead of the namespace directory.
+            const sourcePath = sourceDir.path;
             const ts = new Date().toISOString().replace(/[:.]/g, "-");
             const backupDir = migrationsDir.directory(`${namespace}-old-${fromKind}-${ts}`);
-            await sourceDir.rename(backupDir.path);
-            await tempDir.rename(fs.directory(namespace).path);
+            await fs.directory(namespace).rename(backupDir.path);
+            await tempDir.rename(sourcePath);
         } catch (e) {
             try {
                 await tempDir.delete();

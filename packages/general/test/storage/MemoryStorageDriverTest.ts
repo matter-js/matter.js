@@ -111,35 +111,67 @@ describe("MemoryStorageDriver", () => {
         expect(storage.contexts([])).deep.equal(CONTEXTx1);
     });
 
-    it("Throws error when context is empty on set", async () => {
+    it("Allows root-level keys with empty context", async () => {
         const storage = createMemoryStorage();
-        expect(() => {
-            storage.set([], "key", "value");
-        }).throw(StorageError, "Context and key must not be empty.");
+        storage.set([], "key", "value");
+        expect(storage.get([], "key")).equal("value");
+        expect(storage.keys([])).deep.equal(["key"]);
+        storage.delete([], "key");
+        expect(storage.keys([])).deep.equal([]);
     });
 
-    it("Throws error when context is empty on set", async () => {
+    it("root-level keys coexist with context keys", async () => {
+        const storage = createMemoryStorage();
+
+        // Write at root and at various context levels
+        storage.set([], "rootKey", "rootValue");
+        storage.set([], { rootA: "a", rootB: "b" });
+        storage.set(CONTEXTx1, "ctxKey", "ctxValue");
+        storage.set(CONTEXTx2, "subKey", "subValue");
+
+        // Root-level keys are isolated from context keys
+        expect(storage.keys([])).deep.members(["rootKey", "rootA", "rootB"]);
+        expect(storage.get([], "rootKey")).equal("rootValue");
+        expect(storage.values([])).deep.equal({ rootKey: "rootValue", rootA: "a", rootB: "b" });
+
+        // Context keys are unaffected
+        expect(storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+        expect(storage.get(CONTEXTx1, "ctxKey")).equal("ctxValue");
+
+        // contexts([]) still returns top-level contexts
+        expect(storage.contexts([])).deep.equal(["context"]);
+
+        // Delete root key doesn't affect context keys
+        storage.delete([], "rootKey");
+        expect(storage.keys([])).deep.members(["rootA", "rootB"]);
+        expect(storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+    });
+
+    it("Throws error when context segment is empty on set", async () => {
         const storage = createMemoryStorage();
         expect(() => {
             storage.set([""], "key", "value");
-        }).throw(StorageError, "Context must not be an empty string.");
+        }).throw(StorageError, "Context must not contain empty segments or leading or trailing dots.");
     });
 
     it("Throws error when key is empty on set", async () => {
         const storage = createMemoryStorage();
         expect(() => {
             storage.set(CONTEXTx1, "", "value");
-        }).throw(StorageError, "Context and key must not be empty.");
+        }).throw(StorageError, "Key must not be empty.");
     });
 
-    it("Throws error when context is empty on get with subcontext", async () => {
+    it("Throws error when context segment is empty on get with subcontext", async () => {
         const storage = createMemoryStorage();
-        expect(() => storage.get(["ok", ""], "key")).throws(StorageError, "Context must not be an empty string.");
+        expect(() => storage.get(["ok", ""], "key")).throws(
+            StorageError,
+            "Context must not contain empty segments or leading or trailing dots.",
+        );
     });
 
     it("Throws error when key is empty on get", async () => {
         const storage = createMemoryStorage();
-        expect(() => storage.get(CONTEXTx2, "")).throws(StorageError, "Context and key must not be empty.");
+        expect(() => storage.get(CONTEXTx2, "")).throws(StorageError, "Key must not be empty.");
     });
 
     it("writeBlob and readBlob success", async () => {

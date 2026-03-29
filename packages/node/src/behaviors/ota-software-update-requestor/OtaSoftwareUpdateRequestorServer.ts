@@ -372,9 +372,9 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             }),
         );
 
-        const peerAddress = PeerAddress({ nodeId: providerNodeId, fabricIndex });
-        await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress); // Initialize the client node and store address
-
+        // Schedule the update query before the async peers.forAddress call below.  This ensures any existing
+        // timer (e.g. the 30s post-commissioning timer) is replaced before async operations give MockTime (or
+        // real delays under load) a chance to fire the old timer prematurely.
         if (announcementReason !== OtaSoftwareUpdateRequestor.AnnouncementReason.SimpleAnnouncement) {
             // If Urgent or UpdateAvailable, we schedule an update query earlier as we would have done before
             const delay = Seconds(Math.floor(Math.random() * 599) + 1); // random delay 1..600s as per spec
@@ -384,6 +384,9 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             // Make sure we initialize the query timer if none was existing
             this.#scheduleUpdateQuery();
         }
+
+        const peerAddress = PeerAddress({ nodeId: providerNodeId, fabricIndex });
+        await (Node.forEndpoint(this.endpoint) as ServerNode).peers.forAddress(peerAddress); // Initialize the client node and store address
     }
 
     /** Adds or updates an active OTA provider entry for a fabric index */
