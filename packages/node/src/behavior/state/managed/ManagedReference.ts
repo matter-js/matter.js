@@ -5,6 +5,7 @@
  */
 
 import { AccessControl, ExpiredReferenceError, Val } from "@matter/protocol";
+import type { Supervision } from "../../supervision/Supervision.js";
 import type { ValReference } from "./ValReference.js";
 
 type Container = Record<string | number, Val>;
@@ -25,205 +26,225 @@ type Container = Record<string | number, Val>;
  * Change detection happens automatically if the value is replaced.  If a subvalue is replaced, the logic replacing the
  * subvalue must update "changed" manually before replacing the subvalue.  For managed structures this is handled by a
  * separate ManagedReference.
- *
- * @param parent a reference to the container we reference
- * @param primaryKey the preferred key for lookup
- * @param name the name (in the case of structs) or index (in case of lists)
- * @param id the lookup ID in the case of structs
- * @param assertWriteOk enforces ACLs and read-only
- * @param clone clones the container prior to write; undefined if not transactional
- * @param session the access control session
- *
- * @returns a reference to the property
  */
-export function ManagedReference(
-    parent: ValReference<Val.Collection>,
-    primaryKey: "name" | "id",
-    name: string | number,
-    id: number | undefined,
-    assertWriteOk: (value: Val) => void,
-    clone: (container: Val) => Val,
-    session: AccessControl.Session,
-) {
-    let expired = false;
-    let location = {
-        ...parent.location,
-        path: parent.location.path.at(name),
-    };
+export class ManagedReference implements ValReference {
+    primaryKey;
+    parent;
+    subrefs?: Record<number | string, ValReference>;
+    owner?: Val;
+    supervisionConfig?: Supervision.Config;
 
-    const key = primaryKey === "id" ? (id ?? name) : name;
-    const altKey = primaryKey === "id" ? (key === name ? undefined : name) : id;
-    let value: unknown;
+    #key: string | number;
+    #altKey: string | number | undefined;
+    #assertWriteOk: (value: Val) => void;
+    #clone: ((container: Val) => Val) | undefined;
+    #session: AccessControl.Session;
+    #expired = false;
+    #location: AccessControl.Location;
+    #value: unknown;
+    #dynamicContainer: Val.Struct | undefined;
 
-    let dynamicContainer: Val.Struct | undefined;
-    if ((parent.value as Val.Dynamic)[Val.properties]) {
-        dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-        if (key in (dynamicContainer as Container)) {
-            value = (dynamicContainer as Container)[key];
-        } else if (altKey !== undefined && altKey in (dynamicContainer as Container)) {
-            value = (dynamicContainer as Container)[altKey];
-        } else {
-            dynamicContainer = undefined;
-        }
-    }
-    if (dynamicContainer === undefined) {
-        if (key in (parent.value as Container)) {
-            value = (parent.value as Container)[key];
-        } else if (altKey !== undefined) {
-            value = (parent.value as Container)[altKey];
-        }
-    }
+    /**
+     * @param parent a reference to the container we reference
+     * @param primaryKey the preferred key for lookup
+     * @param name the name (in the case of structs) or index (in case of lists)
+     * @param id the lookup ID in the case of structs
+     * @param assertWriteOk enforces ACLs and read-only
+     * @param clone clones the container prior to write; undefined if not transactional
+     * @param session the access control session
+     */
+    constructor(
+        parent: ValReference<Val.Collection>,
+        primaryKey: "name" | "id",
+        name: string | number,
+        id: number | undefined,
+        assertWriteOk: (value: Val) => void,
+        clone: (container: Val) => Val,
+        session: AccessControl.Session,
+    ) {
+        this.primaryKey = primaryKey;
+        this.parent = parent;
+        this.#assertWriteOk = assertWriteOk;
+        this.#clone = clone;
+        this.#session = session;
 
-    const reference: ValReference = {
-        primaryKey,
-        parent,
+        this.#location = {
+            ...parent.location,
+            path: parent.location.path.at(name),
+        };
 
-        get rootOwner() {
-            return parent.rootOwner;
-        },
+        const key = primaryKey === "id" ? (id ?? name) : name;
+        const altKey = primaryKey === "id" ? (key === name ? undefined : name) : id;
+        this.#key = key;
+        this.#altKey = altKey;
 
-        get value() {
-            // Authorization is unnecessary here because the reference would not exist if access is unauthorized
-
-            // Note that we allow read from expired references
-            return value;
-        },
-
-        get expired() {
-            return expired;
-        },
-
-        get location() {
-            return location;
-        },
-
-        set location(loc: AccessControl.Location) {
-            location = loc;
-        },
-
-        set value(newValue: Val) {
-            if (value === newValue) {
-                return;
+        let dynamicContainer: Val.Struct | undefined;
+        if ((parent.value as Val.Dynamic)[Val.properties]) {
+            dynamicContainer = (parent.value as Val.Dynamic)[Val.properties](parent.rootOwner, session);
+            if (key in (dynamicContainer as Container)) {
+                this.#value = (dynamicContainer as Container)[key];
+            } else if (altKey !== undefined && altKey in (dynamicContainer as Container)) {
+                this.#value = (dynamicContainer as Container)[altKey];
+            } else {
+                dynamicContainer = undefined;
             }
+        }
+        this.#dynamicContainer = dynamicContainer;
 
-            // Authorization and validation
-            assertWriteOk(newValue);
+        if (dynamicContainer === undefined) {
+            if (key in (parent.value as Container)) {
+                this.#value = (parent.value as Container)[key];
+            } else if (altKey !== undefined) {
+                this.#value = (parent.value as Container)[altKey];
+            }
+        }
 
-            // Set the value directly before change() so change() doesn't create a useless clone
-            replaceValue(newValue);
+        // Propagate supervision config from parent
+        if (parent.supervisionConfig) {
+            this.supervisionConfig = parent.supervisionConfig.readonlyChild(key);
+        }
 
-            // Now use change to complete the update
-            this.change(() => {
-                if (dynamicContainer) {
-                    (dynamicContainer as Container)[key] = newValue;
-                    if (altKey !== undefined && altKey in dynamicContainer) {
-                        delete (dynamicContainer as Container)[altKey];
+        if (!parent.subrefs) {
+            parent.subrefs = {};
+        }
+        parent.subrefs[key] = this;
+    }
+
+    get rootOwner() {
+        return this.parent!.rootOwner;
+    }
+
+    get value() {
+        // Authorization is unnecessary here because the reference would not exist if access is unauthorized
+        // Note that we allow read from expired references
+        return this.#value;
+    }
+
+    set value(newValue: Val) {
+        if (this.#value === newValue) {
+            return;
+        }
+
+        // Authorization and validation
+        this.#assertWriteOk(newValue);
+
+        // Set the value directly before change() so change() doesn't create a useless clone
+        this.#replaceValue(newValue);
+
+        // Now use change to complete the update
+        this.change(() => {
+            if (this.#dynamicContainer) {
+                (this.#dynamicContainer as Container)[this.#key] = newValue;
+                if (this.#altKey !== undefined && this.#altKey in this.#dynamicContainer) {
+                    delete (this.#dynamicContainer as Container)[this.#altKey];
+                }
+            } else {
+                (this.parent!.value as Container)[this.#key] = newValue;
+                if (this.#altKey !== undefined && this.#altKey in this.parent!.value) {
+                    delete (this.parent!.value as Container)[this.#altKey];
+                }
+            }
+        });
+    }
+
+    get expired() {
+        return this.#expired;
+    }
+
+    get location() {
+        return this.#location;
+    }
+
+    set location(loc: AccessControl.Location) {
+        this.#location = loc;
+    }
+
+    get original() {
+        if (!this.parent!.original) {
+            return undefined;
+        }
+        if (this.#dynamicContainer !== undefined) {
+            const origProperties = (this.parent!.original as Val.Dynamic)[Val.properties](
+                this.parent!.rootOwner,
+                this.#session,
+            );
+            if (this.#key in (origProperties as Container)) {
+                return (origProperties as Container)[this.#key];
+            }
+            if (this.#altKey !== undefined) {
+                return (origProperties as Container)[this.#altKey];
+            }
+        } else {
+            if (this.#key in this.parent!.original) {
+                return (this.parent!.original as Container)[this.#key];
+            }
+            if (this.#altKey !== undefined) {
+                return (this.parent!.original as Container)[this.#altKey];
+            }
+        }
+    }
+
+    change(mutator: () => void) {
+        if (this.#expired) {
+            throw new ExpiredReferenceError(this.location);
+        }
+
+        this.parent!.change(() => {
+            // In transactions, clone the value if we haven't done so yet
+            if (this.#clone && this.#value === this.original) {
+                const newValue = this.#clone(this.#value);
+                if (this.#dynamicContainer !== undefined) {
+                    (this.#dynamicContainer as Container)[this.#key] = newValue;
+                    if (this.#altKey !== undefined && this.#altKey in this.#dynamicContainer) {
+                        delete (this.#dynamicContainer as Container)[this.#altKey];
                     }
                 } else {
-                    (parent.value as Container)[key] = newValue;
-                    if (altKey !== undefined && altKey in parent.value) {
-                        delete (parent.value as Container)[altKey];
+                    (this.parent!.value as Container)[this.#key] = newValue;
+                    if (this.#altKey !== undefined && this.#altKey in (this.parent!.value as Container)) {
+                        delete (this.parent!.value as Container)[this.#altKey];
                     }
                 }
-            });
-        },
-
-        get original() {
-            if (!parent.original) {
-                return undefined;
-            }
-            if (dynamicContainer !== undefined) {
-                const origProperties = (parent.original as Val.Dynamic)[Val.properties](parent.rootOwner, session);
-                if (key in (origProperties as Container)) {
-                    return (origProperties as Container)[key];
-                }
-                if (altKey !== undefined) {
-                    return (origProperties as Container)[altKey];
-                }
-            } else {
-                if (key in parent.original) {
-                    return (parent.original as Container)[key];
-                }
-                if (altKey !== undefined) {
-                    return (parent.original as Container)[altKey];
-                }
-            }
-        },
-
-        change(mutator: () => void) {
-            if (expired) {
-                throw new ExpiredReferenceError(this.location);
+                this.#replaceValue(newValue);
             }
 
-            parent.change(() => {
-                // In transactions, clone the value if we haven't done so yet
-                if (clone && value === this.original) {
-                    const newValue = clone(value);
-                    if (dynamicContainer !== undefined) {
-                        (dynamicContainer as Container)[key] = newValue;
-                        if (altKey !== undefined && altKey in dynamicContainer) {
-                            delete (dynamicContainer as Container)[altKey];
-                        }
-                    } else {
-                        (parent.value as Container)[key] = newValue;
-                        if (altKey !== undefined && altKey in (parent.value as Container)) {
-                            delete (parent.value as Container)[altKey];
-                        }
-                    }
-                    replaceValue(newValue);
-                }
-
-                // Apply changes
-                mutator();
-            });
-        },
-
-        refresh() {
-            if (parent.expired) {
-                expired = true;
-                return;
-            }
-            if (parent.value === undefined || parent.value === null) {
-                expired = true;
-                replaceValue(undefined);
-                return;
-            }
-
-            let value;
-            if (dynamicContainer !== undefined) {
-                if (key in dynamicContainer) {
-                    value = (dynamicContainer as Container)[key];
-                } else if (altKey !== undefined && altKey in dynamicContainer) {
-                    value = (dynamicContainer as Container)[altKey];
-                }
-            } else {
-                if (key in parent.value) {
-                    value = (parent.value as Container)[key];
-                } else if (altKey !== undefined && altKey in parent.value) {
-                    value = (parent.value as Container)[altKey];
-                }
-            }
-
-            replaceValue(value);
-        },
-    };
-
-    // Propagate supervision config from parent
-    if (parent.supervisionConfig) {
-        reference.supervisionConfig = parent.supervisionConfig.readonlyChild(key);
+            // Apply changes
+            mutator();
+        });
     }
 
-    if (!parent.subrefs) {
-        parent.subrefs = {};
+    refresh() {
+        if (this.parent!.expired) {
+            this.#expired = true;
+            return;
+        }
+        if (this.parent!.value === undefined || this.parent!.value === null) {
+            this.#expired = true;
+            this.#replaceValue(undefined);
+            return;
+        }
+
+        let value;
+        if (this.#dynamicContainer !== undefined) {
+            if (this.#key in this.#dynamicContainer) {
+                value = (this.#dynamicContainer as Container)[this.#key];
+            } else if (this.#altKey !== undefined && this.#altKey in this.#dynamicContainer) {
+                value = (this.#dynamicContainer as Container)[this.#altKey];
+            }
+        } else {
+            if (this.#key in this.parent!.value) {
+                value = (this.parent!.value as Container)[this.#key];
+            } else if (this.#altKey !== undefined && this.#altKey in this.parent!.value) {
+                value = (this.parent!.value as Container)[this.#altKey];
+            }
+        }
+
+        this.#replaceValue(value);
     }
-    parent.subrefs[key] = reference;
 
-    return reference;
+    #replaceValue(newValue: Val) {
+        this.#value = newValue;
 
-    function replaceValue(newValue: Val) {
-        value = newValue;
-
-        const subrefs = reference.subrefs;
+        const subrefs = this.subrefs;
         if (subrefs) {
             for (const key in subrefs) {
                 subrefs[key].refresh();
