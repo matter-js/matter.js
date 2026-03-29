@@ -198,9 +198,10 @@ export declare namespace Identify {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.1
      */
-    export interface IdentifyRequest {
+    export declare class IdentifyRequest {
+        constructor(values?: Partial<IdentifyRequest>);
         identifyTime: number;
-    }
+    };
 
     /**
      * This command allows the support of feedback to the user, such as a certain light effect. It is used to allow an
@@ -211,7 +212,9 @@ export declare namespace Identify {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2
      */
-    export interface TriggerEffectRequest {
+    export declare class TriggerEffectRequest {
+        constructor(values?: Partial<TriggerEffectRequest>);
+
         /**
          * This field shall indicate the identify effect to use and shall contain one of the non-reserved values in
          * EffectIdentifierEnum.
@@ -231,7 +234,7 @@ export declare namespace Identify {
          * @see {@link MatterSpecification.v142.Cluster} § 1.2.6.2.2
          */
         effectVariant: EffectVariant;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.2.4.2

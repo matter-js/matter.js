@@ -1300,7 +1300,9 @@ export declare namespace ThreadNetworkDiagnostics {
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.14.5.4
      */
-    export interface NeighborTable {
+    export declare class NeighborTable {
+        constructor(values?: Partial<NeighborTable>);
+
         /**
          * This field shall specify the IEEE 802.15.4 extended address for the neighboring Node. The uint64 value is
          * composed by taking the 8 octets of the extended address EUI-64 and treating them as a big-endian integer. For
@@ -1416,12 +1418,14 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.14.5.4.14
          */
         isChild: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.14.5.5
      */
-    export interface RouteTable {
+    export declare class RouteTable {
+        constructor(values?: Partial<RouteTable>);
+
         /**
          * This field shall specify the IEEE 802.15.4 extended address for the Node for which this route table entry
          * corresponds. The uint64 value is composed by taking the 8 octets of the extended address EUI-64 and treating
@@ -1502,12 +1506,14 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.14.5.5.10
          */
         linkEstablished: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.14.5.6
      */
-    export interface SecurityPolicy {
+    export declare class SecurityPolicy {
+        constructor(values?: Partial<SecurityPolicy>);
+
         /**
          * This field shall specify the interval of time, in hours, that Thread security keys are rotated. Null when
          * there is no dataset configured.
@@ -1523,12 +1529,14 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.14.5.6.2
          */
         flags: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.14.5.7
      */
-    export interface OperationalDatasetComponents {
+    export declare class OperationalDatasetComponents {
+        constructor(values?: Partial<OperationalDatasetComponents>);
+
         /**
          * This field shall be True if the Node has an active timestamp present, else False.
          *
@@ -1614,7 +1622,7 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.14.5.7.12
          */
         channelMaskPresent: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.14.5.1
@@ -1646,16 +1654,19 @@ export declare namespace ThreadNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.14.8.2
      */
-    export interface ConnectionStatusEvent {
+    export declare class ConnectionStatusEvent {
+        constructor(values?: Partial<ConnectionStatusEvent>);
         connectionStatus: ConnectionStatus;
-    }
+    };
 
     /**
      * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by the Node.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.14.8.1
      */
-    export interface NetworkFaultChangeEvent {
+    export declare class NetworkFaultChangeEvent {
+        constructor(values?: Partial<NetworkFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per Section 11.14.5.1, “NetworkFaultEnum
          * Type”.
@@ -1671,7 +1682,7 @@ export declare namespace ThreadNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.14.8.1.2
          */
         previous: NetworkFault[];
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.14.5.2

@@ -781,28 +781,32 @@ export declare namespace SmokeCoAlarm {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.3
      */
-    export interface LowBatteryEvent {
+    export declare class LowBatteryEvent {
+        constructor(values?: Partial<LowBatteryEvent>);
+
         /**
          * This field shall indicate the current value of the BatteryAlert attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.3.1
          */
         alarmSeverityLevel: AlarmState;
-    }
+    };
 
     /**
      * This event shall be generated when SmokeState attribute changes to either Warning or Critical state.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.1
      */
-    export interface SmokeAlarmEvent {
+    export declare class SmokeAlarmEvent {
+        constructor(values?: Partial<SmokeAlarmEvent>);
+
         /**
          * This field shall indicate the current value of the SmokeState attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.1.1
          */
         alarmSeverityLevel: AlarmState;
-    }
+    };
 
     /**
      * This event shall be generated when the device hosting the server receives a smoke alarm from an interconnected
@@ -810,28 +814,32 @@ export declare namespace SmokeCoAlarm {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.9
      */
-    export interface InterconnectSmokeAlarmEvent {
+    export declare class InterconnectSmokeAlarmEvent {
+        constructor(values?: Partial<InterconnectSmokeAlarmEvent>);
+
         /**
          * This field shall indicate the current value of the InterconnectSmokeAlarm attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.9.1
          */
         alarmSeverityLevel: AlarmState;
-    }
+    };
 
     /**
      * This event shall be generated when COState attribute changes to either Warning or Critical state.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.2
      */
-    export interface CoAlarmEvent {
+    export declare class CoAlarmEvent {
+        constructor(values?: Partial<CoAlarmEvent>);
+
         /**
          * This field shall indicate the current value of the COState attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.2.1
          */
         alarmSeverityLevel: AlarmState;
-    }
+    };
 
     /**
      * This event shall be generated when the device hosting the server receives a CO alarm from an interconnected
@@ -839,14 +847,16 @@ export declare namespace SmokeCoAlarm {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.10
      */
-    export interface InterconnectCoAlarmEvent {
+    export declare class InterconnectCoAlarmEvent {
+        constructor(values?: Partial<InterconnectCoAlarmEvent>);
+
         /**
          * This field shall indicate the current value of the InterconnectCOAlarm attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.11.8.10.1
          */
         alarmSeverityLevel: AlarmState;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

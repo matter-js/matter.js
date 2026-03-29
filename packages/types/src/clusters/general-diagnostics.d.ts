@@ -411,7 +411,9 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.5.6
      */
-    export interface NetworkInterface {
+    export declare class NetworkInterface {
+        constructor(values?: Partial<NetworkInterface>);
+
         /**
          * This field shall indicate a human-readable (displayable) name for the network interface, that is different
          * from all other interfaces.
@@ -477,7 +479,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.5.6.8
          */
         type: InterfaceType;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.12.5.5
@@ -653,7 +655,9 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.7.1
      */
-    export interface TestEventTriggerRequest {
+    export declare class TestEventTriggerRequest {
+        constructor(values?: Partial<TestEventTriggerRequest>);
+
         /**
          * The EnableKey is a 128 bit value provided by the client in this command, which needs to match a value chosen
          * by the manufacturer and configured on the server using manufacturer-specific means, such as pre-provisioning.
@@ -698,7 +702,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.7.1.2
          */
         eventTrigger: number | bigint;
-    }
+    };
 
     /**
      * This command shall be generated in response to a TimeSnapshot command.
@@ -711,7 +715,9 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.7.3
      */
-    export interface TimeSnapshotResponse {
+    export declare class TimeSnapshotResponse {
+        constructor(values?: Partial<TimeSnapshotResponse>);
+
         /**
          * This shall indicate the current System Time in milliseconds (type systime-ms), with the value taken at the
          * time of processing of the TimeSnapshot command that generated this response.
@@ -735,7 +741,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.7.3.2
          */
         posixTimeMs: number | bigint | null;
-    }
+    };
 
     /**
      * This command provides a means for certification tests or manufacturer’s internal tests to validate particular
@@ -749,7 +755,9 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.7.4
      */
-    export interface PayloadTestRequest {
+    export declare class PayloadTestRequest {
+        constructor(values?: Partial<PayloadTestRequest>);
+
         /**
          * This field shall have the same meaning and usage as the TestEventTrigger EnableKey field.
          *
@@ -791,35 +799,39 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.7.4.3
          */
         count: number;
-    }
+    };
 
     /**
      * This command is sent by the server on receipt of the PayloadTestRequest command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.7.5
      */
-    export interface PayloadTestResponse {
+    export declare class PayloadTestResponse {
+        constructor(values?: Partial<PayloadTestResponse>);
+
         /**
          * This field shall contain the computed response of the PayloadTestRequest command.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.12.7.5.1
          */
         payload: Bytes;
-    }
+    };
 
     /**
      * The BootReason Event shall indicate the reason that caused the device to start-up.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.8.4
      */
-    export interface BootReasonEvent {
+    export declare class BootReasonEvent {
+        constructor(values?: Partial<BootReasonEvent>);
+
         /**
          * This field shall contain the reason for this BootReason event.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.12.8.4.1
          */
         bootReason: BootReason;
-    }
+    };
 
     /**
      * The HardwareFaultChange Event shall indicate a change in the set of hardware faults currently detected by the
@@ -827,7 +839,9 @@ export declare namespace GeneralDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.8.1
      */
-    export interface HardwareFaultChangeEvent {
+    export declare class HardwareFaultChangeEvent {
+        constructor(values?: Partial<HardwareFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per HardwareFaultEnum.
          *
@@ -841,14 +855,16 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.8.1.2
          */
         previous: HardwareFault[];
-    }
+    };
 
     /**
      * The RadioFaultChange Event shall indicate a change in the set of radio faults currently detected by the Node.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.8.2
      */
-    export interface RadioFaultChangeEvent {
+    export declare class RadioFaultChangeEvent {
+        constructor(values?: Partial<RadioFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per RadioFaultEnum.
          *
@@ -862,14 +878,16 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.8.2.2
          */
         previous: RadioFault[];
-    }
+    };
 
     /**
      * The NetworkFaultChange Event shall indicate a change in the set of network faults currently detected by the Node.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.12.8.3
      */
-    export interface NetworkFaultChangeEvent {
+    export declare class NetworkFaultChangeEvent {
+        constructor(values?: Partial<NetworkFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per NetworkFaultEnum.
          *
@@ -883,7 +901,7 @@ export declare namespace GeneralDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.12.8.3.2
          */
         previous: NetworkFault[];
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.12.5.4

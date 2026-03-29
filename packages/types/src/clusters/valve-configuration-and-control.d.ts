@@ -506,7 +506,9 @@ export declare namespace ValveConfigurationAndControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.6.5.1
      */
-    export interface ValveFault {
+    export declare class ValveFault {
+        constructor(values?: Partial<ValveFault> | number);
+
         /**
          * Unspecified fault detected
          */
@@ -536,14 +538,16 @@ export declare namespace ValveConfigurationAndControl {
          * The available current has been exceeded
          */
         currentExceeded?: boolean;
-    }
+    };
 
     /**
      * This command is used to set the valve to its open position.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1
      */
-    export interface OpenRequest {
+    export declare class OpenRequest {
+        constructor(values?: Partial<OpenRequest>);
+
         /**
          * This field shall indicate the duration that the valve will remain open for this specific Open command.
          *
@@ -560,7 +564,7 @@ export declare namespace ValveConfigurationAndControl {
          * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1.2
          */
         targetLevel?: number;
-    }
+    };
 
     /**
      * This event shall be generated when the valve state changed. For level changes, after the end of movement, for
@@ -568,7 +572,9 @@ export declare namespace ValveConfigurationAndControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1
      */
-    export interface ValveStateChangedEvent {
+    export declare class ValveStateChangedEvent {
+        constructor(values?: Partial<ValveStateChangedEvent>);
+
         /**
          * This field shall indicate the new state of the valve.
          *
@@ -582,7 +588,7 @@ export declare namespace ValveConfigurationAndControl {
          * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1.2
          */
         valveLevel?: number;
-    }
+    };
 
     /**
      * This event shall be generated when the valve registers or clears a fault, e.g. not being able to transition to
@@ -590,14 +596,16 @@ export declare namespace ValveConfigurationAndControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.2
      */
-    export interface ValveFaultEvent {
+    export declare class ValveFaultEvent {
+        constructor(values?: Partial<ValveFaultEvent>);
+
         /**
          * This field shall indicate the value of the ValveFault attribute, at the time this event is generated.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.2.1
          */
         valveFault: ValveFault;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.6.6.1

@@ -348,7 +348,9 @@ export declare namespace RvcOperationalState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2
      */
-    export interface OperationalStateStruct {
+    export declare class OperationalStateStruct {
+        constructor(values?: Partial<OperationalStateStruct>);
+
         /**
          * This shall be populated with a value from the OperationalStateEnum.
          *
@@ -363,7 +365,7 @@ export declare namespace RvcOperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
          */
         operationalStateLabel?: string;
-    }
+    };
 
     /**
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to
@@ -441,7 +443,9 @@ export declare namespace RvcOperationalState {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4
      */
-    export interface ErrorStateStruct {
+    export declare class ErrorStateStruct {
+        constructor(values?: Partial<ErrorStateStruct>);
+
         /**
          * This shall be populated with a value from the ErrorStateEnum.
          *
@@ -465,12 +469,14 @@ export declare namespace RvcOperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.3
          */
         errorStateDetails?: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 7.4.5
      */
-    export interface OperationalCommandResponse {
+    export declare class OperationalCommandResponse {
+        constructor(values?: Partial<OperationalCommandResponse>);
+
         /**
          * This shall indicate the success or otherwise of the attempted command invocation. On a successful invocation
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
@@ -479,7 +485,7 @@ export declare namespace RvcOperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
          */
         commandResponseState: ErrorStateStruct;
-    }
+    };
 
     /**
      * This event is generated when a reportable error condition is detected. A device that generates this event shall
@@ -489,9 +495,10 @@ export declare namespace RvcOperationalState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
      */
-    export interface OperationalErrorEvent {
+    export declare class OperationalErrorEvent {
+        constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ErrorStateStruct;
-    }
+    };
 
     /**
      * The values defined herein are applicable to this derived cluster of Operational State only and are additional to

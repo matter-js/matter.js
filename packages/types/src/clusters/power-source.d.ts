@@ -1644,7 +1644,9 @@ export declare namespace PowerSource {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
      */
-    export interface WiredFaultChangeEvent {
+    export declare class WiredFaultChangeEvent {
+        constructor(values?: Partial<WiredFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per ActiveWiredFaults.
          *
@@ -1658,7 +1660,7 @@ export declare namespace PowerSource {
          * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.2
          */
         previous: WiredFault[];
-    }
+    };
 
     /**
      * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on this
@@ -1666,7 +1668,9 @@ export declare namespace PowerSource {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
      */
-    export interface BatFaultChangeEvent {
+    export declare class BatFaultChangeEvent {
+        constructor(values?: Partial<BatFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per ActiveBatFaults.
          *
@@ -1680,7 +1684,7 @@ export declare namespace PowerSource {
          * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.2
          */
         previous: BatFault[];
-    }
+    };
 
     /**
      * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the Node on
@@ -1688,7 +1692,9 @@ export declare namespace PowerSource {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
      */
-    export interface BatChargeFaultChangeEvent {
+    export declare class BatChargeFaultChangeEvent {
+        constructor(values?: Partial<BatChargeFaultChangeEvent>);
+
         /**
          * This field shall represent the set of faults currently detected, as per ActiveBatChargeFaults.
          *
@@ -1703,7 +1709,7 @@ export declare namespace PowerSource {
          * @see {@link MatterSpecification.v142.Core} § 11.7.8.3.2
          */
         previous: BatChargeFault[];
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

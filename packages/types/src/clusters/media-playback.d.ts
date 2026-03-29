@@ -671,7 +671,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4
      */
-    export interface PlaybackPosition {
+    export declare class PlaybackPosition {
+        constructor(values?: Partial<PlaybackPosition>);
+
         /**
          * This field shall indicate the time when the position was last updated.
          *
@@ -691,14 +693,16 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.2
          */
         position: number | bigint | null;
-    }
+    };
 
     /**
      * This structure defines a uniquely identifiable Text Track or Audio Track.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5
      */
-    export interface Track {
+    export declare class Track {
+        constructor(values?: Partial<Track>);
+
         /**
          * This field shall indicate the Identifier for the Track which is unique within the Track catalog. The Track
          * catalog contains all the Text/Audio tracks corresponding to the main media content.
@@ -713,7 +717,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.2
          */
         trackAttributes: TrackAttributes;
-    }
+    };
 
     /**
      * This command is used to indicate the status of the command that was issued by the client.
@@ -722,7 +726,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.12
      */
-    export interface PlaybackResponse {
+    export declare class PlaybackResponse {
+        constructor(values?: Partial<PlaybackResponse>);
+
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
@@ -736,7 +742,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.12.2
          */
         data?: string;
-    }
+    };
 
     /**
      * This command is used to skip forward in the media.
@@ -745,7 +751,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9
      */
-    export interface SkipForwardRequest {
+    export declare class SkipForwardRequest {
+        constructor(values?: Partial<SkipForwardRequest>);
+
         /**
          * This field shall indicate the duration of the time span to skip forward in the media, in milliseconds. In
          * case the resulting position falls in the middle of a frame, the server shall set the position to the
@@ -757,7 +765,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9.1
          */
         deltaPositionMilliseconds: number | bigint;
-    }
+    };
 
     /**
      * This command is used to skip backward in the media.
@@ -766,7 +774,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10
      */
-    export interface SkipBackwardRequest {
+    export declare class SkipBackwardRequest {
+        constructor(values?: Partial<SkipBackwardRequest>);
+
         /**
          * This field shall indicate the duration of the time span to skip backward in the media, in milliseconds. In
          * case the resulting position falls in the middle of a frame, the server shall set the position to the
@@ -778,7 +788,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10.1
          */
         deltaPositionMilliseconds: number | bigint;
-    }
+    };
 
     /**
      * This command is used to seek to a specific position in the media.
@@ -787,7 +797,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11
      */
-    export interface SeekRequest {
+    export declare class SeekRequest {
+        constructor(values?: Partial<SeekRequest>);
+
         /**
          * This field shall indicate the position (in milliseconds) in the media to seek to. In case the position falls
          * in the middle of a frame, the server shall set the position to the beginning of that frame and set the
@@ -799,7 +811,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11.1
          */
         position: number | bigint;
-    }
+    };
 
     /**
      * This command is used to activate a specific Audio Track for the media being played.
@@ -811,7 +823,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13
      */
-    export interface ActivateAudioTrackRequest {
+    export declare class ActivateAudioTrackRequest {
+        constructor(values?: Partial<ActivateAudioTrackRequest>);
+
         /**
          * This field shall indicate the Audio Track to activate.
          *
@@ -828,7 +842,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13.2
          */
         audioOutputIndex?: number | null;
-    }
+    };
 
     /**
      * This command is used to activate a specific Text Track for the media being played.
@@ -840,14 +854,16 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14
      */
-    export interface ActivateTextTrackRequest {
+    export declare class ActivateTextTrackRequest {
+        constructor(values?: Partial<ActivateTextTrackRequest>);
+
         /**
          * This field shall indicate the Text Track to activate.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14.1
          */
         trackId: string;
-    }
+    };
 
     /**
      * This command is used to rewind the media.
@@ -865,7 +881,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7
      */
-    export interface RewindRequest {
+    export declare class RewindRequest {
+        constructor(values?: Partial<RewindRequest>);
+
         /**
          * This field shall indicate whether audio should be unmuted by the player during rewind.
          *
@@ -875,7 +893,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7.1
          */
         audioAdvanceUnmuted?: boolean;
-    }
+    };
 
     /**
      * This command is used to fast forward the media.
@@ -893,7 +911,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8
      */
-    export interface FastForwardRequest {
+    export declare class FastForwardRequest {
+        constructor(values?: Partial<FastForwardRequest>);
+
         /**
          * This field shall indicate whether audio should be unmuted by the player during fast forward.
          *
@@ -903,7 +923,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8.1
          */
         audioAdvanceUnmuted?: boolean;
-    }
+    };
 
     /**
      * If supported, this event shall be generated when there is a change in any of the supported attributes of the
@@ -911,7 +931,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
      */
-    export interface StateChangedEvent {
+    export declare class StateChangedEvent {
+        constructor(values?: Partial<StateChangedEvent>);
+
         /**
          * This field shall indicate the updated playback state as defined by the CurrentState attribute, and has the
          * same constraint as that attribute.
@@ -998,7 +1020,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.9
          */
         audioAdvanceUnmuted?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
@@ -1194,7 +1216,9 @@ export declare namespace MediaPlayback {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.6
      */
-    export interface TrackAttributes {
+    export declare class TrackAttributes {
+        constructor(values?: Partial<TrackAttributes>);
+
         /**
          * The value is a String containing one of the standard Tags for Identifying Languages RFC 5646, which
          * identifies the primary language used in the Track.
@@ -1218,7 +1242,7 @@ export declare namespace MediaPlayback {
          * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.6.3
          */
         displayName?: string | null;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

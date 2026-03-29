@@ -418,7 +418,9 @@ export declare namespace OccupancySensing {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.1
      */
-    export interface Occupancy {
+    export declare class Occupancy {
+        constructor(values?: Partial<Occupancy> | number);
+
         /**
          * Indicates the sensed occupancy state
          *
@@ -428,7 +430,7 @@ export declare namespace OccupancySensing {
          * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.1.1
          */
         occupied?: boolean;
-    }
+    };
 
     /**
      * > [!NOTE]
@@ -468,7 +470,9 @@ export declare namespace OccupancySensing {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.2
      */
-    export interface OccupancySensorTypeBitmap {
+    export declare class OccupancySensorTypeBitmap {
+        constructor(values?: Partial<OccupancySensorTypeBitmap> | number);
+
         /**
          * Indicates a passive infrared sensor.
          */
@@ -483,14 +487,16 @@ export declare namespace OccupancySensing {
          * Indicates a physical contact sensor.
          */
         physicalContact?: boolean;
-    }
+    };
 
     /**
      * This structure provides information on the server’s supported values for the HoldTime attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4
      */
-    export interface HoldTimeLimits {
+    export declare class HoldTimeLimits {
+        constructor(values?: Partial<HoldTimeLimits>);
+
         /**
          * This field shall specify the minimum value of the server’s supported value for the HoldTime attribute, in
          * seconds.
@@ -514,21 +520,23 @@ export declare namespace OccupancySensing {
          * @see {@link MatterSpecification.v142.Cluster} § 2.7.5.4.3
          */
         holdTimeDefault: number;
-    }
+    };
 
     /**
      * If this event is supported, it shall be generated when the Occupancy attribute changes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1
      */
-    export interface OccupancyChangedEvent {
+    export declare class OccupancyChangedEvent {
+        constructor(values?: Partial<OccupancyChangedEvent>);
+
         /**
          * This field shall indicate the new value of the Occupancy attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.7.7.1.1
          */
         occupancy: Occupancy;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

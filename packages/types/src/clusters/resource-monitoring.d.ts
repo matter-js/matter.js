@@ -259,10 +259,11 @@ export declare namespace ResourceMonitoring {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.8.5.4
      */
-    export interface ReplacementProduct {
+    export declare class ReplacementProduct {
+        constructor(values?: Partial<ReplacementProduct>);
         productIdentifierType: ProductIdentifierType;
         productIdentifierValue: string;
-    }
+    };
 
     /**
      * Indicate the type of identifier used to describe the product. Devices SHOULD use globally-recognized IDs over OEM

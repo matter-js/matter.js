@@ -210,7 +210,9 @@ export declare namespace AlarmBase {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2
      */
-    export interface ModifyEnabledAlarmsRequest {
+    export declare class ModifyEnabledAlarmsRequest {
+        constructor(values?: Partial<ModifyEnabledAlarmsRequest>);
+
         /**
          * This field shall indicate a bitmap where each bit set in the this field corresponds to an alarm that SHOULD
          * be enabled or suppressed. A value of 1 shall indicate that the alarm SHOULD be enabled while a value of 0
@@ -233,7 +235,7 @@ export declare namespace AlarmBase {
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.2.1
          */
         mask: number;
-    }
+    };
 
     /**
      * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields that
@@ -241,7 +243,9 @@ export declare namespace AlarmBase {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
      */
-    export interface ResetRequest {
+    export declare class ResetRequest {
+        constructor(values?: Partial<ResetRequest>);
+
         /**
          * This field shall indicate a bitmap where each bit set in this field corresponds to an alarm that shall be
          * reset to inactive in the State attribute unless the alarm definition requires manual intervention. If the
@@ -251,14 +255,16 @@ export declare namespace AlarmBase {
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1.1
          */
         alarms: number;
-    }
+    };
 
     /**
      * This event shall be generated when one or more alarms change state.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1
      */
-    export interface NotifyEvent {
+    export declare class NotifyEvent {
+        constructor(values?: Partial<NotifyEvent>);
+
         /**
          * This field shall indicate those alarms that have become active.
          *
@@ -287,7 +293,7 @@ export declare namespace AlarmBase {
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.3
          */
         mask: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

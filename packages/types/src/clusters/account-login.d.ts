@@ -245,7 +245,9 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1
      */
-    export interface GetSetupPinRequest {
+    export declare class GetSetupPinRequest {
+        constructor(values?: Partial<GetSetupPinRequest>);
+
         /**
          * This field shall specify the client’s Temporary Account Identifier. The length of this field shall be at
          * least 16 characters to protect the account holder against password guessing attacks.
@@ -253,7 +255,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.1.1
          */
         tempAccountIdentifier: string;
-    }
+    };
 
     /**
      * This message is sent in response to the GetSetupPIN command, and contains the Setup PIN, or null when the account
@@ -261,7 +263,9 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.2
      */
-    export interface GetSetupPinResponse {
+    export declare class GetSetupPinResponse {
+        constructor(values?: Partial<GetSetupPinResponse>);
+
         /**
          * This field shall provide the Setup PIN as a text string at least 8 characters in length or empty string to
          * indicate that the accounts do not match.
@@ -274,7 +278,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.2.1
          */
         setupPin: string;
-    }
+    };
 
     /**
      * The purpose of this command is to allow the Content App to assume the user account of a given Commissionee by
@@ -316,7 +320,9 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3
      */
-    export interface LoginRequest {
+    export declare class LoginRequest {
+        constructor(values?: Partial<LoginRequest>);
+
         /**
          * This field shall specify the client’s temporary account identifier.
          *
@@ -343,7 +349,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.3.3
          */
         node?: NodeId;
-    }
+    };
 
     /**
      * The purpose of this command is to instruct the Content App to clear the current user account. This command SHOULD
@@ -351,7 +357,9 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4
      */
-    export interface LogoutRequest {
+    export declare class LogoutRequest {
+        constructor(values?: Partial<LogoutRequest>);
+
         /**
          * This optional field shall provide the Node ID of the Client. This field can be used by the Content App to
          * keep track of Nodes which currently have access to it.
@@ -359,7 +367,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v142.Cluster} § 6.2.4.4.1
          */
         node?: NodeId;
-    }
+    };
 
     /**
      * This event can be used by the Content App to indicate that the current user has logged out. In response to this
@@ -368,7 +376,9 @@ export declare namespace AccountLogin {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1
      */
-    export interface LoggedOutEvent {
+    export declare class LoggedOutEvent {
+        constructor(values?: Partial<LoggedOutEvent>);
+
         /**
          * This field shall provide the Node ID corresponding to the user account that has logged out, if that Node ID
          * is available. If it is NOT available, this field shall NOT be present in the event.
@@ -376,7 +386,7 @@ export declare namespace AccountLogin {
          * @see {@link MatterSpecification.v142.Cluster} § 6.2.5.1.1
          */
         node?: NodeId;
-    }
+    };
 
     /**
      * Command metadata objects keyed by name.

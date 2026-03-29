@@ -205,10 +205,11 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.3
      */
-    export interface ApplicationEp {
+    export declare class ApplicationEp {
+        constructor(values?: Partial<ApplicationEp>);
         application: Application;
         endpoint?: EndpointNumber;
-    }
+    };
 
     /**
      * Upon receipt of this command, the server shall launch the application with optional data. The application shall
@@ -228,7 +229,9 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
      */
-    export interface LaunchAppRequest {
+    export declare class LaunchAppRequest {
+        constructor(values?: Partial<LaunchAppRequest>);
+
         /**
          * This field shall specify the Application to launch.
          *
@@ -249,14 +252,16 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1.2
          */
         data?: Bytes;
-    }
+    };
 
     /**
      * This command shall be generated in response to LaunchApp/StopApp/HideApp commands.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4
      */
-    export interface LauncherResponse {
+    export declare class LauncherResponse {
+        constructor(values?: Partial<LauncherResponse>);
+
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
@@ -270,7 +275,7 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4.2
          */
         data?: Bytes;
-    }
+    };
 
     /**
      * Upon receipt of this command, the server shall stop the application if it is running. The application shall be
@@ -288,14 +293,16 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
      */
-    export interface StopAppRequest {
+    export declare class StopAppRequest {
+        constructor(values?: Partial<StopAppRequest>);
+
         /**
          * This field shall specify the Application to stop.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2.1
          */
         application?: Application;
-    }
+    };
 
     /**
      * Upon receipt of this command, the server shall hide the application. The application shall be either
@@ -314,14 +321,16 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
      */
-    export interface HideAppRequest {
+    export declare class HideAppRequest {
+        constructor(values?: Partial<HideAppRequest>);
+
         /**
          * This field shall specify the Application to hide.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3.1
          */
         application?: Application;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
@@ -408,7 +417,9 @@ export declare namespace ApplicationLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2
      */
-    export interface Application {
+    export declare class Application {
+        constructor(values?: Partial<Application>);
+
         /**
          * This field shall indicate the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL
          * registry shall use value 0x0000.
@@ -429,7 +440,7 @@ export declare namespace ApplicationLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2.2
          */
         applicationId: string;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

@@ -70,7 +70,9 @@ export declare namespace DiagnosticLogs {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
      */
-    export interface RetrieveLogsRequest {
+    export declare class RetrieveLogsRequest {
+        constructor(values?: Partial<RetrieveLogsRequest>);
+
         /**
          * This field shall indicate why the diagnostic logs are being retrieved from the Node. A Node may utilize this
          * field to selectively determine the logs to transfer.
@@ -125,7 +127,7 @@ export declare namespace DiagnosticLogs {
          * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.3
          */
         transferFileDesignator?: string;
-    }
+    };
 
     /**
      * This shall be generated as a response to the RetrieveLogsRequest.
@@ -134,7 +136,9 @@ export declare namespace DiagnosticLogs {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
      */
-    export interface RetrieveLogsResponse {
+    export declare class RetrieveLogsResponse {
+        constructor(values?: Partial<RetrieveLogsResponse>);
+
         /**
          * This field shall indicate the result of an attempt to retrieve diagnostic logs.
          *
@@ -168,7 +172,7 @@ export declare namespace DiagnosticLogs {
          * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.4
          */
         timeSinceBoot?: number | bigint;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.11.4.1

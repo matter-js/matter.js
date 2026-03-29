@@ -261,7 +261,9 @@ export declare namespace TemperatureControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1
      */
-    export interface SetTemperatureRequest {
+    export declare class SetTemperatureRequest {
+        constructor(values?: Partial<SetTemperatureRequest>);
+
         /**
          * This field shall specify the desired temperature setpoint that the server is to be set to.
          *
@@ -280,7 +282,7 @@ export declare namespace TemperatureControl {
          * @see {@link MatterSpecification.v142.Cluster} § 8.2.6.1.2
          */
         targetTemperatureLevel?: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

@@ -875,7 +875,9 @@ export declare namespace TimeSynchronization {
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.4
      */
-    export interface TrustedTimeSource {
+    export declare class TrustedTimeSource {
+        constructor(values?: Partial<TrustedTimeSource>);
+
         /**
          * The Fabric Index associated with the Fabric of the client which last set the value of the trusted time source
          * node.
@@ -897,12 +899,14 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.3
          */
         endpoint: EndpointNumber;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.6
      */
-    export interface TimeZone {
+    export declare class TimeZone {
+        constructor(values?: Partial<TimeZone>);
+
         /**
          * The time zone offset from UTC in seconds.
          *
@@ -926,12 +930,14 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.3
          */
         name?: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.7
      */
-    export interface DstOffset {
+    export declare class DstOffset {
+        constructor(values?: Partial<DstOffset>);
+
         /**
          * The DST offset in seconds. Normally this is in the range of 0 to 3600 seconds (1 hour), but this field will
          * accept any values in the int32 range to accommodate potential future legislation that does not fit with these
@@ -955,7 +961,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.3
          */
         validUntil: number | bigint | null;
-    }
+    };
 
     /**
      * It indicates what the device knows about the contents of the IANA Time Zone Database. Partial support on a device
@@ -1001,7 +1007,9 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
      */
-    export interface SetUtcTimeRequest {
+    export declare class SetUtcTimeRequest {
+        constructor(values?: Partial<SetUtcTimeRequest>);
+
         /**
          * This field shall give the Client’s UTC Time.
          *
@@ -1022,7 +1030,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.3
          */
         timeSource?: TimeSource;
-    }
+    };
 
     /**
      * This command is used to set the TrustedTimeSource attribute.
@@ -1038,7 +1046,9 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
      */
-    export interface SetTrustedTimeSourceRequest {
+    export declare class SetTrustedTimeSourceRequest {
+        constructor(values?: Partial<SetTrustedTimeSourceRequest>);
+
         /**
          * This field contains the Node ID and endpoint of a trusted time source on the accessing fabric.
          *
@@ -1047,7 +1057,7 @@ export declare namespace TimeSynchronization {
         trustedTimeSource: FabricScopedTrustedTimeSource | null;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This command is used to set the DefaultNTP attribute.
@@ -1060,7 +1070,9 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
      */
-    export interface SetDefaultNtpRequest {
+    export declare class SetDefaultNtpRequest {
+        constructor(values?: Partial<SetDefaultNtpRequest>);
+
         /**
          * This field contains the address of an NTP server than can be used as a fallback for time synchronization. The
          * format of this field shall follow the requirements in the DefaultNTP attribute description.
@@ -1068,7 +1080,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.6.1
          */
         defaultNtp: string | null;
-    }
+    };
 
     /**
      * This command is used to set the time zone of the node.
@@ -1089,9 +1101,10 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
      */
-    export interface SetTimeZoneRequest {
+    export declare class SetTimeZoneRequest {
+        constructor(values?: Partial<SetTimeZoneRequest>);
         timeZone: TimeZone[];
-    }
+    };
 
     /**
      * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
@@ -1099,7 +1112,9 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.4
      */
-    export interface SetTimeZoneResponse {
+    export declare class SetTimeZoneResponse {
+        constructor(values?: Partial<SetTimeZoneResponse>);
+
         /**
          * If the node supports a time zone database with information for the time zone that will be applied, it may use
          * this information to set the DSTOffset attribute. If the node is setting its own DSTOffset attribute, the
@@ -1108,7 +1123,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.9.4.1
          */
         dstOffsetRequired: boolean;
-    }
+    };
 
     /**
      * This command is used to set the DST offsets for a node.
@@ -1126,16 +1141,19 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
      */
-    export interface SetDstOffsetRequest {
+    export declare class SetDstOffsetRequest {
+        constructor(values?: Partial<SetDstOffsetRequest>);
         dstOffset: DstOffset[];
-    }
+    };
 
     /**
      * This event shall be generated when the node starts or stops applying a DST offset.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
      */
-    export interface DstStatusEvent {
+    export declare class DstStatusEvent {
+        constructor(values?: Partial<DstStatusEvent>);
+
         /**
          * Indicates whether the current DST offset is being applied (i.e, daylight savings time is applied, as opposed
          * to standard time).
@@ -1143,7 +1161,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.10.2.1
          */
         dstOffsetActive: boolean;
-    }
+    };
 
     /**
      * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for DST
@@ -1151,7 +1169,9 @@ export declare namespace TimeSynchronization {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
      */
-    export interface TimeZoneStatusEvent {
+    export declare class TimeZoneStatusEvent {
+        constructor(values?: Partial<TimeZoneStatusEvent>);
+
         /**
          * Current time zone offset from UTC in seconds.
          *
@@ -1166,12 +1186,14 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.2
          */
         name?: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.6.5
      */
-    export interface FabricScopedTrustedTimeSource {
+    export declare class FabricScopedTrustedTimeSource {
+        constructor(values?: Partial<FabricScopedTrustedTimeSource>);
+
         /**
          * Node ID of the trusted time source node on the Fabric of the issuer.
          *
@@ -1187,7 +1209,7 @@ export declare namespace TimeSynchronization {
          * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.2
          */
         endpoint: EndpointNumber;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.17.7.1
