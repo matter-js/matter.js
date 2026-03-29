@@ -52,6 +52,7 @@ describe("controller heap profile", () => {
             await analyzeHeap(finalPath, "build/heap-analysis");
             await analyzeHeapDelta(baselinePath, finalPath, DEVICE_COUNT - BASELINE_COUNT, "build/heap-analysis", {
                 trackedTypes: [
+                    "Object",
                     "DataModelPath",
                     "BasicObservable",
                     "Construction2",
