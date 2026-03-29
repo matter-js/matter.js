@@ -78,70 +78,7 @@ export interface Datasource<T extends StateType = StateType> extends Transaction
  * Create a new datasource.
  */
 export function Datasource<const T extends StateType = StateType>(options: Datasource.Options<T>): Datasource<T> {
-    const internals = configure(options);
-
-    configureExternalChanges(internals);
-
-    let readOnlyView: undefined | InstanceType<T>;
-
-    return {
-        toString() {
-            return internals.location.path.toString();
-        },
-
-        reference(session: ValueSupervisor.Session) {
-            let ref = internals.sessions?.get(session);
-            if (!ref) {
-                ref = createReference(this, internals, session);
-            }
-            return ref.managed as InstanceType<T>;
-        },
-
-        close() {
-            if (!internals.externalChangeListener || !internals.store) {
-                return;
-            }
-
-            const store = internals.store as Datasource.ExternallyMutableStore;
-            if (store.externalChangeListener === internals.externalChangeListener) {
-                delete store.externalChangeListener;
-            }
-        },
-
-        get version() {
-            return internals.version;
-        },
-
-        get location() {
-            return internals.location;
-        },
-
-        get events() {
-            return internals.events;
-        },
-
-        validate(session: ValueSupervisor.Session, values?: Val.Struct) {
-            const validate = internals.supervisor.validate;
-            if (!validate) {
-                return;
-            }
-            validate(values ?? internals.values, session, {
-                path: internals.location.path,
-                config: internals.supervisionConfig,
-            });
-        },
-
-        get view() {
-            if (!readOnlyView) {
-                const session: ValueSupervisor.Session = {
-                    transaction: viewTx,
-                    supervisionMode: "global",
-                };
-                readOnlyView = createReference(this, internals, session).managed as InstanceType<T>;
-            }
-            return readOnlyView;
-        },
-    };
+    return new DatasourceImpl(options) as Datasource as Datasource<T>;
 }
 
 export namespace Datasource {
@@ -248,24 +185,36 @@ export namespace Datasource {
         externalSet(values: Val.StructMap): Promise<void>;
 
         /**
-         * A listener that reacts to data changes.
+         * The datasource consuming this store's data.  Installed by the datasource when it binds to the store.
          */
-        externalChangeListener?: (changes: Val.StructMap) => Promise<void>;
-
-        /**
-         * Callback installed by the store that releases the values from the datasource when invoked.
-         */
-        releaseValues?: () => Val.Struct;
-
-        /**
-         * Callback installed by the datasource that reads specific values by key.
-         */
-        readValues?: (keys: Set<string>) => Val.Struct;
+        consumer?: ExternallyMutableStore.Consumer;
 
         /**
          * The current version of the data.
          */
         version: number;
+    }
+
+    export namespace ExternallyMutableStore {
+        /**
+         * Interface the datasource exposes to its external store for change integration and value access.
+         */
+        export interface Consumer {
+            /**
+             * Integrate externally-sourced changes into the datasource's managed state.
+             */
+            integrateExternalChange(values: Val.StructMap): Promise<void>;
+
+            /**
+             * Read current values for the specified keys.
+             */
+            readValues(keys: Set<string>): Val.Struct;
+
+            /**
+             * Release all values from the datasource, transferring ownership back to the store.
+             */
+            releaseValues(): Val.Struct;
+        }
     }
 
     /**
@@ -287,24 +236,6 @@ interface SessionContext {
 }
 
 /**
- * Internal datasource state.
- */
-interface Internals extends Datasource.Options {
-    values: Val.Struct;
-    version: number;
-    manageVersion: boolean;
-    primaryKey: "name" | "id";
-    sessions?: Map<ValueSupervisor.Session, SessionContext>;
-    featuresKey?: string;
-    interactionObserver(session?: ValueSupervisor.Session): MaybePromise<void>;
-    events: Datasource.Events;
-    changedEventFor(key: string): undefined | Datasource.Events[any];
-    persistentFields: Set<string>;
-    externalChangeListener?: (changes: Val.StructMap) => Promise<void>;
-    supervisionConfig?: GlobalConfig;
-}
-
-/**
  * Changes that are applied during a commit (computed post-commit).
  */
 interface CommitChanges {
@@ -317,135 +248,211 @@ interface CommitChanges {
 }
 
 /**
- * Initialize the internal version of the datasource.
+ * Internal implementation of the Datasource interface.  Combines what was previously separate Internals state and
+ * Datasource object literal into a single class with shared prototype methods.
  */
-function configure(options: Datasource.Options): Internals {
-    let values = new options.type() as Val.Struct;
+class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Consumer {
+    // From Datasource.Options
+    type;
+    supervisor;
+    location;
+    entropy;
+    store?: Datasource.Store | Datasource.ExternallyMutableStore;
+    defaults?: Val.Struct;
+    owner?: any;
+    onChange?: (attrs: string[]) => MaybePromise<void>;
 
-    let storedValues = options.store?.initialValues;
+    // Computed state
+    primaryKey: "name" | "id";
+    version: number;
+    manageVersion: boolean;
+    events: Datasource.Events;
+    sessions?: Map<ValueSupervisor.Session, SessionContext>;
+    featuresKey?: string;
+    persistentFields: Set<string>;
+    supervisionConfig?: GlobalConfig;
 
-    let featuresKey: undefined | string;
-    if (options.supervisor.featureMap.children.length) {
-        featuresKey = [...options.supervisor.supportedFeatures].join(",");
-        const storedFeaturesKey = storedValues?.[FEATURES_KEY];
-        if (storedFeaturesKey !== undefined && storedFeaturesKey !== featuresKey) {
-            logger.warn(
-                `Ignoring persisted values for ${options.location.path} because features changed from "${storedFeaturesKey}" to "${featuresKey}"`,
-            );
-            storedValues = undefined;
+    #values: Val.Struct;
+    #changedEventIndex?: Map<string, undefined | Datasource.Events[`${string}$Changed`]>;
+    #readOnlyView?: InstanceType<StateType>;
+
+    constructor(options: Datasource.Options) {
+        this.type = options.type;
+        this.supervisor = options.supervisor;
+        this.location = options.location;
+        this.entropy = options.entropy;
+        this.store = options.store;
+        this.defaults = options.defaults;
+        this.owner = options.owner;
+        this.onChange = options.onChange;
+        this.primaryKey = options.primaryKey === "id" ? "id" : "name";
+        this.events = options.events ?? {};
+
+        // Initialize values
+        const values = new options.type() as Val.Struct;
+
+        let storedValues = options.store?.initialValues;
+
+        if (options.supervisor.featureMap.children.length) {
+            this.featuresKey = [...options.supervisor.supportedFeatures].join(",");
+            const storedFeaturesKey = storedValues?.[FEATURES_KEY];
+            if (storedFeaturesKey !== undefined && storedFeaturesKey !== this.featuresKey) {
+                logger.warn(
+                    `Ignoring persisted values for ${options.location.path} because features changed from "${storedFeaturesKey}" to "${this.featuresKey}"`,
+                );
+                storedValues = undefined;
+            }
+        }
+
+        const initialValues = {
+            ...options.defaults,
+            ...storedValues,
+        };
+
+        if (FEATURES_KEY in initialValues) {
+            delete initialValues[FEATURES_KEY];
+        }
+
+        for (const key in initialValues) {
+            values[key] = initialValues[key];
+        }
+
+        this.#values = values;
+
+        // Location affects security so make it immutable
+        Object.freeze(options.location);
+
+        this.version = options.entropy.randomUint32;
+        this.manageVersion = true;
+        this.persistentFields = options.supervisor.persistentKeys(options.primaryKey);
+
+        this.#configureExternalChanges();
+    }
+
+    // -- Datasource interface --
+
+    toString() {
+        return this.location.path.toString();
+    }
+
+    reference(session: ValueSupervisor.Session) {
+        let ref = this.sessions?.get(session);
+        if (!ref) {
+            ref = createReference(this, this, session);
+        }
+        return ref.managed as InstanceType<StateType>;
+    }
+
+    close() {
+        const store = this.store as Datasource.ExternallyMutableStore | undefined;
+        if (store?.consumer === this) {
+            store.consumer = undefined;
         }
     }
 
-    const initialValues = {
-        ...options.defaults,
-        ...storedValues,
+    validate(session: ValueSupervisor.Session, values?: Val.Struct) {
+        const validate = this.supervisor.validate;
+        if (!validate) {
+            return;
+        }
+        validate(values ?? this.#values, session, {
+            path: this.location.path,
+            config: this.supervisionConfig,
+        });
+    }
+
+    get view() {
+        if (!this.#readOnlyView) {
+            const session: ValueSupervisor.Session = {
+                transaction: viewTx,
+                supervisionMode: "global",
+            };
+            this.#readOnlyView = createReference(this, this, session).managed as InstanceType<StateType>;
+        }
+        return this.#readOnlyView as InstanceType<StateType>;
+    }
+
+    // -- Internal methods (used by RootReference) --
+
+    get values() {
+        return this.#values;
+    }
+
+    set values(newValues: Val.Struct) {
+        const oldValues = this.#values;
+
+        this.#values = newValues;
+
+        if (this.sessions) {
+            for (const context of this.sessions.values()) {
+                context.onChange(oldValues);
+            }
+        }
+    }
+
+    interactionObserver = (session?: ValueSupervisor.Session) => {
+        const location = this.location;
+
+        function handleObserverError(error: any) {
+            logger.error(`Error in ${location.path} observer:`, error);
+        }
+
+        if (this.events?.interactionEnd?.isObserved) {
+            try {
+                const result = this.events?.interactionEnd?.emit(session);
+                if (MaybePromise.is(result)) {
+                    return MaybePromise.then(result, undefined, handleObserverError);
+                }
+            } catch (e) {
+                handleObserverError(e);
+            }
+        }
     };
 
-    if (FEATURES_KEY in initialValues) {
-        delete initialValues[FEATURES_KEY];
+    changedEventFor(key: string) {
+        if (this.#changedEventIndex === undefined) {
+            this.#changedEventIndex = new Map();
+        } else if (this.#changedEventIndex.has(key)) {
+            return this.#changedEventIndex.get(key);
+        }
+
+        const id = Number.parseInt(key);
+        let event;
+        if (!Number.isFinite(id)) {
+            event = this.events[`${key}$Changed`];
+        } else {
+            const field = this.supervisor.schema.member(id);
+            if (field !== undefined) {
+                event = this.events[`${field.propertyName}$Changed`];
+            }
+        }
+
+        this.#changedEventIndex.set(key, event);
+
+        return event;
     }
 
-    for (const key in initialValues) {
-        values[key] = initialValues[key];
+    // -- External change handling --
+
+    #configureExternalChanges() {
+        const { store } = this;
+        if (!store || !("externalSet" in store)) {
+            return;
+        }
+
+        const externalStore = store as Datasource.ExternallyMutableStore;
+
+        this.version = externalStore.version;
+        this.manageVersion = false;
+
+        externalStore.consumer = this;
     }
 
-    // Location affects security so make it immutable
-    Object.freeze(options.location);
+    // -- Datasource.ExternallyMutableStore.Consumer --
 
-    const events = options.events ?? {};
-
-    let changedEventIndex: undefined | Map<string, undefined | Datasource.Events[`${string}$Changed`]>;
-
-    const persistentFields = options.supervisor.persistentKeys(options.primaryKey);
-
-    return {
-        ...options,
-        primaryKey: options.primaryKey === "id" ? "id" : "name",
-        events,
-        version: options.entropy.randomUint32,
-        featuresKey,
-        manageVersion: true,
-        persistentFields,
-
-        get values() {
-            return values;
-        },
-
-        set values(newValues: Val.Struct) {
-            const oldValues = this.values;
-
-            values = newValues;
-
-            if (this.sessions) {
-                for (const context of this.sessions.values()) {
-                    context.onChange(oldValues);
-                }
-            }
-        },
-
-        interactionObserver(session?: ValueSupervisor.Session) {
-            function handleObserverError(error: any) {
-                logger.error(`Error in ${options.location.path} observer:`, error);
-            }
-
-            if (options.events?.interactionEnd?.isObserved) {
-                try {
-                    const result = options.events?.interactionEnd?.emit(session);
-                    if (MaybePromise.is(result)) {
-                        return MaybePromise.then(result, undefined, handleObserverError);
-                    }
-                } catch (e) {
-                    handleObserverError(e);
-                }
-            }
-        },
-
-        changedEventFor(key: string) {
-            if (changedEventIndex === undefined) {
-                changedEventIndex = new Map();
-            } else if (changedEventIndex.has(key)) {
-                return changedEventIndex.get(key);
-            }
-
-            const id = Number.parseInt(key);
-            let event;
-            if (!Number.isFinite(id)) {
-                event = events[`${key}$Changed`];
-            } else {
-                const field = options.supervisor.schema.member(id);
-                if (field !== undefined) {
-                    event = events[`${field.propertyName}$Changed`];
-                }
-            }
-
-            changedEventIndex.set(key, event);
-
-            return event;
-        },
-    };
-}
-
-function isExternal(store?: Datasource.Store): store is Datasource.ExternallyMutableStore {
-    return !!store && "externalSet" in store;
-}
-
-/**
- * If the store supports external mutation, add a listener to update internal state and notify observers.
- *
- * Currently ignores locks.  This is probably OK because locks should only be held if we're updating the source of
- * truth.
- */
-function configureExternalChanges(internals: Internals) {
-    const { store } = internals;
-    if (!isExternal(store)) {
-        return;
-    }
-
-    internals.version = store.version;
-    internals.manageVersion = false;
-
-    internals.externalChangeListener = store.externalChangeListener = async (potentialChanges: Val.StructMap) => {
-        const { values } = internals;
+    async integrateExternalChange(potentialChanges: Val.StructMap) {
+        const { values } = this;
+        const externalStore = this.store as Datasource.ExternallyMutableStore;
 
         let changes: Map<string, unknown> | undefined;
         let oldValues: Map<string, unknown> | undefined;
@@ -465,22 +472,23 @@ function configureExternalChanges(internals: Internals) {
             }
         }
 
-        internals.version = store.version;
+        this.version = externalStore.version;
 
         if (!changes) {
             return;
         }
 
-        internals.values = {
-            ...internals.values,
+        this.values = {
+            ...this.values,
             ...Object.fromEntries(changes),
         };
 
         const changedProps = Array.from(changes.keys());
 
-        const onChangePromise = internals.onChange?.(changedProps);
+        const onChangePromise = this.onChange?.(changedProps);
 
         const iterator = changedProps[Symbol.iterator]();
+        const self = this;
 
         if (onChangePromise) {
             return onChangePromise.then(emitChanged);
@@ -496,7 +504,7 @@ function configureExternalChanges(internals: Internals) {
                 }
 
                 const name = n.value;
-                const event = internals.changedEventFor(name);
+                const event = self.changedEventFor(name);
                 if (!event?.isObserved) {
                     continue;
                 }
@@ -507,25 +515,23 @@ function configureExternalChanges(internals: Internals) {
                 }
             }
         }
-    };
+    }
 
-    store.readValues = (keys: Set<string>) => {
+    readValues(keys: Set<string>) {
         const result: Val.Struct = {};
         for (const key of keys) {
-            if (key in internals.values) {
-                result[key] = internals.values[key];
+            if (key in this.#values) {
+                result[key] = this.#values[key];
             }
         }
         return result;
-    };
+    }
 
-    store.releaseValues = () => {
-        const { values } = internals;
-
-        internals.values = {};
-
+    releaseValues() {
+        const { values } = this;
+        this.values = {};
         return values;
-    };
+    }
 }
 
 /**
@@ -544,13 +550,13 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     #precommitValues: Val.Struct | undefined;
     #changes: CommitChanges | undefined;
     #expired = false;
-    #internals: Internals;
+    #internals: DatasourceImpl;
     #session: ValueSupervisor.Session;
     #resource: Transaction.Resource;
     #fields: Set<string>;
     #context!: SessionContext;
 
-    constructor(resource: Transaction.Resource, internals: Internals, session: ValueSupervisor.Session) {
+    constructor(resource: Transaction.Resource, internals: DatasourceImpl, session: ValueSupervisor.Session) {
         this.#resource = resource;
         this.#internals = internals;
         this.#session = session;
@@ -937,7 +943,7 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
     }
 }
 
-function createReference(resource: Transaction.Resource, internals: Internals, session: ValueSupervisor.Session) {
+function createReference(resource: Transaction.Resource, internals: DatasourceImpl, session: ValueSupervisor.Session) {
     const ref = new RootReference(resource, internals, session);
     return ref.initialize();
 }
