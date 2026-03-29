@@ -16,8 +16,8 @@ import {
     NetworkInterfaceDetails,
     onSameNetwork,
     TCP_CONNECTION_TIMEOUT_MS,
+    TcpServer,
     TcpServerOptions,
-    TcpServerSocket,
     TcpSocket,
     UdpChannel,
     UdpChannelOptions,
@@ -81,7 +81,11 @@ export class NodeJsNetwork extends Network {
         return this.getNetInterfaceZoneIpv6Internal(netInterface, netInterfaceInfo);
     }
 
-    /** Get the first non-internal IPv6 network interface zone ID as fallback for multicast. */
+    /**
+     * Returns the zone-scoped name of the first non-internal IPv6 interface.
+     * Used as a fallback for multicast sends when no interface has been observed
+     * from inbound traffic (e.g. when all sessions run over TCP).
+     */
     static getDefaultNetInterface(): string | undefined {
         const interfaces = networkInterfaces();
         for (const name in interfaces) {
@@ -184,11 +188,11 @@ export class NodeJsNetwork extends Network {
         return NodeJsUdpChannel.create(options);
     }
 
-    override createTcpServer(options: TcpServerOptions): Promise<TcpServerSocket> {
+    override createTcpServer(options: TcpServerOptions): Promise<TcpServer> {
         return NodeJsTcpServer.create(options);
     }
 
-    override async connectTcp(host: string, port: number): Promise<TcpSocket> {
+    override async connectTcp(host: string, port: number, options?: { timeout?: number }): Promise<TcpSocket> {
         return new Promise((resolve, reject) => {
             let settled = false;
 
@@ -211,7 +215,7 @@ export class NodeJsNetwork extends Network {
                     reject(error);
                 });
 
-            socket.setTimeout(TCP_CONNECTION_TIMEOUT_MS);
+            socket.setTimeout(options?.timeout ?? TCP_CONNECTION_TIMEOUT_MS);
             socket.once("timeout", () => {
                 socket.destroy();
                 settle(() => reject(new NetworkError("TCP connection timeout")));

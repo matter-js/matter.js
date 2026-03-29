@@ -7,7 +7,7 @@
 import { ChannelType } from "#net/Channel.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NetworkError, NetworkInterface, NetworkInterfaceDetails } from "../Network.js";
-import type { TcpServerOptions, TcpServerSocket, TcpSocket } from "../tcp/TcpSocket.js";
+import type { TcpServer, TcpServerOptions, TcpSocket } from "../tcp/TcpSocket.js";
 import { UdpChannelOptions } from "../udp/UdpChannel.js";
 import { MockRouter } from "./MockRouter.js";
 import { MockTcpServer } from "./MockTcpServer.js";
@@ -107,7 +107,7 @@ export class MockNetwork extends Network {
         return Promise.resolve(new MockUdpChannel(this, options));
     }
 
-    override createTcpServer(options: TcpServerOptions): Promise<TcpServerSocket> {
+    override createTcpServer(options: TcpServerOptions): Promise<TcpServer> {
         return Promise.resolve(new MockTcpServer(this, options));
     }
 

@@ -85,7 +85,6 @@ export class GroupSession extends SecureSession {
         }
 
         const channel = await operationalInterface.openChannel({
-            type: ChannelType.UDP,
             ip: multicastAddress,
             port: STANDARD_MATTER_PORT,
         });

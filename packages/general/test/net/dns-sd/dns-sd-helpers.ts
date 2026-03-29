@@ -177,8 +177,8 @@ export function expectAddresses(addresses?: Iterable<ServerAddressIp>) {
     expect(addresses).not.undefined;
     addresses = ServerAddressSet(addresses);
     expect([...addresses]).deep.equals([
-        { type: "udp", ip: "abcd::91", port: 1234 },
-        { type: "udp", ip: "10.10.10.145", port: 1234 },
+        { ip: "abcd::91", port: 1234 },
+        { ip: "10.10.10.145", port: 1234 },
     ]);
 }
 

@@ -24,6 +24,7 @@ import {
     Observable,
     Seconds,
     ServerAddress,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -342,7 +343,7 @@ export class CommissioningClient extends Behavior {
         }
 
         const newAddressesStr = newAddresses
-            ?.filter(a => a.type !== "ble")
+            ?.filter(a => ServerAddress.isIp(a))
             .map(a => ServerAddress.urlFor(a))
             .join(", ");
         if (oldAddresses === undefined) {
@@ -356,7 +357,7 @@ export class CommissioningClient extends Behavior {
         }
 
         const oldAddressesStr = oldAddresses
-            .filter(a => a.type !== "ble")
+            .filter(a => ServerAddress.isIp(a))
             .map(a => ServerAddress.urlFor(a))
             .join(", ");
         if (oldAddressesStr !== newAddressesStr) {
@@ -419,7 +420,7 @@ export class CommissioningClient extends Behavior {
         const peers = node.env.get(PeerSet);
         peer = peers.addKnownPeer({
             address: addr,
-            operationalAddress: this.state.addresses?.filter(a => a.type === "udp")?.[0],
+            operationalAddress: this.state.addresses?.find(a => ServerAddress.isIp(a)) as ServerAddressIp | undefined,
             discoveryData: RemoteDescriptor.fromLongForm(this.state),
             caseAuthenticatedTags: this.state.caseAuthenticatedTags,
         });

@@ -9,7 +9,7 @@ import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
-import { ChannelType, Observable, ServerAddress, ServerAddressUdp } from "@matter/general";
+import { ChannelType, Observable, ServerAddress, ServerAddressIp } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
 import { EventNumber } from "@matter/types";
@@ -37,9 +37,9 @@ export class NetworkClient extends NetworkBehavior {
         if (peerAddress !== undefined) {
             const peerSet = this.env.get(PeerSet);
             if (!peerSet.has(peerAddress)) {
-                const udpAddresses = this.#node.state.commissioning.addresses?.filter(a => a.type === "udp") ?? [];
-                if (udpAddresses.length) {
-                    const operationalAddress = ServerAddress(udpAddresses[0]) as ServerAddressUdp;
+                const ipAddresses = this.#node.state.commissioning.addresses?.filter(a => ServerAddress.isIp(a)) ?? [];
+                if (ipAddresses.length) {
+                    const operationalAddress = ServerAddress(ipAddresses[0]) as ServerAddressIp;
                     // Make sure the PeerSet knows about this peer now too
                     peerSet.addKnownPeer({
                         address: peerAddress,
@@ -278,7 +278,7 @@ export namespace NetworkClient {
         maxEventNumber = EventNumber(0);
 
         /**
-         * Per-peer transport preference override. If set by the user, persisted.
+         * Per-peer transport preference override.
          * If not set, inherits from NetworkServer.transportPreference.
          */
         transportPreference?: "tcp" | "udp";

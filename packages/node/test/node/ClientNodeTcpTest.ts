@@ -5,7 +5,7 @@
  */
 
 import { OnOffClient } from "#behaviors/on-off";
-import { ChannelType, Crypto, MockCrypto, Seconds } from "@matter/general";
+import { ChannelType, Crypto, MockCrypto, Seconds, ServerAddress } from "@matter/general";
 import { ExchangeManager, Peer, PeerSet } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 import { subscribedPeer } from "./node-helpers.js";
@@ -166,8 +166,8 @@ describe("ClientNodeTcp", () => {
 
             const addresses = peer1.state.commissioning.addresses;
             expect(addresses).not.undefined;
-            const udpAddresses = addresses!.filter(a => a.type === "udp");
-            expect(udpAddresses.length).greaterThan(0);
+            const ipAddresses = addresses!.filter(a => ServerAddress.isIp(a));
+            expect(ipAddresses.length).greaterThan(0);
         });
     });
 

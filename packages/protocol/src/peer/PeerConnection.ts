@@ -94,7 +94,7 @@ export async function PeerConnection(
     const via = Diagnostic.via(peer.address.toString());
 
     const timing = options?.timing ? PeerTimingParameters.merge(context.timing, options.timing) : context.timing;
-    const useTcp = options?.transportConstraint === ChannelType.TCP;
+    const useTcp = options?.transport === ChannelType.TCP;
 
     using overallAbort = new Abort(options);
     using lifetime = (peer.lifetime ?? Lifetime.process).join("connecting");
@@ -235,12 +235,11 @@ export async function PeerConnection(
     }
 
     /**
-     * When TCP transport is required, convert an IP address to TCP type.
-     * DNS-SD discovers UDP addresses but TCP uses the same IP:port.
+     * When TCP transport is required, stamp the address with the TCP type.
      */
     function applyTransportConstraint(address: ServerAddressIp): ServerAddressIp {
-        if (useTcp && address.type !== "tcp") {
-            return { ...address, type: "tcp" };
+        if (useTcp) {
+            return { ...address, type: "tcp" } as ServerAddressIp;
         }
         return address;
     }
@@ -587,7 +586,7 @@ export namespace PeerConnection {
          * connection will be established over TCP (requires peer TCP Server support and local
          * TCP outgoing enabled). When undefined, the default transport (UDP/MRP) is used.
          */
-        transportConstraint?: ChannelType;
+        transport?: ChannelType;
 
         /**
          * Per-call overrides for timing parameters.

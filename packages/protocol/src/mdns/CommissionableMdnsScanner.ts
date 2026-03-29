@@ -261,11 +261,13 @@ function buildCommissionableDevice(name: DnssdName): CommissionableDevice | unde
         D,
         CM,
         addresses: [] as ServerAddressUdp[],
-    };
+    } satisfies CommissionableDevice;
 }
 
 function refreshAddresses(cached: CachedDevice): CommissionableDevice {
-    cached.device.addresses = [...cached.ipService.addresses] as ServerAddressUdp[];
+    // IpService returns transport-agnostic addresses; stamp as UDP since commissionable
+    // devices are always discovered and commissioned via UDP
+    cached.device.addresses = [...cached.ipService.addresses].map(a => ({ ...a, type: "udp" }) as ServerAddressUdp);
     return cached.device;
 }
 

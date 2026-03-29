@@ -34,8 +34,8 @@ export class UdpInterface implements Transport {
     }
 
     async openChannel(address: ServerAddress) {
-        if (address.type !== "udp") {
-            throw new NetworkError(`Unsupported address type ${address.type}`);
+        if (!ServerAddress.isIp(address)) {
+            throw new NetworkError(`Unsupported address type for UDP interface`);
         }
         const { ip, port } = address;
         return Promise.resolve(new UdpConnection(this.#server, ip, port));

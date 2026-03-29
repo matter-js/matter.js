@@ -80,9 +80,6 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
         return this.maxPayloadSize - FRAMING_HEADER_SIZE;
     }
 
-    /**
-     * Send a framed message — prepends a 4-byte little-endian length header.
-     */
     async send(data: Bytes): Promise<void> {
         if (this.#closed) {
             throw new Error("Connection is closed");
@@ -166,9 +163,6 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
         this.#workers.add(this.close());
     }
 
-    /**
-     * Attempt to extract one or more complete framed messages from the receive buffer.
-     */
     #extractMessages(): void {
         while (true) {
             if (this.#receiveLength < FRAMING_HEADER_SIZE) {
@@ -176,28 +170,17 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
             }
 
             const flat = this.#flatten();
-            const view = new DataView(flat.buffer, flat.byteOffset, flat.byteLength);
-            const messageLength = view.getUint32(0, true);
+            const messageLength = Bytes.dataViewOf(flat).getUint32(0, true);
 
             // Zero-length frames have no payload but are valid — consume the header and continue
             if (messageLength === 0) {
-                if (this.#receiveLength > FRAMING_HEADER_SIZE) {
-                    const remainder = flat.slice(FRAMING_HEADER_SIZE);
-                    this.#receiveChunks = [remainder];
-                    this.#receiveLength = remainder.length;
-                } else {
-                    this.#receiveChunks = [];
-                    this.#receiveLength = 0;
-                }
+                this.#consume(flat, FRAMING_HEADER_SIZE);
                 continue;
             }
 
-            // Oversized message: the total frame (header + message) must fit within maxPayloadSize
             if (messageLength > this.maxMessageSize) {
                 logger.error(`Received TCP message of ${messageLength} bytes exceeds limit of ${this.maxMessageSize}`);
-                // TODO: Send MESSAGE_TOO_LARGE status report (general code 17) before closing,
-                // per spec §4.15.2.3. This requires protocol-layer StatusReport construction
-                // which is above the transport layer. Needs callback or event to protocol layer.
+                // TODO: Send MESSAGE_TOO_LARGE status report before closing (spec §4.15.2.3)
                 this.#workers.add(this.close());
                 return;
             }
@@ -207,16 +190,8 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
                 return;
             }
 
-            const message = flat.slice(FRAMING_HEADER_SIZE, totalNeeded);
-
-            if (this.#receiveLength > totalNeeded) {
-                const remainder = flat.slice(totalNeeded);
-                this.#receiveChunks = [remainder];
-                this.#receiveLength = remainder.length;
-            } else {
-                this.#receiveChunks = [];
-                this.#receiveLength = 0;
-            }
+            const message = flat.subarray(FRAMING_HEADER_SIZE, totalNeeded);
+            this.#consume(flat, totalNeeded);
 
             for (const listener of this.#messageListeners) {
                 listener(message);
@@ -224,14 +199,22 @@ export class TcpConnection implements IpNetworkChannel<Bytes> {
         }
     }
 
-    /**
-     * Collapse all buffered chunks into a single contiguous Uint8Array.
-     */
+    /** Advance the receive buffer past the first `count` bytes. */
+    #consume(flat: Uint8Array, count: number): void {
+        if (this.#receiveLength > count) {
+            this.#receiveChunks = [flat.subarray(count)];
+            this.#receiveLength -= count;
+        } else {
+            this.#receiveChunks = [];
+            this.#receiveLength = 0;
+        }
+    }
+
+    /** Collapse all buffered chunks into a single contiguous Uint8Array. */
     #flatten(): Uint8Array {
         if (this.#receiveChunks.length === 1) {
             return this.#receiveChunks[0];
         }
-
         const result = new Uint8Array(this.#receiveLength);
         let offset = 0;
         for (const chunk of this.#receiveChunks) {

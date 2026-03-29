@@ -11,8 +11,8 @@ import {
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     Transport,
     withTimeout,
+    type TcpServer,
     type TcpServerOptions,
-    type TcpServerSocket,
     type TcpSocket,
 } from "@matter/general";
 import { createServer, type Server as RnServer, type Socket as RnSocket } from "react-native-tcp-socket";
@@ -27,10 +27,10 @@ const TCP_LISTEN_TIMEOUT = Seconds(10);
 const TCP_CLOSE_TIMEOUT = Seconds(5);
 
 /**
- * React Native implementation of {@link TcpServerSocket}.
+ * React Native implementation of {@link TcpServer}.
  * Wraps a `react-native-tcp-socket` Server.
  */
-export class TcpServerReactNative implements TcpServerSocket {
+export class TcpServerReactNative implements TcpServer {
     readonly #server: RnServer;
     readonly #port: number;
 

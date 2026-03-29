@@ -14,7 +14,7 @@ import {
     Environmental,
     Millis,
     ServerAddress,
-    ServerAddressUdp,
+    ServerAddressIp,
 } from "@matter/general";
 import { DiscoveryCapabilitiesBitmap, TypeFromPartialBitSchema, VendorId } from "@matter/types";
 
@@ -125,7 +125,7 @@ export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
 export type AddressTypeFromDevice<D extends DiscoverableDevice<any>> =
     D extends DiscoverableDevice<infer SA> ? SA : never;
 
-export type OperationalDevice = DiscoverableDevice<ServerAddressUdp> & {
+export type OperationalDevice = DiscoverableDevice<ServerAddressIp> & {
     deviceIdentifier: string;
 };
 

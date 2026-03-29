@@ -53,8 +53,8 @@ export class ReactNativeBleCentralInterface implements Transport {
     }
 
     async openChannel(address: ServerAddress): Promise<Channel<Bytes>> {
-        if (address.type !== "ble") {
-            throw new InternalError(`Unsupported address type ${address.type}.`);
+        if (!ServerAddress.isBle(address)) {
+            throw new InternalError(`Unsupported address type for BLE channel.`);
         }
         if (this.#onMatterMessageListener === undefined) {
             throw new InternalError(`Network Interface was not added to the system yet.`);

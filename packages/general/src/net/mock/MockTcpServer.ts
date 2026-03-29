@@ -5,7 +5,7 @@
  */
 
 import type { Transport } from "../Transport.js";
-import type { TcpServerOptions, TcpServerSocket, TcpSocket } from "../tcp/TcpSocket.js";
+import type { TcpServer, TcpServerOptions, TcpSocket } from "../tcp/TcpSocket.js";
 import type { MockNetwork } from "./MockNetwork.js";
 import { MockTcpSocket } from "./MockTcpSocket.js";
 
@@ -13,7 +13,7 @@ import { MockTcpSocket } from "./MockTcpSocket.js";
  * Mock TCP server for testing.  Registers itself with a {@link MockNetwork} so
  * that {@link MockNetwork.connectTcp} can route incoming connections.
  */
-export class MockTcpServer implements TcpServerSocket {
+export class MockTcpServer implements TcpServer {
     readonly port: number;
     readonly #host: MockNetwork;
     readonly #connectionListeners = new Set<(socket: TcpSocket) => void>();

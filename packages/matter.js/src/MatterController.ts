@@ -39,7 +39,7 @@ import {
     MockStorageService,
     ObserverGroup,
     ServerAddress,
-    ServerAddressUdp,
+    ServerAddressIp,
     StorageManager,
     StorageService,
     SupportedStorageTypes,
@@ -95,7 +95,7 @@ import { BasicInformation } from "@matter/types/clusters/basic-information";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export type CommissionedNodeDetails = {
-    operationalServerAddress?: ServerAddressUdp;
+    operationalServerAddress?: ServerAddressIp;
     discoveryData?: DiscoveryData;
     deviceData?: DeviceInformationData;
 };
@@ -581,7 +581,7 @@ export class MatterController {
             // Pre-discovered device: addresses already known, skip discovery.
             let { addresses } = discovery.commissionableDevice;
             if (discovery.discoveryCapabilities?.ble !== true) {
-                addresses = addresses.filter(a => a.type !== "ble");
+                addresses = addresses.filter(a => !ServerAddress.isBle(a));
             }
             const commissioner = this.node.env.get(ControllerCommissioner);
             const { paseSession } = await commissioner.establishPase({
@@ -954,8 +954,9 @@ class CommissionedNodeStore {
                             address.nodeId,
                             {
                                 operationalServerAddress:
-                                    operationalServerAddress !== undefined && operationalServerAddress.type === "udp"
-                                        ? (ServerAddress(operationalServerAddress) as ServerAddressUdp)
+                                    operationalServerAddress !== undefined &&
+                                    ServerAddress.isIp(operationalServerAddress)
+                                        ? (ServerAddress(operationalServerAddress) as ServerAddressIp)
                                         : undefined,
                                 discoveryData,
                                 deviceData,

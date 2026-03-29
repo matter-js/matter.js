@@ -144,7 +144,7 @@ describe("DeviceAdvertiser", () => {
             const deviceAdvertiser = new DeviceAdvertiser({
                 fabrics,
                 sessions,
-                tcp: { tcpClient: true, tcpServer: true },
+                supportedTransports: { tcpClient: true, tcpServer: true },
             });
             deviceAdvertiser.addAdvertiser(advertiser);
             deviceAdvertiser.enterOperationalMode();
@@ -179,15 +179,15 @@ describe("DeviceAdvertiser", () => {
             expect(desc.tcp).to.be.undefined;
         });
 
-        it("tcp setter updates context for subsequent advertisements", () => {
+        it("supportedTransports setter updates context for subsequent advertisements", () => {
             const { fabrics, sessions } = createMockContext();
             const advertiser = new MockAdvertiser();
             const deviceAdvertiser = new DeviceAdvertiser({ fabrics, sessions });
             deviceAdvertiser.addAdvertiser(advertiser);
             deviceAdvertiser.enterOperationalMode();
 
-            // Set TCP after construction
-            deviceAdvertiser.tcp = { tcpClient: false, tcpServer: true };
+            // Set transport support after construction
+            deviceAdvertiser.supportedTransports = { tcpClient: false, tcpServer: true };
 
             const fabric = createFabric();
             (fabrics as any)[Symbol.iterator] = () => [fabric].values();

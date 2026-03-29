@@ -9,8 +9,8 @@ import {
     NetworkError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
+    TcpServer,
     TcpServerOptions,
-    TcpServerSocket,
     TcpSocket,
     Transport,
     withTimeout,
@@ -32,10 +32,10 @@ function serverPort(server: Server): number {
 }
 
 /**
- * Node.js implementation of the {@link TcpServerSocket} interface.
+ * Node.js implementation of the {@link TcpServer} interface.
  * Wraps a `net.Server` that accepts incoming TCP connections.
  */
-export class NodeJsTcpServer implements TcpServerSocket {
+export class NodeJsTcpServer implements TcpServer {
     readonly #server: Server;
     readonly #activeSockets = new Set<Socket>();
 

@@ -55,13 +55,13 @@ describe("TcpTransport", () => {
     });
 
     describe("openChannel", () => {
-        it("throws for non-TCP address", async () => {
+        it("throws for non-IP address", async () => {
             const host = simulator.addHost(1);
             const transport = await TcpTransport.create({ network: host });
 
             try {
-                await expect(transport.openChannel({ type: "udp", ip: "10.10.10.1", port: 5540 })).rejectedWith(
-                    "does not support address type",
+                await expect(transport.openChannel({ type: "ble", peripheralAddress: "AA:BB:CC" } as any)).rejectedWith(
+                    "does not support non-IP",
                 );
             } finally {
                 await transport.close();
@@ -80,7 +80,6 @@ describe("TcpTransport", () => {
 
             try {
                 const channel = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });
@@ -105,12 +104,10 @@ describe("TcpTransport", () => {
 
             try {
                 const channel1 = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });
                 const channel2 = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });
@@ -139,12 +136,10 @@ describe("TcpTransport", () => {
 
             try {
                 const channel1 = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });
                 const channel2 = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::2",
                     port: SERVER_PORT,
                 });
@@ -174,7 +169,7 @@ describe("TcpTransport", () => {
             const clientTransport = await TcpTransport.create({ network: host2 });
 
             try {
-                await clientTransport.openChannel({ type: "tcp", ip: "abcd::1", port: SERVER_PORT });
+                await clientTransport.openChannel({ ip: "abcd::1", port: SERVER_PORT });
 
                 expect(connected).length(1);
                 expect(connected[0]).instanceof(TcpConnection);
@@ -202,7 +197,6 @@ describe("TcpTransport", () => {
 
             try {
                 const channel = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });
@@ -236,7 +230,6 @@ describe("TcpTransport", () => {
 
             try {
                 const channel = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });
@@ -266,7 +259,6 @@ describe("TcpTransport", () => {
 
             try {
                 const channel = await clientTransport.openChannel({
-                    type: "tcp",
                     ip: "abcd::1",
                     port: SERVER_PORT,
                 });

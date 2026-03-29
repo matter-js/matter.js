@@ -49,13 +49,13 @@ export class PeerExchangeProvider extends ExchangeProvider {
 
     override async connect(options?: NewExchangeOptions): Promise<void> {
         // Use explicit requirement, or fall back to the peer's transport preference
-        const transportConstraint = options?.requiredTransport ?? this.#peer.transportPreference;
+        const transport = options?.requiredTransport ?? this.#peer.transportPreference;
 
         await this.#peer.connect({
             abort: options?.abort,
             network: options?.network,
             connectionTimeout: options?.connectionTimeout,
-            transportConstraint,
+            transport,
         });
     }
 

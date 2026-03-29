@@ -112,8 +112,8 @@ export class NobleBleCentralInterface implements Transport {
                 );
                 return;
             }
-            if (address.type !== "ble") {
-                rejectOnce(new InternalError(`Unsupported address type ${address.type}.`));
+            if (!ServerAddress.isBle(address)) {
+                rejectOnce(new InternalError(`Unsupported address type for BLE channel.`));
                 return;
             }
             const { peripheralAddress } = address;

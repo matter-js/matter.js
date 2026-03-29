@@ -58,7 +58,7 @@ export interface TcpSocket {
  * Platform-agnostic TCP server socket abstraction.
  * Listens for incoming TCP connections.
  */
-export interface TcpServerSocket {
+export interface TcpServer {
     readonly port: number;
 
     /** Register a listener for new incoming connections. */

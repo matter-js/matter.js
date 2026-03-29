@@ -149,13 +149,12 @@ export namespace NetworkServer {
          * Fine-grained control via `{ incoming?: boolean; outgoing?: boolean }`.
          * Disabled by default.
          */
-        tcp?: boolean | { incoming?: boolean; outgoing?: boolean } = undefined;
+        tcp?: boolean | { incoming?: boolean; outgoing?: boolean };
 
         /**
-         * Preferred transport for outgoing connections. Default "udp".
-         * Revisit once TCP device stability is proven.
+         * Preferred transport for outgoing connections. Defaults to UDP when not set.
          */
-        transportPreference?: "tcp" | "udp" = "udp";
+        transportPreference?: "tcp" | "udp";
 
         @field(TimingConfig)
         timing?: TimingConfig;

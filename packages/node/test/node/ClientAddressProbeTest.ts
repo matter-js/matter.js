@@ -57,7 +57,7 @@ describe("ClientAddressProbeTest", () => {
         // *** SIMULATE ADDRESS CHANGE — replace discovered addresses with a different IP ***
 
         const oldAddresses = [...protopeer.service.addresses];
-        const newAddress: ServerAddressIp = { type: "udp", ip: "abcd::99", port: currentAddress!.port };
+        const newAddress: ServerAddressIp = { ip: "abcd::99", port: currentAddress!.port };
 
         await simulateAddressChange(protopeer, oldAddresses, [newAddress]);
         expect(protopeer.service.addresses.size).equals(1);
@@ -112,7 +112,7 @@ describe("ClientAddressProbeTest", () => {
         // *** SIMULATE ADDRESS CHANGE ***
 
         const oldAddresses = [...protopeer.service.addresses];
-        const newAddress: ServerAddressIp = { type: "udp", ip: "abcd::99", port: currentAddress!.port };
+        const newAddress: ServerAddressIp = { ip: "abcd::99", port: currentAddress!.port };
 
         probedAddresses.length = 0;
         await simulateAddressChange(protopeer, oldAddresses, [newAddress]);

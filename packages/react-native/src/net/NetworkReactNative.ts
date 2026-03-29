@@ -30,8 +30,8 @@ import {
     NetworkInterface,
     NetworkInterfaceDetails,
     onSameNetwork,
+    TcpServer,
     TcpServerOptions,
-    TcpServerSocket,
     TcpSocket,
     UdpChannel,
     UdpChannelOptions,
@@ -188,7 +188,7 @@ export class NetworkReactNative extends Network {
         return UdpChannelReactNative.create(options);
     }
 
-    override async createTcpServer(options: TcpServerOptions): Promise<TcpServerSocket> {
+    override async createTcpServer(options: TcpServerOptions): Promise<TcpServer> {
         return TcpServerReactNative.create(options);
     }
 

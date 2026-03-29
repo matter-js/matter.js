@@ -13,7 +13,7 @@ import { Time } from "#time/Time.js";
 import { Seconds } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
 import { TcpConnection } from "./TcpConnection.js";
-import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpServerSocket } from "./TcpSocket.js";
+import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpServer } from "./TcpSocket.js";
 
 const logger = Logger.get("TcpTransport");
 
@@ -43,7 +43,7 @@ export interface TcpTransportOptions {
  */
 export class TcpTransport implements ConnectionOrientedTransport {
     readonly #connections = new Map<string, TcpConnection>();
-    #server?: TcpServerSocket;
+    #server?: TcpServer;
     readonly #network: Network;
     readonly #maxMessageSize: number;
 
@@ -140,8 +140,8 @@ export class TcpTransport implements ConnectionOrientedTransport {
     }
 
     async openChannel(address: ServerAddress): Promise<Channel<Bytes>> {
-        if (address.type !== "tcp") {
-            throw new NetworkError(`TcpTransport does not support address type "${address.type}"`);
+        if (!ServerAddress.isIp(address)) {
+            throw new NetworkError(`TcpTransport does not support non-IP addresses`);
         }
 
         const key = `${address.ip}:${address.port}`;

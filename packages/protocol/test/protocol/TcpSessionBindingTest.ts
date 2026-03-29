@@ -4,20 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ControllerCommissioner, ControllerCommissionerContext } from "#peer/ControllerCommissioner.js";
 import { MessageExchange } from "#protocol/MessageExchange.js";
 import { ProtocolMocks } from "#protocol/ProtocolMocks.js";
 import { Session } from "#session/Session.js";
 import { SessionParameters } from "#session/SessionParameters.js";
-import {
-    Bytes,
-    Channel,
-    ChannelType,
-    ImplementationError,
-    Seconds,
-    ServerAddressTcp,
-    Transport,
-} from "@matter/general";
+import { Bytes, Channel, ChannelType, Transport } from "@matter/general";
 import { SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
 
 /**
@@ -319,29 +310,7 @@ describe("TCP Session-Connection Binding", () => {
         });
     });
 
-    describe("PASE TCP guard", () => {
-        it("rejects TCP addresses for PASE session establishment", async () => {
-            // ControllerCommissioner.establishPase should reject TCP addresses with ImplementationError
-            // because PASE always uses UDP or BLE — TCP is for operational CASE sessions only.
-            const commissioner = new ControllerCommissioner({
-                // Minimal stubs — the TCP guard throws before any of these are accessed
-                peers: {} as ControllerCommissionerContext["peers"],
-                transports: {} as ControllerCommissionerContext["transports"],
-                sessions: { sessionParameters: SessionParameters(SessionParameters.defaults) } as any,
-                exchanges: {} as ControllerCommissionerContext["exchanges"],
-                ca: {} as ControllerCommissionerContext["ca"],
-                environment: {} as ControllerCommissionerContext["environment"],
-            });
-
-            const tcpAddress: ServerAddressTcp = { type: "tcp", ip: "192.168.1.1", port: 5540 };
-
-            await expect(
-                commissioner.establishPase({
-                    addresses: [tcpAddress],
-                    passcode: 20202021,
-                    timeout: Seconds(5),
-                }),
-            ).to.be.rejectedWith(ImplementationError, "PASE sessions cannot use TCP transport");
-        });
-    });
+    // PASE always uses UDP transport regardless of address type — this is enforced structurally
+    // by the ControllerCommissioner which routes all IP addresses through the UDP interface.
+    // No explicit TCP guard test is needed since addresses are now transport-agnostic.
 });

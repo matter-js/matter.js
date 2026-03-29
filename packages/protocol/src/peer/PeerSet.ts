@@ -247,7 +247,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
     }
 
     async #openSocket(address: ServerAddressIp, abort: AbortSignal) {
-        const channelType = address.type === "tcp" ? ChannelType.TCP : ChannelType.UDP;
+        const channelType = "type" in address && address.type === "tcp" ? ChannelType.TCP : ChannelType.UDP;
 
         let lookupAddress: string | undefined;
         if (channelType === ChannelType.UDP) {
@@ -259,7 +259,7 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
         if (operationalInterface === undefined) {
             throw new NetworkUnreachableError(
-                `No ${address.type.toUpperCase()} interface available for address ${address.ip}`,
+                `No ${channelType.toUpperCase()} interface available for address ${address.ip}`,
             );
         }
 

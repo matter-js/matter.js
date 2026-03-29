@@ -134,7 +134,6 @@ export class Peer {
                         const discoveredPort = [...this.#service.addresses][0]?.port;
                         if (discoveredPort !== undefined) {
                             updateNetworkAddress({
-                                type: "tcp",
                                 ip: channel.networkAddress.ip,
                                 port: discoveredPort,
                             });
@@ -275,7 +274,7 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession();
+            const session = this.newestSession(options?.transport);
             if (session) {
                 return session;
             }
@@ -448,7 +447,7 @@ export class Peer {
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
                 timing: options?.timing,
-                transportConstraint: options?.transportConstraint,
+                transport: options?.transport,
                 abort,
                 kicker,
             }).finally(() => {
@@ -515,7 +514,7 @@ export namespace Peer {
         /**
          * Constrain the transport type for this connection.
          */
-        transportConstraint?: ChannelType;
+        transport?: ChannelType;
     }
 }
 

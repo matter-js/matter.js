@@ -19,6 +19,7 @@ import {
     MockNetwork,
     Network,
     Seconds,
+    ServerAddress,
     Time,
 } from "@matter/general";
 import { ClientSubscription, Peer, PeerUnreachableError, SustainedSubscription } from "@matter/protocol";
@@ -113,7 +114,7 @@ describe("ClientConnectivityTest", () => {
         const addresses = peer1.stateOf(CommissioningClient).addresses;
         expect(addresses).not.undefined;
         expect(addresses).length(1);
-        expect(addresses![0].type).equals("udp");
+        expect(ServerAddress.isIp(addresses![0])).true;
         expect((addresses![0] as { ip: string }).ip).equals("10.10.10.2");
     });
 
@@ -158,7 +159,7 @@ describe("ClientConnectivityTest", () => {
         const addresses = peer1.stateOf(CommissioningClient).addresses;
         expect(addresses).not.undefined;
         expect(addresses).length(1);
-        expect(addresses![0].type).equals("udp");
+        expect(ServerAddress.isIp(addresses![0])).true;
     });
 
     it("connects via last known address when MDNS is unavailable", async () => {
@@ -209,7 +210,7 @@ describe("ClientConnectivityTest", () => {
         const addresses = peer1.stateOf(CommissioningClient).addresses;
         expect(addresses).not.undefined;
         expect(addresses).length(1);
-        expect(addresses![0].type).equals("udp");
+        expect(ServerAddress.isIp(addresses![0])).true;
 
         // Confirm that we still haven't discovered addresses
         expect(protopeer.service.addresses.size).equals(0);
@@ -254,7 +255,7 @@ describe("ClientConnectivityTest", () => {
         const addresses = peer1.stateOf(CommissioningClient).addresses;
         expect(addresses).not.undefined;
         expect(addresses).length(1);
-        expect(addresses![0].type).equals("udp");
+        expect(ServerAddress.isIp(addresses![0])).true;
         const ip = (addresses![0] as { ip: string }).ip;
         expect(ip === "abcd::3" || ip === "10.10.10.3").true;
     });
@@ -305,7 +306,7 @@ describe("ClientConnectivityTest", () => {
         const addresses = peer1.stateOf(CommissioningClient).addresses;
         expect(addresses).not.undefined;
         expect(addresses).length(1);
-        expect(addresses![0].type).equals("udp");
+        expect(ServerAddress.isIp(addresses![0])).true;
         const ip = (addresses![0] as { ip: string }).ip;
         expect(ip === "abcd::3" || ip === "10.10.10.3").true;
     });

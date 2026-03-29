@@ -269,7 +269,7 @@ export class IpService {
     };
 
     #updateAddress(service: Service, ip: string) {
-        const address: ServerAddressIp = { type: "udp", ip, port: service.port };
+        const address: ServerAddressIp = { ip, port: service.port };
 
         if (this.#addresses.has(address)) {
             return;
@@ -284,7 +284,7 @@ export class IpService {
     }
 
     #deleteAddress(service: Service, ip: string) {
-        const address: ServerAddressIp = { type: "udp", ip, port: service.port };
+        const address: ServerAddressIp = { ip, port: service.port };
 
         if (!this.#addresses.has(address)) {
             return;
