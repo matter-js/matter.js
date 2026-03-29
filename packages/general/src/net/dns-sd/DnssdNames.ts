@@ -172,14 +172,17 @@ export class DnssdNames {
     }
 
     /**
-     * Iterate all currently discovered {@link DnssdName}s.
+     * All currently discovered {@link DnssdName}s.
      */
-    *discoveredNames() {
-        for (const name of this.#names.values()) {
-            if (name.isDiscovered) {
-                yield name;
+    get discoveredNames(): Iterable<DnssdName> {
+        const names = this.#names;
+        return (function* () {
+            for (const name of names.values()) {
+                if (name.isDiscovered) {
+                    yield name;
+                }
             }
-        }
+        })();
     }
 
     #delete(name: DnssdName) {

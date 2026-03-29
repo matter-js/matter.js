@@ -88,7 +88,7 @@ export function discoverNames(names: DnssdNames, suffix: string, signal: AbortSi
     observers.on(names.discovered, push);
 
     // Seed with already-discovered names
-    for (const name of names.discoveredNames()) {
+    for (const name of names.discoveredNames) {
         push(name);
     }
 

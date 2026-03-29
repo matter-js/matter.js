@@ -97,7 +97,7 @@ export class CommissionableMdnsScanner implements Scanner {
     ): Promise<CommissionableDevice[]> {
         // Pick up names already discovered before we subscribed (e.g. device broadcasts that arrived
         // before the scanner was created)
-        for (const name of this.#names.discoveredNames()) {
+        for (const name of this.#names.discoveredNames) {
             this.#onDiscovered(name);
         }
 
