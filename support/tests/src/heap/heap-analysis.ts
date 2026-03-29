@@ -220,6 +220,224 @@ export async function analyzeHeap(
     await writeFile(join(outputDir, "heap-analysis.json"), JSON.stringify(report, null, 2) + "\n");
 }
 
+interface DeltaConstructorEntry {
+    name: string;
+    count: number;
+    shallowSize: number;
+    retainedSize: number;
+    countPerDevice: number;
+    shallowPerDevice: number;
+    retainedPerDevice: number;
+}
+
+interface DeltaClosureEntry {
+    name: string;
+    count: number;
+    retainedSize: number;
+    countPerDevice: number;
+    retainedPerDevice: number;
+}
+
+interface DeltaRetentionEntry {
+    type: string;
+    instances: number;
+    sampled: number;
+    referrerCategories: Array<{ category: string; count: number }>;
+    paths: RetentionPathEntry[];
+}
+
+interface HeapDeltaReport {
+    deviceCount: number;
+    summary: {
+        newNodes: number;
+        newShallowSize: number;
+        nodesPerDevice: number;
+        shallowPerDevice: number;
+    };
+    byConstructor: DeltaConstructorEntry[];
+    closures: DeltaClosureEntry[];
+    retention: Record<string, DeltaRetentionEntry>;
+}
+
+/**
+ * Compare two heap snapshots and report objects that are new in the second snapshot.  Uses V8's monotonically
+ * increasing node IDs — any node in snapshot2 whose ID exceeds the maximum ID in snapshot1 was allocated after
+ * snapshot1 was taken.
+ */
+export interface AnalyzeHeapDeltaOptions {
+    /**
+     * Constructor names (for objects) or closure names to trace retention paths for.  Traces up to 5 instances of each.
+     */
+    trackedTypes?: string[];
+}
+
+export async function analyzeHeapDelta(
+    baselinePath: string,
+    finalPath: string,
+    deviceCount: number,
+    outputDir: string,
+    options?: AnalyzeHeapDeltaOptions,
+): Promise<void> {
+    const baseline: IHeapSnapshot = await getFullHeapFromFile(baselinePath);
+
+    // Find max node ID in baseline
+    let maxBaselineId = 0;
+    baseline.nodes.forEach((node: IHeapNode) => {
+        if (node.id > maxBaselineId) {
+            maxBaselineId = node.id;
+        }
+    });
+
+    const final: IHeapSnapshot = await getFullHeapFromFile(finalPath);
+
+    // Collect only nodes that are new (allocated after baseline)
+    let newNodes = 0;
+    let newShallowSize = 0;
+    const constructors = new Map<string, { count: number; shallowSize: number; retainedSize: number }>();
+    const closureMap = new Map<string, { count: number; retainedSize: number }>();
+
+    const trackedTypes = new Set(options?.trackedTypes);
+    const trackedNodes = new Map<string, IHeapNode[]>();
+
+    final.nodes.forEach((node: IHeapNode) => {
+        if (node.id <= maxBaselineId) {
+            return;
+        }
+
+        newNodes++;
+        newShallowSize += node.self_size;
+
+        if (node.type === "object") {
+            const entry = constructors.get(node.name);
+            if (entry) {
+                entry.count++;
+                entry.shallowSize += node.self_size;
+                entry.retainedSize += node.retainedSize;
+            } else {
+                constructors.set(node.name, {
+                    count: 1,
+                    shallowSize: node.self_size,
+                    retainedSize: node.retainedSize,
+                });
+            }
+
+            if (trackedTypes.has(node.name)) {
+                let list = trackedNodes.get(node.name);
+                if (!list) {
+                    list = [];
+                    trackedNodes.set(node.name, list);
+                }
+                list.push(node);
+            }
+        }
+
+        if (node.type === "closure") {
+            const entry = closureMap.get(node.name);
+            if (entry) {
+                entry.count++;
+                entry.retainedSize += node.retainedSize;
+            } else {
+                closureMap.set(node.name, { count: 1, retainedSize: node.retainedSize });
+            }
+
+            // Track anonymous closures too
+            const closureKey = node.name ? `closure:${node.name}` : "closure:(anonymous)";
+            if (trackedTypes.has(closureKey)) {
+                let list = trackedNodes.get(closureKey);
+                if (!list) {
+                    list = [];
+                    trackedNodes.set(closureKey, list);
+                }
+                list.push(node);
+            }
+        }
+    });
+
+    const byConstructor: DeltaConstructorEntry[] = Array.from(constructors.entries())
+        .map(([name, entry]) => ({
+            name,
+            ...entry,
+            countPerDevice: Math.round((entry.count / deviceCount) * 10) / 10,
+            shallowPerDevice: Math.round(entry.shallowSize / deviceCount),
+            retainedPerDevice: Math.round(entry.retainedSize / deviceCount),
+        }))
+        .sort((a, b) => b.shallowSize - a.shallowSize)
+        .slice(0, 80);
+
+    const closures: DeltaClosureEntry[] = Array.from(closureMap.entries())
+        .map(([name, entry]) => ({
+            name,
+            ...entry,
+            countPerDevice: Math.round((entry.count / deviceCount) * 10) / 10,
+            retainedPerDevice: Math.round(entry.retainedSize / deviceCount),
+        }))
+        .sort((a, b) => b.retainedSize - a.retainedSize)
+        .slice(0, 50);
+
+    // Trace retention paths for tracked types
+    const retention: Record<string, DeltaRetentionEntry> = {};
+
+    for (const [typeName, nodes] of trackedNodes) {
+        // Categorize by referrer pattern
+        const referrerCategories = new Map<string, number>();
+        for (const node of nodes) {
+            const referrers: IHeapEdge[] = node.referrers;
+            const category = referrers
+                .filter((e: IHeapEdge) => e.type !== "weak" && e.fromNode)
+                .map(
+                    (e: IHeapEdge) =>
+                        `.${e.name_or_index}[${e.type}] from ${e.fromNode.name}(${e.fromNode.type})`,
+                )
+                .sort()
+                .join("; ");
+            referrerCategories.set(category, (referrerCategories.get(category) ?? 0) + 1);
+        }
+
+        const sortedCategories = [...referrerCategories.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 20)
+            .map(([category, count]) => ({ category, count }));
+
+        // Sample up to 5 instances spread across the set for path tracing
+        const sampleIndices: number[] = [];
+        const step = Math.max(1, Math.floor(nodes.length / 5));
+        for (let i = 0; i < nodes.length && sampleIndices.length < 5; i += step) {
+            sampleIndices.push(i);
+        }
+
+        const paths: RetentionPathEntry[] = [];
+        for (const idx of sampleIndices) {
+            const node = nodes[idx];
+            const path = traceRetentionPath(node, 25);
+            paths.push({ nodeId: node.id, nodeName: node.name, path });
+        }
+
+        retention[typeName] = {
+            type: typeName,
+            instances: nodes.length,
+            sampled: paths.length,
+            referrerCategories: sortedCategories,
+            paths,
+        };
+    }
+
+    const report: HeapDeltaReport = {
+        deviceCount,
+        summary: {
+            newNodes,
+            newShallowSize,
+            nodesPerDevice: Math.round(newNodes / deviceCount),
+            shallowPerDevice: Math.round(newShallowSize / deviceCount),
+        },
+        byConstructor,
+        closures,
+        retention,
+    };
+
+    await mkdir(outputDir, { recursive: true });
+    await writeFile(join(outputDir, "heap-delta.json"), JSON.stringify(report, null, 2) + "\n");
+}
+
 /**
  * Trace the shortest retention path from a node back to a GC root using BFS.
  * Avoids cycles by tracking visited nodes.
