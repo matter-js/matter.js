@@ -8,7 +8,7 @@ import { MAX_UDP_MESSAGE_SIZE, Millis, Seconds } from "@matter/general";
 
 /** @see {@link MatterSpecification.v11.Core} § 4.17.3.2 */
 export const BLE_MATTER_SERVICE_UUID_SHORT = "fff6";
-export const BLE_MATTER_SERVICE_UUID = "0000FFF6-0000-1000-8000-00805F9B34FB";
+export const BLE_MATTER_SERVICE_UUID = "0000fff6-0000-1000-8000-00805f9b34fb";
 
 /**
  * Returns true if the given UUID matches the Matter BLE service UUID.
@@ -18,7 +18,7 @@ export const BLE_MATTER_SERVICE_UUID = "0000FFF6-0000-1000-8000-00805F9B34FB";
  */
 export function isMatterServiceUuid(uuid: string): boolean {
     const lower = uuid.toLowerCase();
-    return lower === BLE_MATTER_SERVICE_UUID_SHORT || lower === BLE_MATTER_SERVICE_UUID.toLowerCase();
+    return lower === BLE_MATTER_SERVICE_UUID_SHORT || lower === BLE_MATTER_SERVICE_UUID;
 }
 
 export const BLE_MATTER_C1_CHARACTERISTIC_UUID = "18EE2EF5-263D-4559-959F-4F9C429F9D11";

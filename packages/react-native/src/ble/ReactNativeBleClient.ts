@@ -124,7 +124,7 @@ export class ReactNativeBleClient {
             return;
         }
         const matterServiceDataBase64 =
-            peripheral.serviceData?.[BLE_MATTER_SERVICE_UUID.toLowerCase()] ??
+            peripheral.serviceData?.[BLE_MATTER_SERVICE_UUID] ??
             peripheral.serviceData?.[BLE_MATTER_SERVICE_UUID_SHORT];
         if (matterServiceDataBase64 === undefined) {
             logger.info(`Peripheral ${peripheral.id} does not advertise Matter Service ... ignoring`);
