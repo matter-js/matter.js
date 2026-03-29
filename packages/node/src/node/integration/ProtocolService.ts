@@ -11,6 +11,8 @@ import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
 import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
+import type { Supervision } from "#behavior/supervision/Supervision.js";
+import { maybeConfigOfConstructor } from "#behavior/supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { DescriptorBehavior } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
@@ -310,6 +312,7 @@ class ClusterState implements ClusterProtocol {
     readonly #datasource: Datasource;
     readonly #endpointId: EndpointNumber;
     readonly commands: Record<CommandId, CommandInvokeHandler> = {};
+    readonly skipCommandValidation?: boolean;
 
     constructor(type: ClusterTypeProtocol, backing: BehaviorBacking) {
         this.type = type;
@@ -319,6 +322,13 @@ class ClusterState implements ClusterProtocol {
         for (const cmd of type.commands) {
             const commandModels = this.#commandModels(backing, cmd);
             this.commands[cmd.id] = (args, session) => invokeCommand(backing, cmd, args, session, commandModels);
+        }
+
+        for (const cmd of type.commands) {
+            if (maybeConfigOfConstructor(backing.type.prototype, camelize(cmd.name))) {
+                this.skipCommandValidation = true;
+                break;
+            }
         }
     }
 
@@ -567,12 +577,13 @@ interface CommandModels {
     responseModel?: CommandModel;
 }
 
-function validateCommandData(
+function validateCommandPayload(
     data: Val.Struct | undefined,
     model: CommandModel,
     supervisor: RootSupervisor,
     session: InteractionSession,
     outerResolve?: (name: string) => Val,
+    config?: Supervision.Config,
 ) {
     if (data === undefined) {
         return;
@@ -586,6 +597,7 @@ function validateCommandData(
     validate(data, session as ValueSupervisor.Session, {
         path: new DataModelPath(model.path),
         outerResolve,
+        config,
     });
 }
 
@@ -623,11 +635,25 @@ function invokeCommand(
         requestDiagnostic,
     );
 
+    const commandInputConfig = maybeConfigOfConstructor(backing.type.prototype, camelize(command.name));
+    const onValidationError = commandInputConfig?.supervision?.onValidationError;
+
     if (commandModels) {
         try {
-            validateCommandData(request, commandModels.requestModel, commandModels.supervisor, session);
+            validateCommandPayload(
+                request,
+                commandModels.requestModel,
+                commandModels.supervisor,
+                session,
+                undefined,
+                commandInputConfig,
+            );
         } catch (e) {
-            logger.warn("Request validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+            if (onValidationError) {
+                onValidationError(asError(e));
+            } else {
+                logger.warn("Request validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+            }
         }
     }
 
@@ -677,7 +703,7 @@ function invokeCommand(
                 .then(result => {
                     if (commandModels?.responseModel) {
                         try {
-                            validateCommandData(
+                            validateCommandPayload(
                                 result as Val.Struct | undefined,
                                 commandModels.responseModel,
                                 commandModels.supervisor,
@@ -708,7 +734,7 @@ function invokeCommand(
         } else {
             if (commandModels?.responseModel) {
                 try {
-                    validateCommandData(
+                    validateCommandPayload(
                         result as Val.Struct | undefined,
                         commandModels.responseModel,
                         commandModels.supervisor,

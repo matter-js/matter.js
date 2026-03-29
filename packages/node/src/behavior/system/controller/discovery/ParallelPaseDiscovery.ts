@@ -7,7 +7,7 @@
 import { CanceledError, causedBy, Diagnostic, Logger, MatterAggregateError } from "@matter/general";
 import { CommissioningError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
-import { DiscoveryError } from "./DiscoveryError.js";
+import { DiscoveryAggregateError, DiscoveryError } from "./DiscoveryError.js";
 
 const logger = Logger.get("ParallelPaseDiscovery");
 
@@ -27,6 +27,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #winnerAttempt?: Promise<unknown>;
     #winnerError?: unknown;
     #extractWinner?: (result: unknown) => W | undefined;
+    #attemptErrors = new Array<Error>();
 
     protected get abortSignal() {
         return this.#abort.signal;
@@ -80,10 +81,16 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                     this.#winnerError = error;
                     return undefined;
                 }
-                // Loser: log and resolve
-                if (causedBy(error, CanceledError, CommissioningError, PeerCommunicationError)) {
+                // Loser: resolve to prevent unhandled rejection.
+                // Collect the error for the final failure message unless it was a cancellation
+                // triggered by our own abort (i.e. another candidate won or discovery timed out).
+                if (causedBy(error, CanceledError)) {
                     logger.debug("Canceled parallel commissioning attempt:", Diagnostic.errorMessage(error));
+                } else if (causedBy(error, CommissioningError, PeerCommunicationError)) {
+                    this.#attemptErrors.push(error);
+                    logger.debug("Failed parallel commissioning attempt:", Diagnostic.errorMessage(error));
                 } else {
+                    this.#attemptErrors.push(error);
                     logger.info("Unexpected error from parallel commissioning attempt:", error);
                 }
                 return undefined;
@@ -120,7 +127,11 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         }
 
         if (this.#winner === undefined) {
-            throw new DiscoveryError(`${this} failed: ${this.failureMessage}`);
+            const message = `${this} failed: ${this.failureMessage}`;
+            if (this.#attemptErrors.length > 0) {
+                throw new DiscoveryAggregateError(this.#attemptErrors, message);
+            }
+            throw new DiscoveryError(message);
         }
 
         return this.#winner;
