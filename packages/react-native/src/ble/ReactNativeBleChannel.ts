@@ -20,7 +20,6 @@ import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
     BLE_MATTER_C3_CHARACTERISTIC_UUID,
-    BLE_MATTER_SERVICE_UUID,
     BLE_MAXIMUM_BTP_MTU,
     BTP_CONN_RSP_TIMEOUT,
     BTP_MAXIMUM_WINDOW_SIZE,
@@ -31,6 +30,7 @@ import {
     BtpCodec,
     BtpFlowError,
     BtpSessionHandler,
+    isMatterServiceUuid,
 } from "@matter/protocol";
 import {
     BleErrorCode,
@@ -91,7 +91,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
 
         for (const service of services) {
             logger.debug(`found service: ${service.uuid}`);
-            if (service.uuid.toUpperCase() !== BLE_MATTER_SERVICE_UUID) continue;
+            if (!isMatterServiceUuid(service.uuid)) continue;
 
             // So, discover its characteristics.
             const characteristics = await device.characteristicsForService(service.uuid);

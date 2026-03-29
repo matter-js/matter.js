@@ -6,7 +6,7 @@
 
 import { Bytes, Diagnostic, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { BLE_MATTER_SERVICE_UUID_SHORT } from "@matter/protocol";
+import { BLE_MATTER_SERVICE_UUID_SHORT, isMatterServiceUuid } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { platform } from "node:process";
 import { BleOptions } from "./NodeJsBle.js";
@@ -111,7 +111,7 @@ export class NobleBleClient {
         //  see https://github.com/stoprocent/noble/issues/20
         if (
             process.platform === "win32" &&
-            !peripheral.advertisement.serviceData.some(({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT)
+            !peripheral.advertisement.serviceData.some(({ uuid }) => isMatterServiceUuid(uuid))
         ) {
             return;
         }
@@ -127,9 +127,7 @@ export class NobleBleClient {
             logger.debug(`Peripheral ${address} is not connectable ... ignoring`);
             return;
         }
-        const matterServiceData = peripheral.advertisement.serviceData.find(
-            ({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT,
-        );
+        const matterServiceData = peripheral.advertisement.serviceData.find(({ uuid }) => isMatterServiceUuid(uuid));
         if (matterServiceData === undefined || matterServiceData.data.length !== 8) {
             logger.info(`Peripheral ${address} does not advertise Matter Service ... ignoring`);
             return;

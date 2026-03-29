@@ -35,6 +35,7 @@ import {
     BtpCodec,
     BtpFlowError,
     BtpSessionHandler,
+    isMatterServiceUuid,
 } from "@matter/protocol";
 import type { Characteristic, Peripheral } from "@stoprocent/noble";
 import { BleScanner } from "./BleScanner.js";
@@ -254,7 +255,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
 
                     for (const service of services) {
                         logger.debug(`Peripheral ${peripheralAddress}: Handle service: ${service.uuid}`);
-                        if (service.uuid !== BLE_MATTER_SERVICE_UUID_SHORT) continue;
+                        if (!isMatterServiceUuid(service.uuid)) continue;
 
                         // It's Matter, discover its characteristics.
                         const characteristics = await service.discoverCharacteristicsAsync();
