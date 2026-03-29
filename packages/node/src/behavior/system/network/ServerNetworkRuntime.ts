@@ -355,8 +355,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             this.ensureMdnsAdvertiser();
         }
 
-        // Initialize ScannerSet
-        env.get(ScannerSet).add(env.get(MdnsService).client);
+        // Ensure ScannerSet exists; ControllerBehavior adds the actual scanner
+        env.get(ScannerSet);
 
         const { timing, profiles } = this.owner.state.network;
         if (timing) {
