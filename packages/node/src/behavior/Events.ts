@@ -8,7 +8,6 @@ import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import { ChangeNotificationService } from "#node/integration/ChangeNotificationService.js";
 import {
-    asError,
     AsyncObservable,
     BasicObservable,
     EventEmitter,
@@ -17,8 +16,6 @@ import {
     Logger,
     MaybePromise,
     Observable,
-    ObserverErrorHandler,
-    ObserverPromiseHandler,
     QuietObservable,
     Time,
     type Observer,
@@ -27,7 +24,6 @@ import { ElementTag, EventElement, EventModel, type AttributeElement, type Value
 import { NumberedOccurrence, Occurrence, OccurrenceManager, Val } from "@matter/protocol";
 import { ClusterId, EventId, Priority } from "@matter/types";
 import type { Behavior } from "./Behavior.js";
-import { NodeActivity } from "./context/NodeActivity.js";
 
 const logger = Logger.get("Events");
 
@@ -121,13 +117,8 @@ export class ElementEvent<T extends any[] = any[], S extends ValueModel = ValueM
     #schema: S;
     #owner: Events;
 
-    constructor(
-        schema: S,
-        owner: Events,
-        errorHandler?: ObserverErrorHandler,
-        promiseHandler?: ObserverPromiseHandler,
-    ) {
-        super(errorHandler, promiseHandler);
+    constructor(schema: S, owner: Events) {
+        super();
 
         this.#schema = schema;
         this.#owner = owner;
@@ -152,17 +143,7 @@ export class ElementEvent<T extends any[] = any[], S extends ValueModel = ValueM
  */
 export class OfflineEvent<T extends any[] = any[], S extends ValueModel = ValueModel> extends ElementEvent<T> {
     constructor(schema: S, owner: Events) {
-        super(
-            schema,
-            owner,
-
-            undefined,
-
-            async (promise, observer) => {
-                using _actor = this.owner.endpoint?.env.get(NodeActivity).begin(descriptionOf(this, observer));
-                await promise;
-            },
-        );
+        super(schema, owner);
     }
 }
 
@@ -177,24 +158,12 @@ export class OnlineEvent<T extends any[] = any[], S extends ValueModel = ValueMo
     readonly #baseOccurrence: Omit<Occurrence, "epochTimestamp" | "payload"> | undefined;
     #occurrenceTrigger?: (payload: any) => void;
 
+    protected override handleError(error: Error, observer: Observer) {
+        logger.error(`Error in ${descriptionOf(this, observer)}`, error);
+    }
+
     constructor(schema: S, owner: Events) {
-        super(
-            schema,
-            owner,
-
-            (error, observer) => {
-                logger.error(`Error in ${descriptionOf(this, observer)}`, error);
-            },
-
-            async (promise, observer) => {
-                using _actor = this.owner.endpoint?.env.get(NodeActivity).begin(descriptionOf(this, observer));
-                try {
-                    await promise;
-                } catch (e) {
-                    this.handleError(asError(e), observer);
-                }
-            },
-        );
+        super(schema, owner);
 
         // If it is a "real" Matter event, then we connect this event instance with the OccurrenceManager and
         // ChangeNotificationService
