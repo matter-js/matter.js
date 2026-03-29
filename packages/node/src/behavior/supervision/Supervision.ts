@@ -7,7 +7,7 @@
 import type { Val } from "@matter/protocol";
 import { Internal } from "../state/managed/Internal.js";
 import type { ValReference } from "../state/managed/ValReference.js";
-import { bareObjectConfigs, GlobalConfig } from "./SupervisionConfig.js";
+import { bareObjectConfigs, commandSupervisionConfigs, GlobalConfig } from "./SupervisionConfig.js";
 
 /**
  * Granular validation configuration.
@@ -36,6 +36,15 @@ export interface Supervision {
      * When false, disables constraint validation for this specific value only.  Child fields are unaffected.
      */
     constraint?: boolean;
+
+    /**
+     * Intercept validation errors.
+     *
+     * * **Throw** — error propagates (rethrow original, or throw a different error such as
+     *   {@link StatusResponse.InvalidCommandError} or {@link OkResponseError})
+     * * **Return** — error is ignored; processing continues with unvalidated data
+     */
+    onValidationError?: (error: Error) => void;
 }
 
 /**
@@ -46,9 +55,31 @@ export function Supervision(object: Val.Struct): Supervision.Config;
 /**
  * Get or create a field-level {@link Supervision} for a specific field on an object.
  */
-export function Supervision(object: Val.Struct, fieldName: string): Supervision;
+export function Supervision<T extends Val.Struct>(object: T, fieldName: keyof T & string): Supervision;
 
-export function Supervision(object: Val.Struct, fieldName?: string): Supervision.Config | Supervision {
+/**
+ * Get or create the command-level {@link Supervision} for a behavior constructor and method.
+ */
+export function Supervision(constructor: Function, methodName: string): Supervision;
+
+/**
+ * Get or create field-level {@link Supervision} for a specific field of a command on a behavior constructor.
+ */
+export function Supervision(constructor: Function, methodName: string, ...fieldPath: string[]): Supervision;
+
+export function Supervision(
+    target: Val.Struct | Function,
+    nameOrMethod?: string,
+    ...fieldPath: string[]
+): Supervision.Config | Supervision {
+    if (typeof target === "function") {
+        return supervisionForConstructor(target, nameOrMethod!, fieldPath);
+    }
+
+    return supervisionForObject(target, nameOrMethod);
+}
+
+function supervisionForObject(object: Val.Struct, fieldName?: string): Supervision.Config | Supervision {
     let config: Supervision.Config;
 
     const ref = (object as Record<symbol, unknown>)[Internal.reference] as ValReference | undefined;
@@ -71,10 +102,47 @@ export function Supervision(object: Val.Struct, fieldName?: string): Supervision
     }
 
     const child = config.child(fieldName);
-    if (!child.config) {
-        child.config = {};
+    if (!child.supervision) {
+        child.supervision = {};
     }
-    return child.config;
+    return child.supervision;
+}
+
+function supervisionForConstructor(
+    constructor: Function,
+    methodName: string,
+    fieldPath: string[],
+): Supervision.Config | Supervision {
+    const prototype = constructor.prototype;
+
+    let map = commandSupervisionConfigs.get(prototype);
+    if (map === undefined) {
+        map = new Map();
+        commandSupervisionConfigs.set(prototype, map);
+    }
+
+    let config = map.get(methodName);
+    if (config === undefined) {
+        config = new GlobalConfig();
+        map.set(methodName, config);
+    }
+
+    if (fieldPath.length === 0) {
+        if (!config.supervision) {
+            config.supervision = {};
+        }
+        return config.supervision;
+    }
+
+    let current = config;
+    for (const segment of fieldPath) {
+        current = current.child(segment);
+    }
+
+    if (!current.supervision) {
+        current.supervision = {};
+    }
+    return current.supervision;
 }
 
 /**
@@ -92,7 +160,7 @@ export namespace Supervision {
         /**
          * The supervision settings for this node.
          */
-        config?: Supervision;
+        supervision?: Supervision;
 
         /**
          * Get or create a child config for the given key.  Creates persistent children.

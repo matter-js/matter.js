@@ -5,9 +5,10 @@
  */
 
 import { Datasource } from "#behavior/state/managed/Datasource.js";
-import { InternalError, MaybePromise, Transaction } from "@matter/general";
+import { InternalError, MaybePromise, StorageDriver, Transaction } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
+import type { ClientCacheBuffer } from "./ClientCacheBuffer.js";
 import type { LocalWriter } from "./LocalWriter.js";
 import { RemoteWriteParticipant } from "./RemoteWriteParticipant.js";
 import type { RemoteWriter } from "./RemoteWriter.js";
@@ -27,17 +28,24 @@ export interface DatasourceCache extends Datasource.ExternallyMutableStore {
      * Erase values just for this datasource.
      */
     erase(): MaybePromise<void>;
+
+    /**
+     * Flush dirty values to storage.  When {@link tx} is provided, writes go through the shared transaction.
+     */
+    flush(tx?: StorageDriver.Transaction): Promise<void>;
 }
 
 export function DatasourceCache(options: DatasourceCache.Options): DatasourceCache {
-    const { writer, endpointNumber, behaviorId, initialValues } = options;
+    const { writer, endpointNumber, behaviorId, initialValues, buffer } = options;
 
     let version = initialValues?.[DatasourceCache.VERSION_KEY] as number;
     if (typeof version !== "number") {
         version = Datasource.UNKNOWN_VERSION;
     }
 
-    return {
+    const dirtyKeys = new Set<string>();
+
+    const cache: DatasourceCache = {
         initialValues,
 
         async set(transaction: Transaction, values: Val.Struct) {
@@ -55,8 +63,15 @@ export function DatasourceCache(options: DatasourceCache.Options): DatasourceCac
                 version = versionVal;
             }
 
-            const valuesStruct = Object.fromEntries(values) as Val.Struct;
-            await options.localWriter?.persist(endpointNumber, behaviorId, valuesStruct);
+            if (buffer) {
+                for (const key of values.keys()) {
+                    dirtyKeys.add(String(key));
+                }
+                buffer.markDirty(cache);
+            } else {
+                const valuesStruct = Object.fromEntries(values) as Val.Struct;
+                await options.localWriter?.persist(endpointNumber, behaviorId, valuesStruct);
+            }
 
             if (this.externalChangeListener) {
                 await this.externalChangeListener(values);
@@ -64,6 +79,7 @@ export function DatasourceCache(options: DatasourceCache.Options): DatasourceCac
                 if (!this.initialValues) {
                     this.initialValues = {};
                 }
+                const valuesStruct = Object.fromEntries(values) as Val.Struct;
                 Object.assign(this.initialValues, valuesStruct);
             }
         },
@@ -76,6 +92,9 @@ export function DatasourceCache(options: DatasourceCache.Options): DatasourceCac
                 this.initialValues = this.releaseValues();
                 this.releaseValues = undefined;
             }
+
+            // Don't clear dirty state here — the buffer will flush remaining dirty data during shutdown.  After
+            // reclaimValues the data lives in initialValues, and flush() reads from there as a fallback.
         },
 
         get version() {
@@ -87,9 +106,60 @@ export function DatasourceCache(options: DatasourceCache.Options): DatasourceCac
         },
 
         async erase() {
+            dirtyKeys.clear();
+            buffer?.removeDirty(cache);
             await options.localWriter?.erase(endpointNumber, behaviorId);
         },
+
+        async flush(tx?: StorageDriver.Transaction) {
+            if (!dirtyKeys.size) {
+                return;
+            }
+
+            // Snapshot and remove keys atomically.  If externalSet() re-dirties a key during our async persist,
+            // it re-adds to dirtyKeys and survives.  On failure we restore the snapshot.
+            const flushing = new Set(dirtyKeys);
+            for (const key of flushing) {
+                dirtyKeys.delete(key);
+            }
+
+            // Prefer live values from the Datasource.  After reclaimValues() the Datasource's values are empty,
+            // so fall back to initialValues which holds the reclaimed data.
+            let values = this.readValues?.(flushing);
+            if (values === undefined || !Object.keys(values).length) {
+                if (this.initialValues !== undefined) {
+                    values = {};
+                    for (const key of flushing) {
+                        if (key in this.initialValues) {
+                            values[key] = this.initialValues[key];
+                        }
+                    }
+                }
+            }
+
+            if (values === undefined || !Object.keys(values).length) {
+                return;
+            }
+
+            values[DatasourceCache.VERSION_KEY] = version;
+
+            try {
+                if (tx && options.localWriter) {
+                    await options.localWriter.persistInTransaction(tx, endpointNumber, behaviorId, values);
+                } else {
+                    await options.localWriter?.persist(endpointNumber, behaviorId, values);
+                }
+            } catch (e) {
+                // Restore keys so they are retried on the next flush
+                for (const key of flushing) {
+                    dirtyKeys.add(key);
+                }
+                throw e;
+            }
+        },
     };
+
+    return cache;
 }
 
 export namespace DatasourceCache {
@@ -106,5 +176,6 @@ export namespace DatasourceCache {
         behaviorId: string;
         initialValues?: Val.Struct;
         localWriter?: LocalWriter;
+        buffer?: ClientCacheBuffer;
     }
 }

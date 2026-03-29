@@ -257,6 +257,11 @@ export namespace Datasource {
         releaseValues?: () => Val.Struct;
 
         /**
+         * Callback installed by the datasource that reads specific values by key.
+         */
+        readValues?: (keys: Set<string>) => Val.Struct;
+
+        /**
          * The current version of the data.
          */
         version: number;
@@ -501,6 +506,16 @@ function configureExternalChanges(internals: Internals) {
                 }
             }
         }
+    };
+
+    store.readValues = (keys: Set<string>) => {
+        const result: Val.Struct = {};
+        for (const key of keys) {
+            if (key in internals.values) {
+                result[key] = internals.values[key];
+            }
+        }
+        return result;
     };
 
     store.releaseValues = () => {

@@ -27,7 +27,7 @@ export function createConformanceValidator(
     }
 
     return (value, session, location) => {
-        const cfg = location.config?.config;
+        const cfg = location.config?.supervision;
 
         // validate=false is the master kill switch — skip all validation including type-specific validators
         // (which for structs means child fields are never visited)

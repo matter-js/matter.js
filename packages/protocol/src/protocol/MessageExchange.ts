@@ -598,12 +598,18 @@ export class MessageExchange {
             this.#retransmissionCounter = 0;
             this.#retransmissionTimer?.start();
 
-            // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout
+            // Await response.  Resolves with message when received, undefined when aborted, and rejects on timeout.
+            // Use race (not attempt) so that on abort we fall through to the cleanup block below
+            // instead of throwing immediately — we need to stop the retransmission timer first.
             using _waiting = sending.join("waiting for ack");
-            const responseMessage = await abort.attempt(ackPromise);
+            const responseMessage = await abort.race(ackPromise);
             if (abort.aborted) {
-                // Aborted exchange caused to return undefined, any other
-                // error is thrown
+                // Aborted — stop the retransmission timer immediately so we don't keep sending
+                // packets to an unreachable peer while the exchange is being torn down.
+                // Leave #sentMessageToAck and the ack callbacks intact so that exchange.close()
+                // still sees the pending ack and can handle cleanup properly.
+                this.#retransmissionTimer?.stop();
+
                 if (!causedBy(abort.reason, AbortedError)) {
                     throw abort.reason;
                 }

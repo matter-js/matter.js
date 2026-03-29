@@ -5,7 +5,7 @@
  */
 
 import type { Datasource } from "#behavior/state/managed/Datasource.js";
-import { MaybePromise, StorageContext, SupportedStorageTypes } from "@matter/general";
+import { MaybePromise, StorageContext, StorageDriver, SupportedStorageTypes } from "@matter/general";
 import { Val } from "@matter/protocol";
 
 /**
@@ -45,10 +45,20 @@ export class EndpointStore {
      * Patch values.  Keyed by {@link Behavior.id} then property name.
      *
      * See {@link Datasource.Store.set} for the patch semantics the individual structs use.
+     *
+     * When {@link sharedTx} is provided, writes go through it and the caller owns the transaction lifecycle (no
+     * commit/dispose here).
      */
-    async set(values: Record<string, undefined | Val.Struct>) {
-        const maybeTx = this.storage.begin();
-        const tx = MaybePromise.is(maybeTx) ? await maybeTx : maybeTx;
+    async set(values: Record<string, undefined | Val.Struct>, sharedTx?: StorageDriver.Transaction) {
+        const ownTx = sharedTx === undefined;
+        let tx: StorageDriver.Transaction;
+
+        if (ownTx) {
+            const maybeTx = this.storage.begin();
+            tx = MaybePromise.is(maybeTx) ? await maybeTx : maybeTx;
+        } else {
+            tx = sharedTx;
+        }
 
         try {
             const txContext = new StorageContext(tx, this.storage.thisContexts);
@@ -85,9 +95,13 @@ export class EndpointStore {
                 }
             }
 
-            tx.commit();
+            if (ownTx) {
+                tx.commit();
+            }
         } catch (e) {
-            tx[Symbol.dispose]();
+            if (ownTx) {
+                tx![Symbol.dispose]();
+            }
             throw e;
         }
     }
