@@ -153,7 +153,9 @@ export declare namespace AudioOutput {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2
      */
-    export interface OutputInfo {
+    export declare class OutputInfo {
+        constructor(values?: Partial<OutputInfo>);
+
         /**
          * This field shall indicate the unique index into the list of outputs.
          *
@@ -175,7 +177,7 @@ export declare namespace AudioOutput {
          * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2.3
          */
         name: string;
-    }
+    };
 
     /**
      * Upon receipt, this shall change the output on the device to the output at a specific index in the Output List.
@@ -185,7 +187,9 @@ export declare namespace AudioOutput {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
      */
-    export interface SelectOutputRequest {
+    export declare class SelectOutputRequest {
+        constructor(values?: Partial<SelectOutputRequest>);
+
         /**
          * This shall indicate the index field of the OutputInfoStruct from the OutputList attribute in which to change
          * to.
@@ -193,7 +197,7 @@ export declare namespace AudioOutput {
          * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1.1
          */
         index: number;
-    }
+    };
 
     /**
      * Upon receipt, this shall rename the output at a specific index in the Output List.
@@ -203,10 +207,11 @@ export declare namespace AudioOutput {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
      */
-    export interface RenameOutputRequest {
+    export declare class RenameOutputRequest {
+        constructor(values?: Partial<RenameOutputRequest>);
         index: number;
         name: string;
-    }
+    };
 
     /**
      * The type of output, expressed as an enum, with the following values:

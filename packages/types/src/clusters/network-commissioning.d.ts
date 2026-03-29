@@ -653,7 +653,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.5.5
      */
-    export interface NetworkInfo {
+    export declare class NetworkInfo {
+        constructor(values?: Partial<NetworkInfo>);
+
         /**
          * Every network is uniquely identified (for purposes of commissioning) by a NetworkID mapping to the following
          * technology-specific properties:
@@ -690,7 +692,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.5.5.2
          */
         connected: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.9.5.4
@@ -810,7 +812,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.5.2
      */
-    export interface ThreadCapabilities {
+    export declare class ThreadCapabilities {
+        constructor(values?: Partial<ThreadCapabilities> | number);
+
         /**
          * Thread Border Router functionality is present
          */
@@ -835,7 +839,7 @@ export declare namespace NetworkCommissioning {
          * Synchronized sleepy end-device mode is supported
          */
         isSynchronizedSleepyEndDeviceCapable?: boolean;
-    }
+    };
 
     /**
      * This command is used to scan for available networks on the network interface associated with the cluster
@@ -881,7 +885,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.1
      */
-    export interface ScanNetworksRequest {
+    export declare class ScanNetworksRequest {
+        constructor(values?: Partial<ScanNetworksRequest>);
+
         /**
          * This field, if present, shall contain the SSID for a directed scan of that particular Wi-Fi SSID. Otherwise,
          * if the field is absent, or if it is null, this shall indicate scanning of all BSSID in range. This field
@@ -899,7 +905,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.1.2
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * This command is used to report the results of a ScanNetworks command.
@@ -914,7 +920,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.2
      */
-    export interface ScanNetworksResponse {
+    export declare class ScanNetworksResponse {
+        constructor(values?: Partial<ScanNetworksResponse>);
+
         /**
          * The NetworkingStatus field shall indicate the status of the last scan operation, taking one of these values:
          *
@@ -975,7 +983,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.2.4
          */
         threadScanResults?: ThreadInterfaceScanResult[];
-    }
+    };
 
     /**
      * This command is used to remove a network configuration on the network interface associated with the cluster
@@ -996,7 +1004,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.6
      */
-    export interface RemoveNetworkRequest {
+    export declare class RemoveNetworkRequest {
+        constructor(values?: Partial<RemoveNetworkRequest>);
+
         /**
          * This field shall contain the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for Thread.
          *
@@ -1010,7 +1020,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.6.2
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * This command is used to report the results of a network configuration command (AddOrUpdateWiFiNetwork,
@@ -1028,7 +1038,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.7
      */
-    export interface NetworkConfigResponse {
+    export declare class NetworkConfigResponse {
+        constructor(values?: Partial<NetworkConfigResponse>);
+
         /**
          * The NetworkingStatus field shall indicate the status of the last operation attempting to modify the Networks
          * attribute configuration, taking one of these values:
@@ -1062,7 +1074,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.7.3
          */
         networkIndex?: number;
-    }
+    };
 
     /**
      * This command is used to connect to a network on the network interface associated with the cluster instance.
@@ -1143,7 +1155,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.8
      */
-    export interface ConnectNetworkRequest {
+    export declare class ConnectNetworkRequest {
+        constructor(values?: Partial<ConnectNetworkRequest>);
+
         /**
          * This field shall contain the NetworkID for the entry used to configure the connection: the SSID for Wi-Fi and
          * XPAN ID for Thread.
@@ -1158,7 +1172,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.8.2
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * This command is used to report the results of a ConnectNetwork command.
@@ -1175,7 +1189,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.9
      */
-    export interface ConnectNetworkResponse {
+    export declare class ConnectNetworkResponse {
+        constructor(values?: Partial<ConnectNetworkResponse>);
+
         /**
          * The NetworkingStatus field shall indicate the status of the last connection attempt, taking one of these
          * values:
@@ -1231,7 +1247,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.9.3
          */
         errorValue: number | null;
-    }
+    };
 
     /**
      * This command is used to re-order the network configuration list.
@@ -1241,7 +1257,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.10
      */
-    export interface ReorderNetworkRequest {
+    export declare class ReorderNetworkRequest {
+        constructor(values?: Partial<ReorderNetworkRequest>);
+
         /**
          * This field shall contain the NetworkID for the entry to reorder: the SSID for Wi-Fi and XPAN ID for Thread.
          *
@@ -1309,7 +1327,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.10.3
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * This command is used to add or update a Wi-Fi network configuration.
@@ -1330,7 +1348,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.3
      */
-    export interface AddOrUpdateWiFiNetworkRequest {
+    export declare class AddOrUpdateWiFiNetworkRequest {
+        constructor(values?: Partial<AddOrUpdateWiFiNetworkRequest>);
+
         /**
          * This field shall contain the SSID to which to attempt connection. Specific BSSID selection is not supported
          * by this cluster.
@@ -1382,7 +1402,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.3.3
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * This command is used to add or update a Thread network configuration.
@@ -1403,7 +1423,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.7.4
      */
-    export interface AddOrUpdateThreadNetworkRequest {
+    export declare class AddOrUpdateThreadNetworkRequest {
+        constructor(values?: Partial<AddOrUpdateThreadNetworkRequest>);
+
         /**
          * The OperationalDataset field shall contain the Thread Network Parameters, including channel, PAN ID, and
          * Extended PAN ID.
@@ -1422,7 +1444,7 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.7.4.2
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * WiFiSecurityBitmap encodes the supported Wi-Fi security types present in the Security field of the
@@ -1430,7 +1452,9 @@ export declare namespace NetworkCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.5.1
      */
-    export interface WiFiSecurity {
+    export declare class WiFiSecurity {
+        constructor(values?: Partial<WiFiSecurity> | number);
+
         /**
          * Supports unencrypted Wi-Fi
          */
@@ -1455,14 +1479,15 @@ export declare namespace NetworkCommissioning {
          * Supports Wi-Fi using WPA3-Personal security
          */
         wpa3Personal?: boolean;
-    }
+    };
 
     /**
      * WiFiInterfaceScanResultStruct represents a single Wi-Fi network scan result.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.5.6
      */
-    export interface WiFiInterfaceScanResult {
+    export declare class WiFiInterfaceScanResult {
+        constructor(values?: Partial<WiFiInterfaceScanResult>);
         security?: WiFiSecurity;
         ssid?: Bytes;
         bssid?: Bytes;
@@ -1482,14 +1507,15 @@ export declare namespace NetworkCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.9.5.6.2
          */
         rssi?: number;
-    }
+    };
 
     /**
      * ThreadInterfaceScanResultStruct represents a single Thread network scan result.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.9.5.7
      */
-    export interface ThreadInterfaceScanResult {
+    export declare class ThreadInterfaceScanResult {
+        constructor(values?: Partial<ThreadInterfaceScanResult>);
         panId?: number;
         extendedPanId?: number | bigint;
         networkName?: string;
@@ -1505,7 +1531,7 @@ export declare namespace NetworkCommissioning {
 
         rssi?: number;
         lqi?: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

@@ -103,14 +103,16 @@ export declare namespace BooleanState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1
      */
-    export interface StateChangeEvent {
+    export declare class StateChangeEvent {
+        constructor(values?: Partial<StateChangeEvent>);
+
         /**
          * This field shall indicate the new value of the StateValue attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.7.5.1.1
          */
         stateValue: boolean;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

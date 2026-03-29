@@ -2185,7 +2185,9 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2
      */
-    export interface HvacSystemType {
+    export declare class HvacSystemType {
+        constructor(values?: Partial<HvacSystemType> | number);
+
         /**
          * Stage of cooling the HVAC system is using.
          *
@@ -2245,12 +2247,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.2.4
          */
         heatingUsesFuel?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.7
      */
-    export interface RemoteSensing {
+    export declare class RemoteSensing {
+        constructor(values?: Partial<RemoteSensing> | number);
+
         /**
          * Calculated Local Temperature is derived from a remote node
          */
@@ -2265,7 +2269,7 @@ export declare namespace Thermostat {
          * Occupancy is derived from a remote node
          */
         occupancy?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.23
@@ -2285,7 +2289,9 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.5
      */
-    export interface ProgrammingOperationMode {
+    export declare class ProgrammingOperationMode {
+        constructor(values?: Partial<ProgrammingOperationMode> | number);
+
         /**
          * Schedule programming mode. This enables any programmed weekly schedule configurations.
          */
@@ -2300,12 +2306,14 @@ export declare namespace Thermostat {
          * Economy/EnergyStar mode
          */
         economy?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.6
      */
-    export interface RelayState {
+    export declare class RelayState {
+        constructor(values?: Partial<RelayState> | number);
+
         /**
          * Heat Stage On
          */
@@ -2340,7 +2348,7 @@ export declare namespace Thermostat {
          * Fan 3rd Stage On
          */
         fanStage3?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.19
@@ -2445,7 +2453,9 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.1
      */
-    export interface AcErrorCode {
+    export declare class AcErrorCode {
+        constructor(values?: Partial<AcErrorCode> | number);
+
         /**
          * Compressor Failure or Refrigerant Leakage
          */
@@ -2470,7 +2480,7 @@ export declare namespace Thermostat {
          * Fan Failure
          */
         fanFail?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.13
@@ -2515,7 +2525,9 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.3
      */
-    export interface Occupancy {
+    export declare class Occupancy {
+        constructor(values?: Partial<Occupancy> | number);
+
         /**
          * Indicates the occupancy state
          *
@@ -2525,7 +2537,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.3.1
          */
         occupied?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.22
@@ -2563,7 +2575,9 @@ export declare namespace Thermostat {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25
      */
-    export interface PresetType {
+    export declare class PresetType {
+        constructor(values?: Partial<PresetType>);
+
         /**
          * This field shall specify a PresetScenarioEnum value supported by this thermostat.
          *
@@ -2584,12 +2598,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.25.3
          */
         presetTypeFeatures: PresetTypeFeatures;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24
      */
-    export interface Preset {
+    export declare class Preset {
+        constructor(values?: Partial<Preset>);
+
         /**
          * This field shall indicate a device generated identifier for this preset. It shall be unique on the device,
          * and shall NOT be reused after the associated preset has been deleted.
@@ -2641,12 +2657,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.24.6
          */
         builtIn: boolean | null;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29
      */
-    export interface ScheduleType {
+    export declare class ScheduleType {
+        constructor(values?: Partial<ScheduleType>);
+
         /**
          * This field shall specify a SystemModeEnum supported by this thermostat for Schedules. The only valid values
          * for this field shall be Auto, Heat, and Cool.
@@ -2669,12 +2687,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.29.3
          */
         scheduleTypeFeatures: ScheduleTypeFeatures;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27
      */
-    export interface Schedule {
+    export declare class Schedule {
+        constructor(values?: Partial<Schedule>);
+
         /**
          * This field shall indicate a device generated identifier for this schedule. It shall be unique on the device,
          * and shall NOT be reused after the associated schedule has been deleted.
@@ -2747,14 +2767,16 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.27.6
          */
         builtIn: boolean | null;
-    }
+    };
 
     /**
      * This command will raise or lower the setpoint based on the provided values.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1
      */
-    export interface SetpointRaiseLowerRequest {
+    export declare class SetpointRaiseLowerRequest {
+        constructor(values?: Partial<SetpointRaiseLowerRequest>);
+
         /**
          * The field shall specify which setpoints are to be adjusted.
          *
@@ -2769,7 +2791,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.1.2
          */
         amount: number;
-    }
+    };
 
     /**
      * This command is used to update the thermostat weekly setpoint schedule from a management system. If the
@@ -2782,7 +2804,9 @@ export declare namespace Thermostat {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.2
      */
-    export interface SetWeeklyScheduleRequest {
+    export declare class SetWeeklyScheduleRequest {
+        constructor(values?: Partial<SetWeeklyScheduleRequest>);
+
         /**
          * This field shall indicate how many individual transitions to expect for this sequence of commands. If a
          * device supports more than 10 transitions in its schedule they can send this by sending more than 1 “Set
@@ -2836,14 +2860,16 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.2.4
          */
         transitions: WeeklyScheduleTransition[];
-    }
+    };
 
     /**
      * This command will return the weekly schedule for the values provided.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3
      */
-    export interface GetWeeklyScheduleRequest {
+    export declare class GetWeeklyScheduleRequest {
+        constructor(values?: Partial<GetWeeklyScheduleRequest>);
+
         /**
          * This field shall indicate the number of days the client would like to return the setpoint values for and
          * could be any combination of single days or the entire week.
@@ -2859,26 +2885,29 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.3.2
          */
         modeToReturn: ScheduleMode;
-    }
+    };
 
     /**
      * This command has the same payload format as the Set Weekly Schedule.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.4
      */
-    export interface GetWeeklyScheduleResponse {
+    export declare class GetWeeklyScheduleResponse {
+        constructor(values?: Partial<GetWeeklyScheduleResponse>);
         numberOfTransitionsForSequence: number;
         dayOfWeekForSequence: ScheduleDayOfWeek;
         modeForSequence: ScheduleMode;
         transitions: WeeklyScheduleTransition[];
-    }
+    };
 
     /**
      * This command will set the active preset to the provided preset handle.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7
      */
-    export interface SetActivePresetRequest {
+    export declare class SetActivePresetRequest {
+        constructor(values?: Partial<SetActivePresetRequest>);
+
         /**
          * This field shall specify the value of the PresetHandle field on the PresetStruct to be made active. If the
          * field is set to null, that indicates there should be no active preset.
@@ -2886,37 +2915,44 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.7.1
          */
         presetHandle: Bytes | null;
-    }
+    };
 
     /**
      * This command will set the active schedule to the provided schedule handle.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6
      */
-    export interface SetActiveScheduleRequest {
+    export declare class SetActiveScheduleRequest {
+        constructor(values?: Partial<SetActiveScheduleRequest>);
+
         /**
          * This field shall specify the value of the ScheduleHandle field on the ScheduleStruct to be made active.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.10.6.1
          */
         scheduleHandle: Bytes;
-    }
+    };
 
-    export interface AtomicRequest {
+    export declare class AtomicRequest {
+        constructor(values?: Partial<AtomicRequest>);
         requestType: RequestType;
         attributeRequests: AttributeId[];
         timeout?: number;
-    }
-    export interface AtomicResponse {
+    };
+
+    export declare class AtomicResponse {
+        constructor(values?: Partial<AtomicResponse>);
         statusCode: Status;
         attributeStatus: Entry[];
         timeout?: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.4
      */
-    export interface PresetTypeFeatures {
+    export declare class PresetTypeFeatures {
+        constructor(values?: Partial<PresetTypeFeatures> | number);
+
         /**
          * Preset may be automatically activated by the thermostat
          */
@@ -2926,12 +2962,14 @@ export declare namespace Thermostat {
          * Preset supports user-provided names
          */
         supportsNames?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8
      */
-    export interface ScheduleTypeFeatures {
+    export declare class ScheduleTypeFeatures {
+        constructor(values?: Partial<ScheduleTypeFeatures> | number);
+
         /**
          * Supports presets
          *
@@ -2973,12 +3011,14 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.8.4
          */
         supportsOff?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.9
      */
-    export interface ScheduleDayOfWeek {
+    export declare class ScheduleDayOfWeek {
+        constructor(values?: Partial<ScheduleDayOfWeek> | number);
+
         /**
          * Sunday
          */
@@ -3018,12 +3058,14 @@ export declare namespace Thermostat {
          * Away or Vacation
          */
         away?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.10
      */
-    export interface ScheduleMode {
+    export declare class ScheduleMode {
+        constructor(values?: Partial<ScheduleMode> | number);
+
         /**
          * Adjust Heat Setpoint
          */
@@ -3033,7 +3075,7 @@ export declare namespace Thermostat {
          * Adjust Cool Setpoint
          */
         coolSetpointPresent?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.16
@@ -3131,7 +3173,9 @@ export declare namespace Thermostat {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26
      */
-    export interface WeeklyScheduleTransition {
+    export declare class WeeklyScheduleTransition {
+        constructor(values?: Partial<WeeklyScheduleTransition>);
+
         /**
          * This field shall represent the start time of the schedule transition during the associated day. The time will
          * be represented by a 16 bits unsigned integer to designate the minutes since midnight. For example, 6am will
@@ -3154,7 +3198,7 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.26.3
          */
         coolSetpoint: number | null;
-    }
+    };
 
     /**
      * This struct provides a time of day and a set of days of the week for a state transition within a schedule. The
@@ -3218,7 +3262,9 @@ export declare namespace Thermostat {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28
      */
-    export interface ScheduleTransition {
+    export declare class ScheduleTransition {
+        constructor(values?: Partial<ScheduleTransition>);
+
         /**
          * This field shall specify a bitmask of days of the week that the transition applies to. The Vacation bit shall
          * NOT be set; vacation schedules shall be set via the vacation preset.
@@ -3269,17 +3315,18 @@ export declare namespace Thermostat {
          * @see {@link MatterSpecification.v142.Cluster} § 4.3.8.28.6
          */
         heatingSetpoint?: number;
-    }
+    };
 
     export enum RequestType {
         BeginWrite = 0,
         CommitWrite = 1,
         RollbackWrite = 2
     }
-    export interface Entry {
+    export declare class Entry {
+        constructor(values?: Partial<Entry>);
         attributeId: AttributeId;
         statusCode: Status;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

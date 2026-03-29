@@ -264,7 +264,9 @@ export declare namespace ModeSelect {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.2
      */
-    export interface ModeOption {
+    export declare class ModeOption {
+        constructor(values?: Partial<ModeOption>);
+
         /**
          * This field is readable text that describes the mode option that can be used by a client to indicate to the
          * user what this option means. This field is meant to be readable and understandable by the user.
@@ -298,7 +300,7 @@ export declare namespace ModeSelect {
          * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.2.3
          */
         semanticTags: SemanticTag[];
-    }
+    };
 
     /**
      * On receipt of this command, if the NewMode field indicates a valid mode transition within the supported list, the
@@ -307,16 +309,19 @@ export declare namespace ModeSelect {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.9.7.1
      */
-    export interface ChangeToModeRequest {
+    export declare class ChangeToModeRequest {
+        constructor(values?: Partial<ChangeToModeRequest>);
         newMode: number;
-    }
+    };
 
     /**
      * A Semantic Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.1
      */
-    export interface SemanticTag {
+    export declare class SemanticTag {
+        constructor(values?: Partial<SemanticTag>);
+
         /**
          * This field shall indicate a manufacturer code (Vendor ID), and the Value field shall indicate a semantic tag
          * defined by the manufacturer. Each manufacturer code supports a single namespace of values. The same
@@ -335,7 +340,7 @@ export declare namespace ModeSelect {
          * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.1.1
          */
         value: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

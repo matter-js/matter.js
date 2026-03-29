@@ -84,7 +84,9 @@ export declare namespace OtaSoftwareUpdateProvider {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1
      */
-    export interface QueryImageRequest {
+    export declare class QueryImageRequest {
+        constructor(values?: Partial<QueryImageRequest>);
+
         /**
          * The value shall be the Vendor ID applying to the OTA Requestor’s Node and shall match the value reported by
          * the Basic Information Cluster VendorID attribute.
@@ -189,14 +191,16 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.8
          */
         metadataForProvider?: Bytes;
-    }
+    };
 
     /**
      * This command is sent in response to the QueryImage command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2
      */
-    export interface QueryImageResponse {
+    export declare class QueryImageResponse {
+        constructor(values?: Partial<QueryImageResponse>);
+
         /**
          * This field shall contain the primary response regarding the availability of a Software Image.
          *
@@ -388,14 +392,16 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.8
          */
         metadataForRequestor?: Bytes;
-    }
+    };
 
     /**
      * This command requests the specified version be installed on the device.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
      */
-    export interface ApplyUpdateRequest {
+    export declare class ApplyUpdateRequest {
+        constructor(values?: Partial<ApplyUpdateRequest>);
+
         /**
          * This field shall contain the UpdateToken as specified in Section 11.20.3.6.1, “UpdateToken usage”. This field
          * may be used by the OTA Provider to track minimal lifecycle state to allow finer-grained scheduling of the
@@ -434,14 +440,16 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3.2
          */
         newVersion: number;
-    }
+    };
 
     /**
      * This command is sent in response to the ApplyUpdateRequest command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4
      */
-    export interface ApplyUpdateResponse {
+    export declare class ApplyUpdateResponse {
+        constructor(values?: Partial<ApplyUpdateResponse>);
+
         /**
          * The Action field shall express the action that the OTA Provider requests from the OTA Requestor. See Section
          * 11.20.3.6, “Applying a software update” for a description of the Action values provided in response to an OTA
@@ -460,14 +468,16 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4.2
          */
         delayedActionTime: number;
-    }
+    };
 
     /**
      * This command tells the Provider that the specified update has been applied.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
      */
-    export interface NotifyUpdateAppliedRequest {
+    export declare class NotifyUpdateAppliedRequest {
+        constructor(values?: Partial<NotifyUpdateAppliedRequest>);
+
         /**
          * This field shall contain the UpdateToken as specified in Section 11.20.3.6.1, “UpdateToken usage”.
          *
@@ -508,7 +518,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5.2
          */
         softwareVersion: number;
-    }
+    };
 
     /**
      * See Section 11.20.3.2, “Querying the OTA Provider” for the semantics of these values.

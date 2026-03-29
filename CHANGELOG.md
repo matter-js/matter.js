@@ -29,11 +29,14 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
+    - Feature: DoorLockServer is fully implemented except for Aliro features
+    - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands and arbitrary JS values
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
     - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
     - Fix: Try to preserve clusters in the structure even if they are not specified in the serverList of the endpoint but reported data ("Schrödinger's cluster")
+    - Fix: You can now assign bare objects composed of managed values to state properties
 
 - @matter/nodejs-shell
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates

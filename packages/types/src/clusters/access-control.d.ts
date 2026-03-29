@@ -520,7 +520,9 @@ export declare namespace AccessControl {
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.6
      */
-    export interface AccessControlEntry {
+    export declare class AccessControlEntry {
+        constructor(values?: Partial<AccessControlEntry>);
+
         /**
          * The privilege field shall specify the level of privilege granted by this Access Control Entry.
          *
@@ -662,12 +664,14 @@ export declare namespace AccessControl {
         targets: AccessControlTarget[] | null;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.7
      */
-    export interface AccessControlExtension {
+    export declare class AccessControlExtension {
+        constructor(values?: Partial<AccessControlExtension>);
+
         /**
          * This field may be used by manufacturers to store arbitrary TLV-encoded data related to a fabric’s Access
          * Control Entries.
@@ -689,14 +693,16 @@ export declare namespace AccessControl {
         data: Bytes;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This structure describes a current access restriction when there is no accessing fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.10
      */
-    export interface CommissioningAccessRestrictionEntry {
+    export declare class CommissioningAccessRestrictionEntry {
+        constructor(values?: Partial<CommissioningAccessRestrictionEntry>);
+
         /**
          * This field shall indicate the endpoint having associated access restrictions scoped to the associated fabric
          * of the list containing the entry.
@@ -722,14 +728,16 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.5.10.3
          */
         restrictions: AccessRestriction[];
-    }
+    };
 
     /**
      * This structure describes a current access restriction on the fabric.
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.9
      */
-    export interface AccessRestrictionEntry {
+    export declare class AccessRestrictionEntry {
+        constructor(values?: Partial<AccessRestrictionEntry>);
+
         /**
          * This field shall indicate the endpoint having associated access restrictions scoped to the associated fabric
          * of the list containing the entry.
@@ -757,7 +765,7 @@ export declare namespace AccessControl {
         restrictions: AccessRestriction[];
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This command signals to the service associated with the device vendor that the fabric administrator would like a
@@ -779,7 +787,9 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
      */
-    export interface ReviewFabricRestrictionsRequest {
+    export declare class ReviewFabricRestrictionsRequest {
+        constructor(values?: Partial<ReviewFabricRestrictionsRequest>);
+
         /**
          * When the ARL field is provided, it indicates the specific restrictions that are requested for review. An
          * empty list represents a generic request for review of all restrictions.
@@ -787,7 +797,7 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.8.1.1
          */
         arl: CommissioningAccessRestrictionEntry[];
-    }
+    };
 
     /**
      * Returns the review token for the request, which can be used to correlate with a FabricRestrictionReviewUpdate
@@ -795,7 +805,9 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.8.2
      */
-    export interface ReviewFabricRestrictionsResponse {
+    export declare class ReviewFabricRestrictionsResponse {
+        constructor(values?: Partial<ReviewFabricRestrictionsResponse>);
+
         /**
          * This field shall specify a Token that can be used to correlate a ReviewFabricRestrictionsResponse with a
          * FabricRestrictionReviewUpdate event.
@@ -803,7 +815,7 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.8.2.1
          */
         token: number | bigint;
-    }
+    };
 
     /**
      * The server shall generate AccessControlEntryChanged events whenever its ACL attribute data is changed by an
@@ -817,7 +829,9 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.9.1
      */
-    export interface AccessControlEntryChangedEvent {
+    export declare class AccessControlEntryChangedEvent {
+        constructor(values?: Partial<AccessControlEntryChangedEvent>);
+
         /**
          * The Node ID of the Administrator that made the change, if the change occurred via a CASE session.
          *
@@ -857,7 +871,7 @@ export declare namespace AccessControl {
         latestValue: AccessControlEntry | null;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * The server shall generate AccessControlExtensionChanged events whenever its extension attribute data is changed
@@ -871,7 +885,9 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.9.2
      */
-    export interface AccessControlExtensionChangedEvent {
+    export declare class AccessControlExtensionChangedEvent {
+        constructor(values?: Partial<AccessControlExtensionChangedEvent>);
+
         /**
          * The Node ID of the Administrator that made the change, if the change occurred via a CASE session.
          *
@@ -911,7 +927,7 @@ export declare namespace AccessControl {
         latestValue: AccessControlExtension | null;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * The server shall generate a FabricRestrictionReviewUpdate event to indicate completion of a fabric restriction
@@ -921,7 +937,9 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
      */
-    export interface FabricRestrictionReviewUpdateEvent {
+    export declare class FabricRestrictionReviewUpdateEvent {
+        constructor(values?: Partial<FabricRestrictionReviewUpdateEvent>);
+
         /**
          * This field shall indicate the Token that can be used to correlate a ReviewFabricRestrictionsResponse with a
          * FabricRestrictionReviewUpdate event.
@@ -1110,7 +1128,7 @@ export declare namespace AccessControl {
         arlRequestFlowUrl?: string;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.1
@@ -1222,11 +1240,12 @@ export declare namespace AccessControl {
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.5
      */
-    export interface AccessControlTarget {
+    export declare class AccessControlTarget {
+        constructor(values?: Partial<AccessControlTarget>);
         cluster: ClusterId | null;
         endpoint: EndpointNumber | null;
         deviceType: DeviceTypeId | null;
-    }
+    };
 
     /**
      * This structure describes an access restriction that would be applied to a specific data model element on a given
@@ -1234,7 +1253,9 @@ export declare namespace AccessControl {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.8
      */
-    export interface AccessRestriction {
+    export declare class AccessRestriction {
+        constructor(values?: Partial<AccessRestriction>);
+
         /**
          * This field shall indicate the type of restriction, for example, AttributeAccessForbidden.
          *
@@ -1256,7 +1277,7 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.5.8.2
          */
         id: number | null;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

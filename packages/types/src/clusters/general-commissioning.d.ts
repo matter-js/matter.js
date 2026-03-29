@@ -694,7 +694,9 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.5.4
      */
-    export interface BasicCommissioningInfo {
+    export declare class BasicCommissioningInfo {
+        constructor(values?: Partial<BasicCommissioningInfo>);
+
         /**
          * This field shall contain a conservative initial duration (in seconds) to set in the FailSafe for the
          * commissioning flow to complete successfully. This may vary depending on the speed or sleepiness of the
@@ -717,7 +719,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.10.5.4.2
          */
         maxCumulativeFailsafeSeconds: number;
-    }
+    };
 
     /**
      * This enumeration is used by the RegulatoryConfig and LocationCapability attributes to indicate possible radio
@@ -890,17 +892,20 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
      */
-    export interface ArmFailSafeRequest {
+    export declare class ArmFailSafeRequest {
+        constructor(values?: Partial<ArmFailSafeRequest>);
         expiryLengthSeconds: number;
         breadcrumb: number | bigint;
-    }
+    };
 
     /**
      * This command is used to report the result of the ArmFailSafe command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.3
      */
-    export interface ArmFailSafeResponse {
+    export declare class ArmFailSafeResponse {
+        constructor(values?: Partial<ArmFailSafeResponse>);
+
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the ArmFailSafe command.
@@ -915,7 +920,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.10.7.3.2
          */
         debugText: string;
-    }
+    };
 
     /**
      * This command is used to set the regulatory configuration for the device.
@@ -951,18 +956,21 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
      */
-    export interface SetRegulatoryConfigRequest {
+    export declare class SetRegulatoryConfigRequest {
+        constructor(values?: Partial<SetRegulatoryConfigRequest>);
         newRegulatoryConfig: RegulatoryLocationType;
         countryCode: string;
         breadcrumb: number | bigint;
-    }
+    };
 
     /**
      * This command is used to report the result of the SetRegulatoryConfig command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.5
      */
-    export interface SetRegulatoryConfigResponse {
+    export declare class SetRegulatoryConfigResponse {
+        constructor(values?: Partial<SetRegulatoryConfigResponse>);
+
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the SetRegulatoryConfig command.
@@ -977,14 +985,16 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.10.7.5.2
          */
         debugText: string;
-    }
+    };
 
     /**
      * This command is used to report the result of the CommissioningComplete command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.7
      */
-    export interface CommissioningCompleteResponse {
+    export declare class CommissioningCompleteResponse {
+        constructor(values?: Partial<CommissioningCompleteResponse>);
+
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the CommissioningComplete command.
@@ -999,7 +1009,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.10.7.7.2
          */
         debugText: string;
-    }
+    };
 
     /**
      * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions into
@@ -1007,7 +1017,9 @@ export declare namespace GeneralCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
      */
-    export interface SetTcAcknowledgementsRequest {
+    export declare class SetTcAcknowledgementsRequest {
+        constructor(values?: Partial<SetTcAcknowledgementsRequest>);
+
         /**
          * This field shall contain the version of the Enhanced Setup Flow Terms & Conditions that were presented to the
          * user.
@@ -1041,14 +1053,16 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.10.7.8.2
          */
         tcUserResponse: number;
-    }
+    };
 
     /**
      * This command is used to report the result of the SetTCAcknowledgements command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.10.7.9
      */
-    export interface SetTcAcknowledgementsResponse {
+    export declare class SetTcAcknowledgementsResponse {
+        constructor(values?: Partial<SetTcAcknowledgementsResponse>);
+
         /**
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the SetTCAcknowledgements command.
@@ -1056,7 +1070,7 @@ export declare namespace GeneralCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.10.7.9.1
          */
         errorCode: CommissioningError;
-    }
+    };
 
     /**
      * This enumeration is used by several response commands in this cluster to indicate particular errors.

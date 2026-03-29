@@ -178,7 +178,9 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.2
      */
-    export interface IcaccsrResponse {
+    export declare class IcaccsrResponse {
+        constructor(values?: Partial<IcaccsrResponse>);
+
         /**
          * This field shall be a DER-encoded octet string of a properly encoded PKCS #10 Certificate Signing Request
          * (CSR).
@@ -186,7 +188,7 @@ export declare namespace JointFabricAdministrator {
          * @see {@link MatterSpecification.v142.Core} § 11.25.7.2.1
          */
         icaccsr: Bytes;
-    }
+    };
 
     /**
      * This command shall be generated and executed during Joint Commissioning Method and subsequently be responded in
@@ -202,7 +204,9 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.3
      */
-    export interface AddIcacRequest {
+    export declare class AddIcacRequest {
+        constructor(values?: Partial<AddIcacRequest>);
+
         /**
          * This field shall contain an ICAC encoded using Matter Certificate Encoding.
          *
@@ -239,21 +243,23 @@ export declare namespace JointFabricAdministrator {
          * @see {@link MatterSpecification.v142.Core} § 11.25.7.3.1
          */
         icacValue: Bytes;
-    }
+    };
 
     /**
      * This command shall be generated in response to the AddICAC command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.4
      */
-    export interface IcacResponse {
+    export declare class IcacResponse {
+        constructor(values?: Partial<IcacResponse>);
+
         /**
          * This field shall contain an ICACResponseStatusEnum value representing the status of the AddICAC operation.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.25.7.4.1
          */
         statusCode: IcacResponseStatus;
-    }
+    };
 
     /**
      * > [!NOTE]
@@ -268,22 +274,24 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.5
      */
-    export interface OpenJointCommissioningWindowRequest {
+    export declare class OpenJointCommissioningWindowRequest {
+        constructor(values?: Partial<OpenJointCommissioningWindowRequest>);
         commissioningTimeout: number;
         pakePasscodeVerifier: Bytes;
         discriminator: number;
         iterations: number;
         salt: Bytes;
-    }
+    };
 
     /**
      * This command shall be generated in response to the Transfer Anchor Request command.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.7
      */
-    export interface TransferAnchorResponse {
+    export declare class TransferAnchorResponse {
+        constructor(values?: Partial<TransferAnchorResponse>);
         statusCode: TransferAnchorResponseStatus;
-    }
+    };
 
     /**
      * This command shall be used for communicating to client the endpoint that holds the Joint Fabric Administrator
@@ -294,9 +302,10 @@ export declare namespace JointFabricAdministrator {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.25.7.9
      */
-    export interface AnnounceJointFabricAdministratorRequest {
+    export declare class AnnounceJointFabricAdministratorRequest {
+        constructor(values?: Partial<AnnounceJointFabricAdministratorRequest>);
         endpointId: EndpointNumber;
-    }
+    };
 
     /**
      * This enumeration is used by the AddICAC command to convey the outcome of this cluster’s operations.

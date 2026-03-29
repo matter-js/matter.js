@@ -125,7 +125,9 @@ export declare namespace DishwasherMode {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 8.3.5.1
      */
-    export interface ModeOption {
+    export declare class ModeOption {
+        constructor(values?: Partial<ModeOption>);
+
         /**
          * This field shall indicate readable text that describes the mode option, so that a client can provide it to
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
@@ -181,7 +183,7 @@ export declare namespace DishwasherMode {
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
-    }
+    };
 
     export enum ModeTag {
         /**
@@ -261,7 +263,9 @@ export declare namespace DishwasherMode {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
-    export interface ModeTagStruct {
+    export declare class ModeTagStruct {
+        constructor(values?: Partial<ModeTagStruct>);
+
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
          * 1.10.8, “Mode Namespace”).
@@ -284,7 +288,7 @@ export declare namespace DishwasherMode {
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

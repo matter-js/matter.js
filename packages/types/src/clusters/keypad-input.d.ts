@@ -126,28 +126,32 @@ export declare namespace KeypadInput {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
      */
-    export interface SendKeyRequest {
+    export declare class SendKeyRequest {
+        constructor(values?: Partial<SendKeyRequest>);
+
         /**
          * This field shall indicate the key code to process.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1.1
          */
         keyCode: CecKeyCode;
-    }
+    };
 
     /**
      * This command shall be generated in response to a SendKey command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2
      */
-    export interface SendKeyResponse {
+    export declare class SendKeyResponse {
+        constructor(values?: Partial<SendKeyResponse>);
+
         /**
          * This field shall indicate the status of the request.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2.1
          */
         status: Status;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1

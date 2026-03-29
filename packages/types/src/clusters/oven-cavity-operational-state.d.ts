@@ -324,7 +324,9 @@ export declare namespace OvenCavityOperationalState {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 8.10.5
      */
-    export interface OperationalCommandResponse {
+    export declare class OperationalCommandResponse {
+        constructor(values?: Partial<OperationalCommandResponse>);
+
         /**
          * This shall indicate the success or otherwise of the attempted command invocation. On a successful invocation
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
@@ -333,7 +335,7 @@ export declare namespace OvenCavityOperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
          */
         commandResponseState: OperationalState.ErrorStateStruct;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

@@ -981,7 +981,9 @@ export declare namespace DeviceEnergyManagement {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.11
      */
-    export interface PowerAdjustCapability {
+    export declare class PowerAdjustCapability {
+        constructor(values?: Partial<PowerAdjustCapability>);
+
         /**
          * This field shall indicate how the ESA can be adjusted at the current time.
          *
@@ -1003,7 +1005,7 @@ export declare namespace DeviceEnergyManagement {
         powerAdjustCapability: PowerAdjust[] | null;
 
         cause: PowerAdjustReason;
-    }
+    };
 
     /**
      * This indicates a list of 'slots' describing the overall timing of the ESA’s planned energy and power use, with
@@ -1015,7 +1017,9 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13
      */
-    export interface Forecast {
+    export declare class Forecast {
+        constructor(values?: Partial<Forecast>);
+
         /**
          * This field shall indicate the sequence number for the current forecast. If the ESA updates a forecast, it
          * shall monotonically increase this value.
@@ -1095,7 +1099,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.13.9
          */
         forecastUpdateReason: ForecastUpdateReason;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.4
@@ -1127,7 +1131,9 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1
      */
-    export interface PowerAdjustRequest {
+    export declare class PowerAdjustRequest {
+        constructor(values?: Partial<PowerAdjustRequest>);
+
         /**
          * This field shall indicate the power that the ESA shall use during the adjustment period.
          *
@@ -1154,14 +1160,16 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.1.3
          */
         cause: AdjustmentCause;
-    }
+    };
 
     /**
      * Allows a client to temporarily pause an operation and reduce the ESAs energy demand.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4
      */
-    export interface PauseRequest {
+    export declare class PauseRequest {
+        constructor(values?: Partial<PauseRequest>);
+
         /**
          * This field shall indicate the duration that the ESA shall be paused for. This value shall be between the
          * MinPauseDuration and MaxPauseDuration indicated in the ActiveSlotNumber index in the Slots list in the
@@ -1177,7 +1185,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.4.2
          */
         cause: AdjustmentCause;
-    }
+    };
 
     /**
      * Allows a client to adjust the start time of a Forecast sequence that has not yet started operation (i.e. where
@@ -1185,7 +1193,9 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3
      */
-    export interface StartTimeAdjustRequest {
+    export declare class StartTimeAdjustRequest {
+        constructor(values?: Partial<StartTimeAdjustRequest>);
+
         /**
          * This field shall indicate the requested start time, in UTC, that the client would like the appliance to shift
          * its Forecast to. This value shall be in the future.
@@ -1206,14 +1216,16 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.3.2
          */
         cause: AdjustmentCause;
-    }
+    };
 
     /**
      * Allows a client to modify a Forecast within the limits allowed by the ESA.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6
      */
-    export interface ModifyForecastRequest {
+    export declare class ModifyForecastRequest {
+        constructor(values?: Partial<ModifyForecastRequest>);
+
         /**
          * This field shall indicate the ForecastID that is to be modified.
          *
@@ -1235,14 +1247,16 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.6.3
          */
         cause: AdjustmentCause;
-    }
+    };
 
     /**
      * Allows a client to ask the ESA to recompute its Forecast based on power and time constraints.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7
      */
-    export interface RequestConstraintBasedForecastRequest {
+    export declare class RequestConstraintBasedForecastRequest {
+        constructor(values?: Partial<RequestConstraintBasedForecastRequest>);
+
         /**
          * This field shall indicate the series of turn up or turn down power requests that the ESA is being asked to
          * constrain its operation within. These requests shall be in the future, shall be in chronological order,
@@ -1268,14 +1282,16 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.9.7.2
          */
         cause: AdjustmentCause;
-    }
+    };
 
     /**
      * This event shall be generated when the Power Adjustment session ends.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2
      */
-    export interface PowerAdjustEndEvent {
+    export declare class PowerAdjustEndEvent {
+        constructor(values?: Partial<PowerAdjustEndEvent>);
+
         /**
          * This field shall indicate the reason why the power adjustment session ended.
          *
@@ -1300,21 +1316,23 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.2.3
          */
         energyUse: number | bigint;
-    }
+    };
 
     /**
      * This event shall be generated when the ESA leaves the Paused state and resumes operation.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4
      */
-    export interface ResumedEvent {
+    export declare class ResumedEvent {
+        constructor(values?: Partial<ResumedEvent>);
+
         /**
          * This field shall indicate the reason why the pause ended.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.10.4.1
          */
         cause: Cause;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.1
@@ -1455,7 +1473,9 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9
      */
-    export interface Cost {
+    export declare class Cost {
+        constructor(values?: Partial<Cost>);
+
         /**
          * This field shall indicate the type of cost being represented (see CostTypeEnum).
          *
@@ -1490,12 +1510,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.9.4
          */
         currency?: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10
      */
-    export interface PowerAdjust {
+    export declare class PowerAdjust {
+        constructor(values?: Partial<PowerAdjust>);
+
         /**
          * This field shall indicate the minimum power that the ESA can have its power adjusted to.
          *
@@ -1543,14 +1565,16 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.10.4
          */
         maxDuration: number;
-    }
+    };
 
     /**
      * This indicates a specific stage of an ESA’s operation.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14
      */
-    export interface Slot {
+    export declare class Slot {
+        constructor(values?: Partial<Slot>);
+
         /**
          * This field shall indicate the minimum time (in seconds) that the appliance expects to be in this slot for.
          *
@@ -1761,12 +1785,14 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.14.18
          */
         maxDurationAdjustment?: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15
      */
-    export interface SlotAdjustment {
+    export declare class SlotAdjustment {
+        constructor(values?: Partial<SlotAdjustment>);
+
         /**
          * This field shall indicate the index into the Slots list within the Forecast that is to be modified. It shall
          * be less than the actual length of the Slots list (implicitly it must be in the range 0 to 9 based on the
@@ -1796,7 +1822,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.15.3
          */
         duration: number;
-    }
+    };
 
     /**
      * The ConstraintsStruct allows a client to inform an ESA about a constraint period (such as a grid event, or
@@ -1805,7 +1831,9 @@ export declare namespace DeviceEnergyManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16
      */
-    export interface Constraints {
+    export declare class Constraints {
+        constructor(values?: Partial<Constraints>);
+
         /**
          * This field shall indicate the start time of the constraint period that the client wishes the ESA to compute a
          * new Forecast.
@@ -1857,7 +1885,7 @@ export declare namespace DeviceEnergyManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.2.7.16.5
          */
         loadControl?: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

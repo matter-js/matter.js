@@ -542,7 +542,9 @@ export declare namespace LevelControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.1
      */
-    export interface Options {
+    export declare class Options {
+        constructor(values?: Partial<Options> | number);
+
         /**
          * Dependency on On/Off cluster
          *
@@ -560,26 +562,29 @@ export declare namespace LevelControl {
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.1.2
          */
         coupleColorTempToLevel?: boolean;
-    }
+    };
 
     /**
      * This command will move the device to the specified level.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
      */
-    export interface MoveToLevelRequest {
+    export declare class MoveToLevelRequest {
+        constructor(values?: Partial<MoveToLevelRequest>);
         level: number;
         transitionTime: number | null;
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device using the specified values.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
      */
-    export interface MoveRequest {
+    export declare class MoveRequest {
+        constructor(values?: Partial<MoveRequest>);
+
         /**
          * This field shall be one of the non-reserved values in MoveModeEnum.
          *
@@ -600,14 +605,16 @@ export declare namespace LevelControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will do a relative step change of the device using the specified values.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
      */
-    export interface StepRequest {
+    export declare class StepRequest {
+        constructor(values?: Partial<StepRequest>);
+
         /**
          * This field shall be one of the non-reserved values in StepModeEnum.
          *
@@ -635,26 +642,28 @@ export declare namespace LevelControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will stop the actions of various other commands that are still in progress.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
      */
-    export interface StopRequest {
+    export declare class StopRequest {
+        constructor(values?: Partial<StopRequest>);
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will cause the device to change the current frequency to the requested value.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
      */
-    export interface MoveToClosestFrequencyRequest {
+    export declare class MoveToClosestFrequencyRequest {
+        constructor(values?: Partial<MoveToClosestFrequencyRequest>);
         frequency: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.2

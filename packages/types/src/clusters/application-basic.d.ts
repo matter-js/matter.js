@@ -186,7 +186,9 @@ export declare namespace ApplicationBasic {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.2
      */
-    export interface Application {
+    export declare class Application {
+        constructor(values?: Partial<Application>);
+
         /**
          * This field shall indicate the Connectivity Standards Alliance issued vendor ID for the catalog. The DIAL
          * registry shall use value 0x0000.
@@ -208,7 +210,7 @@ export declare namespace ApplicationBasic {
          * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.2.2
          */
         applicationId: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.3.4.1

@@ -49,7 +49,7 @@ export function createConstraintValidator(
     }
 
     return (value, session, location) => {
-        const cfg = location.config?.config;
+        const cfg = location.config?.supervision;
         if (cfg?.validate === false || cfg?.constraint === false) {
             return;
         }

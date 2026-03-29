@@ -251,7 +251,9 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.5
      */
-    export interface Message {
+    export declare class Message {
+        constructor(values?: Partial<Message>);
+
         /**
          * This field shall indicate a globally unique ID for this message.
          *
@@ -310,7 +312,7 @@ export declare namespace Messages {
         responses?: MessageResponseOption[];
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * Upon receipt, this shall cause the message in the passed fields to be appended to the Messages attribute.
@@ -335,7 +337,9 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1
      */
-    export interface PresentMessagesRequest {
+    export declare class PresentMessagesRequest {
+        constructor(values?: Partial<PresentMessagesRequest>);
+
         /**
          * This field shall indicate a globally unique ID for this message. See MessageID.
          *
@@ -394,14 +398,16 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.1.7
          */
         responses?: MessageResponseOption[];
-    }
+    };
 
     /**
      * This command will cancel the message IDs specified.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2
      */
-    export interface CancelMessagesRequest {
+    export declare class CancelMessagesRequest {
+        constructor(values?: Partial<CancelMessagesRequest>);
+
         /**
          * This field shall indicate the MessageIDs for the messages being cancelled.
          *
@@ -414,14 +420,16 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.7.2.1
          */
         messageIDs: Bytes[];
-    }
+    };
 
     /**
      * This event shall be generated when a message is added to the messages attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.1
      */
-    export interface MessageQueuedEvent {
+    export declare class MessageQueuedEvent {
+        constructor(values?: Partial<MessageQueuedEvent>);
+
         /**
          * This field shall indicate the MessageID for newly added message.
          *
@@ -430,14 +438,16 @@ export declare namespace Messages {
         messageId: Bytes;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This event shall be generated when the message is presented to the user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.2
      */
-    export interface MessagePresentedEvent {
+    export declare class MessagePresentedEvent {
+        constructor(values?: Partial<MessagePresentedEvent>);
+
         /**
          * This field shall indicate the MessageID for the message being presented.
          *
@@ -446,7 +456,7 @@ export declare namespace Messages {
         messageId: Bytes;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This event shall be generated when the message is confirmed by the user, or when the Duration field of the
@@ -454,7 +464,9 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.8.3
      */
-    export interface MessageCompleteEvent {
+    export declare class MessageCompleteEvent {
+        constructor(values?: Partial<MessageCompleteEvent>);
+
         /**
          * This field shall indicate the MessageID for the message being confirmed.
          *
@@ -480,14 +492,16 @@ export declare namespace Messages {
 
         futureMessagesPreference: FutureMessagePreference | null;
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This data type is derived from map16, and indicates control information related to a message.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2
      */
-    export interface MessageControl {
+    export declare class MessageControl {
+        constructor(values?: Partial<MessageControl> | number);
+
         /**
          * Message requires confirmation from user
          *
@@ -537,7 +551,7 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.2.5
          */
         messageProtected?: boolean;
-    }
+    };
 
     /**
      * A display device may include this preference in the MessageComplete event as a hint to clients about how to
@@ -605,7 +619,9 @@ export declare namespace Messages {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6
      */
-    export interface MessageResponseOption {
+    export declare class MessageResponseOption {
+        constructor(values?: Partial<MessageResponseOption>);
+
         /**
          * This field shall indicate a unique unsigned 32-bit number identifier for this message response option.
          *
@@ -619,7 +635,7 @@ export declare namespace Messages {
          * @see {@link MatterSpecification.v142.Cluster} § 1.16.5.6.2
          */
         label: string;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

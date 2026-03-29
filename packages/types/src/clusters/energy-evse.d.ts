@@ -1155,7 +1155,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2
      */
-    export interface EnableChargingRequest {
+    export declare class EnableChargingRequest {
+        constructor(values?: Partial<EnableChargingRequest>);
+
         /**
          * This field shall indicate the expiry time, in UTC, when charging will be automatically disabled.
          *
@@ -1188,7 +1190,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.2.3
          */
         maximumChargeCurrent: number | bigint;
-    }
+    };
 
     /**
      * Upon receipt, this shall allow a client to enable the discharge of an EV, and to provide or update the maximum
@@ -1196,7 +1198,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.3
      */
-    export interface EnableDischargingRequest {
+    export declare class EnableDischargingRequest {
+        constructor(values?: Partial<EnableDischargingRequest>);
+
         /**
          * This field shall indicate the expiry time, in UTC, when discharging will be automatically disabled.
          *
@@ -1215,14 +1219,16 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.3.2
          */
         maximumDischargeCurrent: number | bigint;
-    }
+    };
 
     /**
      * Allows a client to set the user specified charging targets.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.5
      */
-    export interface SetTargetsRequest {
+    export declare class SetTargetsRequest {
+        constructor(values?: Partial<SetTargetsRequest>);
+
         /**
          * This field shall indicate a list of up to 7 sets of daily charging targets together with their associated
          * days of the week. Each of the days of the week may only be included in a single ChargingTargetSchedule within
@@ -1231,14 +1237,16 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.5.1
          */
         chargingTargetSchedules: ChargingTargetSchedule[];
-    }
+    };
 
     /**
      * The GetTargetsResponse is sent in response to the GetTargets Command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.7
      */
-    export interface GetTargetsResponse {
+    export declare class GetTargetsResponse {
+        constructor(values?: Partial<GetTargetsResponse>);
+
         /**
          * This field shall indicate a list of up to 7 sets of daily charging targets together with their associated
          * days of the week.
@@ -1246,21 +1254,23 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.9.7.1
          */
         chargingTargetSchedules: ChargingTargetSchedule[];
-    }
+    };
 
     /**
      * This event shall be generated when the EV is plugged in.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.1
      */
-    export interface EvConnectedEvent {
+    export declare class EvConnectedEvent {
+        constructor(values?: Partial<EvConnectedEvent>);
+
         /**
          * This is the new session ID created after the vehicle is plugged in.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.1.1
          */
         sessionId: number;
-    }
+    };
 
     /**
      * This event shall be generated when the EV is unplugged or not detected (having been previously plugged in). When
@@ -1268,7 +1278,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2
      */
-    export interface EvNotDetectedEvent {
+    export declare class EvNotDetectedEvent {
+        constructor(values?: Partial<EvNotDetectedEvent>);
+
         /**
          * This field shall indicate the current value of the SessionID attribute.
          *
@@ -1311,7 +1323,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.2.5
          */
         sessionEnergyDischarged?: number | bigint;
-    }
+    };
 
     /**
      * This event shall be generated whenever the EV starts charging or discharging, except when an EV has switched
@@ -1320,7 +1332,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3
      */
-    export interface EnergyTransferStartedEvent {
+    export declare class EnergyTransferStartedEvent {
+        constructor(values?: Partial<EnergyTransferStartedEvent>);
+
         /**
          * This field shall indicate the value of the SessionID attribute at the time the event was generated.
          *
@@ -1355,7 +1369,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.3.4
          */
         maximumDischargeCurrent?: number | bigint;
-    }
+    };
 
     /**
      * This event shall be generated whenever the EV stops charging or discharging, except when an EV has switched
@@ -1364,7 +1378,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4
      */
-    export interface EnergyTransferStoppedEvent {
+    export declare class EnergyTransferStoppedEvent {
+        constructor(values?: Partial<EnergyTransferStoppedEvent>);
+
         /**
          * This field shall indicate the value of the SessionID attribute prior to the energy transfer stopping.
          *
@@ -1401,7 +1417,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.4.5
          */
         energyDischarged?: number | bigint;
-    }
+    };
 
     /**
      * If the EVSE detects a fault it shall generate a Fault Event. The SupplyState attribute shall be set to
@@ -1416,7 +1432,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5
      */
-    export interface FaultEvent {
+    export declare class FaultEvent {
+        constructor(values?: Partial<FaultEvent>);
+
         /**
          * This field shall indicate the value of the SessionID attribute prior to the Fault State being changed. A
          * value of null indicates no sessions have occurred before the fault occurred.
@@ -1445,7 +1463,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.5.4
          */
         faultStateCurrentState: FaultState;
-    }
+    };
 
     /**
      * This event shall be generated when a RFID card has been read. This allows a controller to register the card ID
@@ -1453,19 +1471,23 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.6
      */
-    export interface RfidEvent {
+    export declare class RfidEvent {
+        constructor(values?: Partial<RfidEvent>);
+
         /**
          * The UID field (ISO 14443A UID) is either 4, 7 or 10 bytes.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.10.6.1
          */
         uid: Bytes;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.1
      */
-    export interface TargetDayOfWeek {
+    export declare class TargetDayOfWeek {
+        constructor(values?: Partial<TargetDayOfWeek> | number);
+
         /**
          * Sunday
          */
@@ -1500,7 +1522,7 @@ export declare namespace EnergyEvse {
          * Saturday
          */
         saturday?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.5
@@ -1539,7 +1561,9 @@ export declare namespace EnergyEvse {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6
      */
-    export interface ChargingTarget {
+    export declare class ChargingTarget {
+        constructor(values?: Partial<ChargingTarget>);
+
         /**
          * This field shall indicate the desired charging completion time of the associated day. The time will be
          * represented by a 16 bits unsigned integer to designate the minutes since midnight. For example, 6am will be
@@ -1616,14 +1640,16 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.6.3
          */
         addedEnergy?: number | bigint;
-    }
+    };
 
     /**
      * This represents a set of user specified charging targets for an EV for a set of specified days.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.7
      */
-    export interface ChargingTargetSchedule {
+    export declare class ChargingTargetSchedule {
+        constructor(values?: Partial<ChargingTargetSchedule>);
+
         /**
          * This field shall indicate the days of the week that the charging targets SHOULD be associated to. This field
          * is a bitmap and therefore the associated targets could be applied to multiple days.
@@ -1638,7 +1664,7 @@ export declare namespace EnergyEvse {
          * @see {@link MatterSpecification.v142.Cluster} § 9.3.7.9
          */
         chargingTargets: ChargingTarget[];
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

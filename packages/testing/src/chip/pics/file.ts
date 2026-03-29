@@ -9,9 +9,9 @@ import { PicsValues } from "./values.js";
 /**
  * In-memory Matter PICS file.
  *
- * Supports extended syntax for defining ranges of values of the form "NAMExx..yy=*" where xx and yy are hexadecimal
- * numbers specifying the start and end of a range (inclusive).  These are expanded in {@link patch} which modifies the
- * values in the target PICS file with values from another PICS file.
+ * Supports extended syntax for defining ranges of values of the form "NAMExx..yy=*" or "NAMExx..yy.SUFFIX=*" where xx
+ * and yy are hexadecimal numbers specifying the start and end of a range (inclusive).  These are expanded in
+ * {@link patch} which modifies the values in the target PICS file with values from another PICS file.
  *
  * Note that we sometimes use ".properties" extension for PICS files so we get syntax highlighting, but PICS only
  * supports a subset of the actual Java properties file format.
@@ -110,15 +110,20 @@ function parseLine(line: string, values: PicsValues): boolean {
             return false;
     }
 
-    const rangeMatch = key.match(/^(\S+)\.\.([\da-f]+)$/i);
-    if (!rangeMatch) {
+    const dotdot = key.indexOf("..");
+    if (dotdot === -1) {
         values[key] = value;
         return true;
     }
 
-    const [, base, rangeTo] = rangeMatch;
+    const base = key.slice(0, dotdot);
+    const rest = key.slice(dotdot + 2);
+    const suffixDot = rest.indexOf(".");
+    const rangeTo = suffixDot === -1 ? rest : rest.slice(0, suffixDot);
+    const suffix = suffixDot === -1 ? "" : rest.slice(suffixDot);
     const rangePrefix = base.slice(0, base.length - rangeTo.length);
     const rangeFrom = base.slice(rangePrefix.length);
+    const rangeSuffix = suffix;
 
     const rangeFromNum = Number.parseInt(rangeFrom, 16);
     if (!Number.isFinite(rangeFromNum)) {
@@ -135,7 +140,7 @@ function parseLine(line: string, values: PicsValues): boolean {
     }
 
     for (let i = rangeFromNum; i <= rangeToNum; i++) {
-        values[rangePrefix + i.toString().padStart(rangeTo.length, "0")] = value;
+        values[rangePrefix + i.toString(16).padStart(rangeTo.length, "0") + rangeSuffix] = value;
     }
 
     return true;

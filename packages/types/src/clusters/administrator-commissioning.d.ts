@@ -334,7 +334,9 @@ export declare namespace AdministratorCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.19.8.1
      */
-    export interface OpenCommissioningWindowRequest {
+    export declare class OpenCommissioningWindowRequest {
+        constructor(values?: Partial<OpenCommissioningWindowRequest>);
+
         /**
          * This field shall specify the time in seconds during which commissioning session establishment is allowed by
          * the Node. This timeout value shall follow guidance as specified in the initial Section 5.4.2.3, “Announcement
@@ -400,7 +402,7 @@ export declare namespace AdministratorCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.19.8.1.5
          */
         salt: Bytes;
-    }
+    };
 
     /**
      * This command may be used by a current Administrator to instruct a Node to go into commissioning mode, if the node
@@ -423,7 +425,9 @@ export declare namespace AdministratorCommissioning {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.19.8.2
      */
-    export interface OpenBasicCommissioningWindowRequest {
+    export declare class OpenBasicCommissioningWindowRequest {
+        constructor(values?: Partial<OpenBasicCommissioningWindowRequest>);
+
         /**
          * This field shall specify the time in seconds during which commissioning session establishment is allowed by
          * the Node. This timeout shall follow guidance as specified in the initial Section 5.4.2.3, “Announcement
@@ -441,7 +445,7 @@ export declare namespace AdministratorCommissioning {
          * @see {@link MatterSpecification.v142.Core} § 11.19.8.2.1
          */
         commissioningTimeout: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.19.6.1

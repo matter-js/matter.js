@@ -6,9 +6,8 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
-import { CommissionableDevice, DiscoveryData } from "#common/Scanner.js";
+import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
-import { MdnsClient } from "#mdns/MdnsClient.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { CommissioningError, PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import {
@@ -315,7 +314,7 @@ export class ControllerCommissioner {
     ): Promise<NodeSession> {
         let paseChannel: Channel<Bytes>;
         if (device !== undefined) {
-            logger.info(`Establish PASE to device`, MdnsClient.discoveryDataDiagnostics(device));
+            logger.info(`Establish PASE to device`, DiscoveryDataDiagnostics(device));
         }
 
         switch (address.type) {

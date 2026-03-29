@@ -1377,7 +1377,9 @@ export declare namespace ColorControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.2
      */
-    export interface Options {
+    export declare class Options {
+        constructor(values?: Partial<Options> | number);
+
         /**
          * Dependency on On/Off cluster
          *
@@ -1386,7 +1388,7 @@ export declare namespace ColorControl {
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.2.1
          */
         executeIfOff?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.6
@@ -1421,7 +1423,9 @@ export declare namespace ColorControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.19
      */
-    export interface ColorCapabilities {
+    export declare class ColorCapabilities {
+        constructor(values?: Partial<ColorCapabilities> | number);
+
         /**
          * Supports color specification via hue/saturation.
          */
@@ -1446,7 +1450,7 @@ export declare namespace ColorControl {
          * Supports color specification via color temperature.
          */
         colorTemperature?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.4
@@ -1509,7 +1513,9 @@ export declare namespace ColorControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.4
      */
-    export interface MoveToHueRequest {
+    export declare class MoveToHueRequest {
+        constructor(values?: Partial<MoveToHueRequest>);
+
         /**
          * This field shall indicate the hue to be moved to.
          *
@@ -1533,14 +1539,16 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested hue value using a step rate.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.5
      */
-    export interface MoveHueRequest {
+    export declare class MoveHueRequest {
+        constructor(values?: Partial<MoveHueRequest>);
+
         /**
          * This field shall indicate the mode of movement.
          *
@@ -1558,14 +1566,16 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will change the device to the requested hue value using a step and transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.6
      */
-    export interface StepHueRequest {
+    export declare class StepHueRequest {
+        constructor(values?: Partial<StepHueRequest>);
+
         /**
          * This field shall indicate the mode of the step to be performed.
          *
@@ -1596,26 +1606,29 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested saturation value using a transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.7
      */
-    export interface MoveToSaturationRequest {
+    export declare class MoveToSaturationRequest {
+        constructor(values?: Partial<MoveToSaturationRequest>);
         saturation: number;
         transitionTime: number;
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested saturation value using a rate.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.8
      */
-    export interface MoveSaturationRequest {
+    export declare class MoveSaturationRequest {
+        constructor(values?: Partial<MoveSaturationRequest>);
+
         /**
          * This field shall indicate the mode of movement, as described in the MoveHue command.
          *
@@ -1633,14 +1646,16 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will change the device to the requested saturation value using a step transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.9
      */
-    export interface StepSaturationRequest {
+    export declare class StepSaturationRequest {
+        constructor(values?: Partial<StepSaturationRequest>);
+
         /**
          * This field shall indicate the mode of the step to be performed, as described in the StepHue command.
          *
@@ -1671,40 +1686,44 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested hue and saturation value using a transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.10
      */
-    export interface MoveToHueAndSaturationRequest {
+    export declare class MoveToHueAndSaturationRequest {
+        constructor(values?: Partial<MoveToHueAndSaturationRequest>);
         hue: number;
         saturation: number;
         transitionTime: number;
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested color value using a transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.11
      */
-    export interface MoveToColorRequest {
+    export declare class MoveToColorRequest {
+        constructor(values?: Partial<MoveToColorRequest>);
         colorX: number;
         colorY: number;
         transitionTime: number;
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested color using a step rate.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.12
      */
-    export interface MoveColorRequest {
+    export declare class MoveColorRequest {
+        constructor(values?: Partial<MoveColorRequest>);
+
         /**
          * This field shall indicate the rate of movement in steps per second. A step is a change in the device’s
          * CurrentX attribute of one unit.
@@ -1723,14 +1742,15 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested color using a step transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.13
      */
-    export interface StepColorRequest {
+    export declare class StepColorRequest {
+        constructor(values?: Partial<StepColorRequest>);
         stepX: number;
         stepY: number;
 
@@ -1743,26 +1763,29 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command will move the device to the requested color temperate using a transition.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.14
      */
-    export interface MoveToColorTemperatureRequest {
+    export declare class MoveToColorTemperatureRequest {
+        constructor(values?: Partial<MoveToColorTemperatureRequest>);
         colorTemperatureMireds: number;
         transitionTime: number;
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows the color temperature of the light to be moved at a specified rate.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.21
      */
-    export interface MoveColorTemperatureRequest {
+    export declare class MoveColorTemperatureRequest {
+        constructor(values?: Partial<MoveColorTemperatureRequest>);
+
         /**
          * This field shall indicate the mode of movement, as described in the MoveHue command.
          *
@@ -1808,14 +1831,16 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows the color temperature of the light to be stepped with a specified step size.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.22
      */
-    export interface StepColorTemperatureRequest {
+    export declare class StepColorTemperatureRequest {
+        constructor(values?: Partial<StepColorTemperatureRequest>);
+
         /**
          * This field shall indicate the mode of the step to be performed, as described in the StepHue command.
          *
@@ -1869,7 +1894,7 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows the light to be moved in a smooth continuous transition from their current hue to a target
@@ -1877,7 +1902,9 @@ export declare namespace ColorControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.15
      */
-    export interface EnhancedMoveToHueRequest {
+    export declare class EnhancedMoveToHueRequest {
+        constructor(values?: Partial<EnhancedMoveToHueRequest>);
+
         /**
          * This field shall indicate the target extended hue for the light.
          *
@@ -1901,14 +1928,16 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows the light to start a continuous transition starting from their current hue.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.16
      */
-    export interface EnhancedMoveHueRequest {
+    export declare class EnhancedMoveHueRequest {
+        constructor(values?: Partial<EnhancedMoveHueRequest>);
+
         /**
          * This field shall indicate the mode of movement, as described in the MoveHue command.
          *
@@ -1926,7 +1955,7 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows the light to be moved in a stepped transition from their current hue, resulting in a linear
@@ -1934,7 +1963,9 @@ export declare namespace ColorControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.17
      */
-    export interface EnhancedStepHueRequest {
+    export declare class EnhancedStepHueRequest {
+        constructor(values?: Partial<EnhancedStepHueRequest>);
+
         /**
          * This field shall indicate the mode of the step to be performed, as described in the StepHue command.
          *
@@ -1965,7 +1996,7 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows the light to be moved in a smooth continuous transition from their current hue to a target
@@ -1973,7 +2004,9 @@ export declare namespace ColorControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.18
      */
-    export interface EnhancedMoveToHueAndSaturationRequest {
+    export declare class EnhancedMoveToHueAndSaturationRequest {
+        constructor(values?: Partial<EnhancedMoveToHueAndSaturationRequest>);
+
         /**
          * This field shall indicate the target extended hue for the light.
          *
@@ -1997,14 +2030,16 @@ export declare namespace ColorControl {
 
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command allows a color loop to be activated such that the color light cycles through its range of hues.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.19
      */
-    export interface ColorLoopSetRequest {
+    export declare class ColorLoopSetRequest {
+        constructor(values?: Partial<ColorLoopSetRequest>);
+
         /**
          * This field shall indicate which color loop attributes to update (from the values supplied in the other
          * fields, see field descriptions below) before the color loop is started.
@@ -2037,7 +2072,7 @@ export declare namespace ColorControl {
         startHue: number;
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This command is provided to allow MoveTo and Step commands to be stopped.
@@ -2052,17 +2087,20 @@ export declare namespace ColorControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.8.20
      */
-    export interface StopMoveStepRequest {
+    export declare class StopMoveStepRequest {
+        constructor(values?: Partial<StopMoveStepRequest>);
         optionsMask: Options;
         optionsOverride: Options;
-    }
+    };
 
     /**
      * This data type is derived from map8 and is used in the ColorLoopSet command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.3
      */
-    export interface UpdateFlags {
+    export declare class UpdateFlags {
+        constructor(values?: Partial<UpdateFlags> | number);
+
         /**
          * Device adheres to the associated action field.
          *
@@ -2116,7 +2154,7 @@ export declare namespace ColorControl {
          * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.3.4
          */
         updateStartHue?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.7

@@ -505,7 +505,9 @@ export declare namespace BridgedDeviceBasicInformation {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.13.6.1
      */
-    export interface KeepActiveRequest {
+    export declare class KeepActiveRequest {
+        constructor(values?: Partial<KeepActiveRequest>);
+
         /**
          * This field shall indicate the duration, in milliseconds, that the device is requested to remain active, once
          * the device becomes active again.
@@ -534,7 +536,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.6.1.2
          */
         timeoutMs: number;
-    }
+    };
 
     /**
      * This event shall be generated when there is a change in the Reachable attribute. Its purpose is to provide an
@@ -544,26 +546,30 @@ export declare namespace BridgedDeviceBasicInformation {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.13.7.2
      */
-    export interface ReachableChangedEvent {
+    export declare class ReachableChangedEvent {
+        constructor(values?: Partial<ReachableChangedEvent>);
+
         /**
          * This field shall indicate the value of the Reachable attribute after it was changed.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.1.6.4.1
          */
         reachableNewValue: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.13.7
      */
-    export interface StartUpEvent {
+    export declare class StartUpEvent {
+        constructor(values?: Partial<StartUpEvent>);
+
         /**
          * This field shall be set to the same value as the one available in the SoftwareVersion attribute.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.1.6.1.1
          */
         softwareVersion: number;
-    }
+    };
 
     /**
      * This event (when supported) shall be generated the next time a bridged device becomes active after a KeepActive
@@ -571,7 +577,9 @@ export declare namespace BridgedDeviceBasicInformation {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.13.7.3
      */
-    export interface ActiveChangedEvent {
+    export declare class ActiveChangedEvent {
+        constructor(values?: Partial<ActiveChangedEvent>);
+
         /**
          * This field shall indicate the minimum duration, in milliseconds, that the bridged device will remain active
          * after receiving the initial request from the KeepActive processing steps.
@@ -585,7 +593,7 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.7.3.1
          */
         promisedActiveDuration: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

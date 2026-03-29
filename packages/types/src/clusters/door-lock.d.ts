@@ -1430,9 +1430,9 @@ export declare namespace DoorLock {
 
     /**
      * {@link DoorLock} supports these elements if it supports feature
-     * "PinCredentialAndRfidCredentialAndFingerCredentialsNotUser".
+     * "PinCredentialOrRfidCredentialOrFingerCredentialsNotUser".
      */
-    export interface PinCredentialAndRfidCredentialAndFingerCredentialsNotUserCommands {
+    export interface PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands {
         /**
          * Set the status of a user ID.
          *
@@ -1541,7 +1541,7 @@ export declare namespace DoorLock {
         HolidaySchedulesCommands,
         PinCredentialNotUserCommands,
         AliroProvisioningCommands,
-        PinCredentialAndRfidCredentialAndFingerCredentialsNotUserCommands,
+        PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands,
         RfidCredentialNotUserCommands,
         UnboltingCommands
     {}
@@ -1730,8 +1730,16 @@ export declare namespace DoorLock {
         },
         { flags: { aliroBleuwb: true }, attributes: AliroBleuwbAttributes },
         {
-            flags: { pinCredential: true, rfidCredential: true, fingerCredentials: true, user: false },
-            commands: PinCredentialAndRfidCredentialAndFingerCredentialsNotUserCommands
+            flags: { user: false, pinCredential: true },
+            commands: PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands
+        },
+        {
+            flags: { user: false, rfidCredential: true },
+            commands: PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands
+        },
+        {
+            flags: { user: false, fingerCredentials: true },
+            commands: PinCredentialOrRfidCredentialOrFingerCredentialsNotUserCommands
         },
         { flags: { rfidCredential: true, user: false }, commands: RfidCredentialNotUserCommands },
         { flags: { unbolting: true }, commands: UnboltingCommands }
@@ -2071,7 +2079,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.3
      */
-    export interface OperatingModes {
+    export declare class OperatingModes {
+        constructor(values?: Partial<OperatingModes> | number);
+
         /**
          * Normal operation mode is NOT supported
          */
@@ -2101,7 +2111,7 @@ export declare namespace DoorLock {
          * This needs always be set because this bitmap is inverse.!
          */
         alwaysSet?: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.21
@@ -2151,7 +2161,9 @@ export declare namespace DoorLock {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4
      */
-    export interface ConfigurationRegister {
+    export declare class ConfigurationRegister {
+        constructor(values?: Partial<ConfigurationRegister> | number);
+
         /**
          * The state of local programming functionality
          *
@@ -2229,12 +2241,14 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.4.6
          */
         ledSettings?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5
      */
-    export interface LocalProgrammingFeatures {
+    export declare class LocalProgrammingFeatures {
+        constructor(values?: Partial<LocalProgrammingFeatures> | number);
+
         /**
          * The state of the ability to add users, credentials or schedules on the device
          *
@@ -2286,7 +2300,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.5.4
          */
         adjustSettings?: boolean;
-    }
+    };
 
     /**
      * This enumeration shall indicate the current door state.
@@ -2328,7 +2342,9 @@ export declare namespace DoorLock {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.2
      */
-    export interface CredentialRules {
+    export declare class CredentialRules {
+        constructor(values?: Partial<CredentialRules> | number);
+
         /**
          * Only one credential is required for lock operation
          */
@@ -2343,7 +2359,7 @@ export declare namespace DoorLock {
          * Any three credentials are required for lock operation
          */
         tri?: boolean;
-    }
+    };
 
     /**
      * This command causes the lock device to lock the door. This command includes an optional code for the lock. The
@@ -2351,7 +2367,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1
      */
-    export interface LockDoorRequest {
+    export declare class LockDoorRequest {
+        constructor(values?: Partial<LockDoorRequest>);
+
         /**
          * If the RequirePINforRemoteOperation attribute is True then PINCode field shall be provided and the door lock
          * shall NOT grant access if it is not provided.
@@ -2366,7 +2384,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.1.1
          */
         pinCode?: Bytes;
-    }
+    };
 
     /**
      * This command causes the lock device to unlock the door. This command includes an optional code for the lock. The
@@ -2379,14 +2397,16 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2
      */
-    export interface UnlockDoorRequest {
+    export declare class UnlockDoorRequest {
+        constructor(values?: Partial<UnlockDoorRequest>);
+
         /**
          * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.2.1
          */
         pinCode?: Bytes;
-    }
+    };
 
     /**
      * This command causes the lock device to unlock the door with a timeout parameter. After the time in seconds
@@ -2397,7 +2417,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3
      */
-    export interface UnlockWithTimeoutRequest {
+    export declare class UnlockWithTimeoutRequest {
+        constructor(values?: Partial<UnlockWithTimeoutRequest>);
+
         /**
          * This field shall indicate the timeout in seconds to wait before relocking the door lock. This value is
          * independent of the AutoRelockTime attribute value.
@@ -2412,7 +2434,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.3.2
          */
         pinCode?: Bytes;
-    }
+    };
 
     /**
      * Set user into the lock.
@@ -2486,7 +2508,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32
      */
-    export interface SetUserRequest {
+    export declare class SetUserRequest {
+        constructor(values?: Partial<SetUserRequest>);
+
         /**
          * This field shall indicate the type of operation.
          *
@@ -2588,7 +2612,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.32.7
          */
         credentialRule: CredentialRule | null;
-    }
+    };
 
     /**
      * Retrieve user.
@@ -2598,9 +2622,10 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.33
      */
-    export interface GetUserRequest {
+    export declare class GetUserRequest {
+        constructor(values?: Partial<GetUserRequest>);
         userIndex: number;
-    }
+    };
 
     /**
      * Returns the user for the specified UserIndex.
@@ -2611,7 +2636,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34
      */
-    export interface GetUserResponse {
+    export declare class GetUserResponse {
+        constructor(values?: Partial<GetUserResponse>);
+
         /**
          * This field shall indicate the user ID.
          *
@@ -2689,7 +2716,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.34.10
          */
         nextUserIndex: number | null;
-    }
+    };
 
     /**
      * Clears a user or all Users.
@@ -2702,14 +2729,16 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35
      */
-    export interface ClearUserRequest {
+    export declare class ClearUserRequest {
+        constructor(values?: Partial<ClearUserRequest>);
+
         /**
          * This field shall specify a valid User index or 0xFFFE to indicate all user slots shall be cleared.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.35.1
          */
         userIndex: number;
-    }
+    };
 
     /**
      * Set a credential (e.g. PIN, RFID, Fingerprint, etc.) into the lock for a new user, existing user, or
@@ -2805,7 +2834,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36
      */
-    export interface SetCredentialRequest {
+    export declare class SetCredentialRequest {
+        constructor(values?: Partial<SetCredentialRequest>);
+
         /**
          * This field shall indicate the set credential operation type requested.
          *
@@ -2854,14 +2885,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.36.6
          */
         userType: UserType | null;
-    }
+    };
 
     /**
      * Returns the status for setting the specified credential.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37
      */
-    export interface SetCredentialResponse {
+    export declare class SetCredentialResponse {
+        constructor(values?: Partial<SetCredentialResponse>);
+
         /**
          * Status comes from the Status Codes table and shall be one of the following values:
          *
@@ -2919,7 +2952,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.37.3
          */
         nextCredentialIndex?: number | null;
-    }
+    };
 
     /**
      * Retrieve the status of a particular credential (e.g. PIN, RFID, Fingerprint, etc.) by index.
@@ -2929,7 +2962,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38
      */
-    export interface GetCredentialStatusRequest {
+    export declare class GetCredentialStatusRequest {
+        constructor(values?: Partial<GetCredentialStatusRequest>);
+
         /**
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
          * (if applicable or 0 if not) to retrieve the status for.
@@ -2937,14 +2972,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.38.1
          */
         credential: Credential;
-    }
+    };
 
     /**
      * Returns the status for the specified credential.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39
      */
-    export interface GetCredentialStatusResponse {
+    export declare class GetCredentialStatusResponse {
+        constructor(values?: Partial<GetCredentialStatusResponse>);
+
         /**
          * This field shall indicate if the requested credential type and index exists and is populated for the
          * requested user index.
@@ -3012,7 +3049,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.39.6
          */
         credentialData?: Bytes | null;
-    }
+    };
 
     /**
      * Clear one, one type, or all credentials except ProgrammingPIN credential.
@@ -3053,7 +3090,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40
      */
-    export interface ClearCredentialRequest {
+    export declare class ClearCredentialRequest {
+        constructor(values?: Partial<ClearCredentialRequest>);
+
         /**
          * This field shall contain a credential structure that contains the CredentialTypeEnum and the credential index
          * (0xFFFE for all credentials or 0 if not applicable) to clear. This shall be null if clearing all credential
@@ -3062,7 +3101,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.40.1
          */
         credential: Credential | null;
-    }
+    };
 
     /**
      * Set a weekly repeating schedule for a specified user.
@@ -3075,7 +3114,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12
      */
-    export interface SetWeekDayScheduleRequest {
+    export declare class SetWeekDayScheduleRequest {
+        constructor(values?: Partial<SetWeekDayScheduleRequest>);
+
         /**
          * This field shall indicate the index of the Week Day schedule.
          *
@@ -3129,24 +3170,27 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.12.7
          */
         endMinute: number;
-    }
+    };
 
     /**
      * Retrieve the specific weekly schedule for the specific user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.13
      */
-    export interface GetWeekDayScheduleRequest {
+    export declare class GetWeekDayScheduleRequest {
+        constructor(values?: Partial<GetWeekDayScheduleRequest>);
         weekDayIndex: number;
         userIndex: number;
-    }
+    };
 
     /**
      * Returns the weekly repeating schedule data for the specified schedule index.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14
      */
-    export interface GetWeekDayScheduleResponse {
+    export declare class GetWeekDayScheduleResponse {
+        constructor(values?: Partial<GetWeekDayScheduleResponse>);
+
         /**
          * This field shall indicate the index of the Week Day schedule.
          *
@@ -3210,7 +3254,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.14.7
          */
         endMinute?: number;
-    }
+    };
 
     /**
      * Clear the specific weekly schedule or all weekly schedules for the specific user.
@@ -3219,7 +3263,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15
      */
-    export interface ClearWeekDayScheduleRequest {
+    export declare class ClearWeekDayScheduleRequest {
+        constructor(values?: Partial<ClearWeekDayScheduleRequest>);
+
         /**
          * This field shall indicate the Week Day schedule index to clear or 0xFE to clear all Week Day schedules for
          * the specified user.
@@ -3234,7 +3280,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.15.2
          */
         userIndex: number;
-    }
+    };
 
     /**
      * Set a time-specific schedule ID for a specified user.
@@ -3245,7 +3291,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16
      */
-    export interface SetYearDayScheduleRequest {
+    export declare class SetYearDayScheduleRequest {
+        constructor(values?: Partial<SetYearDayScheduleRequest>);
+
         /**
          * This field shall indicate the index of the Year Day schedule.
          *
@@ -3276,24 +3324,27 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.16.4
          */
         localEndTime: number;
-    }
+    };
 
     /**
      * Retrieve the specific year day schedule for the specific schedule and user indexes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.17
      */
-    export interface GetYearDayScheduleRequest {
+    export declare class GetYearDayScheduleRequest {
+        constructor(values?: Partial<GetYearDayScheduleRequest>);
         yearDayIndex: number;
         userIndex: number;
-    }
+    };
 
     /**
      * Returns the year day schedule data for the specified schedule and user indexes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18
      */
-    export interface GetYearDayScheduleResponse {
+    export declare class GetYearDayScheduleResponse {
+        constructor(values?: Partial<GetYearDayScheduleResponse>);
+
         /**
          * This field shall indicate the index of the Year Day schedule.
          *
@@ -3344,7 +3395,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.18.5
          */
         localEndTime?: number;
-    }
+    };
 
     /**
      * Clears the specific year day schedule or all year day schedules for the specific user.
@@ -3353,7 +3404,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19
      */
-    export interface ClearYearDayScheduleRequest {
+    export declare class ClearYearDayScheduleRequest {
+        constructor(values?: Partial<ClearYearDayScheduleRequest>);
+
         /**
          * This field shall indicate the Year Day schedule index to clear or 0xFE to clear all Year Day schedules for
          * the specified user.
@@ -3368,7 +3421,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.19.2
          */
         userIndex: number;
-    }
+    };
 
     /**
      * Set the holiday Schedule by specifying local start time and local end time with respect to any Lock Operating
@@ -3378,7 +3431,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20
      */
-    export interface SetHolidayScheduleRequest {
+    export declare class SetHolidayScheduleRequest {
+        constructor(values?: Partial<SetHolidayScheduleRequest>);
+
         /**
          * This field shall indicate the index of the Holiday schedule.
          *
@@ -3409,23 +3464,26 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.20.4
          */
         operatingMode: OperatingMode;
-    }
+    };
 
     /**
      * Get the holiday schedule for the specified index.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.21
      */
-    export interface GetHolidayScheduleRequest {
+    export declare class GetHolidayScheduleRequest {
+        constructor(values?: Partial<GetHolidayScheduleRequest>);
         holidayIndex: number;
-    }
+    };
 
     /**
      * Returns the Holiday Schedule Entry for the specified Holiday ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22
      */
-    export interface GetHolidayScheduleResponse {
+    export declare class GetHolidayScheduleResponse {
+        constructor(values?: Partial<GetHolidayScheduleResponse>);
+
         /**
          * This field shall indicate the index of the Holiday schedule.
          *
@@ -3477,21 +3535,23 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.22.5
          */
         operatingMode?: OperatingMode | null;
-    }
+    };
 
     /**
      * Clears the holiday schedule or all holiday schedules.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23
      */
-    export interface ClearHolidayScheduleRequest {
+    export declare class ClearHolidayScheduleRequest {
+        constructor(values?: Partial<ClearHolidayScheduleRequest>);
+
         /**
          * This field shall indicate the Holiday schedule index to clear or 0xFE to clear all Holiday schedules.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.23.1
          */
         holidayIndex: number;
-    }
+    };
 
     /**
      * Set a PIN Code into the lock.
@@ -3501,7 +3561,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.4
      */
-    export interface SetPinCodeRequest {
+    export declare class SetPinCodeRequest {
+        constructor(values?: Partial<SetPinCodeRequest>);
+
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
@@ -3520,14 +3582,16 @@ export declare namespace DoorLock {
 
         userType: UserType | null;
         pin: Bytes;
-    }
+    };
 
     /**
      * Retrieve a PIN Code.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5
      */
-    export interface GetPinCodeRequest {
+    export declare class GetPinCodeRequest {
+        constructor(values?: Partial<GetPinCodeRequest>);
+
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
@@ -3535,7 +3599,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.5.1
          */
         userId: number;
-    }
+    };
 
     /**
      * Returns the PIN for the specified user ID.
@@ -3557,12 +3621,13 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.6
      */
-    export interface GetPinCodeResponse {
+    export declare class GetPinCodeResponse {
+        constructor(values?: Partial<GetPinCodeResponse>);
         userId: number;
         userStatus: UserStatus | null;
         userType: UserType | null;
         pinCode: Bytes | null;
-    }
+    };
 
     /**
      * Clear a PIN code or all PIN codes.
@@ -3573,7 +3638,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7
      */
-    export interface ClearPinCodeRequest {
+    export declare class ClearPinCodeRequest {
+        constructor(values?: Partial<ClearPinCodeRequest>);
+
         /**
          * This field shall specify a valid PIN code slot index or 0xFFFE to indicate all PIN code slots shall be
          * cleared.
@@ -3581,14 +3648,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.7.1
          */
         pinSlotIndex: number;
-    }
+    };
 
     /**
      * This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42
      */
-    export interface SetAliroReaderConfigRequest {
+    export declare class SetAliroReaderConfigRequest {
+        constructor(values?: Partial<SetAliroReaderConfigRequest>);
+
         /**
          * This field shall indicate the signing key component of the Reader’s key pair.
          *
@@ -3617,14 +3686,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.42.4
          */
         groupResolvingKey?: Bytes;
-    }
+    };
 
     /**
      * Set the status of a user ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9
      */
-    export interface SetUserStatusRequest {
+    export declare class SetUserStatusRequest {
+        constructor(values?: Partial<SetUserStatusRequest>);
+
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
@@ -3640,14 +3711,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.9.2
          */
         userStatus: UserStatus;
-    }
+    };
 
     /**
      * Get the status of a user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10
      */
-    export interface GetUserStatusRequest {
+    export declare class GetUserStatusRequest {
+        constructor(values?: Partial<GetUserStatusRequest>);
+
         /**
          * This field shall indicate the user ID. The value of the UserID field shall be between 0 and the value of the
          * NumberOfPINUsersSupported attribute.
@@ -3655,14 +3728,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.10.1
          */
         userId: number;
-    }
+    };
 
     /**
      * Returns the user status for the specified user ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11
      */
-    export interface GetUserStatusResponse {
+    export declare class GetUserStatusResponse {
+        constructor(values?: Partial<GetUserStatusResponse>);
+
         /**
          * This field shall indicate the user ID provided in the request.
          *
@@ -3676,7 +3751,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.11.2
          */
         userStatus: UserStatus;
-    }
+    };
 
     /**
      * Set the user type for a specified user.
@@ -3690,7 +3765,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24
      */
-    export interface SetUserTypeRequest {
+    export declare class SetUserTypeRequest {
+        constructor(values?: Partial<SetUserTypeRequest>);
+
         /**
          * This field shall indicate the user ID.
          *
@@ -3704,16 +3781,17 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.24.2
          */
         userType: UserType;
-    }
+    };
 
     /**
      * Retrieve the user type for a specific user.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.25
      */
-    export interface GetUserTypeRequest {
+    export declare class GetUserTypeRequest {
+        constructor(values?: Partial<GetUserTypeRequest>);
         userId: number;
-    }
+    };
 
     /**
      * Returns the user type for the specified user ID. If the requested User ID is invalid, send Default Response with
@@ -3721,10 +3799,11 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.26
      */
-    export interface GetUserTypeResponse {
+    export declare class GetUserTypeResponse {
+        constructor(values?: Partial<GetUserTypeResponse>);
         userId: number;
         userType: UserType;
-    }
+    };
 
     /**
      * Set an ID for RFID access into the lock.
@@ -3734,7 +3813,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.27
      */
-    export interface SetRfidCodeRequest {
+    export declare class SetRfidCodeRequest {
+        constructor(values?: Partial<SetRfidCodeRequest>);
+
         /**
          * This field shall indicate the user ID.
          *
@@ -3762,14 +3843,16 @@ export declare namespace DoorLock {
         userType: UserType | null;
 
         rfidCode: Bytes;
-    }
+    };
 
     /**
      * Retrieve an RFID code.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28
      */
-    export interface GetRfidCodeRequest {
+    export declare class GetRfidCodeRequest {
+        constructor(values?: Partial<GetRfidCodeRequest>);
+
         /**
          * This field shall indicate the user ID.
          *
@@ -3778,7 +3861,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.28.1
          */
         userId: number;
-    }
+    };
 
     /**
      * Returns the RFID code for the specified user ID.
@@ -3800,12 +3883,13 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.29
      */
-    export interface GetRfidCodeResponse {
+    export declare class GetRfidCodeResponse {
+        constructor(values?: Partial<GetRfidCodeResponse>);
         userId: number;
         userStatus: UserStatus | null;
         userType: UserType | null;
         rfidCode: Bytes | null;
-    }
+    };
 
     /**
      * Clear an RFID code or all RFID codes.
@@ -3816,7 +3900,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30
      */
-    export interface ClearRfidCodeRequest {
+    export declare class ClearRfidCodeRequest {
+        constructor(values?: Partial<ClearRfidCodeRequest>);
+
         /**
          * This field shall indicate a valid RFID code slot index or 0xFFFE to indicate all RFID code slots shall be
          * cleared.
@@ -3824,7 +3910,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.30.1
          */
         rfidSlotIndex: number;
-    }
+    };
 
     /**
      * This command causes the lock device to unlock the door without pulling the latch. This command includes an
@@ -3838,14 +3924,16 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41
      */
-    export interface UnboltDoorRequest {
+    export declare class UnboltDoorRequest {
+        constructor(values?: Partial<UnboltDoorRequest>);
+
         /**
          * See Section 5.2.10.1.1, “PINCode Field”.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.10.41.1
          */
         pinCode?: Bytes;
-    }
+    };
 
     /**
      * The door lock server provides several alarms which can be sent when there is a critical state on the door lock.
@@ -3853,14 +3941,16 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1
      */
-    export interface DoorLockAlarmEvent {
+    export declare class DoorLockAlarmEvent {
+        constructor(values?: Partial<DoorLockAlarmEvent>);
+
         /**
          * This field shall indicate the alarm code of the event that has happened.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.1.1
          */
         alarmCode: AlarmCode;
-    }
+    };
 
     /**
      * The door lock server sends out a LockOperation event when the event is triggered by the various lock operation
@@ -3889,7 +3979,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3
      */
-    export interface LockOperationEvent {
+    export declare class LockOperationEvent {
+        constructor(values?: Partial<LockOperationEvent>);
+
         /**
          * This field shall indicate the type of the lock operation that was performed.
          *
@@ -3938,14 +4030,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.3.6
          */
         credentials?: Credential[] | null;
-    }
+    };
 
     /**
      * The door lock server sends out a LockOperationError event when a lock operation fails for various reasons.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4
      */
-    export interface LockOperationErrorEvent {
+    export declare class LockOperationErrorEvent {
+        constructor(values?: Partial<LockOperationErrorEvent>);
+
         /**
          * This field shall indicate the type of the lock operation that was performed.
          *
@@ -4000,21 +4094,23 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.4.7
          */
         credentials?: Credential[] | null;
-    }
+    };
 
     /**
      * The door lock server sends out a DoorStateChange event when the door lock door state changes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2
      */
-    export interface DoorStateChangeEvent {
+    export declare class DoorStateChangeEvent {
+        constructor(values?: Partial<DoorStateChangeEvent>);
+
         /**
          * This field shall indicate the new door state for this door event.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.2.1
          */
         doorState: DoorState;
-    }
+    };
 
     /**
      * The door lock server sends out a LockUserChange event when a lock user, schedule, or credential change has
@@ -4022,7 +4118,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5
      */
-    export interface LockUserChangeEvent {
+    export declare class LockUserChangeEvent {
+        constructor(values?: Partial<LockUserChangeEvent>);
+
         /**
          * This field shall indicate the lock data type that was changed.
          *
@@ -4080,14 +4178,16 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.11.5.7
          */
         dataIndex: number | null;
-    }
+    };
 
     /**
      * This bitmap shall indicate the days of the week the Week Day schedule applies for.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.1
      */
-    export interface DaysMask {
+    export declare class DaysMask {
+        constructor(values?: Partial<DaysMask> | number);
+
         /**
          * Schedule is applied on Sunday
          */
@@ -4122,12 +4222,14 @@ export declare namespace DoorLock {
          * Schedule is applied on Saturday
          */
         saturday?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.6
      */
-    export interface AlarmMask {
+    export declare class AlarmMask {
+        constructor(values?: Partial<AlarmMask> | number);
+
         /**
          * Locking Mechanism Jammed
          */
@@ -4157,7 +4259,7 @@ export declare namespace DoorLock {
          * Forced Door Open under Door Locked Condition
          */
         doorForcedOpen?: boolean;
-    }
+    };
 
     /**
      * This enumeration shall indicate the alarm type.
@@ -4740,7 +4842,9 @@ export declare namespace DoorLock {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24
      */
-    export interface Credential {
+    export declare class Credential {
+        constructor(values?: Partial<Credential>);
+
         /**
          * This field shall indicate the credential field used to authorize the lock operation.
          *
@@ -4756,7 +4860,7 @@ export declare namespace DoorLock {
          * @see {@link MatterSpecification.v142.Cluster} § 5.2.6.24.2
          */
         credentialIndex: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.2.7.1

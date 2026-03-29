@@ -1141,7 +1141,9 @@ export declare namespace PumpConfigurationAndControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.2.6.1
      */
-    export interface PumpStatus {
+    export declare class PumpStatus {
+        constructor(values?: Partial<PumpStatus> | number);
+
         /**
          * A fault related to the system or pump device is detected.
          *
@@ -1215,7 +1217,7 @@ export declare namespace PumpConfigurationAndControl {
          * @see {@link MatterSpecification.v142.Cluster} § 4.2.6.1.6
          */
         remoteTemperature?: boolean;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

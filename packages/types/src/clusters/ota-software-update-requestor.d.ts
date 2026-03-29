@@ -241,7 +241,9 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.4.4
      */
-    export interface ProviderLocation {
+    export declare class ProviderLocation {
+        constructor(values?: Partial<ProviderLocation>);
+
         /**
          * This field shall contain the Node ID of the OTA Provider to contact within the Fabric identified by the
          * FabricIndex.
@@ -260,7 +262,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
         endpoint: EndpointNumber;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.4.2
@@ -360,7 +362,9 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.6.1
      */
-    export interface AnnounceOtaProviderRequest {
+    export declare class AnnounceOtaProviderRequest {
+        constructor(values?: Partial<AnnounceOtaProviderRequest>);
+
         /**
          * This field shall contain the Node ID of a Node implementing the OTA Provider cluster server, on the accessing
          * fabric.
@@ -441,7 +445,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
         endpoint: EndpointNumber;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This event shall be generated when a change of the UpdateState attribute occurs due to an OTA Requestor moving
@@ -449,7 +453,9 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.1
      */
-    export interface StateTransitionEvent {
+    export declare class StateTransitionEvent {
+        constructor(values?: Partial<StateTransitionEvent>);
+
         /**
          * This field shall be set to the state that preceded the transition causing this event to be generated, if such
          * a state existed. If no previous state exists, the value shall be Unknown.
@@ -479,7 +485,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.1.4
          */
         targetSoftwareVersion: number | null;
-    }
+    };
 
     /**
      * This event shall be generated whenever a new version starts executing after being applied due to a software
@@ -487,7 +493,9 @@ export declare namespace OtaSoftwareUpdateRequestor {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.2
      */
-    export interface VersionAppliedEvent {
+    export declare class VersionAppliedEvent {
+        constructor(values?: Partial<VersionAppliedEvent>);
+
         /**
          * This field shall be set to the same value as the one available in the Software Version attribute of the Basic
          * Information Cluster for the newly executing version.
@@ -505,14 +513,16 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.2.2
          */
         productId: number;
-    }
+    };
 
     /**
      * This event shall be generated whenever an error occurs during OTA Requestor download operation.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.3
      */
-    export interface DownloadErrorEvent {
+    export declare class DownloadErrorEvent {
+        constructor(values?: Partial<DownloadErrorEvent>);
+
         /**
          * This field shall be set to the value of the SoftwareVersion being downloaded, matching the SoftwareVersion
          * field of the QueryImageResponse that caused the failing download to take place.
@@ -546,7 +556,7 @@ export declare namespace OtaSoftwareUpdateRequestor {
          * @see {@link MatterSpecification.v142.Core} § 11.20.7.7.3.4
          */
         platformCode: number | bigint | null;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.20.7.4.1
