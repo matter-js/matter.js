@@ -169,7 +169,7 @@ export class NetworkClient extends NetworkBehavior {
         if (isActive) {
             const parentEnv = this.#node.owner.env;
             if (parentEnv.has(ClientCacheBuffer)) {
-                void parentEnv.get(ClientCacheBuffer).flush();
+                parentEnv.get(ClientCacheBuffer).initiateFlush();
             }
         }
     }

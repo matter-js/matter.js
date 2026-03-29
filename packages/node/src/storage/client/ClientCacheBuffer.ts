@@ -6,7 +6,7 @@
 
 import { NetworkServer } from "#behavior/system/network/NetworkServer.js";
 import type { ClientNode } from "#node/ClientNode.js";
-import { Abort, Duration, Logger, StorageDriver, StorageManager } from "@matter/general";
+import { Abort, Duration, Logger, Mutex, StorageDriver, StorageManager } from "@matter/general";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
 import type { DatasourceCache } from "./DatasourceCache.js";
 
@@ -21,9 +21,10 @@ const logger = Logger.get("ClientCacheBuffer");
 export class ClientCacheBuffer {
     #dirty = new Set<DatasourceCache>();
     #abort = new Abort();
+    #mutex = new Mutex(this);
     #storageDriver: StorageDriver;
     #flushInterval: Duration;
-    #flushPromise?: Promise<void>;
+    #timerDone?: Promise<void>;
 
     constructor(storageDriver: StorageDriver, flushInterval: Duration) {
         this.#storageDriver = storageDriver;
@@ -67,30 +68,19 @@ export class ClientCacheBuffer {
     }
 
     /**
-     * Flush all dirty caches to storage in a single transaction.
+     * Schedule a flush.  The flush runs serialized through the mutex; the promise is tracked internally.  Safe to
+     * call from sync contexts.
+     */
+    initiateFlush(): void {
+        this.#mutex.run(() => this.#doFlush());
+    }
+
+    /**
+     * Flush all dirty caches to storage in a single transaction.  Awaits completion.
      */
     async flush(): Promise<void> {
-        const snapshot = [...this.#dirty];
-        this.#dirty.clear();
-
-        if (!snapshot.length) {
-            return;
-        }
-
-        const maybeTx = this.#storageDriver.begin();
-        const tx = maybeTx instanceof Promise ? await maybeTx : maybeTx;
-
-        try {
-            for (const cache of snapshot) {
-                await cache.flush(tx);
-            }
-            tx.commit();
-        } catch (e) {
-            tx[Symbol.dispose]();
-            throw e;
-        }
-
-        logger.debug("Flushed", snapshot.length, "dirty caches");
+        this.initiateFlush();
+        await this.#mutex;
     }
 
     /**
@@ -98,14 +88,44 @@ export class ClientCacheBuffer {
      */
     async close(): Promise<void> {
         this.#abort();
-        await this.#flushPromise;
+        await this.#timerDone;
 
-        // Final flush after timer loop exits
-        await this.flush();
+        // Final flush then drain
+        this.initiateFlush();
+        await this.#mutex.close();
+    }
+
+    async #doFlush(): Promise<void> {
+        const snapshot = [...this.#dirty];
+        this.#dirty.clear();
+
+        if (!snapshot.length) {
+            return;
+        }
+
+        const tx = await this.#storageDriver.begin();
+
+        try {
+            for (const cache of snapshot) {
+                await cache.flush(tx);
+            }
+            await tx.commit();
+        } catch (e) {
+            tx[Symbol.dispose]();
+
+            // Restore caches that failed to flush so they are retried
+            for (const cache of snapshot) {
+                this.#dirty.add(cache);
+            }
+
+            throw e;
+        }
+
+        logger.debug("Flushed", snapshot.length, "dirty caches");
     }
 
     #start() {
-        this.#flushPromise = this.#timerLoop();
+        this.#timerDone = this.#timerLoop();
     }
 
     async #timerLoop() {
@@ -115,11 +135,8 @@ export class ClientCacheBuffer {
                 break;
             }
 
-            try {
-                await this.flush();
-            } catch (e) {
-                logger.error("Error during periodic flush:", e);
-            }
+            // Run the actual flush through the mutex so it serializes with explicit flush calls
+            await this.#mutex.produce(() => this.#doFlush());
         }
     }
 }

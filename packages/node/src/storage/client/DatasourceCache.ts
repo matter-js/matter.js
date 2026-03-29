@@ -116,13 +116,20 @@ export function DatasourceCache(options: DatasourceCache.Options): DatasourceCac
                 return;
             }
 
+            // Snapshot and remove keys atomically.  If externalSet() re-dirties a key during our async persist,
+            // it re-adds to dirtyKeys and survives.  On failure we restore the snapshot.
+            const flushing = new Set(dirtyKeys);
+            for (const key of flushing) {
+                dirtyKeys.delete(key);
+            }
+
             // Prefer live values from the Datasource.  After reclaimValues() the Datasource's values are empty,
             // so fall back to initialValues which holds the reclaimed data.
-            let values = this.readValues?.(dirtyKeys);
+            let values = this.readValues?.(flushing);
             if (values === undefined || !Object.keys(values).length) {
                 if (this.initialValues !== undefined) {
                     values = {};
-                    for (const key of dirtyKeys) {
+                    for (const key of flushing) {
                         if (key in this.initialValues) {
                             values[key] = this.initialValues[key];
                         }
@@ -130,18 +137,24 @@ export function DatasourceCache(options: DatasourceCache.Options): DatasourceCac
                 }
             }
 
-            dirtyKeys.clear();
-
             if (values === undefined || !Object.keys(values).length) {
                 return;
             }
 
             values[DatasourceCache.VERSION_KEY] = version;
 
-            if (tx && options.localWriter) {
-                await options.localWriter.persistInTransaction(tx, endpointNumber, behaviorId, values);
-            } else {
-                await options.localWriter?.persist(endpointNumber, behaviorId, values);
+            try {
+                if (tx && options.localWriter) {
+                    await options.localWriter.persistInTransaction(tx, endpointNumber, behaviorId, values);
+                } else {
+                    await options.localWriter?.persist(endpointNumber, behaviorId, values);
+                }
+            } catch (e) {
+                // Restore keys so they are retried on the next flush
+                for (const key of flushing) {
+                    dirtyKeys.add(key);
+                }
+                throw e;
             }
         },
     };
