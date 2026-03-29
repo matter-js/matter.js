@@ -185,7 +185,9 @@ export declare namespace ScenesManagement {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.2
      */
-    export interface SceneInfo {
+    export declare class SceneInfo {
+        constructor(values?: Partial<SceneInfo>);
+
         /**
          * This field shall indicate the number of scenes currently used in the server’s Scene Table on the endpoint
          * where the Scenes Management cluster appears.
@@ -241,7 +243,7 @@ export declare namespace ScenesManagement {
         remainingCapacity: number;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * It is not mandatory for an extension field set to be included in the command for every cluster on that endpoint
@@ -250,7 +252,9 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2
      */
-    export interface AddSceneRequest {
+    export declare class AddSceneRequest {
+        constructor(values?: Partial<AddSceneRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
@@ -285,12 +289,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.2.5
          */
         extensionFieldSetStructs: ExtensionFieldSet[];
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3
      */
-    export interface AddSceneResponse {
+    export declare class AddSceneResponse {
+        constructor(values?: Partial<AddSceneResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for AddScene command.
          *
@@ -311,12 +317,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.3.3
          */
         sceneId: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4
      */
-    export interface ViewSceneRequest {
+    export declare class ViewSceneRequest {
+        constructor(values?: Partial<ViewSceneRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
@@ -330,12 +338,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.4.2
          */
         sceneId: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5
      */
-    export interface ViewSceneResponse {
+    export declare class ViewSceneResponse {
+        constructor(values?: Partial<ViewSceneResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for ViewScene command.
          *
@@ -377,12 +387,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.5.6
          */
         extensionFieldSetStructs?: ExtensionFieldSet[];
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6
      */
-    export interface RemoveSceneRequest {
+    export declare class RemoveSceneRequest {
+        constructor(values?: Partial<RemoveSceneRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
@@ -396,12 +408,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.6.2
          */
         sceneId: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7
      */
-    export interface RemoveSceneResponse {
+    export declare class RemoveSceneResponse {
+        constructor(values?: Partial<RemoveSceneResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for RemoveScene command.
          *
@@ -422,24 +436,28 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.7.3
          */
         sceneId: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8
      */
-    export interface RemoveAllScenesRequest {
+    export declare class RemoveAllScenesRequest {
+        constructor(values?: Partial<RemoveAllScenesRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.8.1
          */
         groupId: GroupId;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9
      */
-    export interface RemoveAllScenesResponse {
+    export declare class RemoveAllScenesResponse {
+        constructor(values?: Partial<RemoveAllScenesResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for RemoveAllScenes command.
          *
@@ -453,12 +471,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.9.2
          */
         groupId: GroupId;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10
      */
-    export interface StoreSceneRequest {
+    export declare class StoreSceneRequest {
+        constructor(values?: Partial<StoreSceneRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
@@ -472,12 +492,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.10.2
          */
         sceneId: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11
      */
-    export interface StoreSceneResponse {
+    export declare class StoreSceneResponse {
+        constructor(values?: Partial<StoreSceneResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for StoreScene command.
          *
@@ -498,12 +520,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.11.3
          */
         sceneId: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12
      */
-    export interface RecallSceneRequest {
+    export declare class RecallSceneRequest {
+        constructor(values?: Partial<RecallSceneRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
@@ -524,7 +548,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.12.3
          */
         transitionTime?: number | null;
-    }
+    };
 
     /**
      * This command can be used to get the used scene identifiers within a certain group, for the endpoint that
@@ -532,19 +556,23 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13
      */
-    export interface GetSceneMembershipRequest {
+    export declare class GetSceneMembershipRequest {
+        constructor(values?: Partial<GetSceneMembershipRequest>);
+
         /**
          * This field shall indicate the group identifier in the Group Table.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.13.1
          */
         groupId: GroupId;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14
      */
-    export interface GetSceneMembershipResponse {
+    export declare class GetSceneMembershipResponse {
+        constructor(values?: Partial<GetSceneMembershipResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for GetSceneMembership command.
          *
@@ -582,7 +610,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.14.4
          */
         sceneList?: number[];
-    }
+    };
 
     /**
      * This command allows a client to efficiently copy scenes from one group/scene identifier pair to another
@@ -590,7 +618,9 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15
      */
-    export interface CopySceneRequest {
+    export declare class CopySceneRequest {
+        constructor(values?: Partial<CopySceneRequest>);
+
         /**
          * This field shall contain the information of how the scene copy is to proceed.
          *
@@ -633,12 +663,14 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.15.5
          */
         sceneIdentifierTo: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16
      */
-    export interface CopySceneResponse {
+    export declare class CopySceneResponse {
+        constructor(values?: Partial<CopySceneResponse>);
+
         /**
          * This field shall be set according to the Effect on Receipt section for the CopyScene command.
          *
@@ -659,24 +691,28 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.9.16.3
          */
         sceneIdentifierFrom: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.1
      */
-    export interface CopyMode {
+    export declare class CopyMode {
+        constructor(values?: Partial<CopyMode> | number);
+
         /**
          * Copy all scenes in the scene table
          */
         copyAllScenes?: boolean;
-    }
+    };
 
     /**
      * This data type indicates a combination of an identifier and the value of an attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.3
      */
-    export interface AttributeValuePair {
+    export declare class AttributeValuePair {
+        constructor(values?: Partial<AttributeValuePair>);
+
         /**
          * This field shall be present for all instances in a given ExtensionFieldSetStruct.
          *
@@ -698,14 +734,16 @@ export declare namespace ScenesManagement {
         valueSigned32?: number;
         valueUnsigned64?: number | bigint;
         valueSigned64?: number | bigint;
-    }
+    };
 
     /**
      * This data type indicates for a given cluster a set of attributes and their values.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4
      */
-    export interface ExtensionFieldSet {
+    export declare class ExtensionFieldSet {
+        constructor(values?: Partial<ExtensionFieldSet>);
+
         /**
          * This field shall indicate the cluster-id of the cluster whose attributes are in the AttributeValueList field.
          *
@@ -722,7 +760,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.4.2
          */
         attributeValueList: AttributeValuePair[];
-    }
+    };
 
     /**
      * The Scene Table is used to store information for each scene capable of being invoked on the server. Each scene is
@@ -736,7 +774,9 @@ export declare namespace ScenesManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5
      */
-    export interface LogicalSceneTable {
+    export declare class LogicalSceneTable {
+        constructor(values?: Partial<LogicalSceneTable>);
+
         /**
          * This field is the group identifier for which this scene applies, or 0 if the scene is not associated with a
          * group.
@@ -779,7 +819,7 @@ export declare namespace ScenesManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 1.4.7.5.5
          */
         extensionFields: ExtensionFieldSet[];
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

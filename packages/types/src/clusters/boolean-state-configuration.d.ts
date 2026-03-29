@@ -430,17 +430,21 @@ export declare namespace BooleanStateConfiguration {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.5.2
      */
-    export interface SensorFault {
+    export declare class SensorFault {
+        constructor(values?: Partial<SensorFault> | number);
+
         /**
          * Unspecified fault detected
          */
         generalFault?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.5.1
      */
-    export interface AlarmMode {
+    export declare class AlarmMode {
+        constructor(values?: Partial<AlarmMode> | number);
+
         /**
          * Visual alarming
          */
@@ -450,12 +454,14 @@ export declare namespace BooleanStateConfiguration {
          * Audible alarming
          */
         audible?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2
      */
-    export interface EnableDisableAlarmRequest {
+    export declare class EnableDisableAlarmRequest {
+        constructor(values?: Partial<EnableDisableAlarmRequest>);
+
         /**
          * This field shall indicate the alarm modes to either enable or disable depending on the bit status, as
          * specified for the AlarmsEnabled attribute.
@@ -463,33 +469,37 @@ export declare namespace BooleanStateConfiguration {
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.2.1
          */
         alarmsToEnableDisable: AlarmMode;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1
      */
-    export interface SuppressAlarmRequest {
+    export declare class SuppressAlarmRequest {
+        constructor(values?: Partial<SuppressAlarmRequest>);
+
         /**
          * This field shall indicate the alarm modes to suppress.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.7.1.1
          */
         alarmsToSuppress: AlarmMode;
-    }
+    };
 
     /**
      * This event shall be generated when the device registers or clears a fault.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2
      */
-    export interface SensorFaultEvent {
+    export declare class SensorFaultEvent {
+        constructor(values?: Partial<SensorFaultEvent>);
+
         /**
          * This field shall indicate the value of the SensorFault attribute, at the time this event is generated.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.2.1
          */
         sensorFault: SensorFault;
-    }
+    };
 
     /**
      * This event shall be generated after any bits in the AlarmsActive and/or AlarmsSuppressed attributes change. This
@@ -502,7 +512,9 @@ export declare namespace BooleanStateConfiguration {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1
      */
-    export interface AlarmsStateChangedEvent {
+    export declare class AlarmsStateChangedEvent {
+        constructor(values?: Partial<AlarmsStateChangedEvent>);
+
         /**
          * This field shall indicate the state of active alarm modes, as indicated by the AlarmsActive attribute, at the
          * time the event was generated.
@@ -518,7 +530,7 @@ export declare namespace BooleanStateConfiguration {
          * @see {@link MatterSpecification.v142.Cluster} § 1.8.8.1.2
          */
         alarmsSuppressed?: AlarmMode;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

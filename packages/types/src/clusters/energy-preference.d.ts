@@ -269,7 +269,9 @@ export declare namespace EnergyPreference {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2
      */
-    export interface Balance {
+    export declare class Balance {
+        constructor(values?: Partial<Balance>);
+
         /**
          * This field shall indicate the relative value of this step.
          *
@@ -284,7 +286,7 @@ export declare namespace EnergyPreference {
          * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.2.2
          */
         label?: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.7.5.1

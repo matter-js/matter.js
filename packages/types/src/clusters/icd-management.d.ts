@@ -477,7 +477,9 @@ export declare namespace IcdManagement {
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.16.5.3
      */
-    export interface MonitoringRegistration {
+    export declare class MonitoringRegistration {
+        constructor(values?: Partial<MonitoringRegistration>);
+
         /**
          * This field shall indicate the NodeID of the Node to which Check-In messages will be sent when the
          * MonitoredSubject is not subscribed.
@@ -519,14 +521,16 @@ export declare namespace IcdManagement {
         clientType: ClientType;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * See the UserActiveModeTriggerHint table for requirements associated to each bit.
      *
      * @see {@link MatterSpecification.v142.Core} § 9.16.5.1
      */
-    export interface UserActiveModeTrigger {
+    export declare class UserActiveModeTrigger {
+        constructor(values?: Partial<UserActiveModeTrigger> | number);
+
         /**
          * Power Cycle to transition the device to ActiveMode
          */
@@ -611,7 +615,7 @@ export declare namespace IcdManagement {
          * Press the N Button to transition the device to ActiveMode
          */
         appDefinedButton?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.16.5.2
@@ -656,9 +660,10 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
      */
-    export interface StayActiveRequest {
+    export declare class StayActiveRequest {
+        constructor(values?: Partial<StayActiveRequest>);
         stayActiveDuration: number;
-    }
+    };
 
     /**
      * This message shall be sent by the ICD in response to the StayActiveRequest command and shall contain the computed
@@ -666,7 +671,9 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.16.7.5
      */
-    export interface StayActiveResponse {
+    export declare class StayActiveResponse {
+        constructor(values?: Partial<StayActiveResponse>);
+
         /**
          * This field shall provide the actual duration that the ICD server can stay active from the time it receives
          * the StayActiveRequest command.
@@ -691,7 +698,7 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v142.Core} § 9.16.7.5.1
          */
         promisedActiveDuration: number;
-    }
+    };
 
     /**
      * This command allows a client to register itself with the ICD to be notified when the device is available for
@@ -699,7 +706,9 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
      */
-    export interface RegisterClientRequest {
+    export declare class RegisterClientRequest {
+        constructor(values?: Partial<RegisterClientRequest>);
+
         /**
          * This field shall provide the node ID to which a Check-In message will be sent if there are no active
          * subscriptions matching MonitoredSubject.
@@ -796,7 +805,7 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.5
          */
         clientType: ClientType;
-    }
+    };
 
     /**
      * This command shall be sent by the ICD Management Cluster server in response to a successful RegisterClient
@@ -809,9 +818,10 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.16.7.2
      */
-    export interface RegisterClientResponse {
+    export declare class RegisterClientResponse {
+        constructor(values?: Partial<RegisterClientResponse>);
         icdCounter: number;
-    }
+    };
 
     /**
      * This command allows a client to unregister itself with the ICD. Example: a client that is leaving the network
@@ -820,7 +830,9 @@ export declare namespace IcdManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
      */
-    export interface UnregisterClientRequest {
+    export declare class UnregisterClientRequest {
+        constructor(values?: Partial<UnregisterClientRequest>);
+
         /**
          * This field shall provide the registered client node ID to remove from storage.
          *
@@ -894,7 +906,7 @@ export declare namespace IcdManagement {
          * @see {@link MatterSpecification.v142.Core} § 9.16.7.3.2
          */
         verificationKey?: Bytes;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.16.5.1.1

@@ -156,7 +156,9 @@ export declare namespace TargetNavigator {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2
      */
-    export interface TargetInfo {
+    export declare class TargetInfo {
+        constructor(values?: Partial<TargetInfo>);
+
         /**
          * This field shall contain an unique id within the TargetList.
          *
@@ -170,14 +172,16 @@ export declare namespace TargetNavigator {
          * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.2.2
          */
         name: string;
-    }
+    };
 
     /**
      * Upon receipt, this shall navigation the UX to the target identified.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1
      */
-    export interface NavigateTargetRequest {
+    export declare class NavigateTargetRequest {
+        constructor(values?: Partial<NavigateTargetRequest>);
+
         /**
          * This field shall indicate the Identifier for the target for UX navigation. The Target shall be an Identifier
          * value contained within one of the TargetInfoStruct objects in the TargetList attribute.
@@ -192,14 +196,16 @@ export declare namespace TargetNavigator {
          * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.1.2
          */
         data?: string;
-    }
+    };
 
     /**
      * This command shall be generated in response to NavigateTarget command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2
      */
-    export interface NavigateTargetResponse {
+    export declare class NavigateTargetResponse {
+        constructor(values?: Partial<NavigateTargetResponse>);
+
         /**
          * This field shall indicate the of the command.
          *
@@ -213,7 +219,7 @@ export declare namespace TargetNavigator {
          * @see {@link MatterSpecification.v142.Cluster} § 6.11.6.2.2
          */
         data?: string;
-    }
+    };
 
     /**
      * This event shall be generated when there is a change in either the active target or the list of available targets
@@ -221,11 +227,12 @@ export declare namespace TargetNavigator {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.11.7.1
      */
-    export interface TargetUpdatedEvent {
+    export declare class TargetUpdatedEvent {
+        constructor(values?: Partial<TargetUpdatedEvent>);
         targetList?: TargetInfo[];
         currentTarget?: number;
         data?: Bytes;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.11.4.1

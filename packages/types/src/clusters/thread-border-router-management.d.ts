@@ -278,7 +278,9 @@ export declare namespace ThreadBorderRouterManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.3
      */
-    export interface DatasetResponse {
+    export declare class DatasetResponse {
+        constructor(values?: Partial<DatasetResponse>);
+
         /**
          * If no dataset (active or pending as requested) is configured, this field shall be set to empty.
          *
@@ -289,7 +291,7 @@ export declare namespace ThreadBorderRouterManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.3.1
          */
         dataset: Bytes;
-    }
+    };
 
     /**
      * This command shall be used to set the active Dataset of the Thread network to which the Border Router is
@@ -297,7 +299,9 @@ export declare namespace ThreadBorderRouterManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4
      */
-    export interface SetActiveDatasetRequest {
+    export declare class SetActiveDatasetRequest {
+        constructor(values?: Partial<SetActiveDatasetRequest>);
+
         /**
          * This field shall contain the active dataset to set of the Thread network to configure in the Border Router as
          * an octet string containing the raw Thread TLV value of the dataset, as defined in the Thread specification.
@@ -312,7 +316,7 @@ export declare namespace ThreadBorderRouterManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.4.2
          */
         breadcrumb?: number | bigint;
-    }
+    };
 
     /**
      * This command shall be used to set or update the pending Dataset of the Thread network to which the Border Router
@@ -334,9 +338,10 @@ export declare namespace ThreadBorderRouterManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.3.6.5
      */
-    export interface SetPendingDatasetRequest {
+    export declare class SetPendingDatasetRequest {
+        constructor(values?: Partial<SetPendingDatasetRequest>);
         pendingDataset: Bytes;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

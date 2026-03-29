@@ -404,7 +404,9 @@ export declare namespace ElectricalEnergyMeasurement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2
      */
-    export interface EnergyMeasurement {
+    export declare class EnergyMeasurement {
+        constructor(values?: Partial<EnergyMeasurement>);
+
         /**
          * This field shall be the reported energy.
          *
@@ -480,7 +482,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.2.5
          */
         endSystime?: number | bigint;
-    }
+    };
 
     /**
      * This struct shall represent the times at which cumulative measurements were last zero, either due to
@@ -488,7 +490,9 @@ export declare namespace ElectricalEnergyMeasurement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3
      */
-    export interface CumulativeEnergyReset {
+    export declare class CumulativeEnergyReset {
+        constructor(values?: Partial<CumulativeEnergyReset>);
+
         /**
          * This field shall indicate the timestamp in UTC when the value of the Energy field on the
          * CumulativeEnergyImported attribute was most recently zero.
@@ -556,7 +560,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.3.4
          */
         exportedResetSystime?: number | bigint | null;
-    }
+    };
 
     /**
      * This event shall be generated when the server takes a snapshot of the cumulative energy imported by the server,
@@ -565,7 +569,9 @@ export declare namespace ElectricalEnergyMeasurement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1
      */
-    export interface CumulativeEnergyMeasuredEvent {
+    export declare class CumulativeEnergyMeasuredEvent {
+        constructor(values?: Partial<CumulativeEnergyMeasuredEvent>);
+
         /**
          * This field shall be the value of CumulativeEnergyImported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
@@ -581,7 +587,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.1.2
          */
         energyExported?: EnergyMeasurement;
-    }
+    };
 
     /**
      * This event shall be generated when the server reaches the end of a reporting period for imported energy, exported
@@ -589,7 +595,9 @@ export declare namespace ElectricalEnergyMeasurement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2
      */
-    export interface PeriodicEnergyMeasuredEvent {
+    export declare class PeriodicEnergyMeasuredEvent {
+        constructor(values?: Partial<PeriodicEnergyMeasuredEvent>);
+
         /**
          * This field shall be the value of PeriodicEnergyImported attribute at the timestamp indicated in its
          * EndTimestamp field, EndSystime field, or both.
@@ -605,7 +613,7 @@ export declare namespace ElectricalEnergyMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.12.7.2.2
          */
         energyExported?: EnergyMeasurement;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.12.5.1
