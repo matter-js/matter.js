@@ -6,6 +6,7 @@
 
 import {
     File,
+    FileHandleTracker,
     FileTypeError,
     type Bytes,
     type Filesystem,
@@ -104,14 +105,14 @@ export class NodeJsFile extends File {
         await writeData(this.#path, data);
     }
 
-    async open(mode?: File.OpenMode): Promise<File.Handle> {
+    async open(purpose: string, mode?: File.OpenMode): Promise<File.Handle> {
         const m = mode ?? "r";
         const flags = m === "w" ? "w" : m === "a" ? "a" : "r";
         if (flags === "w" || flags === "a") {
             await mkdir(dirname(this.#path), { recursive: true });
         }
         const fh = await fsOpen(this.#path, flags);
-        return new NodeJsFileHandle(this.#fs, this.#path, this.#name, fh);
+        return new NodeJsFileHandle({ fs: this.#fs, path: this.#path, name: this.#name, purpose, fh });
     }
 
     async rename(newName: string): Promise<void> {
@@ -130,14 +131,17 @@ class NodeJsFileHandle extends File.Handle {
     readonly #fs: Filesystem;
     #path: string;
     #name: string;
+    readonly purpose: string;
     readonly #fh: import("node:fs/promises").FileHandle;
 
-    constructor(fs: Filesystem, path: string, name: string, fh: import("node:fs/promises").FileHandle) {
+    constructor(options: NodeJsFileHandle.Options) {
         super();
-        this.#fs = fs;
-        this.#path = path;
-        this.#name = name;
-        this.#fh = fh;
+        this.#fs = options.fs;
+        this.#path = options.path;
+        this.#name = options.name;
+        this.purpose = options.purpose;
+        this.#fh = options.fh;
+        FileHandleTracker.register(this);
     }
 
     override get fs() {
@@ -146,6 +150,10 @@ class NodeJsFileHandle extends File.Handle {
 
     get name() {
         return this.#name;
+    }
+
+    get path() {
+        return this.#path;
     }
 
     async exists(): Promise<boolean> {
@@ -197,7 +205,7 @@ class NodeJsFileHandle extends File.Handle {
         await writeData(this.#path, data);
     }
 
-    async open(): Promise<File.Handle> {
+    async open(_purpose: string): Promise<File.Handle> {
         return this;
     }
 
@@ -222,6 +230,7 @@ class NodeJsFileHandle extends File.Handle {
     }
 
     async close(): Promise<void> {
+        FileHandleTracker.unregister(this);
         await this.#fh.close();
     }
 
@@ -234,6 +243,16 @@ class NodeJsFileHandle extends File.Handle {
 
     async delete(): Promise<void> {
         await rm(this.#path, { recursive: true, force: true });
+    }
+}
+
+namespace NodeJsFileHandle {
+    export interface Options {
+        fs: Filesystem;
+        path: string;
+        name: string;
+        purpose: string;
+        fh: import("node:fs/promises").FileHandle;
     }
 }
 

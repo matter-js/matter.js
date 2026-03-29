@@ -92,14 +92,23 @@ describe("Storage in JSON File", () => {
         await storage.close();
     });
 
-    it("Throws error when context is empty on set", async () => {
+    it("Allows root-level keys with empty context", async () => {
+        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
+        storage.set([], "key", "value");
+        assert.equal(storage.get([], "key"), "value");
+        assert.deepEqual(storage.keys([]), ["key"]);
+        storage.delete([], "key");
+        assert.deepEqual(storage.keys([]), []);
+    });
+
+    it("Throws error when context segment is empty on set", async () => {
         const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         assert.throws(
             () => {
                 storage.set([""], "key", "value");
             },
             {
-                message: "Context must not be an empty string.",
+                message: "Context must not contain empty segments or leading or trailing dots.",
             },
         );
     });
@@ -111,19 +120,19 @@ describe("Storage in JSON File", () => {
                 storage.set(["context"], "", "value");
             },
             {
-                message: "Context and key must not be empty.",
+                message: "Key must not be empty.",
             },
         );
     });
 
-    it("Throws error when context is empty on get", async () => {
+    it("Throws error when context segment is empty on get", async () => {
         const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
         assert.throws(
             () => {
                 storage.get([""], "key");
             },
             {
-                message: "Context must not be an empty string.",
+                message: "Context must not contain empty segments or leading or trailing dots.",
             },
         );
     });
@@ -135,7 +144,7 @@ describe("Storage in JSON File", () => {
                 storage.get(["context"], "");
             },
             {
-                message: "Context and key must not be empty.",
+                message: "Key must not be empty.",
             },
         );
     });

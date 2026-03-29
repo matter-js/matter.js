@@ -246,7 +246,9 @@ export declare namespace ModeBase {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2
      */
-    export interface ModeOption {
+    export declare class ModeOption {
+        constructor(values?: Partial<ModeOption>);
+
         /**
          * This field shall indicate readable text that describes the mode option, so that a client can provide it to
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
@@ -302,7 +304,7 @@ export declare namespace ModeBase {
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
-    }
+    };
 
     /**
      * This command is used to change device modes.
@@ -311,7 +313,9 @@ export declare namespace ModeBase {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
      */
-    export interface ChangeToModeRequest {
+    export declare class ChangeToModeRequest {
+        constructor(values?: Partial<ChangeToModeRequest>);
+
         /**
          * If the NewMode field doesn’t match the Mode field of any entry of the SupportedModes list, the
          * ChangeToModeResponse command’s Status field shall indicate UnsupportedMode and the StatusText field shall be
@@ -338,28 +342,32 @@ export declare namespace ModeBase {
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1.1
          */
         newMode: number;
-    }
+    };
 
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2
      */
-    export interface ChangeToModeResponse {
+    export declare class ChangeToModeResponse {
+        constructor(values?: Partial<ChangeToModeResponse>);
+
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1
          */
         status: ModeChangeStatus;
 
         statusText: string;
-    }
+    };
 
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
      */
-    export interface ModeTagStruct {
+    export declare class ModeTagStruct {
+        constructor(values?: Partial<ModeTagStruct>);
+
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
          * 1.10.8, “Mode Namespace”).
@@ -382,7 +390,7 @@ export declare namespace ModeBase {
          * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
          */
         value: ModeTag;
-    }
+    };
 
     export enum ModeChangeStatus {
         /**

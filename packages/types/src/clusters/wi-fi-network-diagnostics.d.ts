@@ -449,7 +449,9 @@ export declare namespace WiFiNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
      */
-    export interface DisconnectionEvent {
+    export declare class DisconnectionEvent {
+        constructor(values?: Partial<DisconnectionEvent>);
+
         /**
          * This field shall contain the Reason Code field value for the Disassociation or Deauthentication event that
          * caused the disconnection and the value shall align with Table 9-49 "Reason codes" of IEEE 802.11-2020.
@@ -457,7 +459,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.15.8.1.1
          */
         reasonCode: number;
-    }
+    };
 
     /**
      * The AssociationFailure event shall indicate that a Node has attempted to connect, or reconnect, to a Wi-Fi access
@@ -466,7 +468,9 @@ export declare namespace WiFiNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
      */
-    export interface AssociationFailureEvent {
+    export declare class AssociationFailureEvent {
+        constructor(values?: Partial<AssociationFailureEvent>);
+
         /**
          * The Status field shall be set to a value from the AssociationFailureCauseEnum.
          *
@@ -490,7 +494,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.15.8.2.2
          */
         status: number;
-    }
+    };
 
     /**
      * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
@@ -499,9 +503,10 @@ export declare namespace WiFiNetworkDiagnostics {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
      */
-    export interface ConnectionStatusEvent {
+    export declare class ConnectionStatusEvent {
+        constructor(values?: Partial<ConnectionStatusEvent>);
         connectionStatus: ConnectionStatus;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.15.5.3

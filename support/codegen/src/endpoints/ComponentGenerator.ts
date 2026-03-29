@@ -502,8 +502,9 @@ export class ComponentGenerator {
         this.#definedNames.add(name);
 
         this.file.components.undefine(name);
-        const struct = this.file.components.statements(`export interface ${name} {`, "}");
+        const struct = this.file.components.statements(`export declare class ${name} {`, "}");
         struct.document(model);
+        struct.atom(`constructor(values?: Partial<${name}>)`);
 
         model.members.forEach(field => {
             if (field.isDisallowed || (field.isDeprecated && !field.type)) {
@@ -526,8 +527,9 @@ export class ComponentGenerator {
         this.#definedNames.add(name);
 
         this.file.components.undefine(name);
-        const intf = this.file.components.statements(`export interface ${name} {`, "}");
+        const intf = this.file.components.statements(`export declare class ${name} {`, "}");
         intf.document(model);
+        intf.atom(`constructor(values?: Partial<${name}> | number)`);
 
         for (const child of model.members) {
             let fieldType: string | undefined;

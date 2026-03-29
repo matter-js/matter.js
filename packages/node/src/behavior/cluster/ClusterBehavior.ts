@@ -505,6 +505,9 @@ export namespace ClusterBehavior {
      *
      *     override foo: () => {}
      *
+     * This is also required for protected properties because TypeScript doesn't include them in the mapped types our
+     * typing system uses to define modified behaviors.
+     *
      * See {@link ClusterInterface} for more details.
      */
     export declare const ExtensionInterface: {};

@@ -14,6 +14,8 @@ import type { CommandId } from "../datatype/CommandId.js";
 import type { EventId } from "../datatype/EventId.js";
 import { Status } from "../globals/Status.js";
 import type { BitSchema, TypeFromPartialBitSchema } from "../schema/BitmapSchema.js";
+import { ClassForValueModel } from "./ClassForValueModel.js";
+import { EnumForValueModel } from "./EnumForValueModel.js";
 import { RetiredClusterType } from "./RetiredClusterType.js";
 
 /**
@@ -163,15 +165,17 @@ function installLazyProperties(ns: object, model: ClusterModel) {
         });
     }
 
-    // Enum values and error classes from all enum types in the cluster
-    installEnumGetters(model, lazy);
+    // Enum values, error classes, struct/bitmap classes from all datatypes in the cluster
+    installDatatypeGetters(model, lazy);
 }
 
 /**
- * Use {@link GeneratorScope} to discover all named types in the cluster, then install lazy getters for enums and
- * error classes.  This ensures the factory uses identical naming to what codegen emits in `.d.ts` files.
+ * Use {@link GeneratorScope} to discover all named types in the cluster, then install lazy getters for enums (with
+ * schema), struct/bitmap classes (via {@link ClassForDatatype}), and error classes.
+ *
+ * This ensures the factory uses identical naming to what codegen emits in `.d.ts` files.
  */
-function installEnumGetters(model: ClusterModel, lazy: (name: string, factory: () => unknown) => void) {
+function installDatatypeGetters(model: ClusterModel, lazy: (name: string, factory: () => unknown) => void) {
     const scope = GeneratorScope(model);
 
     for (const [definer, name, location] of scope.namedModels()) {
@@ -179,58 +183,56 @@ function installEnumGetters(model: ClusterModel, lazy: (name: string, factory: (
             continue;
         }
 
-        if (definer.effectiveMetatype !== Metatype.enum || !definer.children.length) {
-            continue;
-        }
+        const metatype = definer.effectiveMetatype;
 
-        lazy(name, () => {
-            const values: Record<string, number> = {};
-            for (const child of definer.children) {
-                if (typeof child.id === "number") {
-                    values[child.name] = child.id;
-                }
+        if (metatype === Metatype.enum) {
+            if (!definer.children.length) {
+                continue;
             }
-            return Object.freeze(values);
-        });
 
-        // Error classes for cluster status code enums
-        if (definer.name === "StatusEnum" || definer.name === "StatusCodeEnum") {
-            for (const field of definer.children) {
-                if (field.name === "Success") {
-                    continue;
-                }
+            lazy(name, () => EnumForValueModel(definer as ValueModel));
 
-                let errName = field.name;
-                if (!errName.endsWith("Error")) {
-                    errName = `${errName}Error`;
-                }
-
-                lazy(errName, () => {
-                    let message = field.description;
-                    if (message === undefined) {
-                        message = capitalize(decamelize(field.name, " "));
-                    }
-                    if (message.endsWith(".")) {
-                        message = message.slice(0, message.length - 1);
+            // Error classes for cluster status code enums
+            if (definer.name === "StatusEnum" || definer.name === "StatusCodeEnum") {
+                for (const field of definer.children) {
+                    if (field.name === "Success") {
+                        continue;
                     }
 
-                    const clusterCode = typeof field.id === "number" ? field.id : undefined;
-                    const defaultMessage = message;
+                    let errName = field.name;
+                    if (!errName.endsWith("Error")) {
+                        errName = `${errName}Error`;
+                    }
 
-                    // Computed property pattern so V8 infers the correct class name
-                    return {
-                        [errName]: class extends StatusResponseError {
-                            constructor(
-                                message = defaultMessage,
-                                code: Status = Status.Failure,
-                                clusterCode2 = clusterCode,
-                            ) {
-                                super(message, code, clusterCode2);
-                            }
-                        },
-                    }[errName];
-                });
+                    lazy(errName, () => {
+                        let message = field.description;
+                        if (message === undefined) {
+                            message = capitalize(decamelize(field.name, " "));
+                        }
+                        if (message.endsWith(".")) {
+                            message = message.slice(0, message.length - 1);
+                        }
+
+                        const clusterCode = typeof field.id === "number" ? field.id : undefined;
+                        const defaultMessage = message;
+
+                        // Computed property pattern so V8 infers the correct class name
+                        return {
+                            [errName]: class extends StatusResponseError {
+                                constructor(
+                                    message = defaultMessage,
+                                    code: Status = Status.Failure,
+                                    clusterCode2 = clusterCode,
+                                ) {
+                                    super(message, code, clusterCode2);
+                                }
+                            },
+                        }[errName];
+                    });
+                }
             }
+        } else if (metatype === Metatype.object || metatype === Metatype.bitmap) {
+            lazy(name, () => ClassForValueModel(definer as ValueModel));
         }
     }
 }

@@ -128,7 +128,9 @@ export declare namespace EcosystemInformation {
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.17.4.2
      */
-    export interface EcosystemDevice {
+    export declare class EcosystemDevice {
+        constructor(values?: Partial<EcosystemDevice>);
+
         /**
          * This field shall indicate the device’s name, which is provided externally if the user consents. (For example,
          * provided by the user in an ecosystem specific interface.)
@@ -196,12 +198,14 @@ export declare namespace EcosystemInformation {
         uniqueLocationIDsLastEdit: number | bigint;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.17.4.3
      */
-    export interface EcosystemLocation {
+    export declare class EcosystemLocation {
+        constructor(values?: Partial<EcosystemLocation>);
+
         /**
          * This field shall indicate a unique identifier for a specific Ecosystem Information Cluster server instance
          * representing the location independent of its LocationDescriptor field.
@@ -248,7 +252,7 @@ export declare namespace EcosystemInformation {
         locationDescriptorLastEdit: number | bigint;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
@@ -256,7 +260,9 @@ export declare namespace EcosystemInformation {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.17.4.1
      */
-    export interface DeviceType {
+    export declare class DeviceType {
+        constructor(values?: Partial<DeviceType>);
+
         /**
          * This shall indicate the device type definition.
          *
@@ -270,7 +276,7 @@ export declare namespace EcosystemInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.17.4.1.2
          */
         revision: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

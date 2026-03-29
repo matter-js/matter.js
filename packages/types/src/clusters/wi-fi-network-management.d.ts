@@ -164,7 +164,9 @@ export declare namespace WiFiNetworkManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.2
      */
-    export interface NetworkPassphraseResponse {
+    export declare class NetworkPassphraseResponse {
+        constructor(values?: Partial<NetworkPassphraseResponse>);
+
         /**
          * This field shall indicate the current WPA-Personal passphrase or PSK associated with the primary Wi-Fi
          * network provided by this device, in one of the following formats:
@@ -185,7 +187,7 @@ export declare namespace WiFiNetworkManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.2.1
          */
         passphrase: Bytes;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

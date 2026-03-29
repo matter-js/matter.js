@@ -454,7 +454,9 @@ export declare namespace OperationalState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2
      */
-    export interface OperationalStateStruct {
+    export declare class OperationalStateStruct {
+        constructor(values?: Partial<OperationalStateStruct>);
+
         /**
          * This shall be populated with a value from the OperationalStateEnum.
          *
@@ -469,7 +471,7 @@ export declare namespace OperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
          */
         operationalStateLabel?: string;
-    }
+    };
 
     /**
      * This type defines the set of known operational state values, and is derived from enum8. The following table
@@ -514,7 +516,9 @@ export declare namespace OperationalState {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4
      */
-    export interface ErrorStateStruct {
+    export declare class ErrorStateStruct {
+        constructor(values?: Partial<ErrorStateStruct>);
+
         /**
          * This shall be populated with a value from the ErrorStateEnum.
          *
@@ -538,7 +542,7 @@ export declare namespace OperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.3
          */
         errorStateDetails?: string;
-    }
+    };
 
     /**
      * This command shall be supported by an implementation if any of the other commands defined by this cluster are
@@ -549,7 +553,9 @@ export declare namespace OperationalState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5
      */
-    export interface OperationalCommandResponse {
+    export declare class OperationalCommandResponse {
+        constructor(values?: Partial<OperationalCommandResponse>);
+
         /**
          * This shall indicate the success or otherwise of the attempted command invocation. On a successful invocation
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
@@ -558,7 +564,7 @@ export declare namespace OperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
          */
         commandResponseState: ErrorStateStruct;
-    }
+    };
 
     /**
      * This event is generated when a reportable error condition is detected. A device that generates this event shall
@@ -568,9 +574,10 @@ export declare namespace OperationalState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
      */
-    export interface OperationalErrorEvent {
+    export declare class OperationalErrorEvent {
+        constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ErrorStateStruct;
-    }
+    };
 
     /**
      * This event SHOULD be generated when the overall operation ends, successfully or otherwise. For example, the
@@ -585,7 +592,9 @@ export declare namespace OperationalState {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
      */
-    export interface OperationCompletionEvent {
+    export declare class OperationCompletionEvent {
+        constructor(values?: Partial<OperationCompletionEvent>);
+
         /**
          * This field provides an indication of the state at the end of the operation. This field shall have a value
          * from the ErrorStateEnum set. A value of NoError indicates success, that is, no error has been detected.
@@ -612,7 +621,7 @@ export declare namespace OperationalState {
          * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.3
          */
         pausedTime?: number | null;
-    }
+    };
 
     /**
      * This type defines the set of known operational error values, and is derived from enum8. The following table

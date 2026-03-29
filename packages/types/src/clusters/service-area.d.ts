@@ -596,7 +596,9 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4
      */
-    export interface Area {
+    export declare class Area {
+        constructor(values?: Partial<Area>);
+
         /**
          * This field shall represent the identifier of the area.
          *
@@ -629,14 +631,16 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.4.3
          */
         areaInfo: AreaInfo;
-    }
+    };
 
     /**
      * This is a struct representing a map.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3
      */
-    export interface Map {
+    export declare class Map {
+        constructor(values?: Partial<Map>);
+
         /**
          * This field shall represent the map’s identifier.
          *
@@ -652,14 +656,16 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.3.2
          */
         name: string;
-    }
+    };
 
     /**
      * This is a struct indicating the progress.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5
      */
-    export interface Progress {
+    export declare class Progress {
+        constructor(values?: Partial<Progress>);
+
         /**
          * This field shall indicate the identifier of the area, and the identifier shall be an entry in the
          * SupportedAreas attribute’s list.
@@ -706,7 +712,7 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.5.4
          */
         estimatedTime?: number | null;
-    }
+    };
 
     /**
      * This command is used to select a set of device areas, where the device is to operate.
@@ -715,7 +721,9 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1
      */
-    export interface SelectAreasRequest {
+    export declare class SelectAreasRequest {
+        constructor(values?: Partial<SelectAreasRequest>);
+
         /**
          * This field indicates which areas the device is to operate at.
          *
@@ -726,14 +734,16 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.1.1
          */
         newAreas: number[];
-    }
+    };
 
     /**
      * This command is sent by the device on receipt of the SelectAreas command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.2
      */
-    export interface SelectAreasResponse {
+    export declare class SelectAreasResponse {
+        constructor(values?: Partial<SelectAreasResponse>);
+
         /**
          * If the Status field is set to Success or UnsupportedArea, the server may use a non-empty string for the
          * StatusText field to provide additional information. For example, if Status is set to UnsupportedArea, the
@@ -749,7 +759,7 @@ export declare namespace ServiceArea {
         status: SelectAreasStatus;
 
         statusText: string;
-    }
+    };
 
     /**
      * This command is used to skip the given area, and to attempt operating at other areas on the SupportedAreas
@@ -759,7 +769,9 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3
      */
-    export interface SkipAreaRequest {
+    export declare class SkipAreaRequest {
+        constructor(values?: Partial<SkipAreaRequest>);
+
         /**
          * The SkippedArea field indicates the area to be skipped.
          *
@@ -768,14 +780,16 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.3.1
          */
         skippedArea: number;
-    }
+    };
 
     /**
      * This command is sent by the device on receipt of the SkipArea command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.7.4
      */
-    export interface SkipAreaResponse {
+    export declare class SkipAreaResponse {
+        constructor(values?: Partial<SkipAreaResponse>);
+
         /**
          * If the Status field is set to Success or InvalidAreaList, the server may use a non-empty string for the
          * StatusText field to provide additional information. For example, if Status is set to InvalidAreaList, the
@@ -791,14 +805,16 @@ export declare namespace ServiceArea {
         status: SkipAreaStatus;
 
         statusText: string;
-    }
+    };
 
     /**
      * The data from this structure indicates a landmark and position relative to the landmark.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.1
      */
-    export interface LandmarkInfo {
+    export declare class LandmarkInfo {
+        constructor(values?: Partial<LandmarkInfo>);
+
         /**
          * This field shall indicate that the area is associated with a landmark.
          *
@@ -825,7 +841,7 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.1.2
          */
         relativePositionTag: number | null;
-    }
+    };
 
     /**
      * The data from this structure indicates the name and/or semantic data describing an area, as detailed below.
@@ -865,7 +881,9 @@ export declare namespace ServiceArea {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2
      */
-    export interface AreaInfo {
+    export declare class AreaInfo {
+        constructor(values?: Partial<AreaInfo>);
+
         /**
          * This field shall indicate the name of the area, floor number and/or area type.
          *
@@ -895,7 +913,7 @@ export declare namespace ServiceArea {
          * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.2.2
          */
         landmarkInfo: LandmarkInfo | null;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.17.5.6

@@ -562,10 +562,11 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.7
      */
-    export interface MultiPressCompleteEvent {
+    export declare class MultiPressCompleteEvent {
+        constructor(values?: Partial<MultiPressCompleteEvent>);
         previousPosition: number;
         totalNumberOfPressesCounted: number;
-    }
+    };
 
     /**
      * This event shall be generated, when the latching switch is moved to a new position. It may have been delayed by
@@ -573,28 +574,32 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.1
      */
-    export interface SwitchLatchedEvent {
+    export declare class SwitchLatchedEvent {
+        constructor(values?: Partial<SwitchLatchedEvent>);
+
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. after the move.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.1.1
          */
         newPosition: number;
-    }
+    };
 
     /**
      * This event shall be generated, when the momentary switch starts to be pressed (after debouncing).
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.2
      */
-    export interface InitialPressEvent {
+    export declare class InitialPressEvent {
+        constructor(values?: Partial<InitialPressEvent>);
+
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. while pressed.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.2.1
          */
         newPosition: number;
-    }
+    };
 
     /**
      * This event shall be generated when the momentary switch has been pressed for a "long" time. The time interval
@@ -629,14 +634,16 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.3
      */
-    export interface LongPressEvent {
+    export declare class LongPressEvent {
+        constructor(values?: Partial<LongPressEvent>);
+
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. while pressed.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.3.1
          */
         newPosition: number;
-    }
+    };
 
     /**
      * This event shall be generated, when the momentary switch has been released (after debouncing) and after having
@@ -646,14 +653,16 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.5
      */
-    export interface LongReleaseEvent {
+    export declare class LongReleaseEvent {
+        constructor(values?: Partial<LongReleaseEvent>);
+
         /**
          * This field shall indicate the previous value of the CurrentPosition attribute, i.e. just prior to release.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.5.1
          */
         previousPosition: number;
-    }
+    };
 
     /**
      * If the server has the Action Switch (AS) feature flag set, this event shall NOT be generated at all, since
@@ -672,14 +681,16 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4
      */
-    export interface ShortReleaseEvent {
+    export declare class ShortReleaseEvent {
+        constructor(values?: Partial<ShortReleaseEvent>);
+
         /**
          * This field shall indicate the previous value of the CurrentPosition attribute, i.e. just prior to release.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4.1
          */
         previousPosition: number;
-    }
+    };
 
     /**
      * If the server has the Action Switch (AS) feature flag set, this event shall NOT be generated at all. Otherwise,
@@ -690,7 +701,9 @@ export declare namespace Switch {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6
      */
-    export interface MultiPressOngoingEvent {
+    export declare class MultiPressOngoingEvent {
+        constructor(values?: Partial<MultiPressOngoingEvent>);
+
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. while pressed.
          *
@@ -710,7 +723,7 @@ export declare namespace Switch {
          * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6.2
          */
         currentNumberOfPressesCounted: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

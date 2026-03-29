@@ -457,7 +457,9 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.4.6
      */
-    export interface Action {
+    export declare class Action {
+        constructor(values?: Partial<Action>);
+
         /**
          * This field shall provide an unique identifier used to identify an action.
          *
@@ -506,7 +508,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.6
          */
         state: ActionState;
-    }
+    };
 
     /**
      * This data type holds the details of a single endpoint list, which relates to a set of endpoints that have some
@@ -514,7 +516,9 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.4.7
      */
-    export interface EndpointList {
+    export declare class EndpointList {
+        constructor(values?: Partial<EndpointList>);
+
         /**
          * This field shall provide an unique identifier used to identify the endpoint list.
          *
@@ -544,7 +548,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.4.7.4
          */
         endpoints: EndpointNumber[];
-    }
+    };
 
     /**
      * This command is used to trigger an instantaneous action.
@@ -556,10 +560,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.1
      */
-    export interface InstantActionRequest {
+    export declare class InstantActionRequest {
+        constructor(values?: Partial<InstantActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to trigger an instantaneous action with a transition over a given time.
@@ -576,7 +581,8 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.2
      */
-    export interface InstantActionWithTransitionRequest {
+    export declare class InstantActionWithTransitionRequest {
+        constructor(values?: Partial<InstantActionWithTransitionRequest>);
         actionId: number;
         invokeId?: number;
 
@@ -586,7 +592,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.6.2.1
          */
         transitionTime: number;
-    }
+    };
 
     /**
      * This command is used to trigger the commencement of an action.
@@ -602,10 +608,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.3
      */
-    export interface StartActionRequest {
+    export declare class StartActionRequest {
+        constructor(values?: Partial<StartActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to trigger the commencement of an action with a duration.
@@ -619,7 +626,8 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.4
      */
-    export interface StartActionWithDurationRequest {
+    export declare class StartActionWithDurationRequest {
+        constructor(values?: Partial<StartActionWithDurationRequest>);
         actionId: number;
         invokeId?: number;
 
@@ -629,7 +637,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.6.4.1
          */
         duration: number;
-    }
+    };
 
     /**
      * This command is used to stop an action.
@@ -641,10 +649,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.5
      */
-    export interface StopActionRequest {
+    export declare class StopActionRequest {
+        constructor(values?: Partial<StopActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to pause an action.
@@ -656,10 +665,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.6
      */
-    export interface PauseActionRequest {
+    export declare class PauseActionRequest {
+        constructor(values?: Partial<PauseActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to pause an action with a duration.
@@ -676,7 +686,8 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.7
      */
-    export interface PauseActionWithDurationRequest {
+    export declare class PauseActionWithDurationRequest {
+        constructor(values?: Partial<PauseActionWithDurationRequest>);
         actionId: number;
         invokeId?: number;
 
@@ -686,7 +697,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.6.7.1
          */
         duration: number;
-    }
+    };
 
     /**
      * This command is used to resume an action.
@@ -701,10 +712,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.8
      */
-    export interface ResumeActionRequest {
+    export declare class ResumeActionRequest {
+        constructor(values?: Partial<ResumeActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to enable an action.
@@ -715,10 +727,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.9
      */
-    export interface EnableActionRequest {
+    export declare class EnableActionRequest {
+        constructor(values?: Partial<EnableActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to enable an action with a duration.
@@ -732,7 +745,8 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.10
      */
-    export interface EnableActionWithDurationRequest {
+    export declare class EnableActionWithDurationRequest {
+        constructor(values?: Partial<EnableActionWithDurationRequest>);
         actionId: number;
         invokeId?: number;
 
@@ -742,7 +756,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.6.10.1
          */
         duration: number;
-    }
+    };
 
     /**
      * This command is used to disable an action.
@@ -753,10 +767,11 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.11
      */
-    export interface DisableActionRequest {
+    export declare class DisableActionRequest {
+        constructor(values?: Partial<DisableActionRequest>);
         actionId: number;
         invokeId?: number;
-    }
+    };
 
     /**
      * This command is used to disable an action with a duration.
@@ -772,7 +787,8 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.6.12
      */
-    export interface DisableActionWithDurationRequest {
+    export declare class DisableActionWithDurationRequest {
+        constructor(values?: Partial<DisableActionWithDurationRequest>);
         actionId: number;
         invokeId?: number;
 
@@ -782,7 +798,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.6.12.1
          */
         duration: number;
-    }
+    };
 
     /**
      * This event shall be generated when there is a change in the State of an ActionID during the execution of an
@@ -799,7 +815,9 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
      */
-    export interface StateChangedEvent {
+    export declare class StateChangedEvent {
+        constructor(values?: Partial<StateChangedEvent>);
+
         /**
          * This field shall be set to the ActionID of the action which has changed state.
          *
@@ -821,7 +839,7 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.7.1.3
          */
         newState: ActionState;
-    }
+    };
 
     /**
      * This event shall be generated when there is some error which prevents the action from its normal planned
@@ -850,7 +868,9 @@ export declare namespace Actions {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
      */
-    export interface ActionFailedEvent {
+    export declare class ActionFailedEvent {
+        constructor(values?: Partial<ActionFailedEvent>);
+
         /**
          * This field shall be set to the ActionID of the action which encountered an error.
          *
@@ -879,14 +899,16 @@ export declare namespace Actions {
          * @see {@link MatterSpecification.v142.Core} § 9.14.7.2.4
          */
         error: ActionError;
-    }
+    };
 
     /**
      * Note - The bit allocation of this bitmap shall follow the ID’s of the Commands of this cluster.
      *
      * @see {@link MatterSpecification.v142.Core} § 9.14.4.1
      */
-    export interface CommandBits {
+    export declare class CommandBits {
+        constructor(values?: Partial<CommandBits> | number);
+
         /**
          * Indicate support for InstantAction command
          */
@@ -946,7 +968,7 @@ export declare namespace Actions {
          * Indicate support for DisableActionWithDuration command
          */
         disableActionWithDuration?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.14.4.2

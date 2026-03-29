@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Mutex } from "#util/Mutex.js";
 import type { Directory } from "../../fs/Directory.js";
 import type { File } from "../../fs/File.js";
 import {
@@ -21,9 +22,11 @@ import {
  */
 export class WalWriter {
     readonly #walDir: Directory;
+    readonly #name: string;
     readonly #maxSegmentSize: number;
     readonly #fsync: boolean;
     readonly #onRotate?: (closedSegment: number) => void;
+    readonly #mutex = new Mutex(this);
 
     #handle?: File.Handle;
     #currentSegment = 0;
@@ -32,6 +35,7 @@ export class WalWriter {
 
     constructor(walDir: Directory, options?: WalWriter.Options) {
         this.#walDir = walDir;
+        this.#name = options?.name ?? "unknown";
         this.#maxSegmentSize = options?.maxSegmentSize ?? 16 * 1024 * 1024; // 16 MB default
         this.#fsync = options?.fsync ?? true;
         this.#onRotate = options?.onRotate;
@@ -48,37 +52,40 @@ export class WalWriter {
      * Write a commit to the WAL, returning its commit ID and timestamp.
      */
     async write(ops: WalOp[]): Promise<{ id: WalCommitId; ts: number }> {
-        if (!this.#handle) {
-            await this.#openSegment();
-        }
+        return this.#mutex.produce(async () => {
+            if (!this.#handle) {
+                await this.#openSegment();
+            }
 
-        // Check if rotation is needed (size threshold or line overflow)
-        if (
-            this.#currentSize > 0 &&
-            (this.#currentSize >= this.#maxSegmentSize || this.#currentOffset >= MAX_SEGMENT_LINES)
-        ) {
-            await this.#rotate();
-        }
+            // Check if rotation is needed (size threshold or line overflow)
+            if (
+                this.#currentSize > 0 &&
+                (this.#currentSize >= this.#maxSegmentSize || this.#currentOffset >= MAX_SEGMENT_LINES)
+            ) {
+                await this.#rotate();
+            }
 
-        const ts = Date.now();
-        const line = serializeCommit({ ts, ops }) + "\n";
-        const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
+            const ts = Date.now();
+            const line = serializeCommit({ ts, ops }) + "\n";
+            const id: WalCommitId = { segment: this.#currentSegment, offset: this.#currentOffset };
 
-        await this.#handle!.writeHandle(line);
-        if (this.#fsync) {
-            await this.#handle!.fsync();
-        }
+            await this.#handle!.writeHandle(line);
+            if (this.#fsync) {
+                await this.#handle!.fsync();
+            }
 
-        this.#currentOffset++;
-        this.#currentSize += new TextEncoder().encode(line).length;
+            this.#currentOffset++;
+            this.#currentSize += new TextEncoder().encode(line).length;
 
-        return { id, ts };
+            return { id, ts };
+        });
     }
 
     /**
      * Close the current file handle.
      */
     async close(): Promise<void> {
+        await this.#mutex.close();
         if (this.#handle) {
             await this.#handle.close();
             this.#handle = undefined;
@@ -127,7 +134,7 @@ export class WalWriter {
                     this.#currentSegment = maxSegment;
                     this.#currentOffset = lineCount;
                     this.#currentSize = byteSize;
-                    this.#handle = await lastFile.open("a");
+                    this.#handle = await lastFile.open(this.#handlePurpose, "a");
                     return;
                 }
 
@@ -141,7 +148,7 @@ export class WalWriter {
         this.#currentOffset = 0;
         this.#currentSize = 0;
         const file = this.#walDir.file(segmentFilename(this.#currentSegment));
-        this.#handle = await file.open("a");
+        this.#handle = await file.open(this.#handlePurpose, "a");
     }
 
     async #rotate(): Promise<void> {
@@ -153,13 +160,19 @@ export class WalWriter {
         this.#currentOffset = 0;
         this.#currentSize = 0;
         const file = this.#walDir.file(segmentFilename(this.#currentSegment));
-        this.#handle = await file.open("a");
+        this.#handle = await file.open(this.#handlePurpose, "a");
         this.#onRotate?.(closedSegment);
+    }
+
+    get #handlePurpose() {
+        return `WAL writer ${this.#name} segment ${this.#currentSegment}`;
     }
 }
 
 export namespace WalWriter {
     export interface Options {
+        /** Storage name, used in file handle leak diagnostics. */
+        name?: string;
         /** Maximum segment size in bytes before rotation. Default 16 MB. */
         maxSegmentSize?: number;
         /** Whether to fsync after each write. Default true. */

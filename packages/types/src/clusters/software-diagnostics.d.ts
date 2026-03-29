@@ -206,7 +206,9 @@ export declare namespace SoftwareDiagnostics {
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.13.5.1
      */
-    export interface ThreadMetrics {
+    export declare class ThreadMetrics {
+        constructor(values?: Partial<ThreadMetrics>);
+
         /**
          * The Id field shall be a server-assigned per-thread unique ID that is constant for the duration of the thread.
          * Efforts SHOULD be made to avoid reusing ID values when possible.
@@ -248,14 +250,16 @@ export declare namespace SoftwareDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.13.5.1.5
          */
         stackSize?: number;
-    }
+    };
 
     /**
      * This Event shall be generated when a software fault occurs on the Node.
      *
      * @see {@link MatterSpecification.v142.Core} § 11.13.8.1
      */
-    export interface SoftwareFaultEvent {
+    export declare class SoftwareFaultEvent {
+        constructor(values?: Partial<SoftwareFaultEvent>);
+
         /**
          * This field shall be set to the ID of the software thread in which the last software fault occurred.
          *
@@ -279,7 +283,7 @@ export declare namespace SoftwareDiagnostics {
          * @see {@link MatterSpecification.v142.Core} § 11.13.8.1.3
          */
         faultRecording?: Bytes;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.
