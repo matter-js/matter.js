@@ -413,13 +413,11 @@ export class ControllerCommissioner {
                 throw new CommissioningError("Thread operational dataset must not be empty");
             }
             if (operationalDataset.length % 2 !== 0) {
-                throw new CommissioningError(
-                    "Thread operational dataset must have an even number of hex characters",
-                );
+                throw new CommissioningError("Thread operational dataset must have an even number of hex characters");
             }
             if (!/^[0-9a-fA-F]+$/.test(operationalDataset)) {
                 throw new CommissioningError(
-                    "Thread operational dataset must only contain valid hex characters (0-9, a-f)",
+                    "Thread operational dataset must only contain valid hexadecimal characters",
                 );
             }
         }
