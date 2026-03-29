@@ -8,6 +8,7 @@ import {
     AddressLifespan,
     BasicSet,
     ChannelType,
+    Diagnostic,
     Duration,
     Environment,
     Environmental,
@@ -60,7 +61,7 @@ export type DiscoveryData = {
 export function DiscoveryData(kvs: Map<string, string>) {
     const dd: DiscoveryData = {};
 
-    for (const key in kvs.keys()) {
+    for (const key of kvs.keys()) {
         switch (key) {
             case "VP":
             case "DN":
@@ -93,6 +94,26 @@ export function DiscoveryData(kvs: Map<string, string>) {
     }
 
     return dd;
+}
+
+/**
+ * Format DiscoveryData for diagnostic output.
+ */
+export function DiscoveryDataDiagnostics(data: DiscoveryData & { addresses?: ServerAddress[] }, kind?: string) {
+    return Diagnostic.dict({
+        kind,
+        DN: data.DN,
+        SII: data.SII !== undefined ? Duration.format(data.SII) : undefined,
+        SAI: data.SAI !== undefined ? Duration.format(data.SAI) : undefined,
+        SAT: data.SAT !== undefined ? Duration.format(data.SAT) : undefined,
+        T: data.T,
+        DT: data.DT,
+        PH: data.PH,
+        ICD: data.ICD,
+        VP: data.VP,
+        RI: data.RI,
+        PI: data.PI,
+    });
 }
 
 export type DiscoverableDevice<SA extends ServerAddress> = DiscoveryData &
@@ -157,16 +178,6 @@ export type CommissionableDeviceIdentifiers =
 
 export interface Scanner {
     type: ChannelType;
-
-    /**
-     * Send DNS-SD queries to discover commissionable devices by a provided identifier (e.g. discriminator,
-     * vendorId, etc.) and returns as soon as minimum one was found or the timeout is over.
-     */
-    findCommissionableDevices(
-        identifier: CommissionableDeviceIdentifiers,
-        timeout?: Duration,
-        ignoreExistingRecords?: boolean,
-    ): Promise<CommissionableDevice[]>;
 
     /**
      * Send DNS-SD queries to discover commissionable devices by a provided identifier (e.g. discriminator,

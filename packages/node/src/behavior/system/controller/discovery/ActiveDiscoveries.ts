@@ -5,7 +5,6 @@
  */
 
 import { Environment, Environmental } from "@matter/general";
-import { MdnsClient, MdnsScannerTargetCriteria, Scanner, ScannerSet } from "@matter/protocol";
 import type { Discovery } from "./Discovery.js";
 
 /**
@@ -13,15 +12,11 @@ import type { Discovery } from "./Discovery.js";
  */
 export class ActiveDiscoveries extends Set<Discovery<any>> {
     #env: Environment;
-    #mdnsTargetCriteria?: MdnsScannerTargetCriteria;
 
     constructor(env: Environment) {
         super();
 
         this.#env = env;
-
-        this.#activateCommissionableScanning();
-        env.get(ScannerSet).added.on(this.#activateCommissionableScanningFor.bind(this));
     }
 
     static [Environmental.create](env: Environment) {
@@ -32,37 +27,5 @@ export class ActiveDiscoveries extends Set<Discovery<any>> {
 
     async close() {
         this.#env.delete(ActiveDiscoveries, this);
-
-        this.#deactivateCommissionableScanning();
-    }
-
-    #activateCommissionableScanning() {
-        const scanners = this.#env.get(ScannerSet);
-        for (const scanner of scanners) {
-            this.#activateCommissionableScanningFor(scanner);
-        }
-    }
-
-    #activateCommissionableScanningFor(scanner: Scanner) {
-        if (!(scanner instanceof MdnsClient)) {
-            return;
-        }
-
-        if (this.#mdnsTargetCriteria === undefined) {
-            this.#mdnsTargetCriteria = { commissionable: true };
-        }
-        scanner.targetCriteriaProviders.add(this.#mdnsTargetCriteria);
-    }
-
-    #deactivateCommissionableScanning() {
-        if (!this.#mdnsTargetCriteria) {
-            return;
-        }
-        const scanners = this.#env.get(ScannerSet);
-        for (const scanner of scanners) {
-            if (scanner instanceof MdnsClient) {
-                scanner.targetCriteriaProviders.delete(this.#mdnsTargetCriteria);
-            }
-        }
     }
 }

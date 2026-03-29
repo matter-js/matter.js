@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import type { DnsRecord } from "#codec/DnsCodec.js";
 import { Hours, Minutes } from "#index.js";
 import { MockSite, qnameOf } from "./dns-sd-helpers.js";
 
@@ -101,6 +102,136 @@ describe("DnssdNames", () => {
 
         expect(client.names.has(qname)).false;
         expect(client.names.has(server.hostname)).false;
+    });
+
+    describe("dynamic filter", () => {
+        it("accepts records matching a dynamically added filter", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            // No filter initially — accept nothing by default in this test
+            client.configureNames({ filter: () => false });
+
+            // Add a filter that accepts the server's service
+            const filter = (record: DnsRecord) => record.name === qnameOf(1);
+            client.names.filters.add(filter);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast();
+            await discovered;
+
+            expect(client.names.has(qnameOf(1))).true;
+        });
+
+        it("stops accepting records after filter removal", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const filter = (record: DnsRecord) => record.name === qnameOf(1);
+            client.configureNames({ filter: () => false });
+            client.names.filters.add(filter);
+            client.names.filters.delete(filter);
+
+            await server.broadcast();
+            await MockTime.advance(100);
+
+            expect(client.names.has(qnameOf(1))).false;
+        });
+
+        it("accepts records if any filter matches (OR semantics)", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            client.configureNames({ filter: () => false });
+
+            const filter1 = (record: DnsRecord) => record.name === qnameOf(1);
+            const filter2 = (record: DnsRecord) => record.name === qnameOf(2);
+            client.names.filters.add(filter1);
+            client.names.filters.add(filter2);
+
+            const discovered = new Promise<void>(resolve => {
+                let count = 0;
+                client.names.discovered.on(() => {
+                    if (++count >= 2) resolve();
+                });
+            });
+            await server.broadcast(1);
+            await server.broadcast(2);
+            await discovered;
+
+            expect(client.names.has(qnameOf(1))).true;
+            expect(client.names.has(qnameOf(2))).true;
+        });
+
+        it("removing one filter keeps the other active", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            client.configureNames({ filter: () => false });
+
+            const filter1 = (record: DnsRecord) => record.name === qnameOf(1);
+            const filter2 = (record: DnsRecord) => record.name === qnameOf(2);
+            client.names.filters.add(filter1);
+            client.names.filters.add(filter2);
+
+            // Remove filter for service 1 but keep filter for service 2
+            client.names.filters.delete(filter1);
+
+            await server.broadcast(1);
+            await server.broadcast(2);
+            await MockTime.advance(100);
+
+            expect(client.names.has(qnameOf(1))).false;
+            expect(client.names.has(qnameOf(2))).true;
+        });
+
+        it("already-discovered names persist after filter removal", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            client.configureNames({ filter: () => false });
+
+            const filter = (record: DnsRecord) => record.name === qnameOf(1);
+            client.names.filters.add(filter);
+
+            const discovered = new Promise<void>(resolve => {
+                client.names.discovered.once(() => resolve());
+            });
+            await server.broadcast();
+            await discovered;
+
+            expect(client.names.has(qnameOf(1))).true;
+
+            // Remove filter — existing names should still be present
+            client.names.filters.delete(filter);
+            expect(client.names.has(qnameOf(1))).true;
+
+            // But new broadcasts for a different service should not be accepted
+            await server.broadcast(2);
+            await MockTime.advance(100);
+            expect(client.names.has(qnameOf(2))).false;
+        });
+
+        it("no filters means accept all records", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            // Default names with no filter
+            const discovered = new Promise<void>(resolve => {
+                let count = 0;
+                client.names.discovered.on(() => {
+                    if (++count >= 2) resolve();
+                });
+            });
+            await server.broadcast(1);
+            await server.broadcast(2);
+            await discovered;
+
+            expect(client.names.has(qnameOf(1))).true;
+            expect(client.names.has(qnameOf(2))).true;
+        });
     });
 
     it("filters but tracks and expires SRV even if filtered out", async () => {

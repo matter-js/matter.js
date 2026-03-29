@@ -25,6 +25,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #abort = new AbortController();
     #winner?: W;
     #winnerAttempt?: Promise<unknown>;
+    #winnerError?: unknown;
     #extractWinner?: (result: unknown) => W | undefined;
     #attemptErrors = new Array<Error>();
 
@@ -76,8 +77,9 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         attempt = Promise.resolve(factory(winOnPase))
             .catch(error => {
                 if (isWinner) {
-                    // Winner's error is meaningful — must propagate to onComplete
-                    throw error;
+                    // Winner's error is meaningful — capture it for onComplete to rethrow
+                    this.#winnerError = error;
+                    return undefined;
                 }
                 // Loser: resolve to prevent unhandled rejection.
                 // Collect the error for the final failure message unless it was a cancellation
@@ -107,15 +109,21 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         }
 
         try {
-            // Await winner's full operation (e.g. commissioning).  Errors here are meaningful
-            // and propagate to the caller.
+            // Await winner's full operation (e.g. commissioning).  If the winner captured an error
+            // during its .catch handler, rethrow it here so the caller sees a meaningful failure.
             if (this.#winnerAttempt !== undefined) {
-                this.#winner = this.#extractWinner!(await this.#winnerAttempt);
+                const result = await this.#winnerAttempt;
+                if (this.#winnerError !== undefined) {
+                    throw this.#winnerError;
+                }
+                this.#winner = this.#extractWinner!(result);
             }
         } finally {
-            // Await loser cleanup (canceled PASE sessions, etc.) and absorb errors — these are expected
-            // side effects of the race and are not relevant to the caller.
-            await MatterAggregateError.allSettled([...this.#pending], this.cleanupLabel).catch(() => {});
+            // Await loser cleanup (canceled PASE sessions, etc.).  All losers resolve to undefined
+            // so rejections here would indicate an unexpected bug — log but don't mask the winner error.
+            await MatterAggregateError.allSettled([...this.#pending], this.cleanupLabel).catch(error => {
+                logger.error("Unexpected error during parallel attempt cleanup:", error);
+            });
         }
 
         if (this.#winner === undefined) {
