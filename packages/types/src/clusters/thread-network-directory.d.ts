@@ -188,7 +188,9 @@ export declare namespace ThreadNetworkDirectory {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1
      */
-    export interface ThreadNetwork {
+    export declare class ThreadNetwork {
+        constructor(values?: Partial<ThreadNetwork>);
+
         /**
          * This field shall indicate the Extended PAN ID from the OperationalDataset for the given Thread network.
          *
@@ -216,7 +218,7 @@ export declare namespace ThreadNetworkDirectory {
          * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.4
          */
         activeTimestamp: number | bigint;
-    }
+    };
 
     /**
      * Adds an entry to the ThreadNetworks attribute with the specified Thread Operational Dataset.
@@ -227,7 +229,9 @@ export declare namespace ThreadNetworkDirectory {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
      */
-    export interface AddNetworkRequest {
+    export declare class AddNetworkRequest {
+        constructor(values?: Partial<AddNetworkRequest>);
+
         /**
          * This field shall represent the Operational Dataset for the network, using the encoding defined in the Thread
          * specification. It shall contain at least the following sub-TLVs: Active Timestamp, Channel, Channel Mask,
@@ -236,34 +240,37 @@ export declare namespace ThreadNetworkDirectory {
          * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1.1
          */
         operationalDataset: Bytes;
-    }
+    };
 
     /**
      * Removes the network with the given Extended PAN ID from the ThreadNetworks attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
      */
-    export interface RemoveNetworkRequest {
+    export declare class RemoveNetworkRequest {
+        constructor(values?: Partial<RemoveNetworkRequest>);
         extendedPanId: Bytes;
-    }
+    };
 
     /**
      * Retrieves the Thread Operational Dataset with the given Extended PAN ID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
      */
-    export interface GetOperationalDatasetRequest {
+    export declare class GetOperationalDatasetRequest {
+        constructor(values?: Partial<GetOperationalDatasetRequest>);
         extendedPanId: Bytes;
-    }
+    };
 
     /**
      * Contains the Thread Operational Dataset for the Extended PAN specified in GetOperationalDataset.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.4
      */
-    export interface OperationalDatasetResponse {
+    export declare class OperationalDatasetResponse {
+        constructor(values?: Partial<OperationalDatasetResponse>);
         operationalDataset: Bytes;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

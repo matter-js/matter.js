@@ -926,7 +926,9 @@ export declare namespace WindowCovering {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1
      */
-    export interface ConfigStatus {
+    export declare class ConfigStatus {
+        constructor(values?: Partial<ConfigStatus> | number);
+
         /**
          * Device is operational.
          *
@@ -1008,7 +1010,7 @@ export declare namespace WindowCovering {
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.6
          */
         tiltEncoderControlled?: boolean;
-    }
+    };
 
     /**
      * The OperationalStatusBitmap is using several internal operational state fields (composed of 2 bits) following
@@ -1024,7 +1026,9 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3
      */
-    export interface OperationalStatus {
+    export declare class OperationalStatus {
+        constructor(values?: Partial<OperationalStatus> | number);
+
         /**
          * Global operational state.
          *
@@ -1052,7 +1056,7 @@ export declare namespace WindowCovering {
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3.3
          */
         tilt?: MovementStatus;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.6
@@ -1187,7 +1191,9 @@ export declare namespace WindowCovering {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2
      */
-    export interface Mode {
+    export declare class Mode {
+        constructor(values?: Partial<Mode> | number);
+
         /**
          * Reverse the lift direction.
          *
@@ -1239,12 +1245,14 @@ export declare namespace WindowCovering {
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.4
          */
         ledFeedback?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.4
      */
-    export interface SafetyStatus {
+    export declare class SafetyStatus {
+        constructor(values?: Partial<SafetyStatus> | number);
+
         /**
          * Movement commands are ignored (locked out). e.g. not granted authorization, outside some time/date range.
          */
@@ -1307,7 +1315,7 @@ export declare namespace WindowCovering {
          * Protection is activated.
          */
         protection?: boolean;
-    }
+    };
 
     /**
      * This command is used to set the target lift position of the window covering to the percentage value specified in
@@ -1330,9 +1338,10 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
      */
-    export interface GoToLiftPercentageRequest {
+    export declare class GoToLiftPercentageRequest {
+        constructor(values?: Partial<GoToLiftPercentageRequest>);
         liftPercent100thsValue: number;
-    }
+    };
 
     /**
      * This command is used to set the target tilt position of the window covering to the percentage value specified in
@@ -1355,9 +1364,10 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.7
      */
-    export interface GoToTiltPercentageRequest {
+    export declare class GoToTiltPercentageRequest {
+        constructor(values?: Partial<GoToTiltPercentageRequest>);
         tiltPercent100thsValue: number;
-    }
+    };
 
     /**
      * This command is used to set the target lift position of the window covering to the value specified in the
@@ -1365,14 +1375,16 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
      */
-    export interface GoToLiftValueRequest {
+    export declare class GoToLiftValueRequest {
+        constructor(values?: Partial<GoToLiftValueRequest>);
+
         /**
          * This field shall specify the requested physical lift/slide position in unit cm (centimeters).
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4.1
          */
         liftValue: number;
-    }
+    };
 
     /**
      * This command is used to set the target tilt position of the window covering to the value specified in the
@@ -1380,14 +1392,16 @@ export declare namespace WindowCovering {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6
      */
-    export interface GoToTiltValueRequest {
+    export declare class GoToTiltValueRequest {
+        constructor(values?: Partial<GoToTiltValueRequest>);
+
         /**
          * This field shall specify the requested physical tilt position in unit 0.1° (tenth of a degrees).
          *
          * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6.1
          */
         tiltValue: number;
-    }
+    };
 
     /**
      * Values for OperationalStatus attribute fields.

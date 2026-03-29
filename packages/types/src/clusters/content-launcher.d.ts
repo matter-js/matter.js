@@ -199,7 +199,9 @@ export declare namespace ContentLauncher {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.1
      */
-    export interface SupportedProtocols {
+    export declare class SupportedProtocols {
+        constructor(values?: Partial<SupportedProtocols> | number);
+
         /**
          * Device supports Dynamic Adaptive Streaming over HTTP (DASH)
          */
@@ -209,7 +211,7 @@ export declare namespace ContentLauncher {
          * Device supports HTTP Live Streaming (HLS)
          */
         hls?: boolean;
-    }
+    };
 
     /**
      * Upon receipt, this shall launch content from the specified URL.
@@ -229,7 +231,9 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
      */
-    export interface LaunchUrlRequest {
+    export declare class LaunchUrlRequest {
+        constructor(values?: Partial<LaunchUrlRequest>);
+
         /**
          * This field shall indicate the URL of content to launch. The syntax of this field shall follow the syntax as
          * specified in RFC 1738 and shall use the https scheme.
@@ -267,14 +271,16 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.4
          */
         playbackPreferences?: PlaybackPreferences;
-    }
+    };
 
     /**
      * This command shall be generated in response to LaunchContent and LaunchURL commands.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3
      */
-    export interface LauncherResponse {
+    export declare class LauncherResponse {
+        constructor(values?: Partial<LauncherResponse>);
+
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
@@ -288,7 +294,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.2
          */
         data?: string;
-    }
+    };
 
     /**
      * Upon receipt, this shall launch the specified content with optional search criteria.
@@ -297,7 +303,9 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
      */
-    export interface LaunchContentRequest {
+    export declare class LaunchContentRequest {
+        constructor(values?: Partial<LaunchContentRequest>);
+
         /**
          * This field shall indicate the content to launch.
          *
@@ -347,7 +355,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.5
          */
         useCurrentContext?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
@@ -546,7 +554,9 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5
      */
-    export interface AdditionalInfo {
+    export declare class AdditionalInfo {
+        constructor(values?: Partial<AdditionalInfo>);
+
         /**
          * This field shall indicate the name of external id, ex. "musicbrainz".
          *
@@ -560,14 +570,16 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5.2
          */
         value: string;
-    }
+    };
 
     /**
      * This object defines inputs to a search for content for display or playback.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6
      */
-    export interface ParameterStruct {
+    export declare class ParameterStruct {
+        constructor(values?: Partial<ParameterStruct>);
+
         /**
          * This field shall indicate the entity type.
          *
@@ -588,14 +600,16 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.3
          */
         externalIdList?: AdditionalInfo[];
-    }
+    };
 
     /**
      * This object defines inputs to a search for content for display or playback.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7
      */
-    export interface ContentSearch {
+    export declare class ContentSearch {
+        constructor(values?: Partial<ContentSearch>);
+
         /**
          * This field shall indicate the list of parameters comprising the search. If multiple parameters are provided,
          * the search parameters shall be joined with 'AND' logic. e.g. action movies with Tom Cruise will be
@@ -604,14 +618,16 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7.1
          */
         parameterList: ParameterStruct[];
-    }
+    };
 
     /**
      * This object defines dimension which can be used for defining Size of background images.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8
      */
-    export interface Dimension {
+    export declare class Dimension {
+        constructor(values?: Partial<Dimension>);
+
         /**
          * This field shall indicate the width using the metric defined in Metric
          *
@@ -632,7 +648,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.3
          */
         metric: MetricType;
-    }
+    };
 
     /**
      * This object defines style information which can be used by content providers to change the Media Player’s style
@@ -640,7 +656,9 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9
      */
-    export interface StyleInformation {
+    export declare class StyleInformation {
+        constructor(values?: Partial<StyleInformation>);
+
         /**
          * This field shall indicate the URL of image used for Styling different Video Player sections like Logo,
          * Watermark etc. The syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the
@@ -670,7 +688,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.3
          */
         size?: Dimension;
-    }
+    };
 
     /**
      * This object defines Branding Information which can be provided by the client in order to customize the skin of
@@ -678,7 +696,9 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10
      */
-    export interface BrandingInformation {
+    export declare class BrandingInformation {
+        constructor(values?: Partial<BrandingInformation>);
+
         /**
          * This field shall indicate name of the provider for the given content.
          *
@@ -723,7 +743,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.6
          */
         watermark?: StyleInformation;
-    }
+    };
 
     /**
      * PlaybackPreferencesStruct defines the preferences sent by the client to the receiver in the ContentLauncher
@@ -731,7 +751,9 @@ export declare namespace ContentLauncher {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11
      */
-    export interface PlaybackPreferences {
+    export declare class PlaybackPreferences {
+        constructor(values?: Partial<PlaybackPreferences>);
+
         /**
          * This field shall indicate the preferred position (in milliseconds) in the media to launch playback from. In
          * case the position falls in the middle of a frame, the server shall set the position to the beginning of that
@@ -761,14 +783,16 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.3
          */
         audioTracks?: TrackPreference[] | null;
-    }
+    };
 
     /**
      * This structure defines Text/Audio Track preferences.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12
      */
-    export interface TrackPreference {
+    export declare class TrackPreference {
+        constructor(values?: Partial<TrackPreference>);
+
         /**
          * This field shall contain one of the standard Tags for Identifying Languages RFC 5646, which identifies the
          * primary language used in the Track.
@@ -798,7 +822,7 @@ export declare namespace ContentLauncher {
          * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.3
          */
         audioOutputIndex?: number | null;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

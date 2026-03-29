@@ -297,7 +297,9 @@ export declare namespace GroupKeyManagement {
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.2.5.3
      */
-    export interface GroupKeyMap {
+    export declare class GroupKeyMap {
+        constructor(values?: Partial<GroupKeyMap>);
+
         /**
          * This field uniquely identifies the group within the scope of the given Fabric.
          *
@@ -316,12 +318,14 @@ export declare namespace GroupKeyManagement {
         groupKeySetId: number;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.2.5.5
      */
-    export interface GroupInfoMap {
+    export declare class GroupInfoMap {
+        constructor(values?: Partial<GroupInfoMap>);
+
         /**
          * This field uniquely identifies the group within the scope of the given Fabric.
          *
@@ -345,7 +349,7 @@ export declare namespace GroupKeyManagement {
         groupName?: string;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This command is used by Administrators to set the state of a given Group Key Set, including atomically updating
@@ -410,9 +414,10 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.1
      */
-    export interface KeySetWriteRequest {
+    export declare class KeySetWriteRequest {
+        constructor(values?: Partial<KeySetWriteRequest>);
         groupKeySet: GroupKeySet;
-    }
+    };
 
     /**
      * This command is used by Administrators to read the state of a given Group Key Set.
@@ -428,9 +433,10 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.2
      */
-    export interface KeySetReadRequest {
+    export declare class KeySetReadRequest {
+        constructor(values?: Partial<KeySetReadRequest>);
         groupKeySetId: number;
-    }
+    };
 
     /**
      * This command shall be generated in response to the KeySetRead command, if a valid Group Key Set was found. It
@@ -439,9 +445,10 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.3
      */
-    export interface KeySetReadResponse {
+    export declare class KeySetReadResponse {
+        constructor(values?: Partial<KeySetReadResponse>);
         groupKeySet: GroupKeySet;
-    }
+    };
 
     /**
      * This command is used by Administrators to remove all state of a given Group Key Set.
@@ -465,9 +472,10 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.4
      */
-    export interface KeySetRemoveRequest {
+    export declare class KeySetRemoveRequest {
+        constructor(values?: Partial<KeySetRemoveRequest>);
         groupKeySetId: number;
-    }
+    };
 
     /**
      * This command shall be generated in response to KeySetReadAllIndices and it shall contain the list of
@@ -475,7 +483,9 @@ export declare namespace GroupKeyManagement {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.2.7.6
      */
-    export interface KeySetReadAllIndicesResponse {
+    export declare class KeySetReadAllIndicesResponse {
+        constructor(values?: Partial<KeySetReadAllIndicesResponse>);
+
         /**
          * This field references the set of group keys that generate operational group keys for use with the accessing
          * fabric.
@@ -485,7 +495,7 @@ export declare namespace GroupKeyManagement {
          * @see {@link MatterSpecification.v142.Core} § 11.2.7.6.1
          */
         groupKeySetIDs: number[];
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.2.5.1
@@ -528,7 +538,9 @@ export declare namespace GroupKeyManagement {
     /**
      * @see {@link MatterSpecification.v142.Core} § 11.2.5.4
      */
-    export interface GroupKeySet {
+    export declare class GroupKeySet {
+        constructor(values?: Partial<GroupKeySet>);
+
         /**
          * This field shall provide the fabric-unique index for the associated group key set, as specified in Section
          * 4.17.3.5.1, “Group Key Set ID”.
@@ -612,7 +624,7 @@ export declare namespace GroupKeyManagement {
          * @see {@link MatterSpecification.v142.Core} § 11.2.5.4.9
          */
         groupKeyMulticastPolicy?: GroupKeyMulticastPolicy;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

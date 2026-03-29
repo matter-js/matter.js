@@ -196,12 +196,14 @@ export declare namespace RefrigeratorAlarm {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 8.8.5.1
      */
-    export interface Alarm {
+    export declare class Alarm {
+        constructor(values?: Partial<Alarm> | number);
+
         /**
          * The cabinet’s door has been open for a vendor defined amount of time.
          */
         doorOpen?: boolean;
-    }
+    };
 
     /**
      * This command resets active and latched alarms (if possible). Any generated Notify event shall contain fields that
@@ -209,7 +211,9 @@ export declare namespace RefrigeratorAlarm {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1
      */
-    export interface ResetRequest {
+    export declare class ResetRequest {
+        constructor(values?: Partial<ResetRequest>);
+
         /**
          * This field shall indicate a bitmap where each bit set in this field corresponds to an alarm that shall be
          * reset to inactive in the State attribute unless the alarm definition requires manual intervention. If the
@@ -219,14 +223,16 @@ export declare namespace RefrigeratorAlarm {
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.7.1.1
          */
         alarms: Alarm;
-    }
+    };
 
     /**
      * This event shall be generated when one or more alarms change state.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1
      */
-    export interface NotifyEvent {
+    export declare class NotifyEvent {
+        constructor(values?: Partial<NotifyEvent>);
+
         /**
          * This field shall indicate those alarms that have become active.
          *
@@ -255,7 +261,7 @@ export declare namespace RefrigeratorAlarm {
          * @see {@link MatterSpecification.v142.Cluster} § 1.15.8.1.3
          */
         mask: Alarm;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

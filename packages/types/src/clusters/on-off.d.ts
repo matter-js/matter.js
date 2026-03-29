@@ -351,7 +351,9 @@ export declare namespace OnOff {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4
      */
-    export interface OffWithEffectRequest {
+    export declare class OffWithEffectRequest {
+        constructor(values?: Partial<OffWithEffectRequest>);
+
         /**
          * This field specifies the fading effect to use when turning the device off. This field shall contain one of
          * the non-reserved values listed in EffectIdentifierEnum.
@@ -369,7 +371,7 @@ export declare namespace OnOff {
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.4.2
          */
         effectVariant: number;
-    }
+    };
 
     /**
      * This command allows devices to be turned on for a specific duration with a guarded off duration so that SHOULD
@@ -379,7 +381,9 @@ export declare namespace OnOff {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6
      */
-    export interface OnWithTimedOffRequest {
+    export declare class OnWithTimedOffRequest {
+        constructor(values?: Partial<OnWithTimedOffRequest>);
+
         /**
          * This field contains information on how the server is to be operated.
          *
@@ -400,17 +404,19 @@ export declare namespace OnOff {
          * @see {@link MatterSpecification.v142.Cluster} § 1.5.7.6.3
          */
         offWaitTime: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.1
      */
-    export interface OnOffControl {
+    export declare class OnOffControl {
+        constructor(values?: Partial<OnOffControl> | number);
+
         /**
          * Indicates a command is only accepted when in On state.
          */
         acceptOnlyWhenOn?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 1.5.5.3

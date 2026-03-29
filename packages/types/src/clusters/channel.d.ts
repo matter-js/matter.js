@@ -268,7 +268,9 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.5
      */
-    export interface ChannelInfo {
+    export declare class ChannelInfo {
+        constructor(values?: Partial<ChannelInfo>);
+
         /**
          * This field shall indicate the channel major number value (for example, using ATSC format). When the channel
          * number is expressed as a string, such as "13.1" or "256", the major number would be 13 or 256, respectively.
@@ -328,7 +330,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.5.7
          */
         type?: ChannelType;
-    }
+    };
 
     /**
      * The Lineup Info allows references to external lineup sources like Gracenote. The combination of OperatorName,
@@ -336,7 +338,9 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6
      */
-    export interface LineupInfo {
+    export declare class LineupInfo {
+        constructor(values?: Partial<LineupInfo>);
+
         /**
          * This field shall indicate the name of the operator, for example “Comcast”.
          *
@@ -366,14 +370,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.6.4
          */
         lineupInfoType: LineupInfoType;
-    }
+    };
 
     /**
      * Change the channel to the channel with the given Number in the ChannelList attribute.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.3
      */
-    export interface ChangeChannelByNumberRequest {
+    export declare class ChangeChannelByNumberRequest {
+        constructor(values?: Partial<ChangeChannelByNumberRequest>);
+
         /**
          * This field shall indicate the channel major number value (ATSC format) to which the channel should change.
          *
@@ -387,7 +393,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.3.2
          */
         minorNumber: number;
-    }
+    };
 
     /**
      * This command provides channel up and channel down functionality, but allows channel index jumps of size Count.
@@ -403,7 +409,9 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.4
      */
-    export interface SkipChannelRequest {
+    export declare class SkipChannelRequest {
+        constructor(values?: Partial<SkipChannelRequest>);
+
         /**
          * This field shall indicate the number of steps to increase (Count is positive) or decrease (Count is negative)
          * the current channel.
@@ -411,7 +419,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.4.1
          */
         count: number;
-    }
+    };
 
     /**
      * Change the channel to the channel case-insensitive exact matching the value passed as an argument.
@@ -425,21 +433,25 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.1
      */
-    export interface ChangeChannelRequest {
+    export declare class ChangeChannelRequest {
+        constructor(values?: Partial<ChangeChannelRequest>);
+
         /**
          * This field shall contain a user-input string to match in order to identify the target channel.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.1.1
          */
         match: string;
-    }
+    };
 
     /**
      * This command shall be generated in response to a ChangeChannel command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.2
      */
-    export interface ChangeChannelResponse {
+    export declare class ChangeChannelResponse {
+        constructor(values?: Partial<ChangeChannelResponse>);
+
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
@@ -453,7 +465,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.2.2
          */
         data?: string;
-    }
+    };
 
     /**
      * This command retrieves the program guide. It accepts several filter parameters to return specific schedule and
@@ -463,7 +475,9 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5
      */
-    export interface GetProgramGuideRequest {
+    export declare class GetProgramGuideRequest {
+        constructor(values?: Partial<GetProgramGuideRequest>);
+
         /**
          * This field shall indicate the beginning of the time window for which program guide entries are to be
          * retrieved, as a UTC time. Entries with a start time on or after this value will be included in the results.
@@ -517,14 +531,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.5.7
          */
         data?: Bytes;
-    }
+    };
 
     /**
      * This command is a response to the GetProgramGuide command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.6
      */
-    export interface ProgramGuideResponse {
+    export declare class ProgramGuideResponse {
+        constructor(values?: Partial<ProgramGuideResponse>);
+
         /**
          * This field shall indicate the necessary pagination attributes that define information for both the succeeding
          * and preceding data pages.
@@ -539,14 +555,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.6.2
          */
         programList: Program[];
-    }
+    };
 
     /**
      * Record a specific program or series when it goes live. This functionality enables DVR recording features.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.7
      */
-    export interface RecordProgramRequest {
+    export declare class RecordProgramRequest {
+        constructor(values?: Partial<RecordProgramRequest>);
+
         /**
          * This field shall indicate the program identifier for the program that should be recorded. This value is
          * provided by the identifier field in ProgramStruct.
@@ -577,14 +595,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.7.4
          */
         data?: Bytes;
-    }
+    };
 
     /**
      * Cancel recording for a specific program or series.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.8
      */
-    export interface CancelRecordProgramRequest {
+    export declare class CancelRecordProgramRequest {
+        constructor(values?: Partial<CancelRecordProgramRequest>);
+
         /**
          * This field shall indicate the program identifier for the program that should be cancelled from recording.
          * This value is provided by the identifier field in ProgramStruct.
@@ -615,12 +635,14 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.7.8.4
          */
         data?: Bytes;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.1
      */
-    export interface RecordingFlag {
+    export declare class RecordingFlag {
+        constructor(values?: Partial<RecordingFlag> | number);
+
         /**
          * The program is scheduled for recording.
          */
@@ -635,7 +657,7 @@ export declare namespace Channel {
          * The program is recorded and available to be played.
          */
         recorded?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.2
@@ -715,7 +737,9 @@ export declare namespace Channel {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.7
      */
-    export interface Program {
+    export declare class Program {
+        constructor(values?: Partial<Program>);
+
         /**
          * This field shall indicate a unique identifier for a program within an electronic program guide list. The
          * identifier shall be unique across multiple channels.
@@ -869,14 +893,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.7.19
          */
         externalIdList?: ContentLauncher.AdditionalInfo[];
-    }
+    };
 
     /**
      * This object defines the category associated to a program.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.8
      */
-    export interface ProgramCategory {
+    export declare class ProgramCategory {
+        constructor(values?: Partial<ProgramCategory>);
+
         /**
          * This field shall represent the category or genre of the program. Ex. News.
          *
@@ -890,14 +916,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.8.2
          */
         subCategory?: string;
-    }
+    };
 
     /**
      * This object provides the episode information related to a program.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.9
      */
-    export interface SeriesInfo {
+    export declare class SeriesInfo {
+        constructor(values?: Partial<SeriesInfo>);
+
         /**
          * This field shall represent the season of the series associated to the program.
          *
@@ -911,14 +939,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.9.2
          */
         episode: string;
-    }
+    };
 
     /**
      * This object provides the cast information related to a program.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.10
      */
-    export interface ProgramCast {
+    export declare class ProgramCast {
+        constructor(values?: Partial<ProgramCast>);
+
         /**
          * This field shall represent the name of the cast member.
          *
@@ -932,14 +962,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.10.2
          */
         role: string;
-    }
+    };
 
     /**
      * This object defines the pagination structure.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.11
      */
-    export interface PageToken {
+    export declare class PageToken {
+        constructor(values?: Partial<PageToken>);
+
         /**
          * This field shall indicate the maximum number of entries that should be retrieved from the program guide in a
          * single response. It allows clients to specify the size of the paginated result set based on their needs.
@@ -967,14 +999,16 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.11.3
          */
         before?: string;
-    }
+    };
 
     /**
      * This object defines the paging structure that includes the previous and next pagination tokens.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.12
      */
-    export interface ChannelPaging {
+    export declare class ChannelPaging {
+        constructor(values?: Partial<ChannelPaging>);
+
         /**
          * This field shall indicate the token to retrieve the preceding page. Absence of this field denotes the
          * response as the initial page.
@@ -990,7 +1024,7 @@ export declare namespace Channel {
          * @see {@link MatterSpecification.v142.Cluster} § 6.6.5.12.2
          */
         nextToken?: PageToken | null;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

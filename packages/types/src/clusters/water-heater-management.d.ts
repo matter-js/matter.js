@@ -356,7 +356,9 @@ export declare namespace WaterHeaterManagement {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.1
      */
-    export interface WaterHeaterHeatSource {
+    export declare class WaterHeaterHeatSource {
+        constructor(values?: Partial<WaterHeaterHeatSource> | number);
+
         /**
          * Immersion Heating Element 1
          */
@@ -381,7 +383,7 @@ export declare namespace WaterHeaterManagement {
          * Other Heating
          */
         other?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.2
@@ -403,9 +405,10 @@ export declare namespace WaterHeaterManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
      */
-    export interface BoostRequest {
+    export declare class BoostRequest {
+        constructor(values?: Partial<BoostRequest>);
         boostInfo: WaterHeaterBoostInfo;
-    }
+    };
 
     /**
      * This event shall be generated whenever a Boost command is accepted.
@@ -414,14 +417,17 @@ export declare namespace WaterHeaterManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
      */
-    export interface BoostStartedEvent {
+    export declare class BoostStartedEvent {
+        constructor(values?: Partial<BoostStartedEvent>);
         boostInfo: WaterHeaterBoostInfo;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3
      */
-    export interface WaterHeaterBoostInfo {
+    export declare class WaterHeaterBoostInfo {
+        constructor(values?: Partial<WaterHeaterBoostInfo>);
+
         /**
          * This field shall indicate the time period, in seconds, for which the boost state is activated.
          *
@@ -488,7 +494,7 @@ export declare namespace WaterHeaterManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.6
          */
         targetReheat?: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.
