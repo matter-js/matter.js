@@ -96,6 +96,36 @@ describe("WalWriter", () => {
         expect(lines.length).equal(2);
     });
 
+    it("serializes concurrent writes", async () => {
+        const walDir = fs.directory("wal");
+        const writer = new WalWriter(walDir, { fsync: false });
+
+        // Fire 20 concurrent writes
+        const count = 20;
+        const promises = Array.from({ length: count }, (_, i) =>
+            writer.write([{ op: "upd", key: `ctx`, values: { [`key${i}`]: i } }]),
+        );
+        const results = await Promise.all(promises);
+        await writer.close();
+
+        // Every commit should have a unique segment+offset
+        const ids = results.map(r => `${r.id.segment}:${r.id.offset}`);
+        const uniqueIds = new Set(ids);
+        expect(uniqueIds.size).equal(count);
+
+        // Read back the segment and verify all commits landed
+        const file = walDir.file(segmentFilename(1));
+        const text = await file.readAllText();
+        const lines = text.split("\n").filter(l => l.length > 0);
+        expect(lines.length).equal(count);
+
+        // Verify each line is valid JSON (no interleaving corruption)
+        for (const line of lines) {
+            const commit = deserializeCommit(line);
+            expect(commit.ops.length).equal(1);
+        }
+    });
+
     it("creates wal directory if it does not exist", async () => {
         const walDir = fs.directory("wal");
         const writer = new WalWriter(walDir, { fsync: false });

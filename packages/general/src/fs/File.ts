@@ -24,7 +24,7 @@ export abstract class File extends FilesystemNode {
     /**
      * Open the file and return a handle for low-level operations (append, fsync).
      */
-    abstract open(mode?: File.OpenMode): Promise<File.Handle>;
+    abstract open(purpose: string, mode?: File.OpenMode): Promise<File.Handle>;
 
     /**
      * Read all bytes from the file into a single buffer.
@@ -72,6 +72,11 @@ export namespace File {
      * An opened file handle supporting append writes and fsync.
      */
     export abstract class Handle extends File {
+        /**
+         * Describes why this file handle was opened, for diagnostic purposes.
+         */
+        abstract readonly purpose: string;
+
         /**
          * Write data to the open file handle (appends at current position).
          */

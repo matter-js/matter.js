@@ -44,6 +44,10 @@ export class MockFilesystem extends Filesystem {
         return "";
     }
 
+    override get path() {
+        return "";
+    }
+
     exists(): Promise<boolean> {
         return Promise.resolve(true);
     }
@@ -181,7 +185,11 @@ class MockFile extends File {
         return this.#fs;
     }
 
-    async open(mode?: File.OpenMode): Promise<File.Handle> {
+    get path() {
+        return this.#segments.join("/");
+    }
+
+    async open(purpose: string, mode?: File.OpenMode): Promise<File.Handle> {
         const m = mode ?? "r";
         if (m === "w" || m === "a") {
             // Ensure parent directories exist
@@ -201,7 +209,7 @@ class MockFile extends File {
                 throw new FileNotFoundError(`File not found: ${this.#segments.join("/")}`);
             }
         }
-        return new MockFileHandle(this.#fs, this.#segments, this.#root);
+        return new MockFileHandle(this.#fs, this.#segments, this.#root, purpose);
     }
 
     get name() {
@@ -353,6 +361,10 @@ class MockDirectory extends Directory {
         return this.#segments[this.#segments.length - 1];
     }
 
+    override get path() {
+        return this.#segments.join("/");
+    }
+
     async exists(): Promise<boolean> {
         const node = resolvePath(this.#segments, this.#root);
         return node !== undefined && node.type === "directory";
@@ -501,13 +513,15 @@ class MockFileHandle extends File.Handle {
     readonly #fs: Filesystem;
     readonly #segments: string[];
     readonly #root: MockNode;
+    readonly purpose: string;
     #closed = false;
 
-    constructor(fs: Filesystem, segments: string[], root: MockNode) {
+    constructor(fs: Filesystem, segments: string[], root: MockNode, purpose: string) {
         super();
         this.#fs = fs;
         this.#segments = segments;
         this.#root = root;
+        this.purpose = purpose;
         mockSegmentsMap.set(this, segments);
     }
 
@@ -517,6 +531,10 @@ class MockFileHandle extends File.Handle {
 
     get name() {
         return this.#segments[this.#segments.length - 1];
+    }
+
+    get path() {
+        return this.#segments.join("/");
     }
 
     async exists(): Promise<boolean> {
@@ -562,7 +580,7 @@ class MockFileHandle extends File.Handle {
         return file.write(data);
     }
 
-    async open(): Promise<File.Handle> {
+    async open(_purpose: string): Promise<File.Handle> {
         return this;
     }
 

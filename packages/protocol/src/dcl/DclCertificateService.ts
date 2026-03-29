@@ -224,10 +224,10 @@ export class DclCertificateService {
     async close() {
         this.#closed = true;
         this.#updateTimer?.stop();
-        if (this.#fetchPromise !== undefined) {
+        await this.#construction.close(async () => {
             await this.#fetchPromise;
-        }
-        await this.#storageManager?.close();
+            await this.#storageManager?.close();
+        });
     }
 
     /**

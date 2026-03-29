@@ -99,7 +99,9 @@ export class DclOtaUpdateService {
     }
 
     async close() {
-        await this.#storageManager?.close();
+        await this.#construction.close(async () => {
+            await this.#storageManager?.close();
+        });
     }
 
     async #migrateStorage() {

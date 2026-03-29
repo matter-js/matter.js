@@ -6,6 +6,7 @@
 
 export * from "./Directory.js";
 export * from "./File.js";
+export * from "./FileHandleTracker.js";
 export * from "./Filesystem.js";
 export * from "./FilesystemError.js";
 export * from "./FilesystemNode.js";
