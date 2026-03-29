@@ -52,6 +52,7 @@ export class ClientEndpointStore extends EndpointStore {
             behaviorId,
             initialValues,
             localWriter: this.#owner.localWriter,
+            buffer: this.#owner.buffer,
         });
     }
 

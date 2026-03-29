@@ -9,6 +9,7 @@ import { ClientNodeInteraction } from "#node/client/ClientNodeInteraction.js";
 import { ClientNodePhysicalProperties } from "#node/client/ClientNodePhysicalProperties.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
+import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { ChannelType, Observable, ServerAddress, ServerAddressIp } from "@matter/general";
 import { DatatypeModel, FieldElement } from "@matter/model";
 import { ClientSubscription, PeerSet, Subscribe, SustainedSubscription } from "@matter/protocol";
@@ -29,6 +30,7 @@ export class NetworkClient extends NetworkBehavior {
         } else {
             this.reactTo(this.events.autoSubscribe$Changed, this.#syncAutoSubscribe, { offline: true });
             this.reactTo(this.events.defaultSubscription$Changed, this.#handleDefaultSubscriptionChange);
+            this.reactTo(this.events.subscriptionStatusChanged, this.#flushCacheOnSubscribed);
         }
     }
 
@@ -169,6 +171,15 @@ export class NetworkClient extends NetworkBehavior {
         // Clean up any active subscription
         this.internal.activeSubscription?.close();
         this.internal.activeSubscription = undefined;
+    }
+
+    #flushCacheOnSubscribed(isActive: boolean) {
+        if (isActive) {
+            const parentEnv = this.#node.owner.env;
+            if (parentEnv.has(ClientCacheBuffer)) {
+                parentEnv.get(ClientCacheBuffer).initiateFlush();
+            }
+        }
     }
 
     get #node() {
