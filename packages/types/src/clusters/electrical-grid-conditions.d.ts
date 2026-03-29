@@ -185,7 +185,9 @@ export declare namespace ElectricalGridConditions {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2
      */
-    export interface ElectricalGridConditionsStruct {
+    export declare class ElectricalGridConditionsStruct {
+        constructor(values?: Partial<ElectricalGridConditionsStruct>);
+
         /**
          * This field shall indicate the beginning timestamp in UTC of the period.
          *
@@ -259,21 +261,23 @@ export declare namespace ElectricalGridConditions {
          * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.6
          */
         localCarbonLevel: ThreeLevel;
-    }
+    };
 
     /**
      * This event shall be generated when the value of the CurrentConditions attribute changes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.13.7.1
      */
-    export interface CurrentConditionsChangedEvent {
+    export declare class CurrentConditionsChangedEvent {
+        constructor(values?: Partial<CurrentConditionsChangedEvent>);
+
         /**
          * This field shall be the new value of the CurrentConditions attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.13.7.1.1
          */
         currentConditions: ElectricalGridConditionsStruct | null;
-    }
+    };
 
     /**
      * This data type is derived from enum8 and is used for indicating three levels: Low, Medium, High.

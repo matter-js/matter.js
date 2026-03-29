@@ -378,7 +378,9 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.8
      */
-    export interface ZoneInformation {
+    export declare class ZoneInformation {
+        constructor(values?: Partial<ZoneInformation>);
+
         /**
          * This field shall indicate the unique ZoneID of the Zone.
          *
@@ -406,7 +408,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.8.4
          */
         twoDCartesianZone?: TwoDCartesianZone;
-    }
+    };
 
     /**
      * This struct is used to encode a set of values for controlling the generation of ZoneTriggered and ZoneStopped
@@ -438,7 +440,9 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.9
      */
-    export interface ZoneTriggerControl {
+    export declare class ZoneTriggerControl {
+        constructor(values?: Partial<ZoneTriggerControl>);
+
         /**
          * This field shall indicate the unique ZoneID of the Zone this Trigger applies to.
          *
@@ -486,14 +490,16 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.9.6
          */
         sensitivity?: number;
-    }
+    };
 
     /**
      * This struct is used to encode a point on the 2 Dimensional Cartesian Plane for the TwoDCartesianZone feature.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.6
      */
-    export interface TwoDCartesianVertex {
+    export declare class TwoDCartesianVertex {
+        constructor(values?: Partial<TwoDCartesianVertex>);
+
         /**
          * This field shall represent the position of the vertex along the horizontal (x) axis.
          *
@@ -507,14 +513,16 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.6.2
          */
         y: number;
-    }
+    };
 
     /**
      * This command is used to create or update a Trigger for the specified motion Zone.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.5
      */
-    export interface CreateOrUpdateTriggerRequest {
+    export declare class CreateOrUpdateTriggerRequest {
+        constructor(values?: Partial<CreateOrUpdateTriggerRequest>);
+
         /**
          * This field shall be a ZoneTriggerControlStruct representing all information required to define the Trigger
          * conditions.
@@ -522,42 +530,48 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.5.1
          */
         trigger: ZoneTriggerControl;
-    }
+    };
 
     /**
      * This command shall remove the Trigger for the provided ZoneID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.6
      */
-    export interface RemoveTriggerRequest {
+    export declare class RemoveTriggerRequest {
+        constructor(values?: Partial<RemoveTriggerRequest>);
+
         /**
          * The ZoneID field shall be a ZoneID of the Zone Trigger to be removed.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.6.1
          */
         zoneId: number;
-    }
+    };
 
     /**
      * This command shall remove the user-defined Zone indicated by ZoneID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.4
      */
-    export interface RemoveZoneRequest {
+    export declare class RemoveZoneRequest {
+        constructor(values?: Partial<RemoveZoneRequest>);
+
         /**
          * The ZoneID field shall be a ZoneID of the Zone to be removed.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.4.1
          */
         zoneId: number;
-    }
+    };
 
     /**
      * This command shall create and store a TwoD Cartesian Zone.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.1
      */
-    export interface CreateTwoDCartesianZoneRequest {
+    export declare class CreateTwoDCartesianZoneRequest {
+        constructor(values?: Partial<CreateTwoDCartesianZoneRequest>);
+
         /**
          * The Zone field shall be a TwoDCartesianZoneStruct representing all information required to define the TwoD
          * Cartesian Zone.
@@ -565,28 +579,32 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.1.1
          */
         zone: TwoDCartesianZone;
-    }
+    };
 
     /**
      * This command shall be generated in response to a CreateTwoDCartesianZone command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.2
      */
-    export interface CreateTwoDCartesianZoneResponse {
+    export declare class CreateTwoDCartesianZoneResponse {
+        constructor(values?: Partial<CreateTwoDCartesianZoneResponse>);
+
         /**
          * The ZoneID field shall be an unsigned 16 bit integer representing the unique ZoneID.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.2.1
          */
         zoneId: number;
-    }
+    };
 
     /**
      * The UpdateTwoDCartesianZone shall update a stored TwoD Cartesian Zone.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.3
      */
-    export interface UpdateTwoDCartesianZoneRequest {
+    export declare class UpdateTwoDCartesianZoneRequest {
+        constructor(values?: Partial<UpdateTwoDCartesianZoneRequest>);
+
         /**
          * The ZoneID field shall be a ZoneID of the Zone to be updated.
          *
@@ -600,14 +618,16 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.7.3.2
          */
         zone: TwoDCartesianZone;
-    }
+    };
 
     /**
      * This event shall be generated when a Zone is first triggered.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.8.1
      */
-    export interface ZoneTriggeredEvent {
+    export declare class ZoneTriggeredEvent {
+        constructor(values?: Partial<ZoneTriggeredEvent>);
+
         /**
          * This field shall contain the ZoneID of the Zone that triggered.
          *
@@ -621,7 +641,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.8.1.2
          */
         reason: ZoneEventTriggeredReason;
-    }
+    };
 
     /**
      * This event shall be generated when either the TriggerDetectedDuration value is exceeded by the
@@ -630,7 +650,9 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.8.2
      */
-    export interface ZoneStoppedEvent {
+    export declare class ZoneStoppedEvent {
+        constructor(values?: Partial<ZoneStoppedEvent>);
+
         /**
          * This field shall contain the ZoneID of the Zone that stopped.
          *
@@ -644,7 +666,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.8.2.2
          */
         reason: ZoneEventStoppedReason;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.1
@@ -747,7 +769,9 @@ export declare namespace ZoneManagement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.7
      */
-    export interface TwoDCartesianZone {
+    export declare class TwoDCartesianZone {
+        constructor(values?: Partial<TwoDCartesianZone>);
+
         /**
          * The Name field shall be a string representing the name of the Zone. This is not guaranteed to be unique.
          *
@@ -790,7 +814,7 @@ export declare namespace ZoneManagement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.14.5.7.4
          */
         color?: string;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

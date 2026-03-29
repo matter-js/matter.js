@@ -265,7 +265,9 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.6
      */
-    export interface SupportedFormat {
+    export declare class SupportedFormat {
+        constructor(values?: Partial<SupportedFormat>);
+
         /**
          * This field shall indicate a supported container format that when combined with IngestMethod, can be used in a
          * transport.
@@ -281,14 +283,16 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.6.2
          */
         ingestMethod: IngestMethods;
-    }
+    };
 
     /**
      * This encodes the current configuration of an allocated transport.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.14
      */
-    export interface TransportConfiguration {
+    export declare class TransportConfiguration {
+        constructor(values?: Partial<TransportConfiguration>);
+
         /**
          * This field shall be a PushTransportConnectionID representing a unique transport.
          *
@@ -311,28 +315,32 @@ export declare namespace PushAvStreamTransport {
         transportOptions?: TransportOptions;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * This command shall allocate a transport and return a PushTransportConnectionID.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.1
      */
-    export interface AllocatePushTransportRequest {
+    export declare class AllocatePushTransportRequest {
+        constructor(values?: Partial<AllocatePushTransportRequest>);
+
         /**
          * This field shall represent the configuration options of the transport to be allocated.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.1.1
          */
         transportOptions: TransportOptions;
-    }
+    };
 
     /**
      * This command shall be generated in response to a successful AllocatePushTransport command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.2
      */
-    export interface AllocatePushTransportResponse {
+    export declare class AllocatePushTransportResponse {
+        constructor(values?: Partial<AllocatePushTransportResponse>);
+
         /**
          * This field shall be a TransportConfigurationStruct representing the newly allocated transport. If automatic
          * stream selection was requested, the used Stream ID fields will be present in the TransportOptions field.
@@ -340,28 +348,32 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.2.1
          */
         transportConfiguration: TransportConfiguration;
-    }
+    };
 
     /**
      * This command shall be generated to request the Node deallocates the specified transport.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.3
      */
-    export interface DeallocatePushTransportRequest {
+    export declare class DeallocatePushTransportRequest {
+        constructor(values?: Partial<DeallocatePushTransportRequest>);
+
         /**
          * This field shall be a PushTransportConnectionID representing the allocated transport to deallocate.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.3.1
          */
         connectionId: number;
-    }
+    };
 
     /**
      * This command is used to request the Node modifies the configuration of the specified push transport.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.4
      */
-    export interface ModifyPushTransportRequest {
+    export declare class ModifyPushTransportRequest {
+        constructor(values?: Partial<ModifyPushTransportRequest>);
+
         /**
          * This field shall be a PushTransportConnectionID representing the transport to modify.
          *
@@ -375,7 +387,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.4.2
          */
         transportOptions: TransportOptions;
-    }
+    };
 
     /**
      * This command shall be generated to request the Node modifies the Transport Status of a specified transport or all
@@ -383,7 +395,9 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.5
      */
-    export interface SetTransportStatusRequest {
+    export declare class SetTransportStatusRequest {
+        constructor(values?: Partial<SetTransportStatusRequest>);
+
         /**
          * This field shall be a PushTransportConnectionID representing the transport to modify. If null is passed, all
          * transports belonging to the calling fabric will be modified.
@@ -398,14 +412,16 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.5.2
          */
         transportStatus: TransportStatus;
-    }
+    };
 
     /**
      * This command shall be generated to request the Node to manually start the specified push transport.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.6
      */
-    export interface ManuallyTriggerTransportRequest {
+    export declare class ManuallyTriggerTransportRequest {
+        constructor(values?: Partial<ManuallyTriggerTransportRequest>);
+
         /**
          * This field shall be a PushTransportConnectionID representing the push transport to start or stop.
          *
@@ -436,7 +452,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.6.4
          */
         userDefined?: Bytes;
-    }
+    };
 
     /**
      * This command shall return the Transport Configuration for the specified push transport or all allocated
@@ -444,28 +460,32 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.7
      */
-    export interface FindTransportRequest {
+    export declare class FindTransportRequest {
+        constructor(values?: Partial<FindTransportRequest>);
+
         /**
          * This field shall be a PushTransportConnectionID or NULL representing the allocated push transport.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.7.1
          */
         connectionId: number | null;
-    }
+    };
 
     /**
      * This command shall be generated in response to a successful FindTransport command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.8
      */
-    export interface FindTransportResponse {
+    export declare class FindTransportResponse {
+        constructor(values?: Partial<FindTransportResponse>);
+
         /**
          * This field shall be a list of Transport Configurations.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.9.8.1
          */
         transportConfigurations: TransportConfiguration[];
-    }
+    };
 
     /**
      * This event shall indicate a push transport transmission has begun.
@@ -474,7 +494,9 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.10.1
      */
-    export interface PushTransportBeginEvent {
+    export declare class PushTransportBeginEvent {
+        constructor(values?: Partial<PushTransportBeginEvent>);
+
         /**
          * This field shall be a PushTransportConnectionID representing the push transport which started transmitting.
          *
@@ -495,7 +517,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.10.1.3
          */
         activationReason?: TriggerActivationReason;
-    }
+    };
 
     /**
      * This event shall indicate a push transport transmission has ended.
@@ -504,14 +526,16 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.10.2
      */
-    export interface PushTransportEndEvent {
+    export declare class PushTransportEndEvent {
+        constructor(values?: Partial<PushTransportEndEvent>);
+
         /**
          * This field shall be a PushTransportConnectionID representing the push transport which stopped transmitting.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.10.2.1
          */
         connectionId: number;
-    }
+    };
 
     /**
      * The Trigger Type determines the basic operation of the Push Transport and when it will actually transmit content.
@@ -655,7 +679,9 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.8
      */
-    export interface CmafContainerOptions {
+    export declare class CmafContainerOptions {
+        constructor(values?: Partial<CmafContainerOptions>);
+
         /**
          * This field shall indicate the selected Interface of the CMAF container. The Interface chosen determines the
          * number and type of operations that occur within each CMAF session. See CMAFInterfaceEnum for details on CMAF
@@ -744,14 +770,16 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.8.8
          */
         metadataEnabled?: boolean;
-    }
+    };
 
     /**
      * This struct encodes the specific container type options struct
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.9
      */
-    export interface ContainerOptions {
+    export declare class ContainerOptions {
+        constructor(values?: Partial<ContainerOptions>);
+
         /**
          * This field shall indicate the container type chosen for this transport.
          *
@@ -766,14 +794,16 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.9.2
          */
         cmafContainerOptions?: CmafContainerOptions;
-    }
+    };
 
     /**
      * This struct encodes the options that configure the per Zone portion of a Trigger configuration.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.10
      */
-    export interface TransportZoneOptions {
+    export declare class TransportZoneOptions {
+        constructor(values?: Partial<TransportZoneOptions>);
+
         /**
          * This field shall be a Motion ZoneID found in the Zone Management Cluster which shall cause the trigger to
          * activate. If not null, motion in this zone will activate the trigger. If null, motion anywhere in the
@@ -792,7 +822,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.10.2
          */
         sensitivity?: number;
-    }
+    };
 
     /**
      * This struct encodes the conditions and options that configures the trigger for the push transport. The transport
@@ -800,7 +830,9 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.11
      */
-    export interface TransportTriggerOptions {
+    export declare class TransportTriggerOptions {
+        constructor(values?: Partial<TransportTriggerOptions>);
+
         /**
          * This field shall indicate the type of the transport trigger.
          *
@@ -859,7 +891,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.11.5
          */
         maxPreRollLen?: number;
-    }
+    };
 
     /**
      * This struct is used to encode a set of values for controlling the lifecycle of a motion triggered transport.
@@ -887,7 +919,9 @@ export declare namespace PushAvStreamTransport {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.12
      */
-    export interface TransportMotionTriggerTimeControl {
+    export declare class TransportMotionTriggerTimeControl {
+        constructor(values?: Partial<TransportMotionTriggerTimeControl>);
+
         /**
          * This field shall indicate the initial duration in seconds after motion is first detected before the Node
          * could emit a MotionStopped event.
@@ -920,14 +954,16 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.12.4
          */
         blindDuration: number;
-    }
+    };
 
     /**
      * This encodes the options and configuration of a transport.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.13
      */
-    export interface TransportOptions {
+    export declare class TransportOptions {
+        constructor(values?: Partial<TransportOptions>);
+
         /**
          * This field contains the StreamUsageEnum of this transport.
          *
@@ -1012,7 +1048,7 @@ export declare namespace PushAvStreamTransport {
          * @see {@link MatterSpecification.v142.Cluster} § 11.7.6.13.9
          */
         expiryTime?: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 11.7.7.1

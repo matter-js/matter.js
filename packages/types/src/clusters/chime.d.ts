@@ -133,7 +133,9 @@ export declare namespace Chime {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.8.4.1
      */
-    export interface ChimeSound {
+    export declare class ChimeSound {
+        constructor(values?: Partial<ChimeSound>);
+
         /**
          * This field shall represent the unique ID for a Chime sound.
          *
@@ -147,7 +149,7 @@ export declare namespace Chime {
          * @see {@link MatterSpecification.v142.Cluster} § 11.8.4.1.2
          */
         name: string;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

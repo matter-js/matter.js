@@ -123,7 +123,9 @@ export declare namespace CommodityMetering {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.11.4.1
      */
-    export interface MeteredQuantity {
+    export declare class MeteredQuantity {
+        constructor(values?: Partial<MeteredQuantity>);
+
         /**
          * Indicates the specific TariffComponentStructs associated with the metered commodity.
          *
@@ -137,7 +139,7 @@ export declare namespace CommodityMetering {
          * @see {@link MatterSpecification.v142.Cluster} § 9.11.4.1.2
          */
         quantity: number | bigint;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

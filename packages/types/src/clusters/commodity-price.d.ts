@@ -233,7 +233,9 @@ export declare namespace CommodityPrice {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3
      */
-    export interface CommodityPriceStruct {
+    export declare class CommodityPriceStruct {
+        constructor(values?: Partial<CommodityPriceStruct>);
+
         /**
          * This field shall indicate the beginning timestamp in UTC of the period covered by the price indicated in the
          * Price field, or the price level indicated in the Price Level field, or both.
@@ -284,14 +286,16 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.6
          */
         components?: CommodityPriceComponent[];
-    }
+    };
 
     /**
      * Upon receipt, this shall generate a GetDetailedPrice Response command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.1
      */
-    export interface GetDetailedPriceRequest {
+    export declare class GetDetailedPriceRequest {
+        constructor(values?: Partial<GetDetailedPriceRequest>);
+
         /**
          * This field shall indicate which fields on the CommodityPriceStruct in the
          * GetDetailedPriceResponseCurrentPrice field will be included.
@@ -299,14 +303,16 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.1.1
          */
         details: CommodityPriceDetail;
-    }
+    };
 
     /**
      * This command shall be generated in response to a GetDetailedPrice Request command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.2
      */
-    export interface GetDetailedPriceResponse {
+    export declare class GetDetailedPriceResponse {
+        constructor(values?: Partial<GetDetailedPriceResponse>);
+
         /**
          * This field shall indicate the current price. Unlike the value returned from the CurrentPrice attribute, the
          * Description and Components fields may be populated based on the value of the GetDetailedPriceRequestDetails
@@ -317,14 +323,16 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.2.1
          */
         currentPrice: CommodityPriceStruct | null;
-    }
+    };
 
     /**
      * Upon receipt, this shall generate a GetDetailedForecast Response command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.3
      */
-    export interface GetDetailedForecastRequest {
+    export declare class GetDetailedForecastRequest {
+        constructor(values?: Partial<GetDetailedForecastRequest>);
+
         /**
          * This field shall indicate which fields on the CommodityPriceStructs in the
          * GetDetailedForecastResponsePriceForecast field will be included.
@@ -332,14 +340,16 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.3.1
          */
         details: CommodityPriceDetail;
-    }
+    };
 
     /**
      * This command shall be generated in response to a GetDetailedForecast Request command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.4
      */
-    export interface GetDetailedForecastResponse {
+    export declare class GetDetailedForecastResponse {
+        constructor(values?: Partial<GetDetailedForecastResponse>);
+
         /**
          * This field shall indicate the current forecast of upcoming price changes. Unlike the value returned from the
          * PriceForecast attribute, the Description and Components fields may be populated on each CommodityPriceStruct
@@ -350,26 +360,30 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.4.1
          */
         priceForecast: CommodityPriceStruct[];
-    }
+    };
 
     /**
      * This event shall be generated when the value of the CurrentPrice attribute changes.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.8.1
      */
-    export interface PriceChangeEvent {
+    export declare class PriceChangeEvent {
+        constructor(values?: Partial<PriceChangeEvent>);
+
         /**
          * This field shall be the new value of the CurrentPrice attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.8.1.1
          */
         currentPrice: CommodityPriceStruct | null;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.1
      */
-    export interface CommodityPriceDetail {
+    export declare class CommodityPriceDetail {
+        constructor(values?: Partial<CommodityPriceDetail> | number);
+
         /**
          * A textual description of a price; e.g. the name of a rate plan.
          */
@@ -379,14 +393,16 @@ export declare namespace CommodityPrice {
          * A breakdown of the component parts of a price; e.g. generation, delivery, etc.
          */
         components?: boolean;
-    }
+    };
 
     /**
      * This represents a component of a given price; it is only used in the Components field.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2
      */
-    export interface CommodityPriceComponent {
+    export declare class CommodityPriceComponent {
+        constructor(values?: Partial<CommodityPriceComponent>);
+
         /**
          * This field shall indicate the component price of the commodity per TariffUnit, with the currency indicated by
          * the currency of the Price field of the parent CommodityPriceStruct.
@@ -418,7 +434,7 @@ export declare namespace CommodityPrice {
          * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2.5
          */
         tariffComponentId?: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

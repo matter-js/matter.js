@@ -1119,40 +1119,6 @@ export declare namespace WindowCovering {
     };
 
     /**
-     * This command is used to set the target lift position of the window covering to the value specified in the
-     * command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
-     */
-    export declare class GoToLiftValueRequest {
-        constructor(values?: Partial<GoToLiftValueRequest>);
-
-        /**
-         * This field shall specify the requested physical lift/slide position in unit cm (centimeters).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4.1
-         */
-        liftValue: number;
-    };
-
-    /**
-     * This command is used to set the target tilt position of the window covering to the value specified in the
-     * command.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6
-     */
-    export declare class GoToTiltValueRequest {
-        constructor(values?: Partial<GoToTiltValueRequest>);
-
-        /**
-         * This field shall specify the requested physical tilt position in unit 0.1° (tenth of a degrees).
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.6.1
-         */
-        tiltValue: number;
-    };
-
-    /**
      * Values for OperationalStatus attribute fields.
      */
     export enum MovementStatus {

@@ -140,7 +140,9 @@ export declare namespace WebRtcTransportRequestor {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1
      */
-    export interface OfferRequest {
+    export declare class OfferRequest {
+        constructor(values?: Partial<OfferRequest>);
+
         /**
          * This field shall contain the ID of the established WebRTC session.
          *
@@ -171,7 +173,7 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.4
          */
         iceTransportPolicy?: string;
-    }
+    };
 
     /**
      * This command provides the stream requestor with the WebRTC session details (i.e. Session ID and SDP answer), It
@@ -183,7 +185,9 @@ export declare namespace WebRtcTransportRequestor {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.2
      */
-    export interface AnswerRequest {
+    export declare class AnswerRequest {
+        constructor(values?: Partial<AnswerRequest>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -198,7 +202,7 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.2.2
          */
         sdp: string;
-    }
+    };
 
     /**
      * This command allows for the object based ICE candidates generated after the initial Offer / Answer exchange, via
@@ -212,7 +216,9 @@ export declare namespace WebRtcTransportRequestor {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3
      */
-    export interface IceCandidatesRequest {
+    export declare class IceCandidatesRequest {
+        constructor(values?: Partial<IceCandidatesRequest>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -226,14 +232,16 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3.2
          */
         iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
-    }
+    };
 
     /**
      * This command notifies the stream requestor that the provider has ended the WebRTC session.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4
      */
-    export interface EndRequest {
+    export declare class EndRequest {
+        constructor(values?: Partial<EndRequest>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -247,7 +255,7 @@ export declare namespace WebRtcTransportRequestor {
          * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4.2
          */
         reason: WebRtcTransportDefinitions.WebRtcEndReason;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

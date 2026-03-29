@@ -139,7 +139,9 @@ export declare namespace PowerTopology {
      *
      * @see {@link MatterSpecification.v142.Core} § 11.8.5.1
      */
-    export interface CircuitNode {
+    export declare class CircuitNode {
+        constructor(values?: Partial<CircuitNode>);
+
         /**
          * This field shall indicate the ID of a node which is on the electrical circuit represented by this server.
          *
@@ -164,7 +166,7 @@ export declare namespace PowerTopology {
         label?: string;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

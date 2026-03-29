@@ -167,7 +167,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1
      */
-    export interface SolicitOfferRequest {
+    export declare class SolicitOfferRequest {
+        constructor(values?: Partial<SolicitOfferRequest>);
+
         /**
          * This field shall contain the StreamUsageEnum that indicates the stream usage for this session and is used per
          * Resource Management and Stream Priorities.
@@ -243,7 +245,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.8
          */
         sFrameConfig?: SFrame;
-    }
+    };
 
     /**
      * This command shall be generated in response to a SolicitOffer command.
@@ -261,7 +263,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2
      */
-    export interface SolicitOfferResponse {
+    export declare class SolicitOfferResponse {
+        constructor(values?: Partial<SolicitOfferResponse>);
+
         /**
          * This field shall contain the ID of the established WebRTC session.
          *
@@ -297,7 +301,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.4
          */
         audioStreamId?: number | null;
-    }
+    };
 
     /**
      * This command allows an SDP Offer to be set and start a new session. This command can also be used in the re-offer
@@ -305,7 +309,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3
      */
-    export interface ProvideOfferRequest {
+    export declare class ProvideOfferRequest {
+        constructor(values?: Partial<ProvideOfferRequest>);
+
         /**
          * This field shall be a WebRTCSessionID and contain the ID of an established WebRTC session or null if
          * requesting a new session.
@@ -397,7 +403,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.10
          */
         sFrameConfig?: SFrame;
-    }
+    };
 
     /**
      * This command contains information about the session and streams created as a response to the requestor’s offer.
@@ -409,7 +415,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4
      */
-    export interface ProvideOfferResponse {
+    export declare class ProvideOfferResponse {
+        constructor(values?: Partial<ProvideOfferResponse>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -432,7 +440,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4.3
          */
         audioStreamId?: number | null;
-    }
+    };
 
     /**
      * This command shall be initiated from a Node in response to an Offer that was previously received from a remote
@@ -444,7 +452,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.5
      */
-    export interface ProvideAnswerRequest {
+    export declare class ProvideAnswerRequest {
+        constructor(values?: Partial<ProvideAnswerRequest>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -459,7 +469,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.5.2
          */
         sdp: string;
-    }
+    };
 
     /**
      * This command allows for string based ICE candidates generated after the initial Offer / Answer exchange, via a
@@ -473,7 +483,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6
      */
-    export interface ProvideIceCandidatesRequest {
+    export declare class ProvideIceCandidatesRequest {
+        constructor(values?: Partial<ProvideIceCandidatesRequest>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -487,14 +499,16 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6.2
          */
         iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
-    }
+    };
 
     /**
      * This command instructs the stream provider to end the WebRTC session.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7
      */
-    export interface EndSessionRequest {
+    export declare class EndSessionRequest {
+        constructor(values?: Partial<EndSessionRequest>);
+
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
@@ -508,7 +522,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7.2
          */
         reason: WebRtcTransportDefinitions.WebRtcEndReason;
-    }
+    };
 
     /**
      * This type shall specify the RFC 9605 data needed to use SFrames as an end-to-end encryption mechanism with
@@ -516,7 +530,9 @@ export declare namespace WebRtcTransportProvider {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1
      */
-    export interface SFrame {
+    export declare class SFrame {
+        constructor(values?: Partial<SFrame>);
+
         /**
          * This field shall specify the SFrame cipher suite value as defined in RFC 9605 Section 8.1 Cipher Suites
          * table, and maintained in the IANA SFrame Registry.
@@ -540,7 +556,7 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1.3
          */
         kid: Bytes;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

@@ -635,7 +635,9 @@ export declare namespace ClosureControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5
      */
-    export interface OverallCurrentState {
+    export declare class OverallCurrentState {
+        constructor(values?: Partial<OverallCurrentState>);
+
         /**
          * This field shall indicate the current Position state of the closure, as defined in the CurrentPositionEnum.
          *
@@ -713,12 +715,14 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5.4
          */
         secureState: boolean | null;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.6
      */
-    export interface OverallTargetState {
+    export declare class OverallTargetState {
+        constructor(values?: Partial<OverallTargetState>);
+
         /**
          * This field shall indicate the target position that the closure is moving to. It shall be null if there is no
          * target position.
@@ -743,12 +747,14 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.6.3
          */
         speed?: ThreeLevelAuto;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.7
      */
-    export interface LatchControlModes {
+    export declare class LatchControlModes {
+        constructor(values?: Partial<LatchControlModes> | number);
+
         /**
          * Remote latching capability
          *
@@ -774,7 +780,7 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.7.2
          */
         remoteUnlatching?: boolean;
-    }
+    };
 
     /**
      * On receipt of this command, the closure shall operate to update its position, latch state and/or motion speed.
@@ -787,7 +793,9 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2
      */
-    export interface MoveToRequest {
+    export declare class MoveToRequest {
+        constructor(values?: Partial<MoveToRequest>);
+
         /**
          * This field shall indicate the position where the closure is moving to, as defined in the TargetPositionEnum.
          *
@@ -844,7 +852,7 @@ export declare namespace ClosureControl {
          * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2.3
          */
         speed?: ThreeLevelAuto;
-    }
+    };
 
     /**
      * This event shall be generated when a reportable error condition is detected. A closure that generates this event
@@ -854,9 +862,10 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.1
      */
-    export interface OperationalErrorEvent {
+    export declare class OperationalErrorEvent {
+        constructor(values?: Partial<OperationalErrorEvent>);
         errorState: ClosureError[];
-    }
+    };
 
     /**
      * This event, if supported, shall be generated when the SecureState field in the OverallCurrentState attribute
@@ -870,9 +879,10 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.4
      */
-    export interface SecureStateChangedEvent {
+    export declare class SecureStateChangedEvent {
+        constructor(values?: Partial<SecureStateChangedEvent>);
         secureValue: boolean;
-    }
+    };
 
     /**
      * This event, if supported, shall be generated when the MainStateEnum attribute changes state to and from
@@ -886,9 +896,10 @@ export declare namespace ClosureControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.3
      */
-    export interface EngageStateChangedEvent {
+    export declare class EngageStateChangedEvent {
+        constructor(values?: Partial<EngageStateChangedEvent>);
         engageValue: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.1
