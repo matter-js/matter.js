@@ -24,16 +24,4 @@ export namespace Instrumentation {
     export function instrumentStruct(factory: StructFactory) {
         return factory;
     }
-
-    /**
-     * Creation function for generating proxies for Matter lists.
-     */
-    export type ListFactory = (handlers: ProxyHandler<Val.List>, target: Val.List) => Val.List;
-
-    /**
-     * Instrument Matter list creation.
-     */
-    export function instrumentList(factory: ListFactory) {
-        return factory;
-    }
 }

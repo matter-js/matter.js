@@ -379,7 +379,7 @@ export async function analyzeHeapDelta(
 
     for (const [typeName, nodes] of trackedNodes) {
         // Categorize by referrer pattern
-        const referrerCategories = new Map<string, number>();
+        const referrerCategories = new Map<string, { count: number; retainedSize: number }>();
         for (const node of nodes) {
             const referrers: IHeapEdge[] = node.referrers;
             const category = referrers
@@ -390,13 +390,19 @@ export async function analyzeHeapDelta(
                 )
                 .sort()
                 .join("; ");
-            referrerCategories.set(category, (referrerCategories.get(category) ?? 0) + 1);
+            const entry = referrerCategories.get(category);
+            if (entry) {
+                entry.count++;
+                entry.retainedSize += node.retainedSize;
+            } else {
+                referrerCategories.set(category, { count: 1, retainedSize: node.retainedSize });
+            }
         }
 
         const sortedCategories = [...referrerCategories.entries()]
-            .sort((a, b) => b[1] - a[1])
+            .sort((a, b) => b[1].count - a[1].count)
             .slice(0, 20)
-            .map(([category, count]) => ({ category, count }));
+            .map(([category, { count, retainedSize }]) => ({ category, count, retainedSize }));
 
         // Sample up to 5 instances spread across the set for path tracing
         const sampleIndices: number[] = [];

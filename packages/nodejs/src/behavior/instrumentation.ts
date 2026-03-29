@@ -20,14 +20,4 @@ export function installInspectionInstrumentation() {
 
         return constructor;
     };
-
-    Instrumentation.instrumentList = (factory): Instrumentation.ListFactory => {
-        return (handlers, target) => {
-            (target as any)[inspect.custom] = function (this: Val.List) {
-                return [...this];
-            };
-
-            return factory(handlers, target);
-        };
-    };
 }
