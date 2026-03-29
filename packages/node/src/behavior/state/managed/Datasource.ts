@@ -18,6 +18,7 @@ import {
 } from "@matter/general";
 import { AccessControl, ExpiredReferenceError, hasRemoteActor, Val } from "@matter/protocol";
 import { RootSupervisor } from "../../supervision/RootSupervisor.js";
+import type { Supervision } from "../../supervision/Supervision.js";
 import { GlobalConfig, LocalConfig } from "../../supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "../../supervision/ValueSupervisor.js";
 import { StateType } from "../StateType.js";
@@ -528,244 +529,185 @@ function configureExternalChanges(internals: Internals) {
 }
 
 /**
- * The bulk of {@link Datasource} logic resides with a specific {@link ValReference} created by this function.
+ * The bulk of {@link Datasource} logic resides with this class.
  *
- * This reference provides external access to the {@link Val.Struct} in the context of a specific session.
+ * RootReference provides external access to a {@link Val.Struct} in the context of a specific session.  It implements
+ * both {@link ValReference} for managed access and {@link Transaction.Participant} for transactional commit/rollback.
  */
-function createReference(resource: Transaction.Resource, internals: Internals, session: ValueSupervisor.Session) {
-    let values = internals.values;
-    let precommitValues: Val.Struct | undefined;
-    let changes: CommitChanges | undefined;
-    let expired = false;
+class RootReference implements ValReference<Val.Struct>, Transaction.Participant {
+    primaryKey;
+    subrefs?: Record<number | string, ValReference>;
+    owner?: Val.Struct;
+    supervisionConfig?: Supervision.Config;
 
-    const participant = {
-        toString() {
-            return internals.location.path.toString();
-        },
-        preCommit,
-        commit1,
-        commit2,
-        postCommit,
-        rollback,
-    };
+    #values: Val.Struct;
+    #precommitValues: Val.Struct | undefined;
+    #changes: CommitChanges | undefined;
+    #expired = false;
+    #internals: Internals;
+    #session: ValueSupervisor.Session;
+    #resource: Transaction.Resource;
+    #fields: Set<string>;
+    #context!: SessionContext;
 
-    const transaction = session.transaction;
+    constructor(resource: Transaction.Resource, internals: Internals, session: ValueSupervisor.Session) {
+        this.#resource = resource;
+        this.#internals = internals;
+        this.#session = session;
+        this.#values = internals.values;
+        this.#fields = internals.supervisor.memberNames;
+        this.primaryKey = internals.primaryKey;
 
-    // Refresh to newest values whenever the transaction commits or rolls back
-    void transaction.onShared(() => {
-        if (values !== internals.values) {
+        const transaction = session.transaction;
+
+        // Refresh to newest values whenever the transaction commits or rolls back
+        void transaction.onShared(() => {
+            if (this.#values !== this.#internals.values) {
+                try {
+                    this.rollback();
+                } catch (e) {
+                    logger.error(
+                        `Error resetting reference to ${this.#internals.location.path} after reset of transaction ${transaction.via}:`,
+                        e,
+                    );
+                }
+            }
+        });
+
+        // Wire supervision config
+        if (!internals.supervisionConfig) {
+            internals.supervisionConfig = new GlobalConfig();
+        }
+        if (session.supervisionMode === "global") {
+            this.supervisionConfig = internals.supervisionConfig;
+        } else {
+            this.supervisionConfig = new LocalConfig(internals.supervisionConfig);
+        }
+    }
+
+    /**
+     * Complete initialization after the managed value is created.  Must be called immediately after construction.
+     */
+    initialize() {
+        const internals = this.#internals;
+        const session = this.#session;
+        const transaction = session.transaction;
+
+        this.#context = {
+            managed: internals.supervisor.manage(this, session) as Val.Struct,
+
+            onChange: (oldValues: Val.Struct) => {
+                if (this.#values === oldValues) {
+                    this.#values = this.#internals.values;
+                    this.#refreshSubrefs();
+                }
+            },
+        };
+
+        if (transaction.isolation !== "snapshot") {
+            if (!internals.sessions) {
+                internals.sessions = new Map();
+            }
+            internals.sessions.set(session, this.#context);
+        }
+
+        // When the transaction is destroyed, decouple from the datasource and expire
+        void transaction.onClose(() => {
             try {
-                rollback();
+                this.#internals.sessions?.delete(this.#session);
+                this.#expired = true;
+                this.#refreshSubrefs();
             } catch (e) {
                 logger.error(
-                    `Error resetting reference to ${internals.location.path} after reset of transaction ${transaction.via}:`,
+                    `Error detaching reference to ${this.#internals.location.path} from closed transaction ${transaction.via}:`,
                     e,
                 );
             }
+        });
+
+        return this.#context;
+    }
+
+    toString() {
+        return `ref<${this.#resource}>`;
+    }
+
+    // -- ValReference implementation --
+
+    get original() {
+        return this.#internals.values;
+    }
+
+    get value() {
+        if (this.#expired) {
+            throw new ExpiredReferenceError(this.location);
         }
-    });
+        return this.#values;
+    }
 
-    const fields = internals.supervisor.memberNames;
+    set value(_value) {
+        throw new InternalError(`Cannot set root reference for ${this.#internals.supervisor.schema.name}`);
+    }
 
-    // This is the actual reference
-    const reference: ValReference<Val.Struct> = {
-        primaryKey: internals.primaryKey,
+    get expired() {
+        return this.#expired;
+    }
 
-        get original() {
-            return internals.values;
-        },
+    get location() {
+        return this.#internals.location;
+    }
 
-        get value() {
-            if (expired) {
-                throw new ExpiredReferenceError(this.location);
-            }
+    set location(_loc: AccessControl.Location) {
+        throw new ImplementationError("Root reference location is immutable");
+    }
 
-            return values;
-        },
+    get rootOwner() {
+        return this.#internals.owner;
+    }
 
-        set value(_value) {
-            throw new InternalError(`Cannot set root reference for ${internals.supervisor.schema.name}`);
-        },
+    change(mutator: () => void) {
+        if (this.#expired) {
+            throw new ExpiredReferenceError(this.location);
+        }
 
-        get expired() {
-            return expired;
-        },
+        // Join the transaction
+        this.#startWrite();
 
-        get location() {
-            return internals.location;
-        },
+        // Upgrade transaction if not already exclusive
+        this.#session.transaction.beginSync();
 
-        set location(_loc: AccessControl.Location) {
-            throw new ImplementationError("Root reference location is immutable");
-        },
+        // Clone values if we haven't already
+        if (this.#values === this.#internals.values) {
+            const old = this.#values;
+            this.#values = new this.#internals.type();
 
-        get rootOwner() {
-            return internals.owner;
-        },
-
-        change(mutator) {
-            if (expired) {
-                throw new ExpiredReferenceError(this.location);
-            }
-
-            // Join the transaction
-            startWrite();
-
-            // Upgrade transaction if not already exclusive
-            transaction.beginSync();
-
-            // Clone values if we haven't already
-            if (values === internals.values) {
-                const old = values;
-                values = new internals.type();
-
-                const properties = (values as Val.Dynamic)[Val.properties]
-                    ? (values as Val.Dynamic)[Val.properties](this.rootOwner, session)
-                    : undefined;
-                for (const index of fields) {
-                    if (properties && index in properties) {
-                        // Property is dynamic anyway, so do nothing
-                    } else {
-                        values[index] = old[index];
-                    }
+            const properties = (this.#values as Val.Dynamic)[Val.properties]
+                ? (this.#values as Val.Dynamic)[Val.properties](this.rootOwner, this.#session)
+                : undefined;
+            for (const index of this.#fields) {
+                if (properties && index in properties) {
+                    // Property is dynamic anyway, so do nothing
+                } else {
+                    this.#values[index] = old[index];
                 }
-
-                // Point subreferences to the clone
-                refreshSubrefs();
             }
 
-            // Perform the mutation
-            mutator();
+            // Point subreferences to the clone
+            this.#refreshSubrefs();
+        }
 
-            // Refresh subrefs referencing any mutated values
-            refreshSubrefs();
-        },
+        // Perform the mutation
+        mutator();
 
-        refresh() {
-            throw new InternalError(`Cannot refresh root reference for ${internals.supervisor.schema.name}`);
-        },
-    };
-
-    reference.toString = () => `ref<${resource}>`;
-
-    // Wire supervision config.  Lazily create the shared GlobalConfig on first access.  Global-mode sessions
-    // (view, initialization) get direct access; local-mode sessions get a LocalConfig wrapper so overrides are
-    // session-scoped
-    if (!internals.supervisionConfig) {
-        internals.supervisionConfig = new GlobalConfig();
-    }
-    if (session.supervisionMode === "global") {
-        reference.supervisionConfig = internals.supervisionConfig;
-    } else {
-        reference.supervisionConfig = new LocalConfig(internals.supervisionConfig);
+        // Refresh subrefs referencing any mutated values
+        this.#refreshSubrefs();
     }
 
-    // Register a listener on the datasource so we can update our reference when the datasource changes
-    const context: SessionContext = {
-        managed: internals.supervisor.manage(reference, session) as Val.Struct,
-
-        onChange(oldValues: Val.Struct) {
-            if (values === oldValues) {
-                values = internals.values;
-                refreshSubrefs();
-            }
-        },
-    };
-
-    if (session.transaction.isolation !== "snapshot") {
-        if (!internals.sessions) {
-            internals.sessions = new Map();
-        }
-        internals.sessions.set(session, context);
+    refresh() {
+        throw new InternalError(`Cannot refresh root reference for ${this.#internals.supervisor.schema.name}`);
     }
 
-    // When the transaction is destroyed, decouple from the datasource and expire
-    void transaction.onClose(() => {
-        try {
-            internals.sessions?.delete(session);
-            expired = true;
-            refreshSubrefs();
-        } catch (e) {
-            logger.error(
-                `Error detaching reference to ${internals.location.path} from closed transaction ${transaction.via}:`,
-                e,
-            );
-        }
-    });
-
-    return context;
-
-    function startWrite() {
-        // Add myself as a resource so I can be locked
-        transaction.addResourcesSync(resource);
-
-        // Add my participant that performs commit
-        transaction.addParticipants(participant);
-
-        // Enter exclusive mode.  This will throw if my lock is unavailable
-        transaction.beginSync();
-
-        if (
-            hasRemoteActor(session) &&
-            !session.interactionStarted &&
-            session.interactionComplete &&
-            !session.interactionComplete.isObservedBy(internals.interactionObserver)
-        ) {
-            session.interactionStarted = true;
-            if (internals.events?.interactionBegin?.isObserved) {
-                internals.events?.interactionBegin?.emit(session);
-            }
-            session.interactionComplete.on(internals.interactionObserver);
-        }
-    }
-
-    // Need to invoke this anytime we change values
-    function refreshSubrefs() {
-        const subrefs = reference.subrefs;
-        if (subrefs) {
-            for (const key in subrefs) {
-                subrefs[key].refresh();
-            }
-        }
-    }
-
-    // Increment data version
-    function incrementVersion() {
-        if (!internals.manageVersion) {
-            return;
-        }
-
-        // Update version
-        internals.version++;
-        if (internals.version > 0xffff_ffff) {
-            internals.version = 0;
-        }
-    }
-
-    // On the first pre-commit cycle, any change is a "pre-commit" change.  On subsequent cycles we only consider
-    // changes since the previous cycle
-    function computePreCommitChange(name: string): undefined | { newValue: unknown; oldValue: unknown } {
-        let oldValue;
-        if (precommitValues && name in precommitValues) {
-            oldValue = precommitValues[name];
-        } else {
-            oldValue = internals.values[name];
-        }
-
-        const newValue = values[name];
-        if (isDeepEqual(oldValue, newValue)) {
-            return;
-        }
-
-        if (!precommitValues) {
-            precommitValues = {};
-        }
-        precommitValues[name] = deepCopy(newValue);
-
-        // Since we are notifying of data in flight, pass the managed value for "newValue" so that we validate changes
-        // and subsequent listeners are updated
-        return { newValue: context.managed[name], oldValue };
-    }
+    // -- Transaction.Participant implementation --
 
     /**
      * For pre-commit we trigger "fieldName$Changing" events for any fields that have changed since the previous
@@ -773,21 +715,16 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
      *
      * Tracking data here is relatively expensive so we limit to events with registered observers.
      */
-    function preCommit() {
-        // We do nothing if there are not events registered
-        const { events } = internals;
+    preCommit() {
+        const { events } = this.#internals;
         if (!events) {
             return false;
         }
 
-        // Mutation is only possible if we emit a $Changing event
         let mayHaveMutated = false;
+        const keyIterator = Object.keys(this.#values)[Symbol.iterator]();
 
-        // Emit is optionally async so we must iterate manually
-        const keyIterator = Object.keys(values)[Symbol.iterator]();
-
-        // Proceed with next key on first iteration or after async notification
-        function nextKey(): MaybePromise<boolean> {
+        const nextKey = (): MaybePromise<boolean> => {
             while (true) {
                 const n = keyIterator.next();
                 if (n.done) {
@@ -796,122 +733,65 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
 
                 const name = n.value;
 
-                // Eventing here is relatively expensive because we need deep clones and will trigger another pre-commit
-                // cycle across all participants.  So we only process properties that are observed
                 const event = events?.[`${name}$Changing`];
                 if (!event?.isObserved) {
                     continue;
                 }
 
-                const change = computePreCommitChange(name);
+                const change = this.#computePreCommitChange(name);
                 if (change) {
-                    // The pre-commit cycle will need to re-run
                     mayHaveMutated = true;
 
-                    // Notify observers
-                    const result = event.emit(change.newValue, change.oldValue, session);
+                    const result = event.emit(change.newValue, change.oldValue, this.#session);
 
-                    // For pre-commit we run observers serially.  If the observer is async then we continue the loop
-                    // after the observer completes
                     if (MaybePromise.is(result)) {
                         return result.then(nextKey);
                     }
                 }
             }
-        }
+        };
 
         return nextKey();
-    }
-
-    // In "changed" state, values !== data.values, but here we identify logical changes on a per-property basis.  For
-    // each change we record the "changed" event to trigger and collect those we must persist
-    function computePostCommitChanges() {
-        changes = undefined;
-
-        if (internals.values === values) {
-            return changes;
-        }
-
-        for (const name in values) {
-            const newval = values[name];
-            const oldval = internals.values[name];
-            if (oldval !== newval && !isDeepEqual(newval, oldval)) {
-                if (!changes) {
-                    changes = { notifications: [], changeList: new Set() };
-                }
-                changes.changeList.add(name);
-
-                if (internals.persistentFields.has(name)) {
-                    if (changes.persistent === undefined) {
-                        changes.persistent = {};
-                    }
-                    changes.persistent[name] = values[name];
-                }
-
-                const event = internals.changedEventFor(name);
-                if (event?.isObserved) {
-                    changes.notifications.push({
-                        event,
-                        params: [values[name], internals.values[name], session],
-                    });
-                }
-            }
-        }
-
-        // Increment version if necessary
-        if (changes) {
-            // We don't revert the version number on rollback.  Should be OK
-            incrementVersion();
-
-            if (internals.events.stateChanged?.isObserved) {
-                changes.notifications.push({
-                    event: internals.events.stateChanged,
-                    params: [session],
-                });
-            }
-        }
     }
 
     /**
      * For commit phase one we pass values to the persistence layer if present.
      */
-    function commit1() {
-        computePostCommitChanges();
+    commit1() {
+        this.#computePostCommitChanges();
 
-        // No phase one commit if there are no persistent changes
-        const persistent = changes?.persistent;
+        const persistent = this.#changes?.persistent;
         if (!persistent) {
             return;
         }
 
-        if (internals.featuresKey !== undefined) {
-            persistent[FEATURES_KEY] = internals.featuresKey;
+        if (this.#internals.featuresKey !== undefined) {
+            persistent[FEATURES_KEY] = this.#internals.featuresKey;
         }
 
-        return internals.store?.set(session.transaction, persistent);
+        return this.#internals.store?.set(this.#session.transaction, persistent);
     }
 
     /**
      * For commit phase two we make the working values canonical and notify listeners.
      */
-    function commit2() {
-        if (!changes) {
+    commit2() {
+        if (!this.#changes) {
             return;
         }
 
-        internals.values = values;
+        this.#internals.values = this.#values;
     }
 
     /**
      * Post-commit logic.  Emit "changed" events.  Observers may be synchronous or asynchronous.
      */
-    function postCommit() {
-        if (!changes) {
+    postCommit() {
+        if (!this.#changes) {
             return;
         }
 
-        // Emit is optionally async so we must iterate manually
-        const iterator = changes.notifications[Symbol.iterator]();
+        const iterator = this.#changes.notifications[Symbol.iterator]();
 
         function emitChanged(): MaybePromise<void> {
             while (true) {
@@ -928,7 +808,7 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
             }
         }
 
-        const onChangePromise = internals.onChange?.([...changes.changeList]);
+        const onChangePromise = this.#internals.onChange?.([...this.#changes.changeList]);
 
         if (onChangePromise) {
             return onChangePromise.then(emitChanged);
@@ -940,8 +820,124 @@ function createReference(resource: Transaction.Resource, internals: Internals, s
     /**
      * On rollback, we just replace values and version with the canonical versions.
      */
-    function rollback() {
-        ({ values } = internals);
-        refreshSubrefs();
+    rollback() {
+        this.#values = this.#internals.values;
+        this.#refreshSubrefs();
     }
+
+    // -- Private helpers --
+
+    #startWrite() {
+        const transaction = this.#session.transaction;
+
+        transaction.addResourcesSync(this.#resource);
+        transaction.addParticipants(this);
+        transaction.beginSync();
+
+        if (
+            hasRemoteActor(this.#session) &&
+            !this.#session.interactionStarted &&
+            this.#session.interactionComplete &&
+            !this.#session.interactionComplete.isObservedBy(this.#internals.interactionObserver)
+        ) {
+            this.#session.interactionStarted = true;
+            if (this.#internals.events?.interactionBegin?.isObserved) {
+                this.#internals.events?.interactionBegin?.emit(this.#session);
+            }
+            this.#session.interactionComplete.on(this.#internals.interactionObserver);
+        }
+    }
+
+    #refreshSubrefs() {
+        const subrefs = this.subrefs;
+        if (subrefs) {
+            for (const key in subrefs) {
+                subrefs[key].refresh();
+            }
+        }
+    }
+
+    #incrementVersion() {
+        if (!this.#internals.manageVersion) {
+            return;
+        }
+
+        this.#internals.version++;
+        if (this.#internals.version > 0xffff_ffff) {
+            this.#internals.version = 0;
+        }
+    }
+
+    #computePreCommitChange(name: string): undefined | { newValue: unknown; oldValue: unknown } {
+        let oldValue;
+        if (this.#precommitValues && name in this.#precommitValues) {
+            oldValue = this.#precommitValues[name];
+        } else {
+            oldValue = this.#internals.values[name];
+        }
+
+        const newValue = this.#values[name];
+        if (isDeepEqual(oldValue, newValue)) {
+            return;
+        }
+
+        if (!this.#precommitValues) {
+            this.#precommitValues = {};
+        }
+        this.#precommitValues[name] = deepCopy(newValue);
+
+        // Since we are notifying of data in flight, pass the managed value for "newValue" so that we validate changes
+        // and subsequent listeners are updated
+        return { newValue: this.#context.managed[name], oldValue };
+    }
+
+    #computePostCommitChanges() {
+        this.#changes = undefined;
+
+        if (this.#internals.values === this.#values) {
+            return;
+        }
+
+        for (const name in this.#values) {
+            const newval = this.#values[name];
+            const oldval = this.#internals.values[name];
+            if (oldval !== newval && !isDeepEqual(newval, oldval)) {
+                if (!this.#changes) {
+                    this.#changes = { notifications: [], changeList: new Set() };
+                }
+                this.#changes.changeList.add(name);
+
+                if (this.#internals.persistentFields.has(name)) {
+                    if (this.#changes.persistent === undefined) {
+                        this.#changes.persistent = {};
+                    }
+                    this.#changes.persistent[name] = this.#values[name];
+                }
+
+                const event = this.#internals.changedEventFor(name);
+                if (event?.isObserved) {
+                    this.#changes.notifications.push({
+                        event,
+                        params: [this.#values[name], this.#internals.values[name], this.#session],
+                    });
+                }
+            }
+        }
+
+        if (this.#changes) {
+            this.#incrementVersion();
+
+            if (this.#internals.events.stateChanged?.isObserved) {
+                this.#changes.notifications.push({
+                    event: this.#internals.events.stateChanged,
+                    params: [this.#session],
+                });
+            }
+        }
+    }
+}
+
+function createReference(resource: Transaction.Resource, internals: Internals, session: ValueSupervisor.Session) {
+    const ref = new RootReference(resource, internals, session);
+    return ref.initialize();
 }
