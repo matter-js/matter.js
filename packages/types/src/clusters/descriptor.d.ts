@@ -260,7 +260,9 @@ export declare namespace Descriptor {
      *
      * @see {@link MatterSpecification.v142.Core} § 9.5.5.1
      */
-    export interface DeviceType {
+    export declare class DeviceType {
+        constructor(values?: Partial<DeviceType>);
+
         /**
          * This shall indicate the device type definition. The endpoint shall conform to the device type definition and
          * cluster specifications required by the device type.
@@ -276,7 +278,7 @@ export declare namespace Descriptor {
          * @see {@link MatterSpecification.v142.Core} § 9.5.5.1.2
          */
         revision: number;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

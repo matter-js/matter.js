@@ -870,7 +870,9 @@ export declare namespace ElectricalPowerMeasurement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3
      */
-    export interface MeasurementRange {
+    export declare class MeasurementRange {
+        constructor(values?: Partial<MeasurementRange>);
+
         /**
          * This field shall be the type of measurement for the range provided.
          *
@@ -977,12 +979,14 @@ export declare namespace ElectricalPowerMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.3.11
          */
         maxSystime?: number | bigint;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4
      */
-    export interface HarmonicMeasurement {
+    export declare class HarmonicMeasurement {
+        constructor(values?: Partial<HarmonicMeasurement>);
+
         /**
          * This field shall be the order of the harmonic being measured. Typically this is an odd number, but servers
          * may choose to report even harmonics.
@@ -1007,7 +1011,7 @@ export declare namespace ElectricalPowerMeasurement {
          * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.4.2
          */
         measurement: number | bigint | null;
-    }
+    };
 
     /**
      * If supported, this event shall be generated at the end of a measurement period. The start and end times for
@@ -1015,14 +1019,16 @@ export declare namespace ElectricalPowerMeasurement {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1
      */
-    export interface MeasurementPeriodRangesEvent {
+    export declare class MeasurementPeriodRangesEvent {
+        constructor(values?: Partial<MeasurementPeriodRangesEvent>);
+
         /**
          * This shall indicate the value of the Ranges attribute at the time of event generation.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 2.13.7.1.1
          */
         ranges: MeasurementRange[];
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 2.13.5.2

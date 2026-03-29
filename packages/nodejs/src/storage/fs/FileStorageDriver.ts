@@ -152,16 +152,13 @@ export class FileStorageDriver extends FilesystemStorageDriver {
         return join(this.#path, fileName);
     }
 
-    getContextBaseKey(contexts: string[], allowEmptyContext = false) {
-        const contextKey = contexts.join(".");
-        if (
-            (!contextKey.length && !allowEmptyContext) ||
-            contextKey.includes("..") ||
-            contextKey.startsWith(".") ||
-            contextKey.endsWith(".")
-        )
-            throw new StorageError("Context must not be an empty and not contain dots.");
-        return contextKey;
+    getContextBaseKey(contexts: string[]) {
+        for (const ctx of contexts) {
+            if (!ctx.length || ctx.includes(".")) {
+                throw new StorageError("Context must not contain empty segments or leading or trailing dots.");
+            }
+        }
+        return contexts.join(".");
     }
 
     buildStorageKey(contexts: string[], key: string) {
@@ -172,7 +169,7 @@ export class FileStorageDriver extends FilesystemStorageDriver {
             throw new StorageError(`Key "tmp" is reserved for atomic write operations.`);
         }
         const contextKey = this.getContextBaseKey(contexts);
-        const rawName = `${contextKey}.${key}`;
+        const rawName = contextKey.length ? `${contextKey}.${key}` : key;
         return encodeURIComponent(rawName)
             .replace(/[!'()]/g, escape)
             .replace(/\*/g, "%2A");

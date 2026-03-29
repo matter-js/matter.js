@@ -598,7 +598,9 @@ export declare namespace FanControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.1
      */
-    export interface Rock {
+    export declare class Rock {
+        constructor(values?: Partial<Rock> | number);
+
         /**
          * Indicate rock left to right
          */
@@ -613,12 +615,14 @@ export declare namespace FanControl {
          * Indicate rock around
          */
         rockRound?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2
      */
-    export interface Wind {
+    export declare class Wind {
+        constructor(values?: Partial<Wind> | number);
+
         /**
          * Indicate sleep wind
          *
@@ -637,7 +641,7 @@ export declare namespace FanControl {
          * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2.2
          */
         naturalWind?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.4
@@ -672,7 +676,9 @@ export declare namespace FanControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
      */
-    export interface StepRequest {
+    export declare class StepRequest {
+        constructor(values?: Partial<StepRequest>);
+
         /**
          * This field shall indicate whether the speed-oriented attributes increase or decrease to the next step value.
          *
@@ -694,7 +700,7 @@ export declare namespace FanControl {
          * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.3
          */
         lowestOff?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.3

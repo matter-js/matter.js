@@ -794,7 +794,9 @@ export declare namespace ContentControl {
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.2
      */
-    export interface RatingName {
+    export declare class RatingName {
+        constructor(values?: Partial<RatingName>);
+
         /**
          * This field shall indicate the name of the rating level of the applied rating system. The applied rating
          * system is dependent upon the region or country where the Node has been provisioned, and may vary from one
@@ -810,12 +812,14 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.2.2
          */
         ratingNameDesc?: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3
      */
-    export interface BlockChannel {
+    export declare class BlockChannel {
+        constructor(values?: Partial<BlockChannel>);
+
         /**
          * This field shall indicate a unique index value for a blocked channel. This value may be used to indicate one
          * selected channel which will be removed from BlockChannelList attribute.
@@ -851,12 +855,14 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3.4
          */
         identifier?: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.4
      */
-    export interface AppInfo {
+    export declare class AppInfo {
+        constructor(values?: Partial<AppInfo>);
+
         /**
          * This field shall indicate the Connectivity Standards Alliance-issued vendor ID for the catalog. The DIAL
          * registry shall use value 0x0000.
@@ -875,12 +881,14 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.4.2
          */
         applicationId: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.5
      */
-    export interface TimeWindow {
+    export declare class TimeWindow {
+        constructor(values?: Partial<TimeWindow>);
+
         /**
          * This field shall indicate a unique index of a specific time window. This value may be used to indicate a
          * selected time window which will be removed from the BlockContentTimeWindow attribute.
@@ -902,7 +910,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.5.3
          */
         timePeriod: TimePeriod[];
-    }
+    };
 
     /**
      * The purpose of this command is to set the OnDemandRatingThreshold attribute.
@@ -913,7 +921,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.10
      */
-    export interface SetOnDemandRatingThresholdRequest {
+    export declare class SetOnDemandRatingThresholdRequest {
+        constructor(values?: Partial<SetOnDemandRatingThresholdRequest>);
+
         /**
          * This field indicates a threshold rating for filtering on-demand content. This field shall be set to one of
          * the values present in the OnDemandRatings attribute
@@ -921,7 +931,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.10.1
          */
         rating: string;
-    }
+    };
 
     /**
      * The purpose of this command is to set ScheduledContentRatingThreshold attribute.
@@ -932,7 +942,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.11
      */
-    export interface SetScheduledContentRatingThresholdRequest {
+    export declare class SetScheduledContentRatingThresholdRequest {
+        constructor(values?: Partial<SetScheduledContentRatingThresholdRequest>);
+
         /**
          * This field indicates a threshold rating for filtering scheduled content. This field shall be set to one of
          * the values present in the ScheduledContentRatings attribute.
@@ -940,7 +952,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.11.1
          */
         rating: string;
-    }
+    };
 
     /**
      * The purpose of this command is to add the extra screen time for the user.
@@ -964,7 +976,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6
      */
-    export interface AddBonusTimeRequest {
+    export declare class AddBonusTimeRequest {
+        constructor(values?: Partial<AddBonusTimeRequest>);
+
         /**
          * This field shall indicate the PIN.
          *
@@ -984,7 +998,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6.2
          */
         bonusTime: number;
-    }
+    };
 
     /**
      * The purpose of this command is to set the ScreenDailyTime attribute.
@@ -994,7 +1008,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.7
      */
-    export interface SetScreenDailyTimeRequest {
+    export declare class SetScreenDailyTimeRequest {
+        constructor(values?: Partial<SetScreenDailyTimeRequest>);
+
         /**
          * This field shall indicate the time (in seconds) which the User is allowed to spend watching TV on this media
          * device within one day.
@@ -1002,7 +1018,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.7.1
          */
         screenTime: number;
-    }
+    };
 
     /**
      * The purpose of this command is to set BlockChannelList attribute.
@@ -1020,7 +1036,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12
      */
-    export interface AddBlockChannelsRequest {
+    export declare class AddBlockChannelsRequest {
+        constructor(values?: Partial<AddBlockChannelsRequest>);
+
         /**
          * This field indicates a set of channels that shall be blocked when the Content Control feature is activated.
          * This field shall be set to values present in ChannelList attribute in the Channel cluster. The
@@ -1029,7 +1047,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12.1
          */
         channels: BlockChannel[];
-    }
+    };
 
     /**
      * The purpose of this command is to remove channels from the BlockChannelList attribute.
@@ -1041,7 +1059,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.13
      */
-    export interface RemoveBlockChannelsRequest {
+    export declare class RemoveBlockChannelsRequest {
+        constructor(values?: Partial<RemoveBlockChannelsRequest>);
+
         /**
          * This field shall specify a set of indexes indicating Which channels shall be removed from the
          * BlockChannelList attribute.
@@ -1049,7 +1069,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.13.1
          */
         channelIndexes: number[];
-    }
+    };
 
     /**
      * The purpose of this command is to set applications to the BlockApplicationList attribute.
@@ -1067,7 +1087,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.14
      */
-    export interface AddBlockApplicationsRequest {
+    export declare class AddBlockApplicationsRequest {
+        constructor(values?: Partial<AddBlockApplicationsRequest>);
+
         /**
          * This field indicates a set of applications that shall be blocked when the Content Control feature is
          * activated.
@@ -1075,7 +1097,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.14.1
          */
         applications: AppInfo[];
-    }
+    };
 
     /**
      * The purpose of this command is to remove applications from the BlockApplicationList attribute.
@@ -1087,14 +1109,16 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.15
      */
-    export interface RemoveBlockApplicationsRequest {
+    export declare class RemoveBlockApplicationsRequest {
+        constructor(values?: Partial<RemoveBlockApplicationsRequest>);
+
         /**
          * This field indicates a set of applications which shall be removed from BlockApplicationList attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.15.1
          */
         applications: AppInfo[];
-    }
+    };
 
     /**
      * The purpose of this command is to set the BlockContentTimeWindow attribute.
@@ -1111,14 +1135,16 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.16
      */
-    export interface SetBlockContentTimeWindowRequest {
+    export declare class SetBlockContentTimeWindowRequest {
+        constructor(values?: Partial<SetBlockContentTimeWindowRequest>);
+
         /**
          * This field shall indicate a time window requested to set to the BlockContentTimeWindow attribute.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.16.1
          */
         timeWindow: TimeWindow;
-    }
+    };
 
     /**
      * The purpose of this command is to remove the selected time windows from the BlockContentTimeWindow attribute.
@@ -1131,7 +1157,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.17
      */
-    export interface RemoveBlockContentTimeWindowRequest {
+    export declare class RemoveBlockContentTimeWindowRequest {
+        constructor(values?: Partial<RemoveBlockContentTimeWindowRequest>);
+
         /**
          * This field shall specify a set of time window indexes indicating which time windows will be removed from the
          * BlockContentTimeWindow attribute.
@@ -1139,7 +1167,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.17.1
          */
         timeWindowIndexes: number[];
-    }
+    };
 
     /**
      * The purpose of this command is to update the PIN used for protecting configuration of the content control
@@ -1160,7 +1188,9 @@ export declare namespace ContentControl {
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1
      */
-    export interface UpdatePinRequest {
+    export declare class UpdatePinRequest {
+        constructor(values?: Partial<UpdatePinRequest>);
+
         /**
          * This field shall specify the original PIN. Once the UpdatePIN command is performed successfully, it shall be
          * invalid.
@@ -1175,26 +1205,30 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1.2
          */
         newPin: string;
-    }
+    };
 
     /**
      * This command shall be generated in response to a ResetPIN command.
      *
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.3
      */
-    export interface ResetPinResponse {
+    export declare class ResetPinResponse {
+        constructor(values?: Partial<ResetPinResponse>);
+
         /**
          * This field shall indicate a new PIN of the Content Control feature.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.3.1
          */
         pinCode: string;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.1
      */
-    export interface DayOfWeek {
+    export declare class DayOfWeek {
+        constructor(values?: Partial<DayOfWeek> | number);
+
         /**
          * Sunday
          */
@@ -1229,12 +1263,14 @@ export declare namespace ContentControl {
          * Saturday
          */
         saturday?: boolean;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6
      */
-    export interface TimePeriod {
+    export declare class TimePeriod {
+        constructor(values?: Partial<TimePeriod>);
+
         /**
          * This field shall indicate the starting hour.
          *
@@ -1264,7 +1300,7 @@ export declare namespace ContentControl {
          * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6.4
          */
         endMinute: number;
-    }
+    };
 
     /**
      * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1

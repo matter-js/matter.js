@@ -99,7 +99,9 @@ export declare namespace Binding {
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
      */
-    export interface Target {
+    export declare class Target {
+        constructor(values?: Partial<Target>);
+
         /**
          * This field is the remote target node ID. If the Endpoint field is present, this field shall be present.
          *
@@ -133,7 +135,7 @@ export declare namespace Binding {
         cluster?: ClusterId;
 
         fabricIndex: FabricIndex;
-    }
+    };
 
     /**
      * Attribute metadata objects keyed by name.

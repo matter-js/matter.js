@@ -210,10 +210,10 @@ describe("a bridge", () => {
             expect(bridge2.parts.require("light2").number).equals(light2);
             expect(bridge2.parts.require("light3").number).equals(light3);
             expect(store.get(["root", "parts", "part0", "parts", "light1"], "__number__")).deep.equals(light1);
-            expect(store.get(["root.parts.part0.parts.light2"], "__number__")).deep.equals(light2);
-            expect(store.get(["root.parts.part0.parts.light3"], "__number__")).deep.equals(light3);
-            expect(store.get(["root.parts.part0.parts.light2-1"], "__number__")).deep.equals(light21);
-            expect(store.get(["root.parts.part0.parts.light4"], "__number__")).deep.equals(light3 + 1);
+            expect(store.get(["root", "parts", "part0", "parts", "light2"], "__number__")).deep.equals(light2);
+            expect(store.get(["root", "parts", "part0", "parts", "light3"], "__number__")).deep.equals(light3);
+            expect(store.get(["root", "parts", "part0", "parts", "light2-1"], "__number__")).deep.equals(light21);
+            expect(store.get(["root", "parts", "part0", "parts", "light4"], "__number__")).deep.equals(light3 + 1);
 
             await bridge2.owner?.close();
 
