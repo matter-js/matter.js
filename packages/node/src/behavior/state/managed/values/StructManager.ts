@@ -395,7 +395,7 @@ function configureProperty(supervisor: RootSupervisor, schema: ValueModel) {
             };
 
             // Clone the container before write
-            const ref = ManagedReference(
+            const ref = new ManagedReference(
                 this[Internal.reference],
                 pk,
                 name,
