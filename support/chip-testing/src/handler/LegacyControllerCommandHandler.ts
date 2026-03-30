@@ -532,6 +532,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             },
             discovery: {
                 knownAddress,
+                timeout: Seconds(30),
                 identifierData:
                     longDiscriminator !== undefined
                         ? { longDiscriminator }
