@@ -24,7 +24,6 @@ import {
     BLE_MATTER_C1_CHARACTERISTIC_UUID,
     BLE_MATTER_C2_CHARACTERISTIC_UUID,
     BLE_MATTER_C3_CHARACTERISTIC_UUID,
-    BLE_MATTER_SERVICE_UUID_SHORT,
     BLE_MAXIMUM_BTP_MTU,
     BTP_CONN_RSP_TIMEOUT,
     BTP_MAXIMUM_WINDOW_SIZE,
@@ -35,7 +34,7 @@ import {
     BtpCodec,
     BtpFlowError,
     BtpSessionHandler,
-    isMatterServiceUuid,
+    MatterBle,
 } from "@matter/protocol";
 import type { Characteristic, Peripheral } from "@stoprocent/noble";
 import { BleScanner } from "./BleScanner.js";
@@ -244,7 +243,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
 
                 try {
                     connectionGuard.interviewTimeout.start();
-                    const services = await peripheral.discoverServicesAsync([BLE_MATTER_SERVICE_UUID_SHORT]);
+                    const services = await peripheral.discoverServicesAsync([MatterBle.serviceUuidShort]);
                     if (!this.#connectionGuards.has(connectionGuard)) {
                         // Seems that the response was delayed and this process was cancelled in the meantime
                         return;
@@ -255,7 +254,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
 
                     for (const service of services) {
                         logger.debug(`Peripheral ${peripheralAddress}: Handle service: ${service.uuid}`);
-                        if (!isMatterServiceUuid(service.uuid)) continue;
+                        if (!MatterBle.isServiceUuid(service.uuid)) continue;
 
                         // It's Matter, discover its characteristics.
                         const characteristics = await service.discoverCharacteristicsAsync();

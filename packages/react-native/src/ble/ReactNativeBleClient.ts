@@ -5,7 +5,7 @@
  */
 
 import { Bytes, Diagnostic, Logger, MatterError } from "@matter/general";
-import { BLE_MATTER_SERVICE_UUID, BLE_MATTER_SERVICE_UUID_SHORT, BlePeripheral } from "@matter/protocol";
+import { BlePeripheral, MatterBle } from "@matter/protocol";
 import { BleError, BleErrorCode, BleManager, State as BluetoothState, Device } from "react-native-ble-plx";
 
 export interface ReactNativeBlePeripheral extends BlePeripheral {
@@ -124,8 +124,7 @@ export class ReactNativeBleClient {
             return;
         }
         const matterServiceDataBase64 =
-            peripheral.serviceData?.[BLE_MATTER_SERVICE_UUID] ??
-            peripheral.serviceData?.[BLE_MATTER_SERVICE_UUID_SHORT];
+            peripheral.serviceData?.[MatterBle.serviceUuid] ?? peripheral.serviceData?.[MatterBle.serviceUuidShort];
         if (matterServiceDataBase64 === undefined) {
             logger.info(`Peripheral ${peripheral.id} does not advertise Matter Service ... ignoring`);
             return;

@@ -7,18 +7,23 @@
 import { MAX_UDP_MESSAGE_SIZE, Millis, Seconds } from "@matter/general";
 
 /** @see {@link MatterSpecification.v11.Core} § 4.17.3.2 */
-export const BLE_MATTER_SERVICE_UUID_SHORT = "fff6";
-export const BLE_MATTER_SERVICE_UUID = "0000fff6-0000-1000-8000-00805f9b34fb";
+export namespace MatterBle {
+    /** Short 16-bit form of the Matter BLE service UUID. */
+    export const serviceUuidShort = "fff6";
 
-/**
- * Returns true if the given UUID matches the Matter BLE service UUID.
- * Accepts both the short 16-bit form ("fff6") and the full 128-bit form
- * ("0000fff6-0000-1000-8000-00805f9b34fb") as some BLE adapters and bindings
- * report the full Bluetooth SIG base UUID instead of the abbreviated form.
- */
-export function isMatterServiceUuid(uuid: string): boolean {
-    const lower = uuid.toLowerCase();
-    return lower === BLE_MATTER_SERVICE_UUID_SHORT || lower === BLE_MATTER_SERVICE_UUID;
+    /** Full 128-bit (Bluetooth SIG base UUID) form of the Matter BLE service UUID. */
+    export const serviceUuid = "0000fff6-0000-1000-8000-00805f9b34fb";
+
+    /**
+     * Returns true if the given UUID matches the Matter BLE service UUID.
+     * Accepts both the short 16-bit form ("fff6") and the full 128-bit form
+     * ("0000fff6-0000-1000-8000-00805f9b34fb") as some BLE adapters and bindings
+     * report the full Bluetooth SIG base UUID instead of the abbreviated form.
+     */
+    export function isServiceUuid(uuid: string): boolean {
+        const lower = uuid.toLowerCase();
+        return lower === serviceUuidShort || lower === serviceUuid;
+    }
 }
 
 export const BLE_MATTER_C1_CHARACTERISTIC_UUID = "18EE2EF5-263D-4559-959F-4F9C429F9D11";

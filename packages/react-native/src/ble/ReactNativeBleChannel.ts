@@ -30,7 +30,7 @@ import {
     BtpCodec,
     BtpFlowError,
     BtpSessionHandler,
-    isMatterServiceUuid,
+    MatterBle,
 } from "@matter/protocol";
 import {
     BleErrorCode,
@@ -91,7 +91,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
 
         for (const service of services) {
             logger.debug(`found service: ${service.uuid}`);
-            if (!isMatterServiceUuid(service.uuid)) continue;
+            if (!MatterBle.isServiceUuid(service.uuid)) continue;
 
             // So, discover its characteristics.
             const characteristics = await device.characteristicsForService(service.uuid);
