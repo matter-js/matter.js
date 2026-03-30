@@ -5,7 +5,7 @@
  */
 
 import { BleDisconnectedError } from "#ble/Ble.js";
-import { BTP_SEND_ACK_TIMEOUT } from "#ble/BleConsts.js";
+import { MatterBle } from "#ble/BleConsts.js";
 import { BtpFlowError, BtpProtocolError, BtpSessionHandler } from "#ble/BtpSessionHandler.js";
 import { BtpCodec } from "#codec/BtpCodec.js";
 import { Bytes, createPromise } from "@matter/general";
@@ -557,7 +557,7 @@ describe("BtpSessionHandler", () => {
             await handlePromise;
 
             // Advance time to trigger the sendAckTimer – write fails, must not throw
-            await MockTime.advance(BTP_SEND_ACK_TIMEOUT);
+            await MockTime.advance(MatterBle.btpSendAckTimeout);
 
             // Now send a Matter message; since prevAckedSequenceNumber was NOT advanced by the
             // failed ACK write, the outgoing packet must still carry the pending hasAckNumber flag

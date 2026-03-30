@@ -7,20 +7,12 @@
 import { Bytes, DataReader, Diagnostic, Endian, Logger, MatterError, Time } from "@matter/general";
 import { BtpCodec } from "../codec/BtpCodec.js";
 import { BleDisconnectedError } from "./Ble.js";
-import {
-    BLE_MAXIMUM_BTP_MTU,
-    BLE_MINIMUM_ATT_MTU,
-    BTP_ACK_TIMEOUT,
-    BTP_CONN_IDLE_TIMEOUT,
-    BTP_MAXIMUM_WINDOW_SIZE,
-    BTP_SEND_ACK_TIMEOUT,
-} from "./BleConsts.js";
+import { MatterBle } from "./BleConsts.js";
 
 export class BtpMatterError extends MatterError {}
 export class BtpProtocolError extends BtpMatterError {}
 export class BtpFlowError extends BtpMatterError {}
 
-export const BTP_SUPPORTED_VERSIONS = [4]; // needs to be sort in descending order!
 const MAXIMUM_SEQUENCE_NUMBER = 255;
 
 const logger = Logger.get("BtpSessionHandler");
@@ -30,7 +22,7 @@ export class BtpSessionHandler {
     private currentIncomingSegmentedPayload: Bytes | undefined;
     private prevIncomingSequenceNumber = 255; // Incoming Sequence Number received. Set to 255 to start at 0
     private prevIncomingAckNumber = -1; // Previous ackNumber received
-    private readonly ackReceiveTimer = Time.getTimer("BTP ack timeout", BTP_ACK_TIMEOUT, () =>
+    private readonly ackReceiveTimer = Time.getTimer("BTP ack timeout", MatterBle.btpAckTimeout, () =>
         this.btpAckTimeoutTriggered(),
     );
 
@@ -38,11 +30,11 @@ export class BtpSessionHandler {
     private prevAckedSequenceNumber = -1; // Previous (outgoing) Acked Sequence Number
     private readonly queuedOutgoingMatterMessages = new Array<DataReader<Endian.Little>>();
     private sendInProgress = false;
-    private readonly sendAckTimer = Time.getTimer("BTP send timeout", BTP_SEND_ACK_TIMEOUT, () =>
+    private readonly sendAckTimer = Time.getTimer("BTP send timeout", MatterBle.btpSendAckTimeout, () =>
         this.btpSendAckTimeoutTriggered(),
     );
     private isActive = true;
-    private idleTimeout = Time.getTimer("Central Device Idle Timer", BTP_CONN_IDLE_TIMEOUT, async () => {
+    private idleTimeout = Time.getTimer("Central Device Idle Timer", MatterBle.btpConnIdleTimeout, async () => {
         logger.info("Central Device Connection Idle Timer expired, closing BTP session");
         await this.close();
     });
@@ -66,25 +58,25 @@ export class BtpSessionHandler {
         logger.debug(`Received BTP handshake request:`, Diagnostic.dict({ maxDataSize, ...handshakeRequest }));
 
         // Verify handshake request and choose the highest supported version for both parties
-        const version = BTP_SUPPORTED_VERSIONS.find(version => versions.includes(version));
+        const version = MatterBle.btpSupportedVersions.find(version => versions.includes(version));
         if (version === undefined) {
             await disconnectBleCallback();
             throw new BtpProtocolError(`No supported BTP version found in ${versions}`);
         }
 
-        let attMtu = BLE_MINIMUM_ATT_MTU;
+        let attMtu = MatterBle.minimumAttMtu;
         if (maxDataSize !== undefined) {
-            if (maxDataSize > BLE_MINIMUM_ATT_MTU) {
-                if (handshakeMtu <= BLE_MINIMUM_ATT_MTU) {
-                    attMtu = Math.min(maxDataSize, BLE_MAXIMUM_BTP_MTU);
+            if (maxDataSize > MatterBle.minimumAttMtu) {
+                if (handshakeMtu <= MatterBle.minimumAttMtu) {
+                    attMtu = Math.min(maxDataSize, MatterBle.maximumBtpMtu);
                 } else {
-                    attMtu = Math.min(handshakeMtu, maxDataSize, BLE_MAXIMUM_BTP_MTU);
+                    attMtu = Math.min(handshakeMtu, maxDataSize, MatterBle.maximumBtpMtu);
                 }
             }
         }
 
         const fragmentSize = attMtu; // The attMtu is the maximum size of a single ATT packet, so use as fragmentSize
-        const windowSize = Math.min(BTP_MAXIMUM_WINDOW_SIZE, clientWindowSize);
+        const windowSize = Math.min(MatterBle.btpMaxWindowSize, clientWindowSize);
 
         // Generate and send out handshake response
         const handshakeResponse = BtpCodec.encodeBtpHandshakeResponse({
@@ -128,7 +120,7 @@ export class BtpSessionHandler {
         logger.debug("Handshake request", Diagnostic.dict(handshakeRequest));
 
         const { version, attMtu: handshakeMtu, windowSize } = handshakeRequest;
-        const fragmentSize = Math.min(handshakeMtu, BLE_MAXIMUM_BTP_MTU);
+        const fragmentSize = Math.min(handshakeMtu, MatterBle.maximumBtpMtu);
 
         return new BtpSessionHandler(
             "central",

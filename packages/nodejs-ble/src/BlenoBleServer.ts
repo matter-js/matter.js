@@ -15,18 +15,7 @@ import {
     createPromise,
 } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import {
-    BLE_MATTER_C1_CHARACTERISTIC_UUID,
-    BLE_MATTER_C2_CHARACTERISTIC_UUID,
-    BLE_MATTER_C3_CHARACTERISTIC_UUID,
-    BTP_CONN_RSP_TIMEOUT,
-    BleChannel,
-    BleError,
-    BtpFlowError,
-    BtpSessionHandler,
-    MatterBle,
-    SessionClosedError,
-} from "@matter/protocol";
+import { BleChannel, BleError, BtpFlowError, BtpSessionHandler, MatterBle, SessionClosedError } from "@matter/protocol";
 import type { Bleno as BlenoType } from "@stoprocent/bleno";
 import { BleOptions } from "./NodeJsBle.js";
 
@@ -43,7 +32,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpWriteCharacteristicC1 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: BLE_MATTER_C1_CHARACTERISTIC_UUID,
+                uuid: MatterBle.c1CharacteristicUuid,
                 properties: ["write"],
                 onWriteRequest: (_handle, data, offset, withoutResponse, callback) =>
                     this.#onWriteRequest(data, offset, withoutResponse, callback),
@@ -71,7 +60,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpIndicateCharacteristicC2 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: BLE_MATTER_C2_CHARACTERISTIC_UUID,
+                uuid: MatterBle.c2CharacteristicUuid,
                 properties: ["indicate"],
                 onSubscribe: (_handle, maxValueSize, updateValueCallback) =>
                     this.#onSubscribe(maxValueSize, updateValueCallback),
@@ -102,7 +91,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpReadCharacteristicC3 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: BLE_MATTER_C3_CHARACTERISTIC_UUID,
+                uuid: MatterBle.c3CharacteristicUuid,
                 properties: ["read"],
                 onReadRequest: (_handle, offset, callback) => this.#onReadRequest(offset, callback),
             });
@@ -155,7 +144,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     private writeConformationResolver: ((value: void) => void) | undefined;
 
     public clientAddress: string | undefined;
-    private btpHandshakeTimeout = Time.getTimer("BTP handshake timeout", BTP_CONN_RSP_TIMEOUT, () =>
+    private btpHandshakeTimeout = Time.getTimer("BTP handshake timeout", MatterBle.btpConnRspTimeout, () =>
         this.btpHandshakeTimeoutTriggered(),
     );
     #disconnected = false;
