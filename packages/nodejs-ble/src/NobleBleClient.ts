@@ -87,7 +87,7 @@ export class NobleBleClient {
         this.shouldScan = true;
         if (this.nobleState === "poweredOn") {
             logger.debug("Start BLE scanning for Matter Services ...");
-            await noble.startScanningAsync([MatterBle.serviceUuidShort], true);
+            await noble.startScanningAsync([MatterBle.SERVICE_UUID_SHORT], true);
         } else {
             logger.debug("noble state is not poweredOn ... delay scanning till poweredOn");
         }

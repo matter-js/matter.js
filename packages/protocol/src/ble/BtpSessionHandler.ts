@@ -64,13 +64,13 @@ export class BtpSessionHandler {
             throw new BtpProtocolError(`No supported BTP version found in ${versions}`);
         }
 
-        let attMtu = MatterBle.BLE_MINIMUM_ATT_MTU;
+        let attMtu = MatterBle.MINIMUM_ATT_MTU;
         if (maxDataSize !== undefined) {
-            if (maxDataSize > MatterBle.BLE_MINIMUM_ATT_MTU) {
-                if (handshakeMtu <= MatterBle.BLE_MINIMUM_ATT_MTU) {
-                    attMtu = Math.min(maxDataSize, MatterBle.BLE_MAXIMUM_BTP_MTU);
+            if (maxDataSize > MatterBle.MINIMUM_ATT_MTU) {
+                if (handshakeMtu <= MatterBle.MINIMUM_ATT_MTU) {
+                    attMtu = Math.min(maxDataSize, MatterBle.MAXIMUM_BTP_MTU);
                 } else {
-                    attMtu = Math.min(handshakeMtu, maxDataSize, MatterBle.BLE_MAXIMUM_BTP_MTU);
+                    attMtu = Math.min(handshakeMtu, maxDataSize, MatterBle.MAXIMUM_BTP_MTU);
                 }
             }
         }
@@ -120,7 +120,7 @@ export class BtpSessionHandler {
         logger.debug("Handshake request", Diagnostic.dict(handshakeRequest));
 
         const { version, attMtu: handshakeMtu, windowSize } = handshakeRequest;
-        const fragmentSize = Math.min(handshakeMtu, MatterBle.BLE_MAXIMUM_BTP_MTU);
+        const fragmentSize = Math.min(handshakeMtu, MatterBle.MAXIMUM_BTP_MTU);
 
         return new BtpSessionHandler(
             "central",

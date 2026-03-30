@@ -32,7 +32,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpWriteCharacteristicC1 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: MatterBle.BLE_MATTER_C1_CHARACTERISTIC_UUID,
+                uuid: MatterBle.C1_CHARACTERISTIC_UUID,
                 properties: ["write"],
                 onWriteRequest: (_handle, data, offset, withoutResponse, callback) =>
                     this.#onWriteRequest(data, offset, withoutResponse, callback),
@@ -60,7 +60,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpIndicateCharacteristicC2 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: MatterBle.BLE_MATTER_C2_CHARACTERISTIC_UUID,
+                uuid: MatterBle.C2_CHARACTERISTIC_UUID,
                 properties: ["indicate"],
                 onSubscribe: (_handle, maxValueSize, updateValueCallback) =>
                     this.#onSubscribe(maxValueSize, updateValueCallback),
@@ -91,7 +91,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpReadCharacteristicC3 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: MatterBle.BLE_MATTER_C3_CHARACTERISTIC_UUID,
+                uuid: MatterBle.C3_CHARACTERISTIC_UUID,
                 properties: ["read"],
                 onReadRequest: (_handle, offset, callback) => this.#onReadRequest(offset, callback),
             });
@@ -112,7 +112,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpService extends Bleno.PrimaryService {
         constructor() {
             super({
-                uuid: MatterBle.serviceUuidShort,
+                uuid: MatterBle.SERVICE_UUID_SHORT,
                 characteristics: [
                     new BtpWriteCharacteristicC1(),
                     new BtpIndicateCharacteristicC2(),

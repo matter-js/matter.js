@@ -9,10 +9,10 @@ import { MAX_UDP_MESSAGE_SIZE, Millis, Seconds } from "@matter/general";
 /** @see {@link MatterSpecification.v11.Core} § 4.17.3.2 */
 export namespace MatterBle {
     /** Short 16-bit form of the Matter BLE service UUID. */
-    export const serviceUuidShort = "fff6";
+    export const SERVICE_UUID_SHORT = "fff6";
 
     /** Full 128-bit (Bluetooth SIG base UUID) form of the Matter BLE service UUID. */
-    export const serviceUuid = "0000fff6-0000-1000-8000-00805f9b34fb";
+    export const SERVICE_UUID = "0000fff6-0000-1000-8000-00805f9b34fb";
 
     /**
      * Returns true if the given UUID matches the Matter BLE service UUID.
@@ -22,15 +22,15 @@ export namespace MatterBle {
      */
     export function isServiceUuid(uuid: string): boolean {
         const lower = uuid.toLowerCase();
-        return lower === serviceUuidShort || lower === serviceUuid;
+        return lower === SERVICE_UUID_SHORT || lower === SERVICE_UUID;
     }
 
-    export const BLE_MATTER_C1_CHARACTERISTIC_UUID = "18EE2EF5-263D-4559-959F-4F9C429F9D11";
-    export const BLE_MATTER_C2_CHARACTERISTIC_UUID = "18EE2EF5-263D-4559-959F-4F9C429F9D12";
-    export const BLE_MATTER_C3_CHARACTERISTIC_UUID = "64630238-8772-45F2-B87D-748A83218F04";
+    export const C1_CHARACTERISTIC_UUID = "18EE2EF5-263D-4559-959F-4F9C429F9D11";
+    export const C2_CHARACTERISTIC_UUID = "18EE2EF5-263D-4559-959F-4F9C429F9D12";
+    export const C3_CHARACTERISTIC_UUID = "64630238-8772-45F2-B87D-748A83218F04";
 
-    export const BLE_MINIMUM_ATT_MTU = 20; // 23-byte minimum ATT_MTU - 3 bytes for ATT operation header
-    export const BLE_MAXIMUM_BTP_MTU = 244; // Maximum size of BTP segment
+    export const MINIMUM_ATT_MTU = 20; // 23-byte minimum ATT_MTU - 3 bytes for ATT operation header
+    export const MAXIMUM_BTP_MTU = 244; // Maximum size of BTP segment
 
     export const BTP_MAXIMUM_WINDOW_SIZE = 255; // Server maximum window size
 
@@ -58,5 +58,5 @@ export namespace MatterBle {
      * The maximum message size that can be transported in a Matter message via BTP.
      * Seems the chip code in BTPEngine limits the size currently to "one pbuf" which should mean one UDP message.
      */
-    export const BLE_MAX_MATTER_PAYLOAD_SIZE = MAX_UDP_MESSAGE_SIZE;
+    export const MAX_MATTER_PAYLOAD_SIZE = MAX_UDP_MESSAGE_SIZE;
 }

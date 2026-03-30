@@ -59,7 +59,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         let device: Device;
         try {
             device = await peripheral.connect();
-            await device.requestMTU(MatterBle.BLE_MAXIMUM_BTP_MTU);
+            await device.requestMTU(MatterBle.MAXIMUM_BTP_MTU);
         } catch (error) {
             if (error instanceof ReactNativeBleError && error.errorCode === BleErrorCode.DeviceAlreadyConnected) {
                 device = peripheral;
@@ -90,17 +90,17 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
                 logger.debug("found characteristic:", characteristic.uuid);
 
                 switch (characteristic.uuid.toUpperCase()) {
-                    case MatterBle.BLE_MATTER_C1_CHARACTERISTIC_UUID:
+                    case MatterBle.C1_CHARACTERISTIC_UUID:
                         logger.debug("found C1 characteristic");
                         characteristicC1ForWrite = characteristic;
                         break;
 
-                    case MatterBle.BLE_MATTER_C2_CHARACTERISTIC_UUID:
+                    case MatterBle.C2_CHARACTERISTIC_UUID:
                         logger.debug("found C2 characteristic");
                         characteristicC2ForSubscribe = characteristic;
                         break;
 
-                    case MatterBle.BLE_MATTER_C3_CHARACTERISTIC_UUID:
+                    case MatterBle.C3_CHARACTERISTIC_UUID:
                         logger.debug("found C3 characteristic");
                         if (hasAdditionalAdvertisementData) {
                             logger.debug("reading additional commissioning related data");
@@ -159,8 +159,8 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<ReactNativeBleChannel> {
         let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.BLE_MAXIMUM_BTP_MTU) {
-            mtu = MatterBle.BLE_MAXIMUM_BTP_MTU;
+        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
+            mtu = MatterBle.MAXIMUM_BTP_MTU;
         }
         logger.debug(`Using MTU=${mtu} (Peripheral MTU=${peripheral.mtu})`);
         const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({

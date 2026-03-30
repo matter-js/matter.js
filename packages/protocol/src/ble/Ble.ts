@@ -26,7 +26,7 @@ export interface BlePeripheralInterface extends ConnectionlessTransport {
 }
 
 export abstract class BleChannel<T> implements Channel<T> {
-    readonly maxPayloadSize = MatterBle.BLE_MAX_MATTER_PAYLOAD_SIZE;
+    readonly maxPayloadSize = MatterBle.MAX_MATTER_PAYLOAD_SIZE;
     readonly isReliable = true; // BLE uses BTP which is reliable
     readonly supportsLargeMessages = false;
     readonly type = ChannelType.BLE;

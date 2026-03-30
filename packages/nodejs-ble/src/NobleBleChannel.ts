@@ -236,7 +236,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
 
                 try {
                     connectionGuard.interviewTimeout.start();
-                    const services = await peripheral.discoverServicesAsync([MatterBle.serviceUuidShort]);
+                    const services = await peripheral.discoverServicesAsync([MatterBle.SERVICE_UUID_SHORT]);
                     if (!this.#connectionGuards.has(connectionGuard)) {
                         // Seems that the response was delayed and this process was cancelled in the meantime
                         return;
@@ -269,17 +269,17 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             );
 
                             switch (nobleUuidToUuid(characteristic.uuid)) {
-                                case MatterBle.BLE_MATTER_C1_CHARACTERISTIC_UUID:
+                                case MatterBle.C1_CHARACTERISTIC_UUID:
                                     logger.debug(`Peripheral ${peripheralAddress}: Found C1 characteristic`);
                                     characteristicC1ForWrite = characteristic;
                                     break;
 
-                                case MatterBle.BLE_MATTER_C2_CHARACTERISTIC_UUID:
+                                case MatterBle.C2_CHARACTERISTIC_UUID:
                                     logger.debug(`Peripheral ${peripheralAddress}: Found C2 characteristic`);
                                     characteristicC2ForSubscribe = characteristic;
                                     break;
 
-                                case MatterBle.BLE_MATTER_C3_CHARACTERISTIC_UUID:
+                                case MatterBle.C3_CHARACTERISTIC_UUID:
                                     logger.debug(`Peripheral ${peripheralAddress}: Found C3 characteristic`);
                                     if (hasAdditionalAdvertisementData) {
                                         logger.debug(
@@ -427,8 +427,8 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     ): Promise<NobleBleChannel> {
         const { address: peripheralAddress } = peripheral;
         let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.BLE_MAXIMUM_BTP_MTU) {
-            mtu = MatterBle.BLE_MAXIMUM_BTP_MTU;
+        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
+            mtu = MatterBle.MAXIMUM_BTP_MTU;
         }
         logger.debug(
             `Peripheral ${peripheralAddress}: Using MTU=${mtu} bytes (Peripheral supports up to ${peripheral.mtu} bytes)`,
