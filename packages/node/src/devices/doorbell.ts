@@ -14,7 +14,7 @@ import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js
 import { Identity } from "@matter/general";
 
 /**
- * A Doorbell device is a switch which when pressed usually causes a Section 16.7, “Chime” to activate.
+ * A Doorbell device is a switch which when pressed usually causes a Chime to activate.
  *
  * DoorbellDevice requires Switch cluster but Switch is not added by default because you must select the features your
  * device supports. You can add manually using DoorbellDevice.with().
@@ -59,7 +59,7 @@ export namespace DoorbellRequirements {
 export const DoorbellDeviceDefinition = MutableEndpoint({
     name: "Doorbell",
     deviceType: 0x148,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: DoorbellRequirements,
     behaviors: SupportedBehaviors(DoorbellRequirements.server.mandatory.Identify)
 });

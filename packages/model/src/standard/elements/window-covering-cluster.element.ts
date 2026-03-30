@@ -17,7 +17,7 @@ import {
 
 export const WindowCovering = Cluster(
     { name: "WindowCovering", id: 0x102, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 8 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -45,23 +45,23 @@ export const WindowCovering = Cluster(
     }),
     Attribute({
         name: "CurrentPositionLiftPercentage", id: 0x8, type: "percent", access: "R V",
-        conformance: "[LF & PA_LF]", default: null, quality: "X N P"
+        conformance: "[LF & PA_LF]", default: null, quality: "X N"
     }),
     Attribute({
         name: "CurrentPositionTiltPercentage", id: 0x9, type: "percent", access: "R V",
-        conformance: "[TL & PA_TL]", default: null, quality: "X N P"
+        conformance: "[TL & PA_TL]", default: null, quality: "X N"
     }),
     Attribute({
         name: "OperationalStatus", id: 0xa, type: "OperationalStatusBitmap", access: "R V",
-        conformance: "M", constraint: "max 63", default: 0, quality: "P"
+        conformance: "M", constraint: "max 63", default: 0
     }),
     Attribute({
         name: "TargetPositionLiftPercent100ths", id: 0xb, type: "percent100ths", access: "R V",
-        conformance: "LF & PA_LF", default: null, quality: "X P"
+        conformance: "LF & PA_LF", default: null, quality: "X"
     }),
     Attribute({
         name: "TargetPositionTiltPercent100ths", id: 0xc, type: "percent100ths", access: "R V",
-        conformance: "TL & PA_TL", default: null, quality: "X P"
+        conformance: "TL & PA_TL", default: null, quality: "X"
     }),
     Attribute({
         name: "EndProductType", id: 0xd, type: "EndProductTypeEnum", access: "R V", conformance: "M",
@@ -69,11 +69,11 @@ export const WindowCovering = Cluster(
     }),
     Attribute({
         name: "CurrentPositionLiftPercent100ths", id: 0xe, type: "percent100ths", access: "R V",
-        conformance: "LF & PA_LF", constraint: "max 10000", default: null, quality: "X N P"
+        conformance: "LF & PA_LF", constraint: "max 10000", default: null, quality: "X N"
     }),
     Attribute({
         name: "CurrentPositionTiltPercent100ths", id: 0xf, type: "percent100ths", access: "R V",
-        conformance: "TL & PA_TL", constraint: "max 10000", default: null, quality: "X N P"
+        conformance: "TL & PA_TL", constraint: "max 10000", default: null, quality: "X N"
     }),
     Attribute({
         name: "Mode", id: 0x17, type: "ModeBitmap", access: "RW VM", conformance: "M", constraint: "max 15",
@@ -81,7 +81,7 @@ export const WindowCovering = Cluster(
     }),
     Attribute({
         name: "SafetyStatus", id: 0x1a, type: "SafetyStatusBitmap", access: "R V", conformance: "O",
-        constraint: "desc", default: 0, quality: "P"
+        constraint: "desc", default: 0
     }),
     Command({ name: "UpOrOpen", id: 0x0, access: "O", conformance: "M", direction: "request", response: "status" }),
     Command({ name: "DownOrClose", id: 0x1, access: "O", conformance: "M", direction: "request", response: "status" }),

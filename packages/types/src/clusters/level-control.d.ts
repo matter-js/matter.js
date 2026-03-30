@@ -15,7 +15,7 @@ import type { MaybePromise } from "@matter/general";
  * Definitions for the LevelControl cluster.
  *
  * This cluster provides an interface for controlling a characteristic of a device that can be set to a level, for
- * example the brightness of a light, the degree of closure of a door, or the power output of a heater.
+ * example the brightness of a light or lamp, a pump’s flow rate setpoint, etc.
  *
  * @see {@link MatterSpecification.v142.Cluster} § 1.6
  */
@@ -33,7 +33,7 @@ export declare namespace LevelControl {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 6;
+    export const revision: 7;
 
     /**
      * Canonical metadata for the LevelControl cluster.
@@ -99,7 +99,24 @@ export declare namespace LevelControl {
         options: Options;
 
         /**
+         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
+         *
+         * > [!NOTE]
+         *
+         * > This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As such,
+         *   when the Lighting feature is supported this value shall be 1.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+         */
+        minLevel?: number;
+
+        /**
          * Indicates the maximum value of CurrentLevel that is capable of being assigned.
+         *
+         * > [!NOTE]
+         *
+         * > This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As such,
+         *   when the Lighting feature is supported this value shall be 254.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.5
          */
@@ -179,25 +196,6 @@ export declare namespace LevelControl {
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
          */
         startUpCurrentLevel: number | null;
-
-        /**
-         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
-         */
-        minLevel?: number;
-    }
-
-    /**
-     * {@link LevelControl} supports these elements if it supports feature "NotLighting".
-     */
-    export interface NotLightingAttributes {
-        /**
-         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
-         */
-        minLevel?: number;
     }
 
     /**
@@ -296,7 +294,24 @@ export declare namespace LevelControl {
         options: Options;
 
         /**
+         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
+         *
+         * > [!NOTE]
+         *
+         * > This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As such,
+         *   when the Lighting feature is supported this value shall be 1.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+         */
+        minLevel: number;
+
+        /**
          * Indicates the maximum value of CurrentLevel that is capable of being assigned.
+         *
+         * > [!NOTE]
+         *
+         * > This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As such,
+         *   when the Lighting feature is supported this value shall be 254.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.5
          */
@@ -371,13 +386,6 @@ export declare namespace LevelControl {
          * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
          */
         startUpCurrentLevel: number | null;
-
-        /**
-         * Indicates the minimum value of CurrentLevel that is capable of being assigned.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
-         */
-        minLevel: number;
 
         /**
          * Indicates the frequency at which the device is at CurrentLevel. A CurrentFrequency of 0 is unknown.
@@ -487,10 +495,8 @@ export declare namespace LevelControl {
     export type Components = [
         { flags: {}, attributes: BaseAttributes, commands: BaseCommands },
         { flags: { lighting: true }, attributes: LightingAttributes },
-        { flags: { lighting: false }, attributes: NotLightingAttributes },
         { flags: { frequency: true }, attributes: FrequencyAttributes, commands: FrequencyCommands }
     ];
-
     export type Features = "OnOff" | "Lighting" | "Frequency";
 
     /**

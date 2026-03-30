@@ -149,35 +149,6 @@ export declare namespace BasicInformation {
         softwareVersionString: string;
 
         /**
-         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
-         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
-         * tracking,
-         *
-         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
-         *
-         *   - it shall be updated when the device is factory reset
-         *
-         *   - it shall NOT be identical to the SerialNumber attribute
-         *
-         *   - it shall NOT be printed on the product or delivered with the product
-         *
-         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
-         * communication.
-         *
-         * > [!NOTE]
-         *
-         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
-         *
-         * > [!NOTE]
-         *
-         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-         *   Device Identifier mechanism.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
-         */
-        uniqueId: string;
-
-        /**
          * This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities that are
          * not otherwise cluster-specific and do not appear elsewhere. This attribute may be used by clients to optimize
          * communication with Nodes by allowing them to use more than the strict minimum values required by this
@@ -194,6 +165,14 @@ export declare namespace BasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 11.1.5.20
          */
         capabilityMinima: CapabilityMinima;
+
+        /**
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         */
+        productAppearance: ProductAppearance;
 
         /**
          * This attribute shall contain the current version number for the specification version this Node was certified
@@ -321,12 +300,33 @@ export declare namespace BasicInformation {
         reachable?: boolean;
 
         /**
-         * This attribute shall provide information about the appearance of the product, which could be useful to a user
-         * trying to locate or identify the node.
+         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
+         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
+         * tracking,
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
+         *
+         *   - it shall be updated when the device is factory reset
+         *
+         *   - it shall NOT be identical to the SerialNumber attribute
+         *
+         *   - it shall NOT be printed on the product or delivered with the product
+         *
+         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
+         * communication.
+         *
+         * > [!NOTE]
+         *
+         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * > [!NOTE]
+         *
+         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
+         *   Device Identifier mechanism.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
          */
-        productAppearance?: ProductAppearance;
+        uniqueId?: string;
     }
 
     /**
@@ -436,35 +436,6 @@ export declare namespace BasicInformation {
         softwareVersionString: string;
 
         /**
-         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
-         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
-         * tracking,
-         *
-         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
-         *
-         *   - it shall be updated when the device is factory reset
-         *
-         *   - it shall NOT be identical to the SerialNumber attribute
-         *
-         *   - it shall NOT be printed on the product or delivered with the product
-         *
-         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
-         * communication.
-         *
-         * > [!NOTE]
-         *
-         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
-         *
-         * > [!NOTE]
-         *
-         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-         *   Device Identifier mechanism.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
-         */
-        uniqueId: string;
-
-        /**
          * This attribute shall provide the minimum guaranteed value for some system-wide resource capabilities that are
          * not otherwise cluster-specific and do not appear elsewhere. This attribute may be used by clients to optimize
          * communication with Nodes by allowing them to use more than the strict minimum values required by this
@@ -481,6 +452,14 @@ export declare namespace BasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 11.1.5.20
          */
         capabilityMinima: CapabilityMinima;
+
+        /**
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         */
+        productAppearance: ProductAppearance;
 
         /**
          * This attribute shall contain the current version number for the specification version this Node was certified
@@ -608,12 +587,33 @@ export declare namespace BasicInformation {
         reachable: boolean;
 
         /**
-         * This attribute shall provide information about the appearance of the product, which could be useful to a user
-         * trying to locate or identify the node.
+         * Indicates a unique identifier for the device, which is constructed in a manufacturer specific manner. It may
+         * be constructed using a permanent device identifier (such as device MAC address) as basis. In order to prevent
+         * tracking,
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         *   - it SHOULD NOT be identical to (or easily derived from) such permanent device identifier
+         *
+         *   - it shall be updated when the device is factory reset
+         *
+         *   - it shall NOT be identical to the SerialNumber attribute
+         *
+         *   - it shall NOT be printed on the product or delivered with the product
+         *
+         * The value does not need to be human readable, since it is intended for machine to machine (M2M)
+         * communication.
+         *
+         * > [!NOTE]
+         *
+         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * > [!NOTE]
+         *
+         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
+         *   Device Identifier mechanism.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
          */
-        productAppearance: ProductAppearance;
+        uniqueId: string;
     }
 
     /**

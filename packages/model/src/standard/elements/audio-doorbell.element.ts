@@ -10,10 +10,10 @@ import { MatterDefinition } from "../MatterDefinition.js";
 import { DeviceTypeElement as DeviceType, RequirementElement as Requirement } from "../../elements/index.js";
 
 export const AudioDoorbellDt = DeviceType(
-    { name: "AudioDoorbell", id: 0x141, type: "Doorbell", classification: "simple" },
+    { name: "AudioDoorbell", id: 0x141, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 321, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 321, revision: 2 } ], element: "attribute" })
     ),
     Requirement(
         { name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M", element: "condition" }

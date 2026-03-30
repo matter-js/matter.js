@@ -13,7 +13,7 @@ export const RoomAirConditionerDt = DeviceType(
     { name: "RoomAirConditioner", id: 0x72, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 3 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 114, revision: 4 } ], element: "attribute" })
     ),
     Requirement({ name: "Identify", id: 0x3, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "Groups", id: 0x4, conformance: "O", element: "serverCluster" }),

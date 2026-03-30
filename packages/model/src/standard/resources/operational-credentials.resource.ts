@@ -705,7 +705,7 @@ Resource.add({
                 "The FabricBindingVersion field shall contain value 0x01 for version 1.0 of the Matter Cryptographic " +
                 "Primitives." +
                 "\n" +
-                "The Signature field shall contain the octet string result of CryptoSign(noc_private_key, " +
+                "The Signature field shall contain the octet string result of Crypto_Sign(noc_private_key, " +
                 "vendor_id_verification_tbs):" +
                 "\n" +
                 "  - noc_private_key is the operational private key associated with the Node Operational Key Pair for " +

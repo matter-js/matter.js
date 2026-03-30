@@ -17,7 +17,7 @@ import {
 
 export const ColorControl = Cluster(
     { name: "ColorControl", id: 0x300, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 8 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 9 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -30,11 +30,11 @@ export const ColorControl = Cluster(
 
     Attribute({
         name: "CurrentHue", id: 0x0, type: "uint8", access: "R V", conformance: "HS", constraint: "max 254",
-        quality: "N P Q"
+        quality: "N Q"
     }),
     Attribute({
         name: "CurrentSaturation", id: 0x1, type: "uint8", access: "R V", conformance: "HS",
-        constraint: "max 254", quality: "N S P Q"
+        constraint: "max 254", quality: "N S Q"
     }),
     Attribute({
         name: "RemainingTime", id: 0x2, type: "uint16", access: "R V", conformance: "O",
@@ -42,11 +42,11 @@ export const ColorControl = Cluster(
     }),
     Attribute({
         name: "CurrentX", id: 0x3, type: "uint16", access: "R V", conformance: "XY",
-        constraint: "max 65279", quality: "N S P Q"
+        constraint: "max 65279", quality: "N S Q"
     }),
     Attribute({
         name: "CurrentY", id: 0x4, type: "uint16", access: "R V", conformance: "XY",
-        constraint: "max 65279", quality: "N S P Q"
+        constraint: "max 65279", quality: "N S Q"
     }),
     Attribute({ name: "DriftCompensation", id: 0x5, type: "DriftCompensationEnum", access: "R V", conformance: "O" }),
     Attribute(
@@ -54,7 +54,7 @@ export const ColorControl = Cluster(
     ),
     Attribute({
         name: "ColorTemperatureMireds", id: 0x7, type: "uint16", access: "R V", conformance: "CT",
-        constraint: "colorTempPhysicalMinMireds to colorTempPhysicalMaxMireds", quality: "N S P Q"
+        constraint: "colorTempPhysicalMinMireds to colorTempPhysicalMaxMireds", quality: "N S Q"
     }),
     Attribute({ name: "ColorMode", id: 0x8, type: "ColorModeEnum", access: "R V", conformance: "M", quality: "N" }),
     Attribute({ name: "Options", id: 0xf, type: "OptionsBitmap", access: "RW VO", conformance: "M", constraint: "desc" }),

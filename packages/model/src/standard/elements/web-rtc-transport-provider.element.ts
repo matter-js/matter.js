@@ -17,7 +17,7 @@ import {
 
 export const WebRtcTransportProvider = Cluster(
     { name: "WebRtcTransportProvider", id: 0x553, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "METADATA", conformance: "P, O", constraint: "0", title: "Metadata" })
@@ -35,11 +35,11 @@ export const WebRtcTransportProvider = Cluster(
         Field({ name: "StreamUsage", id: 0x0, type: "StreamUsageEnum", conformance: "M" }),
         Field({ name: "OriginatingEndpointId", id: 0x1, type: "endpoint-no", conformance: "M" }),
         Field({
-            name: "VideoStreamId", id: 0x2, type: "CameraAvStreamManagement.VideoStreamID", conformance: "O.a+",
+            name: "VideoStreamId", id: 0x2, type: "CameraAvStreamManagement.VideoStreamID", conformance: "O, D",
             quality: "X"
         }),
         Field({
-            name: "AudioStreamId", id: 0x3, type: "CameraAvStreamManagement.AudioStreamID", conformance: "O.a+",
+            name: "AudioStreamId", id: 0x3, type: "CameraAvStreamManagement.AudioStreamID", conformance: "O, D",
             quality: "X"
         }),
         Field(
@@ -48,7 +48,15 @@ export const WebRtcTransportProvider = Cluster(
         ),
         Field({ name: "IceTransportPolicy", id: 0x5, type: "string", conformance: "O", constraint: "max 16" }),
         Field({ name: "MetadataEnabled", id: 0x6, type: "bool", conformance: "METADATA" }),
-        Field({ name: "SFrameConfig", id: 0x7, type: "SFrameStruct", conformance: "P, O" })
+        Field({ name: "SFrameConfig", id: 0x7, type: "SFrameStruct", conformance: "P, O" }),
+        Field(
+            { name: "VideoStreams", id: 0x8, type: "list", conformance: "[Rev >= v2].b+, O", constraint: "1 to 16" },
+            Field({ name: "entry", type: "CameraAvStreamManagement.VideoStreamID" })
+        ),
+        Field(
+            { name: "AudioStreams", id: 0x9, type: "list", conformance: "[Rev >= v2].b+, O", constraint: "1 to 16" },
+            Field({ name: "entry", type: "CameraAvStreamManagement.AudioStreamID" })
+        )
     ),
 
     Command(
@@ -57,11 +65,11 @@ export const WebRtcTransportProvider = Cluster(
         Field({ name: "DeferredOffer", id: 0x1, type: "bool", conformance: "M" }),
         Field({
             name: "VideoStreamId", id: 0x2, type: "CameraAvStreamManagement.VideoStreamID",
-            conformance: "SolicitOffer.VideoStreamID", quality: "X"
+            conformance: "SolicitOffer.VideoStreamID, D", quality: "X"
         }),
         Field({
             name: "AudioStreamId", id: 0x3, type: "CameraAvStreamManagement.AudioStreamID",
-            conformance: "SolicitOffer.AudioStreamID", quality: "X"
+            conformance: "SolicitOffer.AudioStreamID, D", quality: "X"
         })
     ),
 
@@ -75,14 +83,14 @@ export const WebRtcTransportProvider = Cluster(
             conformance: "M", quality: "X"
         }),
         Field({ name: "Sdp", id: 0x1, type: "string", conformance: "M" }),
-        Field({ name: "StreamUsage", id: 0x2, type: "StreamUsageEnum", conformance: "M" }),
-        Field({ name: "OriginatingEndpointId", id: 0x3, type: "endpoint-no", conformance: "M" }),
+        Field({ name: "StreamUsage", id: 0x2, type: "StreamUsageEnum", conformance: "WebRTCSessionID == null, O" }),
+        Field({ name: "OriginatingEndpointId", id: 0x3, type: "endpoint-no", conformance: "WebRTCSessionID == null, O" }),
         Field({
-            name: "VideoStreamId", id: 0x4, type: "CameraAvStreamManagement.VideoStreamID", conformance: "O.c+",
+            name: "VideoStreamId", id: 0x4, type: "CameraAvStreamManagement.VideoStreamID", conformance: "O, D",
             quality: "X"
         }),
         Field({
-            name: "AudioStreamId", id: 0x5, type: "CameraAvStreamManagement.AudioStreamID", conformance: "O.c+",
+            name: "AudioStreamId", id: 0x5, type: "CameraAvStreamManagement.AudioStreamID", conformance: "O, D",
             quality: "X"
         }),
         Field(
@@ -90,8 +98,24 @@ export const WebRtcTransportProvider = Cluster(
             Field({ name: "entry", type: "WebRtcTransportDefinitions.ICEServerStruct" })
         ),
         Field({ name: "IceTransportPolicy", id: 0x7, type: "string", conformance: "O", constraint: "max 16" }),
-        Field({ name: "MetadataEnabled", id: 0x8, type: "bool", conformance: "METADATA" }),
-        Field({ name: "SFrameConfig", id: 0x9, type: "SFrameStruct", conformance: "P, O" })
+        Field({ name: "MetadataEnabled", id: 0x8, type: "bool", conformance: "METADATA & WebRTCSessionID == null" }),
+        Field({ name: "SFrameConfig", id: 0x9, type: "SFrameStruct", conformance: "P, O" }),
+
+        Field(
+            {
+                name: "VideoStreams", id: 0xa, type: "list",
+                conformance: "[Rev >= v2 & WebRTCSessionID == null].d+, O", constraint: "1 to 16"
+            },
+            Field({ name: "entry", type: "CameraAvStreamManagement.VideoStreamID" })
+        ),
+
+        Field(
+            {
+                name: "AudioStreams", id: 0xb, type: "list",
+                conformance: "[Rev >= v2 & WebRTCSessionID == null].d+, O", constraint: "1 to 16"
+            },
+            Field({ name: "entry", type: "CameraAvStreamManagement.AudioStreamID" })
+        )
     ),
 
     Command(
@@ -99,11 +123,11 @@ export const WebRtcTransportProvider = Cluster(
         Field({ name: "WebRtcSessionId", id: 0x0, type: "WebRtcTransportDefinitions.WebRTCSessionID", conformance: "M" }),
         Field({
             name: "VideoStreamId", id: 0x1, type: "CameraAvStreamManagement.VideoStreamID",
-            conformance: "ProvideOffer.VideoStreamID", quality: "X"
+            conformance: "ProvideOffer.VideoStreamID, D", quality: "X"
         }),
         Field({
             name: "AudioStreamId", id: 0x2, type: "CameraAvStreamManagement.AudioStreamID",
-            conformance: "ProvideOffer.AudioStreamID", quality: "X"
+            conformance: "ProvideOffer.AudioStreamID, D", quality: "X"
         })
     ),
 

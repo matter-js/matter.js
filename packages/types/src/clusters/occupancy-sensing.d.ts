@@ -32,7 +32,7 @@ export declare namespace OccupancySensing {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 5;
+    export const revision: 7;
 
     /**
      * Canonical metadata for the OccupancySensing cluster.

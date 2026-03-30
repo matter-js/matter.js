@@ -18,7 +18,7 @@ import {
 
 export const PushAvStreamTransport = Cluster(
     { name: "PushAvStreamTransport", id: 0x555, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 1 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 2 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "PERZONESENS", conformance: "O", constraint: "0", title: "PerZoneSensitivity" }),
@@ -51,7 +51,9 @@ export const PushAvStreamTransport = Cluster(
         Field({
             name: "ActivationReason", id: 0x2, type: "TriggerActivationReasonEnum",
             conformance: "TriggerType == Command"
-        })
+        }),
+        Field({ name: "ContainerType", id: 0x3, type: "ContainerFormatEnum", conformance: "Rev >= v2" }),
+        Field({ name: "CmafSessionNumber", id: 0x4, type: "uint64", conformance: "ContainerType == CMAF" })
     ),
 
     Event(
@@ -59,7 +61,9 @@ export const PushAvStreamTransport = Cluster(
         Field({
             name: "ConnectionId", id: 0x0, type: "PushTransportConnectionID", conformance: "M",
             constraint: "0 to 65534"
-        })
+        }),
+        Field({ name: "ContainerType", id: 0x1, type: "ContainerFormatEnum", conformance: "Rev >= v2" }),
+        Field({ name: "CmafSessionNumber", id: 0x2, type: "uint64", conformance: "ContainerType == CMAF" })
     ),
 
     Command(
@@ -156,7 +160,8 @@ export const PushAvStreamTransport = Cluster(
         { name: "TriggerActivationReasonEnum", type: "enum8" },
         Field({ name: "UserInitiated", id: 0x0, conformance: "M" }),
         Field({ name: "Automation", id: 0x1, conformance: "M" }),
-        Field({ name: "Emergency", id: 0x2, conformance: "M" })
+        Field({ name: "Emergency", id: 0x2, conformance: "M" }),
+        Field({ name: "DoorbellPressed", id: 0x3, conformance: "Rev >= v2" })
     ),
 
     Datatype(
@@ -173,12 +178,23 @@ export const PushAvStreamTransport = Cluster(
     ),
 
     Datatype(
+        { name: "VideoStreamStruct", type: "struct" },
+        Field({ name: "VideoStreamName", id: 0x0, type: "string", conformance: "M", constraint: "1 to 16" }),
+        Field({ name: "VideoStreamId", id: 0x1, type: "CameraAvStreamManagement.VideoStreamID", conformance: "M" })
+    ),
+    Datatype(
+        { name: "AudioStreamStruct", type: "struct" },
+        Field({ name: "AudioStreamName", id: 0x0, type: "string", conformance: "M", constraint: "1 to 16" }),
+        Field({ name: "AudioStreamId", id: 0x1, type: "CameraAvStreamManagement.AudioStreamID", conformance: "M" })
+    ),
+
+    Datatype(
         { name: "CMAFContainerOptionsStruct", type: "struct" },
         Field({ name: "CmafInterface", id: 0x0, type: "CMAFInterfaceEnum", conformance: "M" }),
         Field({ name: "SegmentDuration", id: 0x1, type: "uint16", conformance: "M", constraint: "500 to 65500" }),
         Field({ name: "ChunkDuration", id: 0x2, type: "uint16", conformance: "M", constraint: "0 to segmentDuration / 2" }),
-        Field({ name: "SessionGroup", id: 0x3, type: "uint8", conformance: "M" }),
-        Field({ name: "TrackName", id: 0x4, type: "string", conformance: "M", constraint: "1 to 16" }),
+        Field({ name: "SessionGroup", id: 0x3, type: "uint8", conformance: "O, D" }),
+        Field({ name: "TrackName", id: 0x4, type: "string", conformance: "O, D", constraint: "1 to 16" }),
         Field({ name: "CencKey", id: 0x5, type: "octstr", conformance: "P, O", constraint: "16" }),
         Field({ name: "CencKeyId", id: 0x6, type: "octstr", conformance: "P, CENCKey", constraint: "16" }),
         Field({ name: "MetadataEnabled", id: 0x7, type: "bool", conformance: "[METADATA]" })
@@ -224,7 +240,7 @@ export const PushAvStreamTransport = Cluster(
         { name: "TransportMotionTriggerTimeControlStruct", type: "struct" },
         Field({ name: "InitialDuration", id: 0x0, type: "uint16", conformance: "M", constraint: "min 1" }),
         Field({ name: "AugmentationDuration", id: 0x1, type: "uint16", conformance: "M" }),
-        Field({ name: "MaxDuration", id: 0x2, type: "elapsed-s", conformance: "M", constraint: "min 1" }),
+        Field({ name: "MaxDuration", id: 0x2, type: "elapsed-s", conformance: "M", constraint: "min initialDuration" }),
         Field({ name: "BlindDuration", id: 0x3, type: "uint16", conformance: "M" })
     ),
 
@@ -232,11 +248,11 @@ export const PushAvStreamTransport = Cluster(
         { name: "TransportOptionsStruct", type: "struct" },
         Field({ name: "StreamUsage", id: 0x0, type: "StreamUsageEnum", conformance: "M" }),
         Field({
-            name: "VideoStreamId", id: 0x1, type: "CameraAvStreamManagement.VideoStreamID", conformance: "O.a+",
+            name: "VideoStreamId", id: 0x1, type: "CameraAvStreamManagement.VideoStreamID", conformance: "O, D",
             quality: "X"
         }),
         Field({
-            name: "AudioStreamId", id: 0x2, type: "CameraAvStreamManagement.AudioStreamID", conformance: "O.a+",
+            name: "AudioStreamId", id: 0x2, type: "CameraAvStreamManagement.AudioStreamID", conformance: "O, D",
             quality: "X"
         }),
         Field({
@@ -247,7 +263,15 @@ export const PushAvStreamTransport = Cluster(
         Field({ name: "TriggerOptions", id: 0x5, type: "TransportTriggerOptionsStruct", conformance: "M" }),
         Field({ name: "IngestMethod", id: 0x6, type: "IngestMethodsEnum", conformance: "M" }),
         Field({ name: "ContainerOptions", id: 0x7, type: "ContainerOptionsStruct", conformance: "M" }),
-        Field({ name: "ExpiryTime", id: 0x8, type: "epoch-s", conformance: "O" })
+        Field({ name: "ExpiryTime", id: 0x8, type: "epoch-s", conformance: "O" }),
+        Field(
+            { name: "VideoStreams", id: 0x9, type: "list", conformance: "O, [Rev >= v2].a+", constraint: "1 to 16" },
+            Field({ name: "entry", type: "VideoStreamStruct" })
+        ),
+        Field(
+            { name: "AudioStreams", id: 0xa, type: "list", conformance: "O, [Rev >= v2].a+", constraint: "1 to 16" },
+            Field({ name: "entry", type: "AudioStreamStruct" })
+        )
     ),
 
     Datatype(
@@ -274,7 +298,9 @@ export const PushAvStreamTransport = Cluster(
         Field({ name: "InvalidTransportStatus", id: 0x8, conformance: "M" }),
         Field({ name: "InvalidOptions", id: 0x9, conformance: "M" }),
         Field({ name: "InvalidStreamUsage", id: 0xa, conformance: "M" }),
-        Field({ name: "InvalidTime", id: 0xb, conformance: "M" })
+        Field({ name: "InvalidTime", id: 0xb, conformance: "M" }),
+        Field({ name: "InvalidPreRollLength", id: 0xc, conformance: "Rev >= v2" }),
+        Field({ name: "DuplicateStreamValues", id: 0xd, conformance: "Rev >= v2" })
     )
 );
 

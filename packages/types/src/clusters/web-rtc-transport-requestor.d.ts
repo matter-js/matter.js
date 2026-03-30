@@ -34,7 +34,7 @@ export declare namespace WebRtcTransportRequestor {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the WebRtcTransportRequestor cluster.
@@ -75,7 +75,7 @@ export declare namespace WebRtcTransportRequestor {
     export interface BaseCommands {
         /**
          * This command provides the stream requestor with WebRTC session details. It is sent following the receipt of a
-         * SolicitOffer command or a re-Offer initiated by the Provider.
+         * SolicitOffer command or a re-offer initiated by the Provider.
          *
          * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry
          * in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing
@@ -131,7 +131,7 @@ export declare namespace WebRtcTransportRequestor {
 
     /**
      * This command provides the stream requestor with WebRTC session details. It is sent following the receipt of a
-     * SolicitOffer command or a re-Offer initiated by the Provider.
+     * SolicitOffer command or a re-offer initiated by the Provider.
      *
      * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry in
      * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric

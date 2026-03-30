@@ -43,7 +43,7 @@ export namespace FlowSensorRequirements {
 export const FlowSensorDeviceDefinition = MutableEndpoint({
     name: "FlowSensor",
     deviceType: 0x306,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: FlowSensorRequirements,
     behaviors: SupportedBehaviors(
         FlowSensorRequirements.server.mandatory.Identify,

@@ -46,7 +46,7 @@ export namespace LightSensorRequirements {
 export const LightSensorDeviceDefinition = MutableEndpoint({
     name: "LightSensor",
     deviceType: 0x106,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: LightSensorRequirements,
     behaviors: SupportedBehaviors(
         LightSensorRequirements.server.mandatory.Identify,

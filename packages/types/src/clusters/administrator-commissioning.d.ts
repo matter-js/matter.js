@@ -209,17 +209,36 @@ export declare namespace AdministratorCommissioning {
         /**
          * This command is used by a current Administrator to instruct a Node to revoke any active Section 11.19.8.1,
          * “OpenCommissioningWindow” or Section 11.19.8.2, “OpenBasicCommissioningWindow” command. This is an idempotent
-         * command and the Node shall (for ECM) delete the temporary PAKEPasscodeVerifier and associated data, terminate
-         * any open PASE sessions or sessions in the process of being established, and stop publishing the DNS-SD record
-         * associated with the Section 11.19.8.1, “OpenCommissioningWindow” or Section 11.19.8.2,
-         * “OpenBasicCommissioningWindow” command, see Section 4.3.1, “Commissionable Node Discovery”.
+         * command.
          *
-         * If no commissioning window was open at time of receipt, this command shall fail with a cluster specific
-         * status code of WindowNotOpen.
+         * ### Effect on Receipt
          *
-         * If the commissioning window was open and the fail-safe was armed when this command is received, the device
-         * shall immediately expire the fail-safe and perform the cleanup steps outlined in Section 11.10.7.2.2,
-         * “Behavior on expiry of Fail-Safe timer”.
+         *   1. The Node shall perform the following actions regardless of current commissioning window state:
+         *
+         *     a. The Node shall (for ECM) delete the temporary PAKEPasscodeVerifier and associated data
+         *
+         *     b. The Node shall terminate any open PASE sessions or PASE sessions in the process of being established
+         *
+         *     c. The Node shall immediately expire any fail-safe held by an open PASE session and perform the cleanup
+         *        steps outlined in Section 11.10.7.2.2, “Behavior on expiry of Fail-Safe timer”
+         *
+         *   2. If the commissioning window was NOT open at the time of receipt, the Node shall return a cluster
+         *      specific status code of WindowNotOpen.
+         *
+         *   3. If the commissioning window was open at the time of receipt, the Node shall perform the following
+         *      additional actions:
+         *
+         *     a. The Node shall stop accepting new incoming PASE session establishment messages
+         *
+         *     b. The Node shall stop publishing the DNS-SD records associated with the advertising it was doing due to
+         *        the open commissioning window. See Section 4.3.1, “Commissionable Node Discovery”
+         *
+         *     c. The Node shall expire the commissioning window and set the WindowStatus attribute to WindowNotOpen
+         *
+         *       > [!NOTE]
+         *
+         *       > If this command is issued over the PASE connection, the caller shall NOT expect to receive a response
+         *         due to the termination of the PASE session during command execution.
          *
          * @see {@link MatterSpecification.v142.Core} § 11.19.8.3
          */

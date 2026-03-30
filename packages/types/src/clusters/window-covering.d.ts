@@ -33,7 +33,7 @@ export declare namespace WindowCovering {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 7;
+    export const revision: 8;
 
     /**
      * Canonical metadata for the WindowCovering cluster.

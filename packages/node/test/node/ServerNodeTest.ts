@@ -629,7 +629,7 @@ describe("ServerNode", () => {
 
             expect(bi.version).equals(0x80808081);
             expect(bi.type.id).equals(BasicInformation.id);
-            expect([...bi.type.attributes].length).equals(22);
+            expect([...bi.type.attributes].length).equals(21);
             expect([...bi.type.events].length).equals(3);
 
             expect(bi.type.attributes).has.property(`${FeatureMap.id}`);

@@ -25,6 +25,7 @@ import {
 import {
     WebRtcTransportRequestorBehavior as BaseWebRtcTransportRequestorBehavior
 } from "../behaviors/web-rtc-transport-requestor/WebRtcTransportRequestorBehavior.js";
+import { ChimeBehavior as BaseChimeBehavior } from "../behaviors/chime/ChimeBehavior.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -36,7 +37,7 @@ import { Identity } from "@matter/general";
  *
  *   - Room to room systems in a house
  *
- *   - Entry door to individual units in a multi-tenet building
+ *   - Entry door to individual units in a multi-tenant building
  *
  * IntercomDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default because
  * you must select the features your device supports. You can add manually using IntercomDevice.with().
@@ -97,6 +98,13 @@ export namespace IntercomRequirements {
     export const WebRtcTransportRequestorBehavior = BaseWebRtcTransportRequestorBehavior;
 
     /**
+     * The Chime cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ChimeBehavior} for convenience.
+     */
+    export const ChimeBehavior = BaseChimeBehavior;
+
+    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
@@ -118,14 +126,15 @@ export namespace IntercomRequirements {
         mandatory: {
             WebRtcTransportProvider: WebRtcTransportProviderBehavior,
             WebRtcTransportRequestor: WebRtcTransportRequestorBehavior
-        }
+        },
+        optional: { Chime: ChimeBehavior }
     };
 }
 
 export const IntercomDeviceDefinition = MutableEndpoint({
     name: "Intercom",
     deviceType: 0x140,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: IntercomRequirements,
     behaviors: SupportedBehaviors(
         IntercomRequirements.server.mandatory.WebRtcTransportProvider,

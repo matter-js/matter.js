@@ -32,7 +32,7 @@ export declare namespace PressureMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the PressureMeasurement cluster.

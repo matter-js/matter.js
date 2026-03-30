@@ -41,7 +41,7 @@ export declare namespace ColorControl {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 8;
+    export const revision: 9;
 
     /**
      * Canonical metadata for the ColorControl cluster.

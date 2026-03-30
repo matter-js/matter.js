@@ -631,7 +631,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         constructor(values?: Partial<DptzSetViewportRequest>);
 
         /**
-         * This field shall be a VideoStreamIDType representing the video stream to modify.
+         * This field shall be a VideoStreamID representing the video stream to modify.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.6.1
          */
@@ -657,7 +657,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         constructor(values?: Partial<DptzRelativeMoveRequest>);
 
         /**
-         * This field shall be a VideoStreamIDType representing the video stream to modify.
+         * This field shall be a VideoStreamID representing the video stream to modify.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7.1
          */

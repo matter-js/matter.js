@@ -137,7 +137,7 @@ export namespace ThermostatRequirements {
 export const ThermostatDeviceDefinition = MutableEndpoint({
     name: "Thermostat",
     deviceType: 0x301,
-    deviceRevision: 4,
+    deviceRevision: 5,
     requirements: ThermostatRequirements,
     behaviors: SupportedBehaviors(ThermostatRequirements.server.mandatory.Identify)
 });

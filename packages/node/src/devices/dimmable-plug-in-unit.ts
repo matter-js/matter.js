@@ -25,11 +25,11 @@ import { Identity } from "@matter/general";
  * being switched on or off and have its level adjusted. The Dimmable Plug-in Unit is typically used to control a
  * conventional non-communicating light through its mains connection using phase cutting.
  *
- * The Section 5.4, “Mounted Dimmable Load Control” (added in Matter 1.4) has identical cluster requirements as the
- * Dimmable Plug-In Unit, and is marked as a superset of this device type (since Matter 1.4.2). For devices intended to
- * be mounted permanently, the Section 5.4, “Mounted Dimmable Load Control” device type shall be used, with the Dimmable
- * Plug-In Unit device type optionally added to the DeviceTypeList of the Descriptor cluster in addition to the Mounted
- * Dimmable Load Control device type (see [ref_MountedDimmableLoadControlServerGuidance]).
+ * The Mounted Dimmable Load Control (added in Matter 1.4) has identical cluster requirements as the Dimmable Plug-In
+ * Unit, and is marked as a superset of this device type (since Matter 1.4.2). For devices intended to be mounted
+ * permanently, the Mounted Dimmable Load Control device type shall be used, with the Dimmable Plug-In Unit device type
+ * optionally added to the DeviceTypeList of the Descriptor cluster in addition to the Mounted Dimmable Load Control
+ * device type (see Mounted Dimmable Load Control server guidance section).
  *
  * Before Matter 1.4, mounted dimmable load control units typically used the Dimmable Plug-In Unit device type. Clients
  * can encounter devices which were made before or after these specification updates. Therefore, clients SHOULD use the

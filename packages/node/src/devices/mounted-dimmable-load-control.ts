@@ -25,16 +25,16 @@ import { Identity } from "@matter/general";
  * being switched on or off and have its level adjusted. The Mounted Dimmable Load Control is typically used to control
  * a conventional non-communicating light through its mains connection using phase cutting.
  *
- * This device type is intended for any wall-mounted or hardwired dimmer-capable load controller, while Section 5.2,
- * “Dimmable Plug-In Unit” is intended only for dimmer-capable smart plugs that are not permanently connected, and which
- * can be unplugged from their power source.
+ * This device type is intended for any wall-mounted or hardwired dimmer-capable load controller, while Dimmable Plug-In
+ * Unit is intended only for dimmer-capable smart plugs that are not permanently connected, and which can be unplugged
+ * from their power source.
  *
  * > [!NOTE]
  *
  * > Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add the
- *   subset device type Section 5.2, “Dimmable Plug-In Unit” to the DeviceTypeList of the Descriptor cluster on the same
- *   endpoint for backward compatibility with existing clients. See [ref_MountedDimmablePlugInUnitClientGuidance] for
- *   client guidance with these two device types.
+ *   subset device type Dimmable Plug-In Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
+ *   backward compatibility with existing clients. See Dimmable Plug-In Unit client guidance for additional information,
+ *   regarding the inclusion of these two device types.
  *
  * @see {@link MatterSpecification.v142.Device} § 5.4
  */

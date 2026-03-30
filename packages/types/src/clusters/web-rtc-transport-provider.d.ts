@@ -37,7 +37,7 @@ export declare namespace WebRtcTransportProvider {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the WebRtcTransportProvider cluster.
@@ -187,26 +187,32 @@ export declare namespace WebRtcTransportProvider {
         originatingEndpointId: EndpointNumber;
 
         /**
-         * This field shall indicate the video stream to use, not use, or let be automatically selected.
+         * This field is deprecated and the VideoStreams field used instead.
+         *
+         * If this field is encountered from clients implementing cluster revision 1, then the following shall be done:
          *
          *   - If not present, no video should be included in the resulting Offer.
          *
          *   - If present and null, then automatic stream assignment or creation is requested.
          *
-         *   - If present and a valid video stream ID, use only this specific stream.
+         *   - If present and non-null, the specific video stream identified by the VideoStreamID is added as an entry
+         *     to the VideoStreams list.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.4
          */
         videoStreamId?: number | null;
 
         /**
-         * This field shall indicate the audio stream to use, not use, or let be automatically selected.
+         * This field is deprecated and the AudioStreams field used instead.
+         *
+         * If this field is encountered from clients implementing cluster revision 1, then the following shall be done:
          *
          *   - If not present, no audio should be included in the resulting Offer.
          *
          *   - If present and null, then automatic stream assignment or creation is requested.
          *
-         *   - If present and a valid audio stream ID, use only this specific stream.
+         *   - If present and non-null, the specific audio stream identified by the AudioStreamID is added as an entry
+         *     to the AudioStreams list.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.3
          */
@@ -245,6 +251,22 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.8
          */
         sFrameConfig?: SFrame;
+
+        /**
+         * This field shall be the list of requested VideoStreamID for this session. Valid values are found in the
+         * AllocatedVideoStreams attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.9
+         */
+        videoStreams?: number[];
+
+        /**
+         * This field shall be a list of requested AudioStreamID for this session. Valid values are found in the
+         * AllocatedAudioStreams attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.10
+         */
+        audioStreams?: number[];
     };
 
     /**
@@ -289,14 +311,18 @@ export declare namespace WebRtcTransportProvider {
         deferredOffer: boolean;
 
         /**
-         * This field shall contain the VideoStreamIDType used for the session if known or null if unknown at this time.
+         * This field is deprecated and is only present when clients implementing cluster revision 1 included the
+         * VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the session if
+         * known or null if unknown at this time.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.3
          */
         videoStreamId?: number | null;
 
         /**
-         * This field shall contain the AudioStreamIDType used for the session if known or null if unknown at this time.
+         * This field is deprecated and is only present when clients implementing cluster revision 1 included the
+         * AudioStreamID field in the request. When included, it shall contain a AudioStreamID used for the session if
+         * known or null if unknown at this time.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.4
          */
@@ -333,7 +359,7 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.3
          */
-        streamUsage: StreamUsage;
+        streamUsage?: StreamUsage;
 
         /**
          * This field shall indicate the endpoint that originates this command. This endpoint shall be used when acting
@@ -341,33 +367,35 @@ export declare namespace WebRtcTransportProvider {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.4
          */
-        originatingEndpointId: EndpointNumber;
+        originatingEndpointId?: EndpointNumber;
 
         /**
-         * This field shall have the following semantics:
+         * This field is deprecated and the VideoStreams field used instead.
          *
-         *   - If not present, video is not being requested.
+         * If this field is encountered from clients implementing cluster revision 1, then the following shall be done:
          *
-         *   - If present and null, automatic assignment of a video stream is requested.
+         *   - If not present, no video should be included in the resulting Answer.
          *
-         *   - If present and not null, the specific stream identified by the VideoStreamIDType is requested.
+         *   - If present and null, then automatic stream assignment or creation is requested.
          *
-         * In a reOffer flow, this field shall be set to the existing VideoStreamID stored for this session.
+         *   - If present and non-null, the specific video stream identified by the VideoStreamID shall be added as an
+         *     entry to the VideoStreams list.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.5
          */
         videoStreamId?: number | null;
 
         /**
-         * This field shall have the following semantics:
+         * This field is deprecated and the AudioStreams field used instead.
          *
-         *   - If not present, audio is not being requested.
+         * If this field is encountered from clients implementing cluster revision 1, then the following shall be done:
          *
-         *   - If present and null, automatic assignment of a audio stream is requested.
+         *   - If not present, no audio should be included in the resulting Answer.
          *
-         *   - If present and not null, the specific stream identified by the AudioStreamIDType is requested.
+         *   - If present and null, then automatic stream assignment or creation is requested.
          *
-         * In a reOffer flow, this field shall be set to the existing AudioStreamID stored for this session.
+         *   - If present and non-null, the specific video stream identified by the AudioStreamID shall be added as an
+         *     entry to the AudioStreams list.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.6
          */
@@ -403,6 +431,22 @@ export declare namespace WebRtcTransportProvider {
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.10
          */
         sFrameConfig?: SFrame;
+
+        /**
+         * This field shall be the list of requested VideoStreamID for this session. Valid values are found in the
+         * AllocatedVideoStreams attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.11
+         */
+        videoStreams?: number[];
+
+        /**
+         * This field shall be a list of requested AudioStreamID for this session. Valid values are found in the
+         * AllocatedAudioStreams attribute.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.12
+         */
+        audioStreams?: number[];
     };
 
     /**
@@ -426,16 +470,18 @@ export declare namespace WebRtcTransportProvider {
         webRtcSessionId: number;
 
         /**
-         * This field shall contain the VideoStreamIDType used for this session. If no video stream was used, null shall
-         * be passed.
+         * This field is deprecated and is only present when clients implementing cluster revision 1 included the
+         * VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the session if
+         * known or null if unknown at this time.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4.2
          */
         videoStreamId?: number | null;
 
         /**
-         * This field shall contain the AudioStreamIDType used for this session. If no audio stream was used, null shall
-         * be passed.
+         * This field is deprecated and is only present when clients implementing cluster revision 1 included the
+         * AudioStreamID field in the request. When included, shall contain a AudioStreamID used for the session if
+         * known or null if unknown at this time.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4.3
          */

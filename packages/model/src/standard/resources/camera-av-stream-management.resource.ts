@@ -408,8 +408,7 @@ Resource.add({
                 "the newly allocated or re-used audio stream identifier.",
             children: [{
                 tag: "field", name: "AudioStreamId", xref: "cluster§11.2.8.2.1",
-                details: "The AudioStreamID field shall be a AudioStreamIDType representing the unique audio stream " +
-                    "identifier."
+                details: "The AudioStreamID field shall be a AudioStreamID representing the unique audio stream identifier."
             }]
         },
 
@@ -419,8 +418,8 @@ Resource.add({
                 "identifier.",
             children: [{
                 tag: "field", name: "AudioStreamId", xref: "cluster§11.2.8.3.1",
-                details: "The AudioStreamID field shall be a AudioStreamIDType representing the unique audio stream identifier " +
-                    "for the stream that needs to be deallocated."
+                details: "The AudioStreamID field shall be a AudioStreamID representing the unique audio stream identifier for " +
+                    "the stream that needs to be deallocated."
             }]
         },
 
@@ -487,8 +486,7 @@ Resource.add({
                 "the newly allocated or re-used video stream identifier.",
             children: [{
                 tag: "field", name: "VideoStreamId", xref: "cluster§11.2.8.5.1",
-                details: "This field shall be a VideoStreamIDType representing the newly created unique video stream " +
-                    "identifier."
+                details: "This field shall be a VideoStreamID representing the newly created unique video stream identifier."
             }]
         },
 
@@ -499,7 +497,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.2.8.6.1",
-                    details: "This field shall be a VideoStreamIDType representing the video stream to modify."
+                    details: "This field shall be a VideoStreamID representing the video stream to modify."
                 },
 
                 {
@@ -524,7 +522,7 @@ Resource.add({
                 "identifier.",
             children: [{
                 tag: "field", name: "VideoStreamId", xref: "cluster§11.2.8.7.1",
-                details: "This field shall be a VideoStreamIDType for the stream to be deallocated."
+                details: "This field shall be a VideoStreamID for the stream to be deallocated."
             }]
         },
 
@@ -600,7 +598,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "SnapshotStreamId", xref: "cluster§11.2.8.11.1",
-                    details: "This field shall be a SnapshotStreamIDType representing the snapshot stream to modify."
+                    details: "This field shall be a SnapshotStreamID representing the snapshot stream to modify."
                 },
 
                 {
@@ -657,8 +655,8 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "SnapshotStreamId", xref: "cluster§11.2.8.13.1",
-                    details: "The SnapshotStreamID field shall be a SnapshotStreamIDType representing the allocated Snapshot " +
-                        "Stream to use, or null to allow automatic stream selection."
+                    details: "The SnapshotStreamID field shall be a SnapshotStreamID representing the allocated Snapshot Stream to " +
+                        "use, or null to allow automatic stream selection."
                 },
                 {
                     tag: "field", name: "RequestedResolution", xref: "cluster§11.2.8.13.2",
@@ -746,10 +744,18 @@ Resource.add({
         {
             tag: "datatype", name: "ImageCodecEnum", xref: "cluster§11.2.6.3",
             details: "This data type provides an enumeration of the image codecs supported by the camera.",
-            children: [{
-                tag: "field", name: "Jpeg", description: "JPEG image codec.", xref: "cluster§11.2.6.3.1",
-                details: "The JPEG image codec as defined by ITU-T T.81 and ISO/IEC 10918."
-            }]
+
+            children: [
+                {
+                    tag: "field", name: "Jpeg", description: "JPEG image codec.", xref: "cluster§11.2.6.3.1",
+                    details: "The JPEG image codec as defined by ITU-T T.81 and ISO/IEC 10918."
+                },
+                {
+                    tag: "field", name: "Heic", description: "HEIC image codec.", xref: "cluster§11.2.6.3.2",
+                    details: "The HEIC image codec as defined in Annex B of ISO/IEC 23008-12 also known as the HEVC Image File " +
+                        "Format. Support for HEIC is optional, but recommended if the HEVC video codec is supported."
+                }
+            ]
         },
 
         {
@@ -1142,9 +1148,9 @@ Resource.add({
                 {
                     tag: "field", name: "UserDefined", xref: "cluster§11.2.6.14.4",
                     details: "This field shall be an octet string representing arbitrary format user defined metadata attached. " +
-                        "The UserDefined Field field of the ManuallyTriggerTransport command can be used to populate this " +
-                        "field. The format and meaning of this field is not defined in this specification and is up to the " +
-                        "users, vendors, or ecosystems deploying it."
+                        "The UserDefined field of the ManuallyTriggerTransport command can be used to populate this field. " +
+                        "The format and meaning of this field is not defined in this specification and is up to the users, " +
+                        "vendors, or ecosystems deploying it."
                 }
             ]
         },

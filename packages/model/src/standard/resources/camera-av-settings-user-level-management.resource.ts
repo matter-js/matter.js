@@ -175,7 +175,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.3.7.6.1",
-                    details: "This field shall be a VideoStreamIDType representing the video stream to modify."
+                    details: "This field shall be a VideoStreamID representing the video stream to modify."
                 },
                 {
                     tag: "field", name: "Viewport", xref: "cluster§11.3.7.6.2",
@@ -195,7 +195,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.3.7.7.1",
-                    details: "This field shall be a VideoStreamIDType representing the video stream to modify."
+                    details: "This field shall be a VideoStreamID representing the video stream to modify."
                 },
 
                 {

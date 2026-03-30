@@ -37,9 +37,27 @@ Resource.add({
             details: "Indicates if chime sounds can currently be played or not, and may be written by the client to enable " +
                 "/ disable playing of chime sounds."
         },
+
+        {
+            tag: "event", name: "ChimeStartedPlaying", xref: "cluster§11.8.7.1",
+            details: "This event shall indicate a Chime sound has just started playing." +
+                "\n" +
+                "The data on this event shall contain the following information.",
+            children: [{
+                tag: "field", name: "ChimeId", xref: "cluster§11.8.7.1.1",
+                details: "This field shall represent the unique ID for the Chime sound that just started playing."
+            }]
+        },
+
         {
             tag: "command", name: "PlayChimeSound", xref: "cluster§11.8.6.1",
-            details: "This command will play the currently selected chime."
+            details: "This command will play the currently selected chime or the chime passed in. In either case the " +
+                "server shall generate the ChimeStartedPlaying event.",
+            children: [{
+                tag: "field", name: "ChimeId", xref: "cluster§11.8.6.1.1",
+                details: "This field shall represent the unique ID for a Chime sound to play if present, instead of the " +
+                    "current value in SelectedChime."
+            }]
         },
 
         {

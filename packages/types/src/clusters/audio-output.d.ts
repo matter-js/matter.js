@@ -102,7 +102,7 @@ export declare namespace AudioOutput {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
          */
-        selectOutput(request: SelectOutputRequest): MaybePromise;
+        selectOutput(): MaybePromise;
     }
 
     /**
@@ -117,7 +117,7 @@ export declare namespace AudioOutput {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
          */
-        renameOutput(request: RenameOutputRequest): MaybePromise;
+        renameOutput(): MaybePromise;
     }
 
     /**
@@ -176,40 +176,6 @@ export declare namespace AudioOutput {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 6.5.5.2.3
          */
-        name: string;
-    };
-
-    /**
-     * Upon receipt, this shall change the output on the device to the output at a specific index in the Output List.
-     *
-     * Note that when the current output is set to an output of type HDMI, adjustments to volume via a Speaker endpoint
-     * on the same node may cause HDMI volume up/down commands to be sent to the given HDMI output.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1
-     */
-    export declare class SelectOutputRequest {
-        constructor(values?: Partial<SelectOutputRequest>);
-
-        /**
-         * This shall indicate the index field of the OutputInfoStruct from the OutputList attribute in which to change
-         * to.
-         *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.1.1
-         */
-        index: number;
-    };
-
-    /**
-     * Upon receipt, this shall rename the output at a specific index in the Output List.
-     *
-     * Updates to the output name shall appear in the device’s settings menus. Name updates may automatically be sent to
-     * the actual device to which the output connects.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.5.7.2
-     */
-    export declare class RenameOutputRequest {
-        constructor(values?: Partial<RenameOutputRequest>);
-        index: number;
         name: string;
     };
 

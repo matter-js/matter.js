@@ -31,7 +31,7 @@ export declare namespace BooleanState {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the BooleanState cluster.

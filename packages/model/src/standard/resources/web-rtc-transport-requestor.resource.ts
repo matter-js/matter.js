@@ -25,7 +25,7 @@ Resource.add({
             tag: "command", name: "Offer", xref: "cluster§11.6.5.1",
 
             details: "This command provides the stream requestor with WebRTC session details. It is sent following the " +
-                "receipt of a SolicitOffer command or a re-Offer initiated by the Provider." +
+                "receipt of a SolicitOffer command or a re-offer initiated by the Provider." +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
                 "an entry in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not " +

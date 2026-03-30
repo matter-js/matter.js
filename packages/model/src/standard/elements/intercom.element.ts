@@ -13,7 +13,7 @@ export const IntercomDt = DeviceType(
     { name: "Intercom", id: 0x140, classification: "simple" },
     Requirement(
         { name: "Descriptor", id: 0x1d, element: "serverCluster" },
-        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 320, revision: 1 } ], element: "attribute" })
+        Requirement({ name: "DeviceTypeList", default: [ { deviceType: 320, revision: 2 } ], element: "attribute" })
     ),
     Requirement(
         { name: "TlsCertificatesCond", type: "RootNode.TlsCertificatesCond", conformance: "M", element: "condition" }
@@ -39,7 +39,16 @@ export const IntercomDt = DeviceType(
     Requirement({ name: "WebRtcTransportProvider", id: 0x553, conformance: "M", element: "serverCluster" }),
     Requirement({ name: "WebRtcTransportProvider", id: 0x553, conformance: "M", element: "clientCluster" }),
     Requirement({ name: "WebRtcTransportRequestor", id: 0x554, conformance: "M", element: "serverCluster" }),
-    Requirement({ name: "WebRtcTransportRequestor", id: 0x554, conformance: "M", element: "clientCluster" })
+    Requirement({ name: "WebRtcTransportRequestor", id: 0x554, conformance: "M", element: "clientCluster" }),
+    Requirement({ name: "Chime", id: 0x556, conformance: "O", element: "clientCluster" }),
+
+    Requirement(
+        { name: "GenericSwitch", id: 0xf, conformance: "M", element: "deviceType" },
+        Requirement(
+            { name: "Switch", id: 0x3b, element: "serverCluster" },
+            Requirement({ name: "MOMENTARYSWITCH", conformance: "M", element: "feature" })
+        )
+    )
 );
 
 MatterDefinition.children.push(IntercomDt);

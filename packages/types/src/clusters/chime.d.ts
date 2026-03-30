@@ -32,7 +32,7 @@ export declare namespace Chime {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 1;
+    export const revision: 2;
 
     /**
      * Canonical metadata for the Chime cluster.
@@ -114,11 +114,12 @@ export declare namespace Chime {
      */
     export interface BaseCommands {
         /**
-         * This command will play the currently selected chime.
+         * This command will play the currently selected chime or the chime passed in. In either case the server shall
+         * generate the ChimeStartedPlaying event.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.8.6.1
          */
-        playChimeSound(): MaybePromise;
+        playChimeSound(request: PlayChimeSoundRequest): MaybePromise;
     }
 
     /**
@@ -126,7 +127,35 @@ export declare namespace Chime {
      */
     export interface Commands extends BaseCommands {}
 
-    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
+    /**
+     * {@link Chime} always supports these elements.
+     */
+    export interface BaseEvents {
+        /**
+         * This event shall indicate a Chime sound has just started playing.
+         *
+         * The data on this event shall contain the following information.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1
+         */
+        chimeStartedPlaying: ChimeStartedPlayingEvent;
+    }
+
+    /**
+     * Events that may appear in {@link Chime}.
+     */
+    export interface Events {
+        /**
+         * This event shall indicate a Chime sound has just started playing.
+         *
+         * The data on this event shall contain the following information.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1
+         */
+        chimeStartedPlaying: ChimeStartedPlayingEvent;
+    }
+
+    export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
 
     /**
      * This struct is used to encode information needed to define a Chime Sound.
@@ -152,6 +181,42 @@ export declare namespace Chime {
     };
 
     /**
+     * This command will play the currently selected chime or the chime passed in. In either case the server shall
+     * generate the ChimeStartedPlaying event.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 11.8.6.1
+     */
+    export declare class PlayChimeSoundRequest {
+        constructor(values?: Partial<PlayChimeSoundRequest>);
+
+        /**
+         * This field shall represent the unique ID for a Chime sound to play if present, instead of the current value
+         * in SelectedChime.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.8.6.1.1
+         */
+        chimeId?: number;
+    };
+
+    /**
+     * This event shall indicate a Chime sound has just started playing.
+     *
+     * The data on this event shall contain the following information.
+     *
+     * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1
+     */
+    export declare class ChimeStartedPlayingEvent {
+        constructor(values?: Partial<ChimeStartedPlayingEvent>);
+
+        /**
+         * This field shall represent the unique ID for the Chime sound that just started playing.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1.1
+         */
+        chimeId: number;
+    };
+
+    /**
      * Attribute metadata objects keyed by name.
      */
     export const attributes: ClusterType.AttributeObjects<Attributes>;
@@ -160,6 +225,11 @@ export declare namespace Chime {
      * Command metadata objects keyed by name.
      */
     export const commands: ClusterType.CommandObjects<Commands>;
+
+    /**
+     * Event metadata objects keyed by name.
+     */
+    export const events: ClusterType.EventObjects<Events>;
 
     /**
      * @deprecated Use {@link Chime}.
@@ -182,5 +252,6 @@ export declare const ChimeCluster: typeof Chime;
 export interface Chime extends ClusterTyping {
     Attributes: Chime.Attributes;
     Commands: Chime.Commands;
+    Events: Chime.Events;
     Components: Chime.Components;
 }

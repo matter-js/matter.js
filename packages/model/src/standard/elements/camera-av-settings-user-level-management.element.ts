@@ -47,10 +47,10 @@ export const CameraAvSettingsUserLevelManagement = Cluster(
         Field({ name: "entry", type: "DPTZStruct" })
     ),
     Attribute({ name: "ZoomMax", id: 0x4, type: "uint8", access: "R V", conformance: "MZOOM", constraint: "2 to 100" }),
-    Attribute({ name: "TiltMin", id: 0x5, type: "int16", access: "R V", conformance: "MTILT", constraint: "-180 to 179" }),
-    Attribute({ name: "TiltMax", id: 0x6, type: "int16", access: "R V", conformance: "MTILT", constraint: "-179 to 180" }),
-    Attribute({ name: "PanMin", id: 0x7, type: "int16", access: "R V", conformance: "MPAN", constraint: "-180 to 179" }),
-    Attribute({ name: "PanMax", id: 0x8, type: "int16", access: "R V", conformance: "MPAN", constraint: "-179 to 180" }),
+    Attribute({ name: "TiltMin", id: 0x5, type: "int16", access: "R V", conformance: "MTILT", constraint: "-180 to 0" }),
+    Attribute({ name: "TiltMax", id: 0x6, type: "int16", access: "R V", conformance: "MTILT", constraint: "1 to 180" }),
+    Attribute({ name: "PanMin", id: 0x7, type: "int16", access: "R V", conformance: "MPAN", constraint: "-180 to 0" }),
+    Attribute({ name: "PanMax", id: 0x8, type: "int16", access: "R V", conformance: "MPAN", constraint: "1 to 180" }),
     Attribute({
         name: "MovementState", id: 0x9, type: "PhysicalMovementEnum", access: "R V",
         conformance: "MPAN | MTILT | MZOOM"

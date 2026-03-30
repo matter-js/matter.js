@@ -269,6 +269,14 @@ export declare namespace OvenMode {
         /**
          * This mode sets the device into cleaning mode to clean the internal components of the appliance.
          *
+         * > [!NOTE]
+         *
+         * > Depending on regulatory or other requirements, the following restrictions could apply to the use of this
+         *   mode: - It may NOT be possible to start this mode from a client. It may need to be started at the device
+         *   due to the temperatures used during this mode. - The setting of the oven temperature or other features may
+         *   be limited or not available while this mode is running. - Oven temperature measurement may NOT be available
+         *   while this mode is running.
+         *
          * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.5
          */
         Clean = 16388,
@@ -300,7 +308,22 @@ export declare namespace OvenMode {
         /**
          * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
          */
-        Steam = 16393
+        Steam = 16393,
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         */
+        AirFry = 16394,
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         */
+        AirSousVide = 16395,
+
+        /**
+         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         */
+        FrozenFood = 16396
     }
 
     /**

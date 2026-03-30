@@ -60,25 +60,33 @@ Resource.add({
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.1.4",
 
-                    details: "This field shall indicate the video stream to use, not use, or let be automatically selected." +
+                    details: "This field is deprecated and the VideoStreams field used instead." +
+                        "\n" +
+                        "If this field is encountered from clients implementing cluster revision 1, then the following shall " +
+                        "be done:" +
                         "\n" +
                         "  - If not present, no video should be included in the resulting Offer." +
                         "\n" +
                         "  - If present and null, then automatic stream assignment or creation is requested." +
                         "\n" +
-                        "  - If present and a valid video stream ID, use only this specific stream."
+                        "  - If present and non-null, the specific video stream identified by the VideoStreamID is added as " +
+                        "an entry to the VideoStreams list."
                 },
 
                 {
                     tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.1.3",
 
-                    details: "This field shall indicate the audio stream to use, not use, or let be automatically selected." +
+                    details: "This field is deprecated and the AudioStreams field used instead." +
+                        "\n" +
+                        "If this field is encountered from clients implementing cluster revision 1, then the following shall " +
+                        "be done:" +
                         "\n" +
                         "  - If not present, no audio should be included in the resulting Offer." +
                         "\n" +
                         "  - If present and null, then automatic stream assignment or creation is requested." +
                         "\n" +
-                        "  - If present and a valid audio stream ID, use only this specific stream."
+                        "  - If present and non-null, the specific audio stream identified by the AudioStreamID is added as " +
+                        "an entry to the AudioStreams list."
                 },
 
                 {
@@ -106,6 +114,16 @@ Resource.add({
                     tag: "field", name: "SFrameConfig", xref: "cluster§11.5.7.1.8",
                     details: "This field if present indicates that SFrame End-to-End Encryption shall be active in this session " +
                         "using the configuration provided."
+                },
+                {
+                    tag: "field", name: "VideoStreams", xref: "cluster§11.5.7.1.9",
+                    details: "This field shall be the list of requested VideoStreamID for this session. Valid values are found in " +
+                        "the AllocatedVideoStreams attribute."
+                },
+                {
+                    tag: "field", name: "AudioStreams", xref: "cluster§11.5.7.1.10",
+                    details: "This field shall be a list of requested AudioStreamID for this session. Valid values are found in " +
+                        "the AllocatedAudioStreams attribute."
                 }
             ]
         },
@@ -149,13 +167,16 @@ Resource.add({
 
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.2.3",
-                    details: "This field shall contain the VideoStreamIDType used for the session if known or null if unknown at " +
-                        "this time."
+                    details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
+                        "the VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the " +
+                        "session if known or null if unknown at this time."
                 },
+
                 {
                     tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.2.4",
-                    details: "This field shall contain the AudioStreamIDType used for the session if known or null if unknown at " +
-                        "this time."
+                    details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
+                        "the AudioStreamID field in the request. When included, it shall contain a AudioStreamID used for the " +
+                        "session if known or null if unknown at this time."
                 }
             ]
         },
@@ -190,29 +211,33 @@ Resource.add({
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.3.5",
 
-                    details: "This field shall have the following semantics:" +
+                    details: "This field is deprecated and the VideoStreams field used instead." +
                         "\n" +
-                        "  - If not present, video is not being requested." +
+                        "If this field is encountered from clients implementing cluster revision 1, then the following shall " +
+                        "be done:" +
                         "\n" +
-                        "  - If present and null, automatic assignment of a video stream is requested." +
+                        "  - If not present, no video should be included in the resulting Answer." +
                         "\n" +
-                        "  - If present and not null, the specific stream identified by the VideoStreamIDType is requested." +
+                        "  - If present and null, then automatic stream assignment or creation is requested." +
                         "\n" +
-                        "In a reOffer flow, this field shall be set to the existing VideoStreamID stored for this session."
+                        "  - If present and non-null, the specific video stream identified by the VideoStreamID shall be " +
+                        "added as an entry to the VideoStreams list."
                 },
 
                 {
                     tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.3.6",
 
-                    details: "This field shall have the following semantics:" +
+                    details: "This field is deprecated and the AudioStreams field used instead." +
                         "\n" +
-                        "  - If not present, audio is not being requested." +
+                        "If this field is encountered from clients implementing cluster revision 1, then the following shall " +
+                        "be done:" +
                         "\n" +
-                        "  - If present and null, automatic assignment of a audio stream is requested." +
+                        "  - If not present, no audio should be included in the resulting Answer." +
                         "\n" +
-                        "  - If present and not null, the specific stream identified by the AudioStreamIDType is requested." +
+                        "  - If present and null, then automatic stream assignment or creation is requested." +
                         "\n" +
-                        "In a reOffer flow, this field shall be set to the existing AudioStreamID stored for this session."
+                        "  - If present and non-null, the specific video stream identified by the AudioStreamID shall be " +
+                        "added as an entry to the AudioStreams list."
                 },
 
                 {
@@ -233,6 +258,16 @@ Resource.add({
                     tag: "field", name: "SFrameConfig", xref: "cluster§11.5.7.3.10",
                     details: "This field if present indicates that SFrame End-to-End Encryption shall be active in this session " +
                         "using the configuration provided."
+                },
+                {
+                    tag: "field", name: "VideoStreams", xref: "cluster§11.5.7.3.11",
+                    details: "This field shall be the list of requested VideoStreamID for this session. Valid values are found in " +
+                        "the AllocatedVideoStreams attribute."
+                },
+                {
+                    tag: "field", name: "AudioStreams", xref: "cluster§11.5.7.3.12",
+                    details: "This field shall be a list of requested AudioStreamID for this session. Valid values are found in " +
+                        "the AllocatedAudioStreams attribute."
                 }
             ]
         },
@@ -253,15 +288,19 @@ Resource.add({
                     tag: "field", name: "WebRtcSessionId", xref: "cluster§11.5.7.4.1",
                     details: "This field shall contain the WebRTCSessionID of the established WebRTC session."
                 },
+
                 {
                     tag: "field", name: "VideoStreamId", xref: "cluster§11.5.7.4.2",
-                    details: "This field shall contain the VideoStreamIDType used for this session. If no video stream was used, " +
-                        "null shall be passed."
+                    details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
+                        "the VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the " +
+                        "session if known or null if unknown at this time."
                 },
+
                 {
                     tag: "field", name: "AudioStreamId", xref: "cluster§11.5.7.4.3",
-                    details: "This field shall contain the AudioStreamIDType used for this session. If no audio stream was used, " +
-                        "null shall be passed."
+                    details: "This field is deprecated and is only present when clients implementing cluster revision 1 included " +
+                        "the AudioStreamID field in the request. When included, shall contain a AudioStreamID used for the " +
+                        "session if known or null if unknown at this time."
                 }
             ]
         },

@@ -17,32 +17,34 @@ Resource.add({
         "\n" +
         "  - Room to room systems in a house" +
         "\n" +
-        "  - Entry door to individual units in a multi-tenet building",
+        "  - Entry door to individual units in a multi-tenant building",
 
     children: [
-        { tag: "requirement", name: "TlsCertificatesCond", xref: "device§16.4.4" },
-        { tag: "requirement", name: "PowerSourceCond", xref: "device§16.4.4" },
-        { tag: "requirement", name: "TimeSyncWithNtpcCond", xref: "device§16.4.4" },
-        { tag: "requirement", name: "TimeSyncWithClientCond", xref: "device§16.4.4" },
-        { tag: "requirement", name: "TimeSyncWithTzCond", xref: "device§16.4.4" },
-        { tag: "requirement", name: "Identify", xref: "device§16.4.5" },
-        { tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.4.5" },
-        { tag: "requirement", name: "CameraAvSettingsUserLevelManagement", xref: "device§16.4.5" },
+        { tag: "requirement", name: "TlsCertificatesCond", xref: "device§16.4.5" },
+        { tag: "requirement", name: "PowerSourceCond", xref: "device§16.4.5" },
+        { tag: "requirement", name: "TimeSyncWithNtpcCond", xref: "device§16.4.5" },
+        { tag: "requirement", name: "TimeSyncWithClientCond", xref: "device§16.4.5" },
+        { tag: "requirement", name: "TimeSyncWithTzCond", xref: "device§16.4.5" },
+        { tag: "requirement", name: "Identify", xref: "device§16.4.6" },
+        { tag: "requirement", name: "CameraAvStreamManagement", xref: "device§16.4.6" },
+        { tag: "requirement", name: "CameraAvSettingsUserLevelManagement", xref: "device§16.4.6" },
         {
             tag: "requirement", name: "WebRtcTransportProvider", discriminator: "M:serverCluster",
-            xref: "device§16.4.5"
+            xref: "device§16.4.6"
         },
         {
             tag: "requirement", name: "WebRtcTransportProvider", discriminator: "M:clientCluster",
-            xref: "device§16.4.5"
+            xref: "device§16.4.6"
         },
         {
             tag: "requirement", name: "WebRtcTransportRequestor", discriminator: "M:serverCluster",
-            xref: "device§16.4.5"
+            xref: "device§16.4.6"
         },
         {
             tag: "requirement", name: "WebRtcTransportRequestor", discriminator: "M:clientCluster",
-            xref: "device§16.4.5"
-        }
+            xref: "device§16.4.6"
+        },
+        { tag: "requirement", name: "Chime", xref: "device§16.4.6" },
+        { tag: "requirement", name: "GenericSwitch", xref: "device§16.4.4" }
     ]
 });

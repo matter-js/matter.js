@@ -45,7 +45,7 @@ export namespace PressureSensorRequirements {
 export const PressureSensorDeviceDefinition = MutableEndpoint({
     name: "PressureSensor",
     deviceType: 0x305,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: PressureSensorRequirements,
     behaviors: SupportedBehaviors(
         PressureSensorRequirements.server.mandatory.Identify,

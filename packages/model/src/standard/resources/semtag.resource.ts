@@ -32,7 +32,7 @@ Resource.add({
             tag: "field", name: "NamespaceId", xref: "core§7.19.2.46.2",
             details: "The NamespaceID field shall identify a namespace." +
                 "\n" +
-                "The common and device-specific semantic tag namespaces are listed in StandardNamespaces."
+                "The common and device-specific semantic tag namespaces are listed in [StandardNamespaces]."
         },
 
         {

@@ -59,7 +59,7 @@ export declare namespace AccessControl {
         /**
          * An attempt to add an Access Control Entry when no more entries are available shall result in a
          * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
-         * access control limits.
+         * Section 2.11.1.1, “Access Control Limits”.
          *
          * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
          * supported by the server.
@@ -136,9 +136,9 @@ export declare namespace AccessControl {
          * commissioning.
          *
          * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
-         * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information
-         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
-         * other Nodes.
+         * commissioning shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, “Access Control Model” for
+         * more information about the features related to controlling access to a Node’s Endpoint Clusters ("Targets"
+         * hereafter) from other Nodes.
          *
          * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
          * restrictions.
@@ -159,8 +159,9 @@ export declare namespace AccessControl {
          * this server has with external entities such as its owner, external service provider, or end-user.
          *
          * Attempts to access data model elements described by an entry in the ARL attribute for the accessing fabric
-         * shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about the
-         * features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other Nodes.
+         * shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, “Access Control Model” for more information
+         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
+         * other Nodes.
          *
          * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
          * restrictions.
@@ -180,7 +181,7 @@ export declare namespace AccessControl {
         /**
          * An attempt to add an Access Control Entry when no more entries are available shall result in a
          * RESOURCE_EXHAUSTED error being reported and the ACL attribute shall NOT have the entry added to it. See
-         * access control limits.
+         * Section 2.11.1.1, “Access Control Limits”.
          *
          * See the AccessControlEntriesPerFabric attribute for the actual value of the number of entries per fabric
          * supported by the server.
@@ -247,9 +248,9 @@ export declare namespace AccessControl {
          * commissioning.
          *
          * Attempts to access data model elements described by an entry in the CommissioningARL attribute during
-         * commissioning shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information
-         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
-         * other Nodes.
+         * commissioning shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, “Access Control Model” for
+         * more information about the features related to controlling access to a Node’s Endpoint Clusters ("Targets"
+         * hereafter) from other Nodes.
          *
          * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
          * restrictions.
@@ -270,8 +271,9 @@ export declare namespace AccessControl {
          * this server has with external entities such as its owner, external service provider, or end-user.
          *
          * Attempts to access data model elements described by an entry in the ARL attribute for the accessing fabric
-         * shall result in an error of ACCESS_RESTRICTED. See Access Control Model for more information about the
-         * features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from other Nodes.
+         * shall result in an error of ACCESS_RESTRICTED. See Section 6.6.2, “Access Control Model” for more information
+         * about the features related to controlling access to a Node’s Endpoint Clusters ("Targets" hereafter) from
+         * other Nodes.
          *
          * See Section 9.10.4.2.1, “Managed Device Feature Usage Restrictions” for limitations on the use of access
          * restrictions.
@@ -302,6 +304,12 @@ export declare namespace AccessControl {
          *
          * The ARL attribute may change at any time due to actions taken by the user, or the service associated with the
          * device vendor.
+         *
+         * > [!NOTE]
+         *
+         * > A malicious fabric administrator could attempt to create a fabric with a VID that it does not own in order
+         *   to gain enhanced access. For this reason the device SHOULD perform the Fabric Table Vendor ID Verification
+         *   Procedure.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
          */
@@ -480,13 +488,13 @@ export declare namespace AccessControl {
          * communication between external services and the user, and may take an unpredictable amount of time to
          * complete since an end-user may need to visit some resources, such as a mobile application or web site. A
          * FabricRestrictionReviewUpdate event will be generated by the device within a predictable time period of the
-         * ReviewFabricRestrictionsResponse (see Section 9.10.8.1, “ReviewFabricRestrictions Command” for specification
-         * of this time period), and this event can be correlated with the ReviewFabricRestrictionsResponse using a
-         * token provided in both. The device may provide instructions or a Redirect URL in the
-         * FabricRestrictionReviewUpdate event in order to help the user access the features required for managing
-         * per-fabric restrictions.
+         * ReviewFabricRestrictionsResponse (see Section 9.10.8.1, “ReviewFabricRestrictions” for specification of this
+         * time period), and this event can be correlated with the ReviewFabricRestrictionsResponse using a token
+         * provided in both. The device may provide instructions or a Redirect URL in the FabricRestrictionReviewUpdate
+         * event in order to help the user access the features required for managing per-fabric restrictions.
          *
-         * See Section 6.6.2, “Model” for a description of how access control is impacted by the ARL attribute.
+         * See Section 6.6.2, “Access Control Model” for a description of how access control is impacted by the ARL
+         * attribute.
          *
          * ### Managed Device Feature Usage Restrictions
          *
@@ -785,6 +793,12 @@ export declare namespace AccessControl {
      * The ARL attribute may change at any time due to actions taken by the user, or the service associated with the
      * device vendor.
      *
+     * > [!NOTE]
+     *
+     * > A malicious fabric administrator could attempt to create a fabric with a VID that it does not own in order to
+     *   gain enhanced access. For this reason the device SHOULD perform the Fabric Table Vendor ID Verification
+     *   Procedure.
+     *
      * @see {@link MatterSpecification.v142.Core} § 9.10.8.1
      */
     export declare class ReviewFabricRestrictionsRequest {
@@ -997,6 +1011,16 @@ export declare namespace AccessControl {
          *       also provide a fallback option such as a web browser interface to ensure users can complete access
          *       extension.
          *
+         *     - A malicious Administrator could tamper with the URL (including any parameters it contains) in order to
+         *       reduce restrictions for another Fabric. A well-implemented web service or app SHOULD validate that the
+         *       VID in flow URL invocations match recent requests for review by comparing with VID and token pairs from
+         *       recent ReviewFabricRestrictions requests.
+         *
+         *   - An Administrator supporting this flow should realize that if the device serving this cluster is
+         *     malicious, it could send dangerous URLs to the client which could take the user to malicious sites. The
+         *     Administrator SHOULD provide details, such as the VID, to the user about the device sending the event so
+         *     that the user can make an informed decision about whether to trust the URL.
+         *
          * ### ARLRequestFlowUrl format
          *
          * The ARLRequestFlowUrl shall contain a query component (see RFC 3986 section 3.4) composed of one or more
@@ -1116,8 +1140,10 @@ export declare namespace AccessControl {
          *
          * https://client.domain.example/cb?token=mAsJ6_vqbr-vjDiG_w%3D%3D&MTaer=Success
          *
-         * Note that the MTcu key/value pair was initially provided URL-encoded within the ExpandedARLRequestFlowUrl URL
-         * and the MTaer=_ key/value pair placeholder now contains a substituted returned completion status.
+         * > [!NOTE]
+         *
+         * > The MTcu key/value pair was initially provided URL-encoded within the ExpandedARLRequestFlowUrl URL and the
+         *   MTaer=_ key/value pair placeholder now contains a substituted returned completion status.
          *
          *   - Invalid URL, due to MTza=79 key/value pair in reserved MT-prefixed keys reserved for future use:
          *
@@ -1249,7 +1275,7 @@ export declare namespace AccessControl {
 
     /**
      * This structure describes an access restriction that would be applied to a specific data model element on a given
-     * endpoint/cluster pair (see AccessRestrictionEntryStruct).
+     * endpoint/cluster pair (see Section 9.10.5.9, “AccessRestrictionEntryStruct”).
      *
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.8
      */

@@ -47,7 +47,7 @@ export namespace HumiditySensorRequirements {
 export const HumiditySensorDeviceDefinition = MutableEndpoint({
     name: "HumiditySensor",
     deviceType: 0x307,
-    deviceRevision: 2,
+    deviceRevision: 3,
     requirements: HumiditySensorRequirements,
     behaviors: SupportedBehaviors(
         HumiditySensorRequirements.server.mandatory.Identify,

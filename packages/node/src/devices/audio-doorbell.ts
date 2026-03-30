@@ -135,7 +135,7 @@ export namespace AudioDoorbellRequirements {
 export const AudioDoorbellDeviceDefinition = MutableEndpoint({
     name: "AudioDoorbell",
     deviceType: 0x141,
-    deviceRevision: 1,
+    deviceRevision: 2,
     requirements: AudioDoorbellRequirements,
     behaviors: SupportedBehaviors(
         AudioDoorbellRequirements.server.mandatory.Identify,

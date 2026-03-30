@@ -149,7 +149,8 @@ export declare namespace EcosystemInformation {
         /**
          * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on this Bridge.
          *
-         * This field shall be present and set to a valid endpoint if the device is accessible through the bridge.
+         * This field shall be present if the device is accessible through the bridge. If present, this field shall be
+         * set to a valid endpoint.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.3
          */
@@ -158,8 +159,9 @@ export declare namespace EcosystemInformation {
         /**
          * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on the original device
          * represented by this bridge’s Bridged Node. If this bridge is receiving the device from another bridge, then
-         * the OriginalEndpoint field value would be the same on both bridges. This field shall be present and set to a
-         * valid endpoint on the original device if that device is a Matter device.
+         * the OriginalEndpoint field value would be the same on both bridges. This field shall be present if the
+         * original device is a Matter device. If present, this field shall be set to a valid endpoint on the original
+         * device.
          *
          * @see {@link MatterSpecification.v142.Core} § 9.17.4.2.4
          */

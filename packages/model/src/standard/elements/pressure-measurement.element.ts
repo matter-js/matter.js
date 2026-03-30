@@ -15,14 +15,14 @@ import {
 
 export const PressureMeasurement = Cluster(
     { name: "PressureMeasurement", id: 0x403, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "EXT", conformance: "O", constraint: "0", title: "Extended" })
     ),
     Attribute({
         name: "MeasuredValue", id: 0x0, type: "int16", access: "R V", conformance: "M",
-        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X P"
+        constraint: "minMeasuredValue to maxMeasuredValue", quality: "X"
     }),
     Attribute({
         name: "MinMeasuredValue", id: 0x1, type: "int16", access: "R V", conformance: "M",

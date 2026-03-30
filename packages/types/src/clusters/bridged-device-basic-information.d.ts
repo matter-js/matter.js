@@ -9,8 +9,8 @@
 import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
-import type { VendorId } from "../datatype/VendorId.js";
 import type { BasicInformation } from "./basic-information.js";
+import type { VendorId } from "../datatype/VendorId.js";
 import type { MaybePromise } from "@matter/general";
 
 /**
@@ -85,18 +85,23 @@ export declare namespace BridgedDeviceBasicInformation {
         reachable: boolean;
 
         /**
-         * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
-         * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
-         * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
-         * the bridge shall generate a unique id on behalf of the bridged device.
-         *
-         * > [!NOTE]
-         *
-         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
          */
-        uniqueId: string;
+        productAppearance: BasicInformation.ProductAppearance;
+
+        /**
+         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
+         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
+         *
+         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
+         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
+         * described in Section 9.2.11, “Node Configuration Changes”.
+         *
+         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         */
+        configurationVersion: number;
 
         /**
          * @see {@link MatterSpecification.v142.Core} § 9.13.5
@@ -169,23 +174,18 @@ export declare namespace BridgedDeviceBasicInformation {
         serialNumber?: string;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
+         * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
+         * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
+         * the bridge shall generate a unique id on behalf of the bridged device.
+         *
+         * > [!NOTE]
+         *
+         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
          */
-        productAppearance?: BasicInformation.ProductAppearance;
-
-        /**
-         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
-         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
-         *
-         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
-         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
-         * described in Section 9.2.11, “Node Configuration Changes”.
-         *
-         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
-         */
-        configurationVersion?: number;
+        uniqueId?: string;
     }
 
     /**
@@ -210,18 +210,23 @@ export declare namespace BridgedDeviceBasicInformation {
         reachable: boolean;
 
         /**
-         * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
-         * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
-         * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
-         * the bridge shall generate a unique id on behalf of the bridged device.
-         *
-         * > [!NOTE]
-         *
-         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
          */
-        uniqueId: string;
+        productAppearance: BasicInformation.ProductAppearance;
+
+        /**
+         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
+         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
+         *
+         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
+         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
+         * described in Section 9.2.11, “Node Configuration Changes”.
+         *
+         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         */
+        configurationVersion: number;
 
         /**
          * @see {@link MatterSpecification.v142.Core} § 9.13.5
@@ -294,23 +299,18 @@ export declare namespace BridgedDeviceBasicInformation {
         serialNumber: string;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         * This attribute shall, for a Bridged Device, be updated when the Bridge is factory reset. If the bridged
+         * device does not provide some unique id (e.g. in the case of bridging from non-Matter devices, or in case of
+         * bridging Matter devices from an earlier revision which were not required to provide a UniqueID attribute),
+         * the bridge shall generate a unique id on behalf of the bridged device.
+         *
+         * > [!NOTE]
+         *
+         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
          */
-        productAppearance: BasicInformation.ProductAppearance;
-
-        /**
-         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
-         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
-         *
-         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
-         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
-         * described in Section 9.2.11, “Node Configuration Changes”.
-         *
-         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
-         */
-        configurationVersion: number;
+        uniqueId: string;
     }
 
     /**

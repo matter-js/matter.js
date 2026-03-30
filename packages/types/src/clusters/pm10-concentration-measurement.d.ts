@@ -28,7 +28,7 @@ export declare namespace Pm10ConcentrationMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the Pm10ConcentrationMeasurement cluster.

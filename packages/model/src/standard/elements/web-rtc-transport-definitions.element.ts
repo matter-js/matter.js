@@ -56,13 +56,21 @@ export const WebRtcTransportDefinitions = Cluster(
         Field({ name: "StreamUsage", id: 0x3, type: "StreamUsageEnum", access: "F", conformance: "M" }),
         Field({
             name: "VideoStreamId", id: 0x4, type: "CameraAvStreamManagement.VideoStreamID", access: "F",
-            conformance: "M", quality: "X"
+            conformance: "O, D", quality: "X"
         }),
         Field({
             name: "AudioStreamId", id: 0x5, type: "CameraAvStreamManagement.AudioStreamID", access: "F",
-            conformance: "M", quality: "X"
+            conformance: "O, D", quality: "X"
         }),
         Field({ name: "MetadataEnabled", id: 0x6, type: "bool", access: "F", conformance: "M" }),
+        Field(
+            { name: "VideoStreams", id: 0x7, type: "list", access: "F", conformance: "O.a+", constraint: "1 to 16" },
+            Field({ name: "entry", type: "CameraAvStreamManagement.VideoStreamID" })
+        ),
+        Field(
+            { name: "AudioStreams", id: 0x8, type: "list", access: "F", conformance: "O.a+", constraint: "1 to 16" },
+            Field({ name: "entry", type: "CameraAvStreamManagement.AudioStreamID" })
+        ),
         Field({ name: "FabricIndex", id: 0xfe, type: "FabricIndex" })
     )
 );

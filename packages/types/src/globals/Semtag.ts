@@ -40,7 +40,7 @@ export const TlvSemtag = TlvObject({
     /**
      * The NamespaceID field shall identify a namespace.
      *
-     * The common and device-specific semantic tag namespaces are listed in StandardNamespaces.
+     * The common and device-specific semantic tag namespaces are listed in [StandardNamespaces].
      *
      * @see {@link MatterSpecification.v142.Core} § 7.19.2.46.2
      */

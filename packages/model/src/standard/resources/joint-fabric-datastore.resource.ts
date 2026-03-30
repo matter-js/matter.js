@@ -155,7 +155,7 @@ Resource.add({
                 "\n" +
                 "  1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID." +
                 "\n" +
-                "  2. If a match is found, return CONSTRAINT_ERROR." +
+                "  2. If a match is found, then this command shall fail with a CONSTRAINT_ERROR status code." +
                 "\n" +
                 "  3. Add the Epoch Key Entry for the KeySet to the KeySetList attribute."
         },
@@ -173,7 +173,7 @@ Resource.add({
                 "  1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given " +
                 "GroupKeySetID, and update any changed fields." +
                 "\n" +
-                "  2. If entry is not found, return NOT_FOUND." +
+                "  2. If entry is not found, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  3. If any fields are changed as a result of this command:" +
                 "\n" +
@@ -205,14 +205,15 @@ Resource.add({
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
-                "  1. If entry is not found, return NOT_FOUND." +
+                "  1. If entry is not found, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure there are no Nodes using this KeySet. To do this:" +
                 "\n" +
                 "    a. Iterate through each Node Information Entry:" +
                 "\n" +
                 "      i. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry " +
-                "does NOT have Status DeletePending, then return CONSTRAINT_ERROR." +
+                "does NOT have Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR " +
+                "status code." +
                 "\n" +
                 "  3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList " +
                 "attribute."
@@ -232,7 +233,7 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Ensure there are no Groups in the GroupList attribute with the given GroupID. If a match is " +
-                "found, return CONSTRAINT_ERROR." +
+                "found, then this command shall fail with a CONSTRAINT_ERROR status code." +
                 "\n" +
                 "  2. Add the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to the " +
                 "GroupList attribute."
@@ -255,7 +256,7 @@ Resource.add({
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
-                "  1. If entry is not found, return NOT_FOUND." +
+                "  1. If entry is not found, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Update the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to match " +
                 "the non-NULL fields passed in." +
@@ -323,14 +324,14 @@ Resource.add({
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
-                "  1. If entry is not found, return NOT_FOUND." +
+                "  1. If entry is not found, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure there are no Nodes in this group. To do this:" +
                 "\n" +
                 "    a. Iterate through each Node Information Entry:" +
                 "\n" +
                 "      i. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have " +
-                "Status DeletePending, then return CONSTRAINT_ERROR." +
+                "Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code." +
                 "\n" +
                 "  3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the " +
                 "GroupList attribute."
@@ -354,7 +355,7 @@ Resource.add({
                 "NodeID represents the admin to be updated in the Joint Fabric Datastore Cluster. NULL values for the " +
                 "additional parameters will be ignored (not updated)." +
                 "\n" +
-                "If entry is not found, return NOT_FOUND."
+                "If entry is not found, then this command shall fail with a NOT_FOUND status code."
         },
 
         {
@@ -366,7 +367,7 @@ Resource.add({
                 "NodeID represents the unique identifier for the admin to be removed from the Joint Fabric Datastore " +
                 "Cluster." +
                 "\n" +
-                "If entry is not found, return NOT_FOUND."
+                "If entry is not found, then this command shall fail with a NOT_FOUND status code."
         },
 
         {
@@ -381,8 +382,8 @@ Resource.add({
                 "\n" +
                 "  1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending." +
                 "\n" +
-                "If a Node Information Entry exists for the given NodeID, this command shall return " +
-                "INVALID_CONSTRAINT."
+                "If a Node Information Entry exists for the given NodeID, then this command shall fail with a " +
+                "INVALID_CONSTRAINT status code."
         },
 
         {
@@ -393,8 +394,8 @@ Resource.add({
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
-                "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
-                "NOT_FOUND." +
+                "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this " +
+                "command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Update the CommissioningStatusEntry for the Node Information Entry to Pending." +
                 "\n" +
@@ -531,8 +532,8 @@ Resource.add({
                 "\n" +
                 "NodeID represents the node to be updated in the Joint Fabric Datastore Cluster." +
                 "\n" +
-                "If a Node Information Entry does not exist for the given NodeID, this command shall return " +
-                "NOT_FOUND."
+                "If a Node Information Entry does not exist for the given NodeID, then this command shall fail with a " +
+                "NOT_FOUND status code."
         },
 
         {
@@ -544,8 +545,8 @@ Resource.add({
                 "NodeID represents the unique identifier for the node to be removed from the Joint Fabric Datastore " +
                 "Cluster." +
                 "\n" +
-                "If a Node Information Entry does not exist for the given NodeID, this command shall return " +
-                "NOT_FOUND."
+                "If a Node Information Entry does not exist for the given NodeID, then this command shall fail with a " +
+                "NOT_FOUND status code."
         },
 
         {
@@ -559,8 +560,8 @@ Resource.add({
                 "\n" +
                 "NodeID represents the unique identifier for the node to which the endpoint belongs." +
                 "\n" +
-                "If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, this command " +
-                "shall return NOT_FOUND."
+                "If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, then this " +
+                "command shall fail with a NOT_FOUND status code."
         },
 
         {
@@ -579,7 +580,7 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "not, return NOT_FOUND." +
+                "not, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure the Group Key List for the Node Information Entry with the given NodeID includes the " +
                 "KeySet for the given Group ID. If it does not:" +
@@ -623,7 +624,7 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "not, return NOT_FOUND." +
+                "not, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure the Group List for the Endpoint Information Entry with the given NodeID and EndpointID " +
                 "does not include an entry for the given Group. If it does:" +
@@ -668,7 +669,7 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "not, return NOT_FOUND." +
+                "not, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure the Binding List for the Node Information Entry with the given NodeID includes the given " +
                 "     Binding. If it does not:" +
@@ -701,7 +702,7 @@ Resource.add({
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
                 "  1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if " +
-                "not, return NOT_FOUND." +
+                "not, then this command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure the Binding List for the Node Information Entry with the given NodeID does not include " +
                 "an entry with the given ListID. If it does:" +
@@ -728,8 +729,8 @@ Resource.add({
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
-                "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
-                "NOT_FOUND." +
+                "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this " +
+                "command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure the ACL List for the given NodeID includes the given ACLEntry. If it does not:" +
                 "\n" +
@@ -757,8 +758,8 @@ Resource.add({
                 "\n" +
                 "Upon receipt of this command, the Datastore shall:" +
                 "\n" +
-                "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return " +
-                "NOT_FOUND." +
+                "  1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this " +
+                "command shall fail with a NOT_FOUND status code." +
                 "\n" +
                 "  2. Ensure the ACL List for the given NodeID does not include the given ACLEntry. If it does:" +
                 "\n" +

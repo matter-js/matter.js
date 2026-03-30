@@ -419,7 +419,7 @@ Resource.add(
                     "if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC " +
                     "1." +
                     "\n" +
-                    "Null if no Reader key pair has been configured on the lock. See Section 5.2.10.42, " +
+                    "Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, " +
                     "“SetAliroReaderConfig Command”."
             },
 
@@ -427,7 +427,7 @@ Resource.add(
                 tag: "attribute", name: "AliroReaderGroupIdentifier", xref: "cluster§5.2.9.38",
                 details: "Indicates the reader_group_identifier as defined in [Aliro]." +
                     "\n" +
-                    "Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.42, " +
+                    "Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26, " +
                     "“SetAliroReaderConfig Command”."
             },
 
@@ -445,7 +445,7 @@ Resource.add(
                 tag: "attribute", name: "AliroGroupResolvingKey", xref: "cluster§5.2.9.41",
                 details: "Indicates the Group Resolving Key as defined in [Aliro]." +
                     "\n" +
-                    "Null if no group resolving key has been configured on the lock. See Section 5.2.10.42, " +
+                    "Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, " +
                     "“SetAliroReaderConfig Command”."
             },
 
@@ -728,128 +728,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "SetPinCode", xref: "cluster§5.2.10.4",
-                details: "Set a PIN Code into the lock." +
-                    "\n" +
-                    "Return status is a global status code or a cluster-specific status code from the Status Codes table " +
-                    "and shall be one of the following values:",
-
-                children: [
-                    {
-                        tag: "field", name: "UserId", xref: "cluster§5.2.10.4.1",
-                        details: "This field shall indicate the user ID. The value of the UserID field shall be between 0 and the " +
-                            "value of the NumberOfPINUsersSupported attribute."
-                    },
-                    {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.4.2",
-                        details: "This field shall indicate the user status. Only the values 1 (Occupied/Enabled) and 3 " +
-                            "(Occupied/Disabled) are allowed for UserStatus."
-                    }
-                ]
-            },
-
-            {
-                tag: "command", name: "GetPinCode", xref: "cluster§5.2.10.5",
-                details: "Retrieve a PIN Code.",
-                children: [{
-                    tag: "field", name: "UserId", xref: "cluster§5.2.10.5.1",
-                    details: "This field shall indicate the user ID. The value of the UserID field shall be between 0 and the " +
-                        "value of the NumberOfPINUsersSupported attribute."
-                }]
-            },
-
-            {
-                tag: "command", name: "GetPinCodeResponse", xref: "cluster§5.2.10.6",
-
-                details: "Returns the PIN for the specified user ID." +
-                    "\n" +
-                    "If the requested UserID is valid and the Code doesn’t exist, Get RFID Code Response shall have the " +
-                    "following format:" +
-                    "\n" +
-                    "UserID = requested User ID" +
-                    "\n" +
-                    "UserStatus = 0 (Available)" +
-                    "\n" +
-                    "UserType = Null (Not supported)" +
-                    "\n" +
-                    "PINCode = 0 (zero length)" +
-                    "\n" +
-                    "If the requested UserID is invalid, send Default Response with an error status. The error status " +
-                    "shall be equal to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and " +
-                    "NOT_FOUND if greater than or equal to the max number of users supported."
-            },
-
-            {
-                tag: "command", name: "ClearPinCode", xref: "cluster§5.2.10.7",
-                details: "Clear a PIN code or all PIN codes." +
-                    "\n" +
-                    "For each PIN Code cleared whose user doesn’t have a RFID Code or other credential type, then " +
-                    "corresponding user record’s UserStatus value shall be set to Available, and UserType value shall be " +
-                    "set to UnrestrictedUser and all schedules shall be cleared.",
-                children: [{
-                    tag: "field", name: "PinSlotIndex", xref: "cluster§5.2.10.7.1",
-                    details: "This field shall specify a valid PIN code slot index or 0xFFFE to indicate all PIN code slots shall " +
-                        "be cleared."
-                }]
-            },
-
-            {
-                tag: "command", name: "ClearAllPinCodes", xref: "cluster§5.2.10.8",
-
-                details: "Clear out all PINs on the lock." +
-                    "\n" +
-                    "> [!NOTE]" +
-                    "\n" +
-                    "> On the server, the clear all PIN codes command SHOULD have the same effect as the ClearPINCode " +
-                    "command with respect to the setting of user status, user type and schedules."
-            },
-
-            {
-                tag: "command", name: "SetUserStatus", xref: "cluster§5.2.10.9",
-                details: "Set the status of a user ID.",
-
-                children: [
-                    {
-                        tag: "field", name: "UserId", xref: "cluster§5.2.10.9.1",
-                        details: "This field shall indicate the user ID. The value of the UserID field shall be between 0 and the " +
-                            "value of the NumberOfPINUsersSupported attribute."
-                    },
-                    {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.9.2",
-                        details: "UserStatus value of Available is not allowed. In order to clear a user id, the ClearUser Command " +
-                            "shall be used. For user status value please refer to UserStatusEnum."
-                    }
-                ]
-            },
-
-            {
-                tag: "command", name: "GetUserStatus", xref: "cluster§5.2.10.10",
-                details: "Get the status of a user.",
-                children: [{
-                    tag: "field", name: "UserId", xref: "cluster§5.2.10.10.1",
-                    details: "This field shall indicate the user ID. The value of the UserID field shall be between 0 and the " +
-                        "value of the NumberOfPINUsersSupported attribute."
-                }]
-            },
-
-            {
-                tag: "command", name: "GetUserStatusResponse", xref: "cluster§5.2.10.11",
-                details: "Returns the user status for the specified user ID.",
-
-                children: [
-                    {
-                        tag: "field", name: "UserId", xref: "cluster§5.2.10.11.1",
-                        details: "This field shall indicate the user ID provided in the request."
-                    },
-                    {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.11.2",
-                        details: "This field shall indicate the current status of the requested user ID."
-                    }
-                ]
-            },
-
-            {
-                tag: "command", name: "SetWeekDaySchedule", xref: "cluster§5.2.10.12",
+                tag: "command", name: "SetWeekDaySchedule", xref: "cluster§5.2.10.4",
 
                 details: "Set a weekly repeating schedule for a specified user." +
                     "\n" +
@@ -862,33 +741,33 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "WeekDayIndex", xref: "cluster§5.2.10.12.1",
+                        tag: "field", name: "WeekDayIndex", xref: "cluster§5.2.10.4.1",
                         details: "This field shall indicate the index of the Week Day schedule."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.12.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.4.2",
                         details: "This field shall indicate the user ID."
                     },
                     {
-                        tag: "field", name: "DaysMask", xref: "cluster§5.2.10.12.3",
+                        tag: "field", name: "DaysMask", xref: "cluster§5.2.10.4.3",
                         details: "This field shall indicate which week days the schedule is active."
                     },
                     {
-                        tag: "field", name: "StartHour", xref: "cluster§5.2.10.12.4",
+                        tag: "field", name: "StartHour", xref: "cluster§5.2.10.4.4",
                         details: "This field shall indicate the starting hour for the Week Day schedule."
                     },
                     {
-                        tag: "field", name: "StartMinute", xref: "cluster§5.2.10.12.5",
+                        tag: "field", name: "StartMinute", xref: "cluster§5.2.10.4.5",
                         details: "This field shall indicate the starting minute for the Week Day schedule."
                     },
                     {
-                        tag: "field", name: "EndHour", xref: "cluster§5.2.10.12.6",
+                        tag: "field", name: "EndHour", xref: "cluster§5.2.10.4.6",
                         details: "This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or " +
                             "greater than StartHour."
                     },
 
                     {
-                        tag: "field", name: "EndMinute", xref: "cluster§5.2.10.12.7",
+                        tag: "field", name: "EndMinute", xref: "cluster§5.2.10.4.7",
                         details: "This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to " +
                             "StartHour then EndMinute shall be greater than StartMinute." +
                             "\n" +
@@ -899,26 +778,26 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GetWeekDaySchedule", xref: "cluster§5.2.10.13",
+                tag: "command", name: "GetWeekDaySchedule", xref: "cluster§5.2.10.5",
                 details: "Retrieve the specific weekly schedule for the specific user."
             },
 
             {
-                tag: "command", name: "GetWeekDayScheduleResponse", xref: "cluster§5.2.10.14",
+                tag: "command", name: "GetWeekDayScheduleResponse", xref: "cluster§5.2.10.6",
                 details: "Returns the weekly repeating schedule data for the specified schedule index.",
 
                 children: [
                     {
-                        tag: "field", name: "WeekDayIndex", xref: "cluster§5.2.10.14.1",
+                        tag: "field", name: "WeekDayIndex", xref: "cluster§5.2.10.6.1",
                         details: "This field shall indicate the index of the Week Day schedule."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.14.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.6.2",
                         details: "This field shall indicate the user ID."
                     },
 
                     {
-                        tag: "field", name: "Status", xref: "cluster§5.2.10.14.3",
+                        tag: "field", name: "Status", xref: "cluster§5.2.10.6.3",
 
                         details: "Status shall be one of the following values:" +
                             "\n" +
@@ -936,20 +815,20 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "StartHour", xref: "cluster§5.2.10.14.4",
+                        tag: "field", name: "StartHour", xref: "cluster§5.2.10.6.4",
                         details: "This field shall indicate the starting hour for the Week Day schedule."
                     },
                     {
-                        tag: "field", name: "StartMinute", xref: "cluster§5.2.10.14.5",
+                        tag: "field", name: "StartMinute", xref: "cluster§5.2.10.6.5",
                         details: "This field shall indicate the starting minute for the Week Day schedule."
                     },
                     {
-                        tag: "field", name: "EndHour", xref: "cluster§5.2.10.14.6",
+                        tag: "field", name: "EndHour", xref: "cluster§5.2.10.6.6",
                         details: "This field shall indicate the ending hour for the Week Day schedule. EndHour shall be equal to or " +
                             "greater than StartHour."
                     },
                     {
-                        tag: "field", name: "EndMinute", xref: "cluster§5.2.10.14.7",
+                        tag: "field", name: "EndMinute", xref: "cluster§5.2.10.6.7",
                         details: "This field shall indicate the ending minute for the Week Day schedule. If EndHour is equal to " +
                             "StartHour then EndMinute shall be greater than StartMinute."
                     }
@@ -957,26 +836,26 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "ClearWeekDaySchedule", xref: "cluster§5.2.10.15",
+                tag: "command", name: "ClearWeekDaySchedule", xref: "cluster§5.2.10.7",
                 details: "Clear the specific weekly schedule or all weekly schedules for the specific user." +
                     "\n" +
                     "Return status shall be one of the following values:",
 
                 children: [
                     {
-                        tag: "field", name: "WeekDayIndex", xref: "cluster§5.2.10.15.1",
+                        tag: "field", name: "WeekDayIndex", xref: "cluster§5.2.10.7.1",
                         details: "This field shall indicate the Week Day schedule index to clear or 0xFE to clear all Week Day " +
                             "schedules for the specified user."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.15.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.7.2",
                         details: "This field shall indicate the user ID."
                     }
                 ]
             },
 
             {
-                tag: "command", name: "SetYearDaySchedule", xref: "cluster§5.2.10.16",
+                tag: "command", name: "SetYearDaySchedule", xref: "cluster§5.2.10.8",
 
                 details: "Set a time-specific schedule ID for a specified user." +
                     "\n" +
@@ -987,21 +866,21 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "YearDayIndex", xref: "cluster§5.2.10.16.1",
+                        tag: "field", name: "YearDayIndex", xref: "cluster§5.2.10.8.1",
                         details: "This field shall indicate the index of the Year Day schedule."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.16.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.8.2",
                         details: "This field shall indicate the user ID."
                     },
                     {
-                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.16.3",
+                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.8.3",
                         details: "This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value."
                     },
 
                     {
-                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.16.4",
+                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.8.4",
                         details: "This field shall indicate the ending time for the Year Day schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value. " +
                             "LocalEndTime shall be greater than LocalStartTime."
@@ -1010,26 +889,26 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GetYearDaySchedule", xref: "cluster§5.2.10.17",
+                tag: "command", name: "GetYearDaySchedule", xref: "cluster§5.2.10.9",
                 details: "Retrieve the specific year day schedule for the specific schedule and user indexes."
             },
 
             {
-                tag: "command", name: "GetYearDayScheduleResponse", xref: "cluster§5.2.10.18",
+                tag: "command", name: "GetYearDayScheduleResponse", xref: "cluster§5.2.10.10",
                 details: "Returns the year day schedule data for the specified schedule and user indexes.",
 
                 children: [
                     {
-                        tag: "field", name: "YearDayIndex", xref: "cluster§5.2.10.18.1",
+                        tag: "field", name: "YearDayIndex", xref: "cluster§5.2.10.10.1",
                         details: "This field shall indicate the index of the Year Day schedule."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.18.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.10.2",
                         details: "This field shall indicate the user ID."
                     },
 
                     {
-                        tag: "field", name: "Status", xref: "cluster§5.2.10.18.3",
+                        tag: "field", name: "Status", xref: "cluster§5.2.10.10.3",
 
                         details: "Status shall be one of the following values:" +
                             "\n" +
@@ -1047,14 +926,14 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.18.4",
+                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.10.4",
                         details: "This field shall indicate the starting time for the Year Day schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value. " +
                             "This shall be null if the schedule is not set for the YearDayIndex and UserIndex provided."
                     },
 
                     {
-                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.18.5",
+                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.10.5",
                         details: "This field shall indicate the ending time for the Year Day schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value. " +
                             "LocalEndTime shall be greater than LocalStartTime. This shall be null if the schedule is not set for " +
@@ -1064,26 +943,26 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "ClearYearDaySchedule", xref: "cluster§5.2.10.19",
+                tag: "command", name: "ClearYearDaySchedule", xref: "cluster§5.2.10.11",
                 details: "Clears the specific year day schedule or all year day schedules for the specific user." +
                     "\n" +
                     "Return status shall be one of the following values:",
 
                 children: [
                     {
-                        tag: "field", name: "YearDayIndex", xref: "cluster§5.2.10.19.1",
+                        tag: "field", name: "YearDayIndex", xref: "cluster§5.2.10.11.1",
                         details: "This field shall indicate the Year Day schedule index to clear or 0xFE to clear all Year Day " +
                             "schedules for the specified user."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.19.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.11.2",
                         details: "This field shall indicate the user ID."
                     }
                 ]
             },
 
             {
-                tag: "command", name: "SetHolidaySchedule", xref: "cluster§5.2.10.20",
+                tag: "command", name: "SetHolidaySchedule", xref: "cluster§5.2.10.12",
                 details: "Set the holiday Schedule by specifying local start time and local end time with respect to any Lock " +
                     "Operating Mode." +
                     "\n" +
@@ -1091,48 +970,48 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "HolidayIndex", xref: "cluster§5.2.10.20.1",
+                        tag: "field", name: "HolidayIndex", xref: "cluster§5.2.10.12.1",
                         details: "This field shall indicate the index of the Holiday schedule."
                     },
 
                     {
-                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.20.2",
+                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.12.2",
                         details: "This field shall indicate the starting time for the Holiday Day schedule in Epoch Time in Seconds " +
                             "with local time offset based on the local timezone and DST offset on the day represented by the " +
                             "value."
                     },
 
                     {
-                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.20.3",
+                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.12.3",
                         details: "This field shall indicate the ending time for the Holiday Day schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value. " +
                             "LocalEndTime shall be greater than LocalStartTime."
                     },
 
                     {
-                        tag: "field", name: "OperatingMode", xref: "cluster§5.2.10.20.4",
+                        tag: "field", name: "OperatingMode", xref: "cluster§5.2.10.12.4",
                         details: "This field shall indicate the operating mode to use during this Holiday schedule start/end time."
                     }
                 ]
             },
 
             {
-                tag: "command", name: "GetHolidaySchedule", xref: "cluster§5.2.10.21",
+                tag: "command", name: "GetHolidaySchedule", xref: "cluster§5.2.10.13",
                 details: "Get the holiday schedule for the specified index."
             },
 
             {
-                tag: "command", name: "GetHolidayScheduleResponse", xref: "cluster§5.2.10.22",
+                tag: "command", name: "GetHolidayScheduleResponse", xref: "cluster§5.2.10.14",
                 details: "Returns the Holiday Schedule Entry for the specified Holiday ID.",
 
                 children: [
                     {
-                        tag: "field", name: "HolidayIndex", xref: "cluster§5.2.10.22.1",
+                        tag: "field", name: "HolidayIndex", xref: "cluster§5.2.10.14.1",
                         details: "This field shall indicate the index of the Holiday schedule."
                     },
 
                     {
-                        tag: "field", name: "Status", xref: "cluster§5.2.10.22.2",
+                        tag: "field", name: "Status", xref: "cluster§5.2.10.14.2",
 
                         details: "Status shall be one of the following values:" +
                             "\n" +
@@ -1150,14 +1029,14 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.22.3",
+                        tag: "field", name: "LocalStartTime", xref: "cluster§5.2.10.14.3",
                         details: "This field shall indicate the starting time for the Holiday schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value. " +
                             "This shall be null if the schedule is not set for the HolidayIndex provided."
                     },
 
                     {
-                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.22.4",
+                        tag: "field", name: "LocalEndTime", xref: "cluster§5.2.10.14.4",
                         details: "This field shall indicate the ending time for the Holiday schedule in Epoch Time in Seconds with " +
                             "local time offset based on the local timezone and DST offset on the day represented by the value. " +
                             "LocalEndTime shall be greater than LocalStartTime. This shall be null if the schedule is not set for " +
@@ -1165,7 +1044,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "OperatingMode", xref: "cluster§5.2.10.22.5",
+                        tag: "field", name: "OperatingMode", xref: "cluster§5.2.10.14.5",
                         details: "This field shall indicate the operating mode to use during this Holiday schedule start/end time. " +
                             "This shall be null if the schedule is not set for the HolidayIndex provided."
                     }
@@ -1173,137 +1052,17 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "ClearHolidaySchedule", xref: "cluster§5.2.10.23",
+                tag: "command", name: "ClearHolidaySchedule", xref: "cluster§5.2.10.15",
                 details: "Clears the holiday schedule or all holiday schedules.",
                 children: [{
-                    tag: "field", name: "HolidayIndex", xref: "cluster§5.2.10.23.1",
+                    tag: "field", name: "HolidayIndex", xref: "cluster§5.2.10.15.1",
                     details: "This field shall indicate the Holiday schedule index to clear or 0xFE to clear all Holiday " +
                         "schedules."
                 }]
             },
 
             {
-                tag: "command", name: "SetUserType", xref: "cluster§5.2.10.24",
-
-                details: "Set the user type for a specified user." +
-                    "\n" +
-                    "For user type value please refer to User Type Value." +
-                    "\n" +
-                    "Return status shall be one of the following values:" +
-                    "\n" +
-                    "One or more fields violates constraints or is invalid. Door lock is unable to switch from restricted " +
-                    "to unrestricted user (e.g. need to clear schedules to switch).",
-
-                children: [
-                    {
-                        tag: "field", name: "UserId", xref: "cluster§5.2.10.24.1",
-                        details: "This field shall indicate the user ID."
-                    },
-                    {
-                        tag: "field", name: "UserType", xref: "cluster§5.2.10.24.2",
-                        details: "This field shall indicate the user type."
-                    }
-                ]
-            },
-
-            {
-                tag: "command", name: "GetUserType", xref: "cluster§5.2.10.25",
-                details: "Retrieve the user type for a specific user."
-            },
-            {
-                tag: "command", name: "GetUserTypeResponse", xref: "cluster§5.2.10.26",
-                details: "Returns the user type for the specified user ID. If the requested User ID is invalid, send Default " +
-                    "Response with an error status equal to FAILURE."
-            },
-
-            {
-                tag: "command", name: "SetRfidCode", xref: "cluster§5.2.10.27",
-                details: "Set an ID for RFID access into the lock." +
-                    "\n" +
-                    "Return status is a global status code or a cluster-specific status code from the Status Codes table " +
-                    "and shall be one of the following values:",
-
-                children: [
-                    {
-                        tag: "field", name: "UserId", xref: "cluster§5.2.10.27.1",
-                        details: "This field shall indicate the user ID." +
-                            "\n" +
-                            "The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported " +
-                            "attribute."
-                    },
-
-                    {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.27.2",
-                        details: "This field shall indicate what the status is for a specific user ID. The values are according to " +
-                            "“Set PIN” while not all are supported." +
-                            "\n" +
-                            "Only the values 1 (Occupied/Enabled) and 3 (Occupied/Disabled) are allowed for UserStatus."
-                    },
-
-                    {
-                        tag: "field", name: "UserType", xref: "cluster§5.2.10.27.3",
-                        details: "The values are the same as used for SetPINCode command."
-                    }
-                ]
-            },
-
-            {
-                tag: "command", name: "GetRfidCode", xref: "cluster§5.2.10.28",
-                details: "Retrieve an RFID code.",
-
-                children: [{
-                    tag: "field", name: "UserId", xref: "cluster§5.2.10.28.1",
-                    details: "This field shall indicate the user ID." +
-                        "\n" +
-                        "The value of the UserID field shall be between 0 and the value of the NumberOfRFIDUsersSupported " +
-                        "attribute."
-                }]
-            },
-
-            {
-                tag: "command", name: "GetRfidCodeResponse", xref: "cluster§5.2.10.29",
-
-                details: "Returns the RFID code for the specified user ID." +
-                    "\n" +
-                    "If the requested User ID is valid and the Code doesn’t exist, Get RFID Code Response shall have the " +
-                    "following format:" +
-                    "\n" +
-                    "User ID = requested User ID" +
-                    "\n" +
-                    "UserStatus = 0 (available)" +
-                    "\n" +
-                    "UserType = 0xFF (not supported)" +
-                    "\n" +
-                    "RFID Code = 0 (zero length)" +
-                    "\n" +
-                    "If requested User ID is invalid, send Default Response with an error status. The error status shall " +
-                    "be equal to CONSTRAINT_ERROR when User_ID is less than the max number of users supported, and " +
-                    "NOT_FOUND if greater than or equal to the max number of users supported."
-            },
-
-            {
-                tag: "command", name: "ClearRfidCode", xref: "cluster§5.2.10.30",
-                details: "Clear an RFID code or all RFID codes." +
-                    "\n" +
-                    "For each RFID Code cleared whose user doesn’t have a PIN Code or other credential type, then the " +
-                    "corresponding user record’s UserStatus value shall be set to Available, and UserType value shall be " +
-                    "set to UnrestrictedUser and all schedules shall be cleared.",
-                children: [{
-                    tag: "field", name: "RfidSlotIndex", xref: "cluster§5.2.10.30.1",
-                    details: "This field shall indicate a valid RFID code slot index or 0xFFFE to indicate all RFID code slots " +
-                        "shall be cleared."
-                }]
-            },
-
-            {
-                tag: "command", name: "ClearAllRfidCodes", xref: "cluster§5.2.10.31",
-                details: "Clear out all RFIDs on the lock. If you clear all RFID codes and this user didn’t have a PIN code, " +
-                    "the user status has to be set to \"0 Available\", the user type has to be set to the default value, " +
-                    "and all schedules which are supported have to be set to the default values."
-            },
-
-            {
-                tag: "command", name: "SetUser", xref: "cluster§5.2.10.32",
+                tag: "command", name: "SetUser", xref: "cluster§5.2.10.16",
 
                 details: "Set user into the lock." +
                     "\n" +
@@ -1378,16 +1137,16 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "OperationType", xref: "cluster§5.2.10.32.1",
+                        tag: "field", name: "OperationType", xref: "cluster§5.2.10.16.1",
                         details: "This field shall indicate the type of operation."
                     },
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.32.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.16.2",
                         details: "This field shall indicate the user ID."
                     },
 
                     {
-                        tag: "field", name: "UserName", xref: "cluster§5.2.10.32.3",
+                        tag: "field", name: "UserName", xref: "cluster§5.2.10.16.3",
 
                         details: "This field shall contain a string to use as a human readable identifier for the user." +
                             "\n" +
@@ -1403,7 +1162,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.32.4",
+                        tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.16.4",
 
                         details: "This field shall indicate the fabric assigned number to use for connecting this user to other users " +
                             "on other devices from the fabric’s perspective." +
@@ -1420,7 +1179,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.32.5",
+                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.16.5",
 
                         details: "This field shall indicate the UserStatus to assign to this user when created or modified." +
                             "\n" +
@@ -1436,7 +1195,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "UserType", xref: "cluster§5.2.10.32.6",
+                        tag: "field", name: "UserType", xref: "cluster§5.2.10.16.6",
 
                         details: "This field shall indicate the UserType to assign to this user when created or modified." +
                             "\n" +
@@ -1452,7 +1211,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "CredentialRule", xref: "cluster§5.2.10.32.7",
+                        tag: "field", name: "CredentialRule", xref: "cluster§5.2.10.16.7",
 
                         details: "This field shall indicate the CredentialRule to use for this user." +
                             "\n" +
@@ -1474,7 +1233,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GetUser", xref: "cluster§5.2.10.33",
+                tag: "command", name: "GetUser", xref: "cluster§5.2.10.17",
                 details: "Retrieve user." +
                     "\n" +
                     "An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, " +
@@ -1482,7 +1241,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GetUserResponse", xref: "cluster§5.2.10.34",
+                tag: "command", name: "GetUserResponse", xref: "cluster§5.2.10.18",
                 details: "Returns the user for the specified UserIndex." +
                     "\n" +
                     "If the requested UserIndex is valid and the UserStatus is Available for the requested UserIndex then " +
@@ -1491,33 +1250,33 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.34.1",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.18.1",
                         details: "This field shall indicate the user ID."
                     },
                     {
-                        tag: "field", name: "UserName", xref: "cluster§5.2.10.34.2",
+                        tag: "field", name: "UserName", xref: "cluster§5.2.10.18.2",
                         details: "This field shall contain a string to use as a human readable identifier for the user."
                     },
-                    { tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.34.3", details: "See UserUniqueID." },
+                    { tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.18.3", details: "See UserUniqueID." },
                     {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.34.4",
+                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.18.4",
                         details: "This field shall indicate the UserStatus assigned to the user when created or modified."
                     },
                     {
-                        tag: "field", name: "UserType", xref: "cluster§5.2.10.34.5",
+                        tag: "field", name: "UserType", xref: "cluster§5.2.10.18.5",
                         details: "This field shall indicate the UserType assigned to this user when created or modified."
                     },
                     {
-                        tag: "field", name: "CredentialRule", xref: "cluster§5.2.10.34.6",
+                        tag: "field", name: "CredentialRule", xref: "cluster§5.2.10.18.6",
                         details: "This field shall indicate the CredentialRule set for this user."
                     },
                     {
-                        tag: "field", name: "Credentials", xref: "cluster§5.2.10.34.7",
+                        tag: "field", name: "Credentials", xref: "cluster§5.2.10.18.7",
                         details: "This field shall contain a list of credentials for this user."
                     },
 
                     {
-                        tag: "field", name: "CreatorFabricIndex", xref: "cluster§5.2.10.34.8",
+                        tag: "field", name: "CreatorFabricIndex", xref: "cluster§5.2.10.18.8",
                         details: "This field shall indicate the user’s creator fabric index. CreatorFabricIndex shall be null if " +
                             "UserStatus is set to Available or when the creator fabric cannot be determined (for example, when " +
                             "user was created outside the Interaction Model) and shall NOT be null otherwise. This value shall be " +
@@ -1525,7 +1284,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "LastModifiedFabricIndex", xref: "cluster§5.2.10.34.9",
+                        tag: "field", name: "LastModifiedFabricIndex", xref: "cluster§5.2.10.18.9",
                         details: "This field shall indicate the user’s last modifier fabric index. LastModifiedFabricIndex shall be " +
                             "null if UserStatus is set to Available or when the modifier fabric cannot be determined (for " +
                             "example, when user was modified outside the Interaction Model) and shall NOT be null otherwise. This " +
@@ -1533,7 +1292,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "NextUserIndex", xref: "cluster§5.2.10.34.10",
+                        tag: "field", name: "NextUserIndex", xref: "cluster§5.2.10.18.10",
                         details: "This field shall indicate the next occupied UserIndex in the database which is useful for quickly " +
                             "identifying occupied user slots in the database. This shall NOT be null if there is at least one " +
                             "occupied entry after the requested UserIndex in the User database and shall be null if there are no " +
@@ -1543,7 +1302,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "ClearUser", xref: "cluster§5.2.10.35",
+                tag: "command", name: "ClearUser", xref: "cluster§5.2.10.19",
 
                 details: "Clears a user or all Users." +
                     "\n" +
@@ -1555,13 +1314,13 @@ Resource.add(
                     "users.",
 
                 children: [{
-                    tag: "field", name: "UserIndex", xref: "cluster§5.2.10.35.1",
+                    tag: "field", name: "UserIndex", xref: "cluster§5.2.10.19.1",
                     details: "This field shall specify a valid User index or 0xFFFE to indicate all user slots shall be cleared."
                 }]
             },
 
             {
-                tag: "command", name: "SetCredential", xref: "cluster§5.2.10.36",
+                tag: "command", name: "SetCredential", xref: "cluster§5.2.10.20",
 
                 details: "Set a credential (e.g. PIN, RFID, Fingerprint, etc.) into the lock for a new user, existing user, or " +
                     "ProgrammingUser." +
@@ -1659,17 +1418,17 @@ Resource.add(
 
                 children: [
                     {
-                        tag: "field", name: "OperationType", xref: "cluster§5.2.10.36.1",
+                        tag: "field", name: "OperationType", xref: "cluster§5.2.10.20.1",
                         details: "This field shall indicate the set credential operation type requested."
                     },
                     {
-                        tag: "field", name: "Credential", xref: "cluster§5.2.10.36.2",
+                        tag: "field", name: "Credential", xref: "cluster§5.2.10.20.2",
                         details: "This field shall contain a credential structure that contains the CredentialTypeEnum and the " +
                             "credential index (if applicable or 0 if not) to set."
                     },
 
                     {
-                        tag: "field", name: "CredentialData", xref: "cluster§5.2.10.36.3",
+                        tag: "field", name: "CredentialData", xref: "cluster§5.2.10.20.3",
                         details: "This field shall indicate the credential data to set for the credential being added or modified. The " +
                             "length of the credential data shall conform to the limits of the CredentialType specified in the " +
                             "Credential structure otherwise an INVALID_COMMAND status shall be returned in the " +
@@ -1677,21 +1436,21 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.36.4",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.20.4",
                         details: "This field shall indicate the user index to the user record that corresponds to the credential being " +
                             "added or modified. This shall be null if OperationType is add and a new credential and user is being " +
                             "added at the same time."
                     },
 
                     {
-                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.36.5",
+                        tag: "field", name: "UserStatus", xref: "cluster§5.2.10.20.5",
                         details: "This field shall indicate the user status to use in the new user record if a new user is being " +
                             "created. This shall be null if OperationType is Modify. This may be null when adding a new " +
                             "credential and user."
                     },
 
                     {
-                        tag: "field", name: "UserType", xref: "cluster§5.2.10.36.6",
+                        tag: "field", name: "UserType", xref: "cluster§5.2.10.20.6",
                         details: "This field shall indicate the user type to use in the new user record if a new user is being " +
                             "created. This shall be null if OperationType is Modify. This may be null when adding a new " +
                             "credential and user."
@@ -1700,12 +1459,12 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "SetCredentialResponse", xref: "cluster§5.2.10.37",
+                tag: "command", name: "SetCredentialResponse", xref: "cluster§5.2.10.21",
                 details: "Returns the status for setting the specified credential.",
 
                 children: [
                     {
-                        tag: "field", name: "Status", xref: "cluster§5.2.10.37.1",
+                        tag: "field", name: "Status", xref: "cluster§5.2.10.21.1",
 
                         details: "Status comes from the Status Codes table and shall be one of the following values:" +
                             "\n" +
@@ -1741,7 +1500,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.37.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.21.2",
                         details: "This field shall indicate the user index that was created with the new credential. If the status " +
                             "being returned is not success then this shall be null. This shall be null if OperationType was " +
                             "Modify; if the OperationType was Add and a new User was created this shall NOT be null and shall " +
@@ -1750,7 +1509,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "NextCredentialIndex", xref: "cluster§5.2.10.37.3",
+                        tag: "field", name: "NextCredentialIndex", xref: "cluster§5.2.10.21.3",
 
                         details: "This field shall indicate the next available index in the database for the credential type set, " +
                             "which is useful for quickly identifying available credential slots in the database. This shall NOT " +
@@ -1763,32 +1522,32 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "GetCredentialStatus", xref: "cluster§5.2.10.38",
+                tag: "command", name: "GetCredentialStatus", xref: "cluster§5.2.10.22",
                 details: "Retrieve the status of a particular credential (e.g. PIN, RFID, Fingerprint, etc.) by index." +
                     "\n" +
                     "An InvokeResponse command shall be sent with an appropriate error (e.g. FAILURE, INVALID_COMMAND, " +
                     "etc.) as needed otherwise the GetCredentialStatusResponse command shall be sent implying a status of " +
                     "SUCCESS.",
                 children: [{
-                    tag: "field", name: "Credential", xref: "cluster§5.2.10.38.1",
+                    tag: "field", name: "Credential", xref: "cluster§5.2.10.22.1",
                     details: "This field shall contain a credential structure that contains the CredentialTypeEnum and the " +
                         "credential index (if applicable or 0 if not) to retrieve the status for."
                 }]
             },
 
             {
-                tag: "command", name: "GetCredentialStatusResponse", xref: "cluster§5.2.10.39",
+                tag: "command", name: "GetCredentialStatusResponse", xref: "cluster§5.2.10.23",
                 details: "Returns the status for the specified credential.",
 
                 children: [
                     {
-                        tag: "field", name: "CredentialExists", xref: "cluster§5.2.10.39.1",
+                        tag: "field", name: "CredentialExists", xref: "cluster§5.2.10.23.1",
                         details: "This field shall indicate if the requested credential type and index exists and is populated for the " +
                             "requested user index."
                     },
 
                     {
-                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.39.2",
+                        tag: "field", name: "UserIndex", xref: "cluster§5.2.10.23.2",
                         details: "This field shall indicate the credential’s corresponding user index value if the credential exists. " +
                             "If CredentialType requested was ProgrammingPIN then UserIndex shall be null; otherwise, UserIndex " +
                             "shall be null if CredentialExists is set to False and shall NOT be null if CredentialExists is set " +
@@ -1796,7 +1555,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "CreatorFabricIndex", xref: "cluster§5.2.10.39.3",
+                        tag: "field", name: "CreatorFabricIndex", xref: "cluster§5.2.10.23.3",
                         details: "This field shall indicate the credential’s creator fabric index. CreatorFabricIndex shall be null if " +
                             "CredentialExists is set to False or when the creator fabric cannot be determined (for example, when " +
                             "credential was created outside the Interaction Model) and shall NOT be null otherwise. This value " +
@@ -1804,7 +1563,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "LastModifiedFabricIndex", xref: "cluster§5.2.10.39.4",
+                        tag: "field", name: "LastModifiedFabricIndex", xref: "cluster§5.2.10.23.4",
                         details: "This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall " +
                             "be null if CredentialExists is set to False or when the modifier fabric cannot be determined (for " +
                             "example, when credential was modified outside the Interaction Model) and shall NOT be null " +
@@ -1812,7 +1571,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "NextCredentialIndex", xref: "cluster§5.2.10.39.5",
+                        tag: "field", name: "NextCredentialIndex", xref: "cluster§5.2.10.23.5",
 
                         details: "This field shall indicate the next occupied index in the database for the credential type requested, " +
                             "which is useful for quickly identifying occupied credential slots in the database. This shall NOT be " +
@@ -1823,7 +1582,7 @@ Resource.add(
                     },
 
                     {
-                        tag: "field", name: "CredentialData", xref: "cluster§5.2.10.39.6",
+                        tag: "field", name: "CredentialData", xref: "cluster§5.2.10.23.6",
 
                         details: "This field shall indicate the credential data for the requested user index." +
                             "\n" +
@@ -1844,7 +1603,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "ClearCredential", xref: "cluster§5.2.10.40",
+                tag: "command", name: "ClearCredential", xref: "cluster§5.2.10.24",
 
                 details: "Clear one, one type, or all credentials except ProgrammingPIN credential." +
                     "\n" +
@@ -1883,7 +1642,7 @@ Resource.add(
                     "Return status shall be one of the following values:",
 
                 children: [{
-                    tag: "field", name: "Credential", xref: "cluster§5.2.10.40.1",
+                    tag: "field", name: "Credential", xref: "cluster§5.2.10.24.1",
                     details: "This field shall contain a credential structure that contains the CredentialTypeEnum and the " +
                         "credential index (0xFFFE for all credentials or 0 if not applicable) to clear. This shall be null if " +
                         "clearing all credential types otherwise it shall NOT be null."
@@ -1891,7 +1650,7 @@ Resource.add(
             },
 
             {
-                tag: "command", name: "UnboltDoor", xref: "cluster§5.2.10.41",
+                tag: "command", name: "UnboltDoor", xref: "cluster§5.2.10.25",
 
                 details: "This command causes the lock device to unlock the door without pulling the latch. This command " +
                     "includes an optional code for the lock. The door lock may require a code depending on the value of " +
@@ -1903,38 +1662,38 @@ Resource.add(
                     "the auto relock time has expired.",
 
                 children: [{
-                    tag: "field", name: "PinCode", xref: "cluster§5.2.10.41.1",
+                    tag: "field", name: "PinCode", xref: "cluster§5.2.10.25.1",
                     details: "See Section 5.2.10.1.1, “PINCode Field”."
                 }]
             },
 
             {
-                tag: "command", name: "SetAliroReaderConfig", xref: "cluster§5.2.10.42",
+                tag: "command", name: "SetAliroReaderConfig", xref: "cluster§5.2.10.26",
                 details: "This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.",
 
                 children: [
                     {
-                        tag: "field", name: "SigningKey", xref: "cluster§5.2.10.42.1",
+                        tag: "field", name: "SigningKey", xref: "cluster§5.2.10.26.1",
                         details: "This field shall indicate the signing key component of the Reader’s key pair."
                     },
                     {
-                        tag: "field", name: "VerificationKey", xref: "cluster§5.2.10.42.2",
+                        tag: "field", name: "VerificationKey", xref: "cluster§5.2.10.26.2",
                         details: "This field shall indicate the verification key component of the Reader’s key pair. This shall be an " +
                             "uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1."
                     },
                     {
-                        tag: "field", name: "GroupIdentifier", xref: "cluster§5.2.10.42.3",
+                        tag: "field", name: "GroupIdentifier", xref: "cluster§5.2.10.26.3",
                         details: "This field shall indicate the reader group identifier for the lock."
                     },
                     {
-                        tag: "field", name: "GroupResolvingKey", xref: "cluster§5.2.10.42.4",
+                        tag: "field", name: "GroupResolvingKey", xref: "cluster§5.2.10.26.4",
                         details: "This field shall indicate the group resolving key for the lock."
                     }
                 ]
             },
 
             {
-                tag: "command", name: "ClearAliroReaderConfig", xref: "cluster§5.2.10.43",
+                tag: "command", name: "ClearAliroReaderConfig", xref: "cluster§5.2.10.27",
 
                 details: "This command allows clearing an existing Aliro Reader configuration for the lock." +
                     "\n" +

@@ -317,7 +317,11 @@ export const CameraAvStreamManagement = Cluster(
         Field({ name: "Opus", id: 0x0, conformance: "M" }),
         Field({ name: "AacLc", id: 0x1, conformance: "O" })
     ),
-    Datatype({ name: "ImageCodecEnum", type: "enum8" }, Field({ name: "Jpeg", id: 0x0, conformance: "M" })),
+    Datatype(
+        { name: "ImageCodecEnum", type: "enum8" },
+        Field({ name: "Jpeg", id: 0x0, conformance: "M" }),
+        Field({ name: "Heic", id: 0x1, conformance: "O" })
+    ),
 
     Datatype(
         { name: "TwoWayTalkSupportTypeEnum", type: "enum8" },

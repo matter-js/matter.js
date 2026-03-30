@@ -1731,7 +1731,7 @@ export declare namespace CameraAvStreamManagement {
         constructor(values?: Partial<VideoStreamAllocateResponse>);
 
         /**
-         * This field shall be a VideoStreamIDType representing the newly created unique video stream identifier.
+         * This field shall be a VideoStreamID representing the newly created unique video stream identifier.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.8.5.1
          */
@@ -1747,7 +1747,7 @@ export declare namespace CameraAvStreamManagement {
         constructor(values?: Partial<VideoStreamDeallocateRequest>);
 
         /**
-         * This field shall be a VideoStreamIDType for the stream to be deallocated.
+         * This field shall be a VideoStreamID for the stream to be deallocated.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.8.7.1
          */
@@ -1819,7 +1819,7 @@ export declare namespace CameraAvStreamManagement {
         constructor(values?: Partial<AudioStreamAllocateResponse>);
 
         /**
-         * The AudioStreamID field shall be a AudioStreamIDType representing the unique audio stream identifier.
+         * The AudioStreamID field shall be a AudioStreamID representing the unique audio stream identifier.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.8.2.1
          */
@@ -1835,7 +1835,7 @@ export declare namespace CameraAvStreamManagement {
         constructor(values?: Partial<AudioStreamDeallocateRequest>);
 
         /**
-         * The AudioStreamID field shall be a AudioStreamIDType representing the unique audio stream identifier for the
+         * The AudioStreamID field shall be a AudioStreamID representing the unique audio stream identifier for the
          * stream that needs to be deallocated.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.8.3.1
@@ -1958,8 +1958,8 @@ export declare namespace CameraAvStreamManagement {
         constructor(values?: Partial<CaptureSnapshotRequest>);
 
         /**
-         * The SnapshotStreamID field shall be a SnapshotStreamIDType representing the allocated Snapshot Stream to use,
-         * or null to allow automatic stream selection.
+         * The SnapshotStreamID field shall be a SnapshotStreamID representing the allocated Snapshot Stream to use, or
+         * null to allow automatic stream selection.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.8.13.1
          */
@@ -2015,7 +2015,7 @@ export declare namespace CameraAvStreamManagement {
         constructor(values?: Partial<VideoStreamModifyRequest>);
 
         /**
-         * This field shall be a VideoStreamIDType representing the video stream to modify.
+         * This field shall be a VideoStreamID representing the video stream to modify.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.8.6.1
          */
@@ -2120,7 +2120,17 @@ export declare namespace CameraAvStreamManagement {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.6.3.1
          */
-        Jpeg = 0
+        Jpeg = 0,
+
+        /**
+         * HEIC image codec.
+         *
+         * The HEIC image codec as defined in Annex B of ISO/IEC 23008-12 also known as the HEVC Image File Format.
+         * Support for HEIC is optional, but recommended if the HEVC video codec is supported.
+         *
+         * @see {@link MatterSpecification.v142.Cluster} § 11.2.6.3.2
+         */
+        Heic = 1
     }
 
     /**
@@ -2162,9 +2172,9 @@ export declare namespace CameraAvStreamManagement {
 
         /**
          * This field shall be an octet string representing arbitrary format user defined metadata attached. The
-         * UserDefined Field field of the ManuallyTriggerTransport command can be used to populate this field. The
-         * format and meaning of this field is not defined in this specification and is up to the users, vendors, or
-         * ecosystems deploying it.
+         * UserDefined field of the ManuallyTriggerTransport command can be used to populate this field. The format and
+         * meaning of this field is not defined in this specification and is up to the users, vendors, or ecosystems
+         * deploying it.
          *
          * @see {@link MatterSpecification.v142.Cluster} § 11.2.6.14.4
          */

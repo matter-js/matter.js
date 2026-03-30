@@ -282,6 +282,12 @@ export declare namespace TlsClientManagement {
          *
          *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
          *
+         *     - If another entry exists for the passed in Hostname / Port combination in the ProvisionedEndpoints list,
+         *       where the associated fabric equals the accessing fabric:
+         *
+         *       - Fail the command with the cluster-specific status code of EndpointAlreadyInstalled, and end
+         *         processing with no other side effects.
+         *
          *     - Update the fields of that matching entry with the passed in values and store the results.
          *
          *   - Return the TLSEndpointID as the EndpointID field in the corresponding ProvisionEndpointResponse command.

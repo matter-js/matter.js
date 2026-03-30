@@ -11,8 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "LevelControl", pics: "LVL", xref: "cluster§1.6",
     details: "This cluster provides an interface for controlling a characteristic of a device that can be set to a " +
-        "level, for example the brightness of a light, the degree of closure of a door, or the power output " +
-        "of a heater.",
+        "level, for example the brightness of a light or lamp, a pump’s flow rate setpoint, etc.",
 
     children: [
         {
@@ -84,16 +83,25 @@ Resource.add({
         },
 
         {
-            tag: "attribute", name: "MinLevel", discriminator: "[LT]", xref: "cluster§1.6.6.4",
-            details: "Indicates the minimum value of CurrentLevel that is capable of being assigned."
+            tag: "attribute", name: "MinLevel", xref: "cluster§1.6.6.4",
+
+            details: "Indicates the minimum value of CurrentLevel that is capable of being assigned." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As " +
+                "such, when the Lighting feature is supported this value shall be 1."
         },
-        {
-            tag: "attribute", name: "MinLevel", discriminator: "[!LT]", xref: "cluster§1.6.6.4",
-            details: "Indicates the minimum value of CurrentLevel that is capable of being assigned."
-        },
+
         {
             tag: "attribute", name: "MaxLevel", xref: "cluster§1.6.6.5",
-            details: "Indicates the maximum value of CurrentLevel that is capable of being assigned."
+
+            details: "Indicates the maximum value of CurrentLevel that is capable of being assigned." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. " +
+                "As such, when the Lighting feature is supported this value shall be 254."
         },
 
         {
