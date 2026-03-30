@@ -557,7 +557,7 @@ describe("BtpSessionHandler", () => {
             await handlePromise;
 
             // Advance time to trigger the sendAckTimer – write fails, must not throw
-            await MockTime.advance(MatterBle.btpSendAckTimeout);
+            await MockTime.advance(MatterBle.BTP_SEND_ACK_TIMEOUT);
 
             // Now send a Matter message; since prevAckedSequenceNumber was NOT advanced by the
             // failed ACK write, the outgoing packet must still carry the pending hasAckNumber flag

@@ -269,17 +269,17 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                             );
 
                             switch (nobleUuidToUuid(characteristic.uuid)) {
-                                case MatterBle.c1CharacteristicUuid:
+                                case MatterBle.BLE_MATTER_C1_CHARACTERISTIC_UUID:
                                     logger.debug(`Peripheral ${peripheralAddress}: Found C1 characteristic`);
                                     characteristicC1ForWrite = characteristic;
                                     break;
 
-                                case MatterBle.c2CharacteristicUuid:
+                                case MatterBle.BLE_MATTER_C2_CHARACTERISTIC_UUID:
                                     logger.debug(`Peripheral ${peripheralAddress}: Found C2 characteristic`);
                                     characteristicC2ForSubscribe = characteristic;
                                     break;
 
-                                case MatterBle.c3CharacteristicUuid:
+                                case MatterBle.BLE_MATTER_C3_CHARACTERISTIC_UUID:
                                     logger.debug(`Peripheral ${peripheralAddress}: Found C3 characteristic`);
                                     if (hasAdditionalAdvertisementData) {
                                         logger.debug(
@@ -427,8 +427,8 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     ): Promise<NobleBleChannel> {
         const { address: peripheralAddress } = peripheral;
         let mtu = peripheral.mtu ?? 0;
-        if (mtu > MatterBle.maximumBtpMtu) {
-            mtu = MatterBle.maximumBtpMtu;
+        if (mtu > MatterBle.BLE_MAXIMUM_BTP_MTU) {
+            mtu = MatterBle.BLE_MAXIMUM_BTP_MTU;
         }
         logger.debug(
             `Peripheral ${peripheralAddress}: Using MTU=${mtu} bytes (Peripheral supports up to ${peripheral.mtu} bytes)`,
@@ -455,7 +455,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             }
         };
 
-        const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.btpConnRspTimeout, async () => {
+        const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, async () => {
             characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
 
             await characteristicC2ForSubscribe
@@ -470,9 +470,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         }).start();
 
         const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({
-            versions: MatterBle.btpSupportedVersions,
+            versions: MatterBle.BTP_SUPPORTED_VERSIONS,
             attMtu: mtu,
-            clientWindowSize: MatterBle.btpMaxWindowSize,
+            clientWindowSize: MatterBle.BTP_MAXIMUM_WINDOW_SIZE,
         });
 
         logger.debug(

@@ -32,7 +32,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpWriteCharacteristicC1 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: MatterBle.c1CharacteristicUuid,
+                uuid: MatterBle.BLE_MATTER_C1_CHARACTERISTIC_UUID,
                 properties: ["write"],
                 onWriteRequest: (_handle, data, offset, withoutResponse, callback) =>
                     this.#onWriteRequest(data, offset, withoutResponse, callback),
@@ -60,7 +60,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpIndicateCharacteristicC2 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: MatterBle.c2CharacteristicUuid,
+                uuid: MatterBle.BLE_MATTER_C2_CHARACTERISTIC_UUID,
                 properties: ["indicate"],
                 onSubscribe: (_handle, maxValueSize, updateValueCallback) =>
                     this.#onSubscribe(maxValueSize, updateValueCallback),
@@ -91,7 +91,7 @@ function initializeBleno(server: BlenoBleServer, hciId?: number) {
     class BtpReadCharacteristicC3 extends Bleno.Characteristic {
         constructor() {
             super({
-                uuid: MatterBle.c3CharacteristicUuid,
+                uuid: MatterBle.BLE_MATTER_C3_CHARACTERISTIC_UUID,
                 properties: ["read"],
                 onReadRequest: (_handle, offset, callback) => this.#onReadRequest(offset, callback),
             });
@@ -144,7 +144,7 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     private writeConformationResolver: ((value: void) => void) | undefined;
 
     public clientAddress: string | undefined;
-    private btpHandshakeTimeout = Time.getTimer("BTP handshake timeout", MatterBle.btpConnRspTimeout, () =>
+    private btpHandshakeTimeout = Time.getTimer("BTP handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, () =>
         this.btpHandshakeTimeoutTriggered(),
     );
     #disconnected = false;
