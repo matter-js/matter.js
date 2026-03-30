@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Supervision } from "#behavior/supervision/Supervision.js";
 import {
     AesCipher,
     Bytes,
@@ -24,7 +23,6 @@ import { LockAuth } from "./LockAuth.js";
 import { LockSchedule } from "./LockSchedule.js";
 
 import AlarmCode = DoorLock.AlarmCode;
-import CredentialRule = DoorLock.CredentialRule;
 import CredentialType = DoorLock.CredentialType;
 import DoorState = DoorLock.DoorState;
 import LockOperationType = DoorLock.LockOperationType;
@@ -32,7 +30,6 @@ import LockState = DoorLock.LockState;
 import OperationError = DoorLock.OperationError;
 import OperationSource = DoorLock.OperationSource;
 import UserStatus = DoorLock.UserStatus;
-import UserType = DoorLock.UserType;
 
 const NonUserBase = DoorLockBehavior.with(
     "PinCredential",
@@ -139,76 +136,6 @@ export class NonUserDoorLockServer extends NonUserBase {
         this.state.lockState = LockState.Unlatched;
         this.#emitLockOperation(LockOperationType.Unlatch, request.pinCode);
         this.#scheduleAutoRelock();
-    }
-
-    // ── Non-User PIN/RFID Commands (PIN & !USR, RID & !USR) ─────────────────
-
-    override setPinCode(request: DoorLock.SetPinCodeRequest): MaybePromise {
-        this.#setNonUserCode(CredentialType.Pin, request.userId, request.pin, request.userStatus, request.userType);
-    }
-
-    override getPinCode(request: DoorLock.GetPinCodeRequest): DoorLock.GetPinCodeResponse {
-        return this.#getNonUserPinCode(request.userId);
-    }
-
-    override clearPinCode(request: DoorLock.ClearPinCodeRequest): MaybePromise {
-        this.#clearNonUserCode(CredentialType.Pin, request.pinSlotIndex);
-    }
-
-    override clearAllPinCodes(): MaybePromise {
-        this.#clearAllNonUserCodes(CredentialType.Pin);
-    }
-
-    override setRfidCode(request: DoorLock.SetRfidCodeRequest): MaybePromise {
-        this.#setNonUserCode(
-            CredentialType.Rfid,
-            request.userId,
-            request.rfidCode,
-            request.userStatus,
-            request.userType,
-        );
-    }
-
-    override getRfidCode(request: DoorLock.GetRfidCodeRequest): DoorLock.GetRfidCodeResponse {
-        return this.#getNonUserRfidCode(request.userId);
-    }
-
-    override clearRfidCode(request: DoorLock.ClearRfidCodeRequest): MaybePromise {
-        this.#clearNonUserCode(CredentialType.Rfid, request.rfidSlotIndex);
-    }
-
-    override clearAllRfidCodes(): MaybePromise {
-        this.#clearAllNonUserCodes(CredentialType.Rfid);
-    }
-
-    // ── Non-User Status Commands (!USR) ──────────────────────────────────────
-
-    override setUserStatus(request: DoorLock.SetUserStatusRequest): MaybePromise {
-        const auth = this.auth;
-        const user = auth.findUser(request.userId);
-        if (!user) {
-            throw new StatusResponseError("User not found", StatusCode.InvalidCommand);
-        }
-        auth.replaceUser(request.userId, { ...user, userStatus: request.userStatus });
-    }
-
-    override getUserStatus(request: DoorLock.GetUserStatusRequest): DoorLock.GetUserStatusResponse {
-        const user = this.auth.findUser(request.userId);
-        return { userId: request.userId, userStatus: user?.userStatus ?? UserStatus.Available };
-    }
-
-    override setUserType(request: DoorLock.SetUserTypeRequest): MaybePromise {
-        const auth = this.auth;
-        const user = auth.findUser(request.userId);
-        if (!user) {
-            throw new StatusResponseError("User not found", StatusCode.InvalidCommand);
-        }
-        auth.replaceUser(request.userId, { ...user, userType: request.userType });
-    }
-
-    override getUserType(request: DoorLock.GetUserTypeRequest): DoorLock.GetUserTypeResponse {
-        const user = this.auth.findUser(request.userId);
-        return { userId: request.userId, userType: user?.userType ?? UserType.UnrestrictedUser };
     }
 
     // ── Credential Storage (overridable) ─────────────────────────────────────
@@ -427,203 +354,6 @@ export class NonUserDoorLockServer extends NonUserBase {
             }
         }
     }
-
-    // ── Credential Helpers ─────────────────────────────────────────────────────
-
-    #maxCredentialsForType(type: CredentialType): number {
-        switch (type) {
-            case CredentialType.Pin:
-            case CredentialType.ProgrammingPin:
-                return this.state.numberOfPinUsersSupported;
-            case CredentialType.Rfid:
-                return this.state.numberOfRfidUsersSupported;
-            default:
-                return 0;
-        }
-    }
-
-    #validateCredentialDataLength(type: CredentialType, data: Bytes): boolean {
-        switch (type) {
-            case CredentialType.Pin:
-            case CredentialType.ProgrammingPin: {
-                const min = this.state.minPinCodeLength;
-                const max = this.state.maxPinCodeLength;
-                return data.byteLength >= min && data.byteLength <= max;
-            }
-            case CredentialType.Rfid: {
-                const min = this.state.minRfidCodeLength;
-                const max = this.state.maxRfidCodeLength;
-                return data.byteLength >= min && data.byteLength <= max;
-            }
-            default:
-                return true;
-        }
-    }
-
-    #clearAllCredentialsOfType(type: CredentialType) {
-        const auth = this.auth;
-        const credsOfType = auth.credentials.filter(c => c.credentialType === type);
-        for (const cred of credsOfType) {
-            this.#removeCredentialFromUsers(auth, type, cred.credentialIndex);
-        }
-        auth.removeAllCredentialsOfType(type);
-    }
-
-    #removeCredentialFromUsers(auth: LockAuth.Store, type: CredentialType, index: number) {
-        const userIndex = auth.findUserIndexForCredential(type, index);
-        if (userIndex === null) return;
-
-        const user = auth.findUser(userIndex);
-        if (!user) return;
-
-        const remainingCreds = user.credentials.filter(
-            c => !(c.credentialType === type && c.credentialIndex === index),
-        );
-
-        if (remainingCreds.length === 0) {
-            auth.removeUser(userIndex);
-            this.state.weekDaySchedules = this.state.weekDaySchedules.filter(s => s.userIndex !== userIndex);
-            this.state.yearDaySchedules = this.state.yearDaySchedules.filter(s => s.userIndex !== userIndex);
-        } else {
-            auth.replaceUser(userIndex, { ...user, credentials: remainingCreds });
-        }
-    }
-
-    // ── NonUser Code Helpers ────────────────────────────────────────────────────
-
-    #setNonUserCode(
-        type: CredentialType,
-        userId: number,
-        code: Bytes,
-        userStatus: UserStatus | null,
-        userType: UserType | null,
-    ) {
-        const max = this.#maxCredentialsForType(type);
-        if (userId < 0 || userId > max) {
-            throw new StatusResponseError("Invalid user ID", StatusCode.InvalidCommand);
-        }
-
-        if (!this.#validateCredentialDataLength(type, code)) {
-            throw new StatusResponseError("Invalid code length", StatusCode.InvalidCommand);
-        }
-
-        const auth = this.auth;
-
-        if (auth.isDuplicateCredential(type, code, userId)) {
-            throw new DoorLock.DuplicateError("Duplicate credential");
-        }
-
-        const fabricIndex = this.#fabricIndex;
-        const existingCred = auth.findCredential(type, userId);
-        const existingUser = auth.findUser(userId);
-
-        if (existingCred) {
-            auth.updateCredentialData(type, userId, code, fabricIndex);
-
-            if (existingUser) {
-                auth.replaceUser(userId, {
-                    ...existingUser,
-                    userStatus: userStatus ?? existingUser.userStatus,
-                    userType: userType ?? existingUser.userType,
-                    lastModifiedFabricIndex: fabricIndex,
-                });
-            }
-        } else {
-            auth.addCredential(type, userId, code, fabricIndex);
-
-            if (existingUser) {
-                auth.replaceUser(userId, {
-                    ...existingUser,
-                    credentials: [...existingUser.credentials, { credentialType: type, credentialIndex: userId }],
-                    userStatus: userStatus ?? existingUser.userStatus,
-                    userType: userType ?? existingUser.userType,
-                    lastModifiedFabricIndex: fabricIndex,
-                });
-            } else {
-                auth.addUser({
-                    userIndex: userId,
-                    userName: "",
-                    userUniqueId: 0xffffffff,
-                    userStatus: userStatus ?? UserStatus.OccupiedEnabled,
-                    userType: userType ?? UserType.UnrestrictedUser,
-                    credentialRule: CredentialRule.Single,
-                    credentials: [{ credentialType: type, credentialIndex: userId }],
-                    creatorFabricIndex: fabricIndex,
-                    lastModifiedFabricIndex: fabricIndex,
-                });
-            }
-        }
-    }
-
-    #getNonUserPinCode(userId: number): DoorLock.GetPinCodeResponse {
-        const auth = this.auth;
-        const user = auth.findUser(userId);
-        const cred = auth.findCredential(CredentialType.Pin, userId);
-
-        if (!user || !cred) {
-            return {
-                userId,
-                userStatus: UserStatus.Available,
-                userType: UserType.UnrestrictedUser,
-                pinCode: null,
-            };
-        }
-
-        return {
-            userId,
-            userStatus: user.userStatus,
-            userType: user.userType,
-            pinCode: auth.decrypt(cred.credentialData),
-        };
-    }
-
-    #getNonUserRfidCode(userId: number): DoorLock.GetRfidCodeResponse {
-        const auth = this.auth;
-        const user = auth.findUser(userId);
-        const cred = auth.findCredential(CredentialType.Rfid, userId);
-
-        if (!user || !cred) {
-            return {
-                userId,
-                userStatus: UserStatus.Available,
-                userType: UserType.UnrestrictedUser,
-                rfidCode: null,
-            };
-        }
-
-        return {
-            userId,
-            userStatus: user.userStatus,
-            userType: user.userType,
-            rfidCode: auth.decrypt(cred.credentialData),
-        };
-    }
-
-    #clearNonUserCode(type: CredentialType, slotIndex: number) {
-        const max = this.#maxCredentialsForType(type);
-        if (slotIndex < 0 || slotIndex > max) {
-            throw new StatusResponseError("Invalid slot index", StatusCode.InvalidCommand);
-        }
-
-        const auth = this.auth;
-        this.#removeCredentialFromUsers(auth, type, slotIndex);
-        auth.removeCredential(type, slotIndex);
-    }
-
-    #clearAllNonUserCodes(type: CredentialType) {
-        this.#clearAllCredentialsOfType(type);
-    }
-}
-
-// ── Supervision wiring ────────────────────────────────────────────────────────
-//
-// Commands that throw on bad input — remap validation errors to INVALID_COMMAND
-const throwInvalidCommand = () => {
-    throw new StatusResponseError("Invalid field value", StatusCode.InvalidCommand);
-};
-
-for (const method of ["clearPinCode", "clearRfidCode"]) {
-    Supervision(NonUserDoorLockServer, method).onValidationError = throwInvalidCommand;
 }
 
 export namespace NonUserDoorLockServer {
