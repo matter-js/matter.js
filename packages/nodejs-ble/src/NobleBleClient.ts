@@ -155,8 +155,8 @@ export class NobleBleClient {
             if (platform !== "win32" && platform !== "darwin") {
                 noble.startScanning();
             }
-        } catch {
-            // Adapter may be in unsupported/poweredOff state, proceed to stop regardless
+        } catch (error) {
+            logger.info("Error starting scan during close, proceeding to stop:", error);
         }
 
         noble.stop();
