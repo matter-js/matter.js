@@ -181,7 +181,17 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
     override async backchannel(command: BackchannelCommand) {
         switch (command.name) {
             case "reboot":
-                await this.close();
+                // Clone storage before close because close releases the StorageDriverHandle which closes
+                // the underlying driver.  StorageDriverHandle.initialize() is a no-op so the driver can't
+                // be re-initialized after close.  Cloning gives us a fresh initialized driver with the
+                // same data.
+                if (this.storage && CloneableStorage.is(this.storage)) {
+                    const data = await this.storage.clone();
+                    await this.close();
+                    this.storage = data;
+                } else {
+                    await this.close();
+                }
                 await this.initialize();
 
                 // Some tests (BINFO_2_2 at least) are unhappy if events persist
