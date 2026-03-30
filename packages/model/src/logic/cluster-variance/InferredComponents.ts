@@ -305,6 +305,10 @@ function addElement(components: InferredComponents, element: ValueModel) {
         text = "M";
     }
 
+    // Revision conformance (Rev >= vN) indicates when an element was introduced.
+    // Strip it for variance purposes — it doesn't affect feature-based components.
+    text = text.replace(/\[?Rev >= v\d+\]?(?:\.?[a-z][0-9]*[+-]?)?(?:, )?/g, "").replace(/,\s*$/, "").trim() || "M";
+
     for (const matcher of VarianceMatchers) {
         const match = text.match(matcher.pattern);
         if (match) {

@@ -183,6 +183,10 @@ function extractDeps(
         case Flag.Provisional:
             return { deps: [], fallback: Applicability.None };
 
+        case Special.Revision:
+            // Revision-gated conformance — no name dependencies, treat as conditional
+            return { deps: [], fallback: Applicability.Optional };
+
         default:
             throw new InternalError(`Unsupported conformance AST type "${ast.type}" for element dependency extraction`);
     }
