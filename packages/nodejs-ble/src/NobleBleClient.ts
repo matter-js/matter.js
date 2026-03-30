@@ -151,8 +151,12 @@ export class NobleBleClient {
         // This is a hack because it can else happen that stop is hanging because it needs response data when the HCI
         // based driver is used. Also Check for Win32 is not 100% correct, but likely good enough for now.
         // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
-        if (platform !== "win32" && platform !== "darwin") {
-            noble.startScanning();
+        try {
+            if (platform !== "win32" && platform !== "darwin") {
+                noble.startScanning();
+            }
+        } catch (error) {
+            logger.info("Error starting scan during close, proceeding to stop:", error);
         }
 
         noble.stop();
