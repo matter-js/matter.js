@@ -307,11 +307,17 @@ function addElement(components: InferredComponents, element: ValueModel) {
 
     // Revision conformance (Rev >= vN) indicates when an element was introduced.
     // Strip it for variance purposes — it doesn't affect feature-based components.
+    // Bare "Rev >= vN" is mandatory; bracketed "[Rev >= vN]" is optional.
+    // When stripping leaves nothing, the fallback preserves that distinction.
+    let hasBareRevision = false;
     text =
         text
-            .replace(/\[?Rev >= v\d+\]?(?:\.?[a-z][0-9]*[+-]?)?(?:, )?/g, "")
+            .replace(/(\[?)Rev >= v\d+]?(?:, )?/g, (_, bracket) => {
+                if (!bracket) hasBareRevision = true;
+                return "";
+            })
             .replace(/,\s*$/, "")
-            .trim() || "M";
+            .trim() || (hasBareRevision ? "M" : "O");
 
     for (const matcher of VarianceMatchers) {
         const match = text.match(matcher.pattern);
