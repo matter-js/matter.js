@@ -57,14 +57,9 @@ export class NameDependentElements {
         const ast = model.effectiveConformance.ast;
         const result = classify(ast, this.#featureContext, model);
 
-        if (result.kind === "conditional") {
-            const presence =
-                result.fallback === Applicability.Mandatory
-                    ? true
-                    : result.fallback === Applicability.None
-                      ? false
-                      : isImplemented;
-            this.conditionals.set(model.name, { model, elementType, isImplemented, presence });
+        if (result === "conditional") {
+            // Same as pre-NameDependentElements behavior: conditional elements are present iff implemented
+            this.conditionals.set(model.name, { model, elementType, isImplemented, presence: isImplemented });
         } else {
             const { dependencies, fallback } = extractInterdependencies(ast, this.#featureContext, model);
             this.interdependents.set(model.name, { model, elementType, isImplemented, dependencies, fallback });
@@ -110,83 +105,48 @@ export namespace NameDependentElements {
 
 // --- Pass 1: Classification ---
 
-type ClassifyResult = { kind: "conditional"; fallback: Fallback } | { kind: "interdependent" };
-
-const CONDITIONAL_NONE: ClassifyResult = { kind: "conditional", fallback: Applicability.None };
-const CONDITIONAL_OPTIONAL: ClassifyResult = { kind: "conditional", fallback: Applicability.Optional };
-const CONDITIONAL_MANDATORY: ClassifyResult = { kind: "conditional", fallback: Applicability.Mandatory };
-const INTERDEPENDENT: ClassifyResult = { kind: "interdependent" };
+type ClassifyResult = "conditional" | "interdependent";
 
 /**
  * Recursively walks a conformance AST and determines whether it contains any command/event name references.
  *
- * Attribute name references are treated as conditionals — their value-dependent semantics are handled by the normal
- * conformance evaluation path.  Only command/event name references produce interdependencies.
- *
- * If no command/event names are found, returns `{ kind: "conditional", fallback }` with the appropriate fallback.
- * If command/event names are present, returns `{ kind: "interdependent" }` to signal the AST needs pass 2.
+ * Attribute name references are treated as conditionals — their presence semantics are handled by the normal
+ * conformance evaluation path.  Only command/event name references produce interdependencies that need static graph
+ * resolution.
  */
 function classify(ast: Conformance.Ast, featureContext: Conformance.FeatureContext, model: ValueModel): ClassifyResult {
     switch (ast.type) {
         case Special.Name:
             if (featureContext.definedFeatures.has(ast.param)) {
-                // Feature reference — already resolved, shouldn't contribute deps
-                return CONDITIONAL_NONE;
+                return "conditional";
             }
-            if (!isCommandOrEventName(ast.param, model)) {
-                // Attribute reference — handled by normal conformance evaluation
-                return CONDITIONAL_OPTIONAL;
-            }
-            // Command/event name → interdependent
-            return INTERDEPENDENT;
+            return isCommandOrEventName(ast.param, model) ? "interdependent" : "conditional";
 
-        case Special.Otherwise: {
-            let highestFallback: Fallback = Applicability.None;
+        case Special.Otherwise:
             for (const clause of ast.param) {
-                const r = classify(clause, featureContext, model);
-                if (r.kind === "interdependent") {
-                    return INTERDEPENDENT;
+                if (classify(clause, featureContext, model) === "interdependent") {
+                    return "interdependent";
                 }
-                highestFallback = higherFallback(highestFallback, r.fallback);
             }
-            return conditionalResult(highestFallback);
-        }
+            return "conditional";
 
-        case Operator.OR: {
-            const left = classify(ast.param.lhs, featureContext, model);
-            if (left.kind === "interdependent") return INTERDEPENDENT;
-            const right = classify(ast.param.rhs, featureContext, model);
-            if (right.kind === "interdependent") return INTERDEPENDENT;
-            return conditionalResult(higherFallback(left.fallback, right.fallback));
-        }
+        case Operator.OR:
+            if (classify(ast.param.lhs, featureContext, model) === "interdependent") return "interdependent";
+            if (classify(ast.param.rhs, featureContext, model) === "interdependent") return "interdependent";
+            return "conditional";
 
-        case Operator.AND: {
-            const left = classify(ast.param.lhs, featureContext, model);
-            if (left.kind === "interdependent") return INTERDEPENDENT;
-            const right = classify(ast.param.rhs, featureContext, model);
-            if (right.kind === "interdependent") return INTERDEPENDENT;
-            return CONDITIONAL_NONE;
-        }
+        case Operator.AND:
+            if (classify(ast.param.lhs, featureContext, model) === "interdependent") return "interdependent";
+            if (classify(ast.param.rhs, featureContext, model) === "interdependent") return "interdependent";
+            return "conditional";
 
-        case Special.OptionalIf: {
-            const inner = classify(ast.param, featureContext, model);
-            if (inner.kind === "interdependent") return INTERDEPENDENT;
-            return inner.fallback === Applicability.None ? CONDITIONAL_OPTIONAL : inner;
-        }
+        case Special.OptionalIf:
+            return classify(ast.param, featureContext, model);
 
         case Special.Choice:
             return classify(ast.param.expr, featureContext, model);
 
-        case Operator.NOT: {
-            const inner = ast.param;
-            if (inner.type === Special.Name && !featureContext.definedFeatures.has(inner.param)) {
-                // !ElementName — too complex to model as a dependency; treat as impl-dependent
-                return CONDITIONAL_OPTIONAL;
-            }
-            // Feature negation — already resolved
-            return CONDITIONAL_NONE;
-        }
-
+        case Operator.NOT:
         case Operator.EQ:
         case Operator.NE:
         case Operator.GT:
@@ -196,38 +156,16 @@ function classify(ast: Conformance.Ast, featureContext: Conformance.FeatureConte
         case Special.Desc:
         case Special.Empty:
         case Special.Revision:
-            return CONDITIONAL_OPTIONAL;
-
         case Flag.Mandatory:
-            return CONDITIONAL_MANDATORY;
-
         case Flag.Optional:
-            return CONDITIONAL_OPTIONAL;
-
         case Flag.Disallowed:
         case Flag.Deprecated:
         case Flag.Provisional:
-            return CONDITIONAL_NONE;
+            return "conditional";
 
         default:
             throw new InternalError(`Unsupported conformance AST type "${ast.type}" for element classification`);
     }
-}
-
-function conditionalResult(fallback: Fallback): ClassifyResult {
-    switch (fallback) {
-        case Applicability.None:
-            return CONDITIONAL_NONE;
-        case Applicability.Optional:
-            return CONDITIONAL_OPTIONAL;
-        case Applicability.Mandatory:
-            return CONDITIONAL_MANDATORY;
-    }
-}
-
-function higherFallback(a: Fallback, b: Fallback): Fallback {
-    // Applicability enum is ordered None=0, Optional=1, Mandatory=3
-    return a > b ? a : b;
 }
 
 // --- Pass 2: Interdependency extraction ---
