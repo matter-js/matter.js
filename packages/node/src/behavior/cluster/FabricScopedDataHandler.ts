@@ -8,7 +8,7 @@ import type { Behavior } from "#behavior/Behavior.js";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { SupportedElements } from "#endpoint/properties/Behaviors.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { createPromise, deepCopy, isObject, Logger, MaybePromise, Seconds, withTimeout } from "@matter/general";
+import { createPromise, isObject, Logger, MaybePromise, Seconds, withTimeout } from "@matter/general";
 import { Access, ClusterModel, Schema } from "@matter/model";
 import { OccurrenceManager, Val } from "@matter/protocol";
 import type { ClusterType, FabricIndex } from "@matter/types";
@@ -64,7 +64,7 @@ async function sanitizeAttributeData(
             const value = (endpoint.stateOf(type) as Val.Struct)[attributeName];
             // If the value contains data for the fabric being removed, remove the data
             if (Array.isArray(value) && value.length > 0) {
-                const filtered = deepCopy(value).filter(entry => allowedIndices.includes(entry.fabricIndex));
+                const filtered = value.filter(entry => allowedIndices.includes(entry.fabricIndex));
                 if (filtered.length !== value.length) {
                     stateUpdate[attributeName] = filtered;
                 }

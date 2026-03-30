@@ -15,7 +15,6 @@ import { ServerNode } from "#node/ServerNode.js";
 import {
     Bytes,
     cropValueRange,
-    deepCopy,
     Entropy,
     ImplementationError,
     InternalError,
@@ -1358,7 +1357,7 @@ export class ThermostatBaseServer extends ThermostatBehaviorLogicBase {
 
         if (changed) {
             logger.error("PresetHandles or BuiltIn flags were updated, updating persistedPresets");
-            this.state.persistedPresets = deepCopy(newPresets);
+            this.state.persistedPresets = newPresets;
         }
     }
 

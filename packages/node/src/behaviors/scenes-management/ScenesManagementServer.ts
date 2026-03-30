@@ -195,7 +195,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
      * This method is called by the GroupsServer implementation and also internally by this cluster.
      */
     removeScenesForGroupOnFabric(fabricIndex: FabricIndex, groupId: GroupId) {
-        this.state.sceneTable = deepCopy(this.state.sceneTable).filter(
+        this.state.sceneTable = this.state.sceneTable.filter(
             s => !(s.fabricIndex === fabricIndex && s.sceneGroupId === groupId),
         );
 
@@ -215,7 +215,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
     /** Handles removal of all groups in a fabric. This method is called by the GroupsServer implementation. */
     removeScenesForAllGroupsForFabric(fabricIndex: FabricIndex) {
-        this.state.sceneTable = deepCopy(this.state.sceneTable).filter(s => s.fabricIndex !== fabricIndex);
+        this.state.sceneTable = this.state.sceneTable.filter(s => s.fabricIndex !== fabricIndex);
         this.#invalidateFabricSceneInfoForFabric(fabricIndex);
 
         this.#updateFabricSceneInfoCountsForFabric(fabricIndex);
