@@ -9,7 +9,9 @@ import { CommissioningConnection } from "#peer/CommissioningConnection.js";
 import { PairRetransmissionLimitReachedError } from "#peer/CommissioningError.js";
 import {
     AbortedError,
+    AddressUnreachableError,
     Millis,
+    NetworkUnreachableError,
     NoResponseTimeoutError,
     Seconds,
     ServerAddressUdp,
@@ -191,6 +193,42 @@ describe("CommissioningConnection", () => {
         // The loser must reject with the abort reason, not PairRetransmissionLimitReachedError.
         // Critically, this must not become an unhandled rejection (which would crash the process).
         await expect(loserPromise).rejectedWith(AbortedError, "another device won PASE");
+    });
+
+    it("treats AddressUnreachableError as transient, other addresses still succeed", async () => {
+        const attempts = new Array<string>();
+
+        const { discoveryData } = await CommissioningConnection({
+            devices: [device("a", [udp("fd00::1"), udp("fd00::2"), udp("192.168.1.1")])],
+            timeout: Seconds(2),
+            establishSession: async (address, discoveryData) => {
+                const ip = (address as ServerAddressUdp).ip;
+                attempts.push(`${discoveryData.deviceIdentifier}:${ip}`);
+                if (ip === "fd00::1") {
+                    throw new AddressUnreachableError("send EHOSTUNREACH fd00::1:5540");
+                }
+                if (ip === "fd00::2") {
+                    throw new NetworkUnreachableError("send ENETUNREACH fd00::2:5540");
+                }
+                return {} as any;
+            },
+        });
+
+        expect(discoveryData.deviceIdentifier).equals("a");
+        expect(attempts).includes("a:192.168.1.1");
+    });
+
+    it("reports NetworkError as last error when all addresses fail with it", async () => {
+        await expect(
+            CommissioningConnection({
+                devices: [device("a", [udp("fd00::1"), udp("fd00::2")])],
+                timeout: Seconds(2),
+                establishSession: async address => {
+                    const ip = (address as ServerAddressUdp).ip;
+                    throw new AddressUnreachableError(`send EHOSTUNREACH ${ip}:5540`);
+                },
+            }),
+        ).rejectedWith(PairRetransmissionLimitReachedError);
     });
 
     it("passes abort signal to establishSession and aborts early when timeout fires", async () => {

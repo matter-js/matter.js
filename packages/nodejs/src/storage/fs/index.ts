@@ -11,6 +11,10 @@ import { JsonFileStorageDriver } from "./JsonFileStorageDriver.js";
 
 /** @deprecated Use {@link FileStorageDriver} */
 export const StorageBackendDisk = FileStorageDriver;
+/** @deprecated Use {@link FileStorageDriver} */
+export type StorageBackendDisk = FileStorageDriver;
 
 /** @deprecated Use {@link JsonFileStorageDriver} */
 export const StorageBackendJsonFile = JsonFileStorageDriver;
+/** @deprecated Use {@link JsonFileStorageDriver} */
+export type StorageBackendJsonFile = JsonFileStorageDriver;
