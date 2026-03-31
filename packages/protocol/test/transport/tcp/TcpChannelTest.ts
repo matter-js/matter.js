@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType, isConnectedChannel } from "#net/Channel.js";
-import { MockTcpConnection } from "#net/mock/MockTcpConnection.js";
-import { TcpChannel } from "#net/tcp/TcpChannel.js";
-import { DEFAULT_MAX_TCP_MESSAGE_SIZE } from "#net/tcp/TcpConnection.js";
-import { Bytes } from "#util/Bytes.js";
+import { TcpChannel } from "#transport/tcp/TcpChannel.js";
+import {
+    Bytes,
+    ChannelType,
+    DEFAULT_MAX_TCP_MESSAGE_SIZE,
+    isConnectedChannel,
+    MockTcpConnection,
+} from "@matter/general";
 
 /** Build a 4-byte LE length header for the given payload length. */
 function lengthHeader(len: number): Uint8Array {

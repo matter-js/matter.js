@@ -4,15 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#log/Logger.js";
-import { ChannelType, ConnectedChannel, IpNetworkChannel } from "#net/Channel.js";
-import { NetworkError } from "#net/Network.js";
-import { ServerAddressIp, ServerAddressTcp } from "#net/ServerAddress.js";
-import { Transport } from "#net/Transport.js";
-import { Bytes } from "#util/Bytes.js";
-import { BasicMultiplex } from "#util/Multiplex.js";
-import { Observable } from "#util/index.js";
-import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpConnection } from "./TcpConnection.js";
+import {
+    BasicMultiplex,
+    Bytes,
+    ChannelType,
+    ConnectedChannel,
+    DEFAULT_MAX_TCP_MESSAGE_SIZE,
+    IpNetworkChannel,
+    Logger,
+    NetworkError,
+    Observable,
+    ServerAddressIp,
+    ServerAddressTcp,
+    TcpConnection,
+    Transport,
+} from "@matter/general";
 
 const logger = Logger.get("TcpChannel");
 

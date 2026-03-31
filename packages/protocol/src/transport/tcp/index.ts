@@ -4,4 +4,5 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./TcpConnection.js";
+export * from "./TcpChannel.js";
+export * from "./TcpTransport.js";

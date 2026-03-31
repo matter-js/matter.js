@@ -4,11 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Channel, ChannelType } from "#net/Channel.js";
-import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
-import { TcpChannel } from "#net/tcp/TcpChannel.js";
-import { TcpTransport } from "#net/tcp/TcpTransport.js";
-import { Bytes } from "#util/Bytes.js";
+import { TcpChannel } from "#transport/tcp/TcpChannel.js";
+import { TcpTransport } from "#transport/tcp/TcpTransport.js";
+import { Bytes, Channel, ChannelType, NetworkSimulator } from "@matter/general";
 
 const SERVER_PORT = 5540;
 

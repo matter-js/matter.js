@@ -17,7 +17,6 @@ import {
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
-    TcpTransport,
     Transport,
     TransportSet,
     UdpTransport,
@@ -37,6 +36,7 @@ import {
     ScannerSet,
     SecureChannelProtocol,
     SessionManager,
+    TcpTransport,
 } from "@matter/protocol";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
