@@ -46,7 +46,7 @@ export declare namespace WaterTankLevelMonitoring {
          * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the current
          * requirement to change the resource.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.3
          */
         changeIndication: ResourceMonitoring.ChangeIndication;
 
@@ -54,7 +54,7 @@ export declare namespace WaterTankLevelMonitoring {
          * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
          * installed. A value of false shall indicate that a resource is not installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.4
          */
         inPlaceIndicator?: boolean;
 
@@ -62,7 +62,7 @@ export declare namespace WaterTankLevelMonitoring {
          * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
          * attribute shall be null if it was never set or is unknown.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.5
          */
         lastChangedTime?: number | null;
     }
@@ -74,7 +74,7 @@ export declare namespace WaterTankLevelMonitoring {
         /**
          * Indicates the current condition of the resource in percent.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.1
          */
         condition: number;
 
@@ -82,7 +82,7 @@ export declare namespace WaterTankLevelMonitoring {
          * Indicates the direction of change for the condition of the resource over time, which helps to determine
          * whether a higher or lower condition value is considered optimal.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.2
          */
         degradationDirection: ResourceMonitoring.DegradationDirection;
     }
@@ -95,7 +95,7 @@ export declare namespace WaterTankLevelMonitoring {
          * Indicates the list of supported products that may be used as replacements for the current resource. Each item
          * in this list represents a unique ReplacementProductStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.6
          */
         replacementProductList: ResourceMonitoring.ReplacementProduct[];
     }
@@ -111,7 +111,7 @@ export declare namespace WaterTankLevelMonitoring {
          * This attribute shall be populated with a value from ChangeIndicationEnum that is indicative of the current
          * requirement to change the resource.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.3
          */
         changeIndication: ResourceMonitoring.ChangeIndication;
 
@@ -119,7 +119,7 @@ export declare namespace WaterTankLevelMonitoring {
          * Indicates whether a resource is currently installed. A value of true shall indicate that a resource is
          * installed. A value of false shall indicate that a resource is not installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.4
          */
         inPlaceIndicator: boolean;
 
@@ -127,14 +127,14 @@ export declare namespace WaterTankLevelMonitoring {
          * This attribute may indicates the time at which the resource has been changed, if supported by the server. The
          * attribute shall be null if it was never set or is unknown.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.5
          */
         lastChangedTime: number | null;
 
         /**
          * Indicates the current condition of the resource in percent.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.1
          */
         condition: number;
 
@@ -142,7 +142,7 @@ export declare namespace WaterTankLevelMonitoring {
          * Indicates the direction of change for the condition of the resource over time, which helps to determine
          * whether a higher or lower condition value is considered optimal.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.2
          */
         degradationDirection: ResourceMonitoring.DegradationDirection;
 
@@ -150,7 +150,7 @@ export declare namespace WaterTankLevelMonitoring {
          * Indicates the list of supported products that may be used as replacements for the current resource. Each item
          * in this list represents a unique ReplacementProductStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.6.6
          */
         replacementProductList: ResourceMonitoring.ReplacementProduct[];
     }
@@ -165,7 +165,7 @@ export declare namespace WaterTankLevelMonitoring {
          * LastChangedTime to be updated automatically based on the clock of the server, if the server supports setting
          * the attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.8.7.1
          */
         resetCondition(): MaybePromise;
     }
@@ -185,7 +185,7 @@ export declare namespace WaterTankLevelMonitoring {
     /**
      * These are optional features supported by WaterTankLevelMonitoringCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.8.4
+     * @see {@link MatterSpecification.v151.Cluster} § 2.8.4
      */
     export enum Feature {
         /**

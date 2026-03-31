@@ -35,7 +35,7 @@ import { Identity } from "@matter/general";
  * distinguish the type of physical device based on the device type revision found on an endpoint ("--" means the device
  * type is not listed).
  *
- * @see {@link MatterSpecification.v142.Device} § 5.1
+ * @see {@link MatterSpecification.v151.Device} § 5.1
  */
 export interface OnOffPlugInUnitDevice extends Identity<typeof OnOffPlugInUnitDeviceDefinition> {}
 

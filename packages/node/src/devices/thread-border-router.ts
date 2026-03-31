@@ -29,7 +29,7 @@ import { Identity } from "@matter/general";
  * The necessary hardware and software prerequisites are detailed within the clusters that are mandated by this device
  * type.
  *
- * @see {@link MatterSpecification.v142.Device} § 15.4
+ * @see {@link MatterSpecification.v151.Device} § 15.4
  */
 export interface ThreadBorderRouterDevice extends Identity<typeof ThreadBorderRouterDeviceDefinition> {}
 

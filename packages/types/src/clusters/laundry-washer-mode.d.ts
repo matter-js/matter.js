@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
  * for laundry washer as well as laundry dryer devices.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 8.5
+ * @see {@link MatterSpecification.v151.Cluster} § 8.5
  */
 export declare namespace LaundryWasherMode {
     /**
@@ -52,12 +52,12 @@ export declare namespace LaundryWasherMode {
          * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field
          * list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.6
          */
         currentMode: number;
     }
@@ -73,12 +73,12 @@ export declare namespace LaundryWasherMode {
          * At least one entry in the SupportedModes attribute shall include the Normal mode tag in the ModeTags field
          * list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.6
          */
         currentMode: number;
     }
@@ -92,7 +92,7 @@ export declare namespace LaundryWasherMode {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
          */
         changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
     }
@@ -108,7 +108,7 @@ export declare namespace LaundryWasherMode {
     /**
      * These are optional features supported by LaundryWasherModeCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 8.5.4
      */
     export enum Feature {
         /**
@@ -123,7 +123,7 @@ export declare namespace LaundryWasherMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.5.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 8.5.5.1
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -133,14 +133,14 @@ export declare namespace LaundryWasherMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -180,87 +180,87 @@ export declare namespace LaundryWasherMode {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1
          */
         Day = 9,
 
         /**
          * The normal regime of operation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1.1
          */
         Normal = 16384,
 
         /**
          * Mode optimized for washing delicate garments.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1.2
          */
         Delicate = 16385,
 
         /**
          * Mode optimized for heavy washing.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1.3
          */
         Heavy = 16386,
 
         /**
          * Mode optimized for stain removal on white fabrics.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.5.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 8.5.7.1.4
          */
         Whites = 16387
     }
@@ -268,7 +268,7 @@ export declare namespace LaundryWasherMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
@@ -284,7 +284,7 @@ export declare namespace LaundryWasherMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -292,7 +292,7 @@ export declare namespace LaundryWasherMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
     };

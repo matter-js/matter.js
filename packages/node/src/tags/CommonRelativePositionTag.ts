@@ -15,7 +15,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * difference with Chapter 9, Common Position Semantic Tag Namespace, which contains tags indicating the position
  * relative to the device.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 17
+ * @see {@link MatterSpecification.v151.Namespace} § 17
  */
 export const CommonRelativePositionTag = SemanticNamespace({
     id: 0x12,

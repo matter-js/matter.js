@@ -33,7 +33,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * Additionally, this cluster provides events for monitoring the operational state of the device.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.14
+ * @see {@link MatterSpecification.v151.Cluster} § 1.14
  */
 export declare namespace OperationalState {
     /**
@@ -71,7 +71,7 @@ export declare namespace OperationalState {
          * A null value indicates that the device does not present phases during its operation. When this attribute’s
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
          */
         phaseList: string[] | null;
 
@@ -83,7 +83,7 @@ export declare namespace OperationalState {
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.2
          */
         currentPhase: number | null;
 
@@ -97,7 +97,7 @@ export declare namespace OperationalState {
          * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of states
          * that are applicable to that specific device type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.4
          */
         operationalStateList: OperationalStateStruct[];
 
@@ -105,7 +105,7 @@ export declare namespace OperationalState {
          * This attribute specifies the current operational state of a device. This shall be populated with a valid
          * OperationalStateID from the set of values in the OperationalStateList Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.5
          */
         operationalState: OperationalStateEnum;
 
@@ -116,7 +116,7 @@ export declare namespace OperationalState {
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.6
          */
         operationalError: ErrorStateStruct;
 
@@ -149,7 +149,7 @@ export declare namespace OperationalState {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.3
          */
         countdownTime?: number | null;
     }
@@ -169,7 +169,7 @@ export declare namespace OperationalState {
          * A null value indicates that the device does not present phases during its operation. When this attribute’s
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
          */
         phaseList: string[] | null;
 
@@ -181,7 +181,7 @@ export declare namespace OperationalState {
          *
          * Null if the PhaseList attribute is null or if the PhaseList attribute is an empty list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.2
          */
         currentPhase: number | null;
 
@@ -195,7 +195,7 @@ export declare namespace OperationalState {
          * OperationalStateEnum. A device type requiring implementation of this cluster shall define the set of states
          * that are applicable to that specific device type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.4
          */
         operationalStateList: OperationalStateStruct[];
 
@@ -203,7 +203,7 @@ export declare namespace OperationalState {
          * This attribute specifies the current operational state of a device. This shall be populated with a valid
          * OperationalStateID from the set of values in the OperationalStateList Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.5
          */
         operationalState: OperationalStateEnum;
 
@@ -214,7 +214,7 @@ export declare namespace OperationalState {
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.6
          */
         operationalError: ErrorStateStruct;
 
@@ -247,7 +247,7 @@ export declare namespace OperationalState {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.3
          */
         countdownTime: number | null;
     }
@@ -288,7 +288,7 @@ export declare namespace OperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.1
          */
         pause(): MaybePromise<OperationalCommandResponse>;
 
@@ -312,7 +312,7 @@ export declare namespace OperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.2
          */
         stop(): MaybePromise<OperationalCommandResponse>;
 
@@ -338,7 +338,7 @@ export declare namespace OperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.3
          */
         start(): MaybePromise<OperationalCommandResponse>;
 
@@ -375,7 +375,7 @@ export declare namespace OperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.4
          */
         resume(): MaybePromise<OperationalCommandResponse>;
     }
@@ -395,7 +395,7 @@ export declare namespace OperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.1
          */
         operationalError: OperationalErrorEvent;
 
@@ -410,7 +410,7 @@ export declare namespace OperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2
          */
         operationCompletion?: OperationCompletionEvent;
     }
@@ -427,7 +427,7 @@ export declare namespace OperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.1
          */
         operationalError: OperationalErrorEvent;
 
@@ -442,7 +442,7 @@ export declare namespace OperationalState {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2
          */
         operationCompletion: OperationCompletionEvent;
     }
@@ -452,7 +452,7 @@ export declare namespace OperationalState {
     /**
      * The OperationalStateStruct is used to indicate a possible state of the device.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.2
      */
     export declare class OperationalStateStruct {
         constructor(values?: Partial<OperationalStateStruct>);
@@ -460,7 +460,7 @@ export declare namespace OperationalState {
         /**
          * This shall be populated with a value from the OperationalStateEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.2.1
          */
         operationalStateId: OperationalStateEnum;
 
@@ -468,7 +468,7 @@ export declare namespace OperationalState {
          * This field is present when the OperationalStateID is from the set reserved for Manufacturer Specific States.
          * If present, this shall contain a human-readable description of the operational state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.2.2
          */
         operationalStateLabel?: string;
     };
@@ -489,7 +489,7 @@ export declare namespace OperationalState {
      * cluster. Such manufacturer-specific state definitions shall be scoped in the context of the Vendor ID present in
      * the Basic Information cluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.1
      */
     export enum OperationalStateEnum {
         /**
@@ -514,7 +514,7 @@ export declare namespace OperationalState {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.4
      */
     export declare class ErrorStateStruct {
         constructor(values?: Partial<ErrorStateStruct>);
@@ -522,7 +522,7 @@ export declare namespace OperationalState {
         /**
          * This shall be populated with a value from the ErrorStateEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.4.1
          */
         errorStateId: ErrorState;
 
@@ -530,7 +530,7 @@ export declare namespace OperationalState {
          * This field is present when the ErrorStateID is from the set reserved for Manufacturer Specific errors. If
          * present, this shall contain a human-readable description of the error state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.4.2
          */
         errorStateLabel?: string;
 
@@ -539,7 +539,7 @@ export declare namespace OperationalState {
          * ErrorStateID indicates that the device is a Robotic Vacuum that is stuck, the ErrorStateDetails contains
          * "left wheel blocked".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.4.3
          */
         errorStateDetails?: string;
     };
@@ -551,7 +551,7 @@ export declare namespace OperationalState {
      *
      * This command shall be generated in response to any of the Start, Stop, Pause, or Resume commands.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.5
      */
     export declare class OperationalCommandResponse {
         constructor(values?: Partial<OperationalCommandResponse>);
@@ -561,7 +561,7 @@ export declare namespace OperationalState {
          * of the attempted command, the ErrorStateID shall be populated with NoError. See the individual command
          * sections for additional specific requirements on population.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.6.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.6.5.1
          */
         commandResponseState: ErrorStateStruct;
     };
@@ -572,7 +572,7 @@ export declare namespace OperationalState {
      *
      * This event shall contain the following fields:
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.1
      */
     export declare class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
@@ -590,7 +590,7 @@ export declare namespace OperationalState {
      *
      * This event shall contain the following fields:
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2
      */
     export declare class OperationCompletionEvent {
         constructor(values?: Partial<OperationCompletionEvent>);
@@ -599,7 +599,7 @@ export declare namespace OperationalState {
          * This field provides an indication of the state at the end of the operation. This field shall have a value
          * from the ErrorStateEnum set. A value of NoError indicates success, that is, no error has been detected.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2.1
          */
         completionErrorCode: number;
 
@@ -609,7 +609,7 @@ export declare namespace OperationalState {
          * There may be cases whereby the total operational time exceeds the maximum value that can be conveyed by this
          * attribute, in such instances, this attribute shall be populated with null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2.2
          */
         totalOperationalTime?: number | null;
 
@@ -618,7 +618,7 @@ export declare namespace OperationalState {
          * exceeds the maximum value that can be conveyed by this attribute, in such instances, this attribute shall be
          * populated with null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.14.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.14.7.2.3
          */
         pausedTime?: number | null;
     };
@@ -642,7 +642,7 @@ export declare namespace OperationalState {
      * The set of ErrorStateID field values defined in each of the generic or derived Operational State cluster
      * specifications is called ErrorState.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.14.4.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.14.4.3
      */
     export enum ErrorState {
         /**

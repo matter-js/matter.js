@@ -18,7 +18,7 @@ import type { Status } from "../globals/Status.js";
  *
  * This cluster is used to configure a valve.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 4.6
+ * @see {@link MatterSpecification.v151.Cluster} § 4.6
  */
 export declare namespace ValveConfigurationAndControl {
     /**
@@ -53,7 +53,7 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate the duration is not set, meaning that the valve will remain open until closed
          * by the user or some other automation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.1
          */
         openDuration: number | null;
 
@@ -64,7 +64,7 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate the duration is not set, meaning that the valve will remain open until closed
          * by the user or some other automation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.2
          */
         defaultOpenDuration: number | null;
 
@@ -96,7 +96,7 @@ export declare namespace ValveConfigurationAndControl {
          * position. The behavior of transitioning to the closed position shall match the behavior described in the
          * Close command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.4
          */
         remainingDuration: number | null;
 
@@ -105,7 +105,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * A value of null shall indicate that the current state is not known.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.5
          */
         currentState: ValveState | null;
 
@@ -115,14 +115,14 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate that no target position is set, since the change in state is either done or
          * failed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.6
          */
         targetState: ValveState | null;
 
         /**
          * Indicates any faults registered by the valve.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.10
          */
         valveFault?: ValveFault;
     }
@@ -150,7 +150,7 @@ export declare namespace ValveConfigurationAndControl {
          * the current UTC time of the device, the value of this attribute shall be adjusted to match the new UTC time
          * plus the value of the RemainingDuration attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.3
          */
         autoCloseTime: number | bigint | null;
     }
@@ -170,7 +170,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * A value of null shall indicate that the current state is not known.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.7
          */
         currentLevel: number | null;
 
@@ -182,7 +182,7 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate that no target position is set, since the change of level is either done or
          * failed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.8
          */
         targetLevel: number | null;
 
@@ -196,7 +196,7 @@ export declare namespace ValveConfigurationAndControl {
          * requested DefaultOpenLevel value is considered an unsupported value and a CONSTRAINT_ERROR status shall be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.9
          */
         defaultOpenLevel?: number;
 
@@ -209,7 +209,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * The values of 0 and 100 shall always be supported, regardless of the value of this attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.11
          */
         levelStep?: number;
     }
@@ -227,7 +227,7 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate the duration is not set, meaning that the valve will remain open until closed
          * by the user or some other automation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.1
          */
         openDuration: number | null;
 
@@ -238,7 +238,7 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate the duration is not set, meaning that the valve will remain open until closed
          * by the user or some other automation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.2
          */
         defaultOpenDuration: number | null;
 
@@ -270,7 +270,7 @@ export declare namespace ValveConfigurationAndControl {
          * position. The behavior of transitioning to the closed position shall match the behavior described in the
          * Close command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.4
          */
         remainingDuration: number | null;
 
@@ -279,7 +279,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * A value of null shall indicate that the current state is not known.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.5
          */
         currentState: ValveState | null;
 
@@ -289,14 +289,14 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate that no target position is set, since the change in state is either done or
          * failed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.6
          */
         targetState: ValveState | null;
 
         /**
          * Indicates any faults registered by the valve.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.10
          */
         valveFault: ValveFault;
 
@@ -319,7 +319,7 @@ export declare namespace ValveConfigurationAndControl {
          * the current UTC time of the device, the value of this attribute shall be adjusted to match the new UTC time
          * plus the value of the RemainingDuration attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.3
          */
         autoCloseTime: number | bigint | null;
 
@@ -334,7 +334,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * A value of null shall indicate that the current state is not known.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.7
          */
         currentLevel: number | null;
 
@@ -346,7 +346,7 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate that no target position is set, since the change of level is either done or
          * failed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.8
          */
         targetLevel: number | null;
 
@@ -360,7 +360,7 @@ export declare namespace ValveConfigurationAndControl {
          * requested DefaultOpenLevel value is considered an unsupported value and a CONSTRAINT_ERROR status shall be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.9
          */
         defaultOpenLevel: number;
 
@@ -373,7 +373,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * The values of 0 and 100 shall always be supported, regardless of the value of this attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.7.11
          */
         levelStep: number;
     }
@@ -385,14 +385,14 @@ export declare namespace ValveConfigurationAndControl {
         /**
          * This command is used to set the valve to its open position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.1
          */
         open(request: OpenRequest): MaybePromise;
 
         /**
          * This command is used to set the valve to its closed position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.2
          */
         close(): MaybePromise;
     }
@@ -410,7 +410,7 @@ export declare namespace ValveConfigurationAndControl {
          * This event shall be generated when the valve state changed. For level changes, after the end of movement, for
          * state changes when the new state has been reached.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1
          */
         valveStateChanged?: ValveStateChangedEvent;
 
@@ -418,7 +418,7 @@ export declare namespace ValveConfigurationAndControl {
          * This event shall be generated when the valve registers or clears a fault, e.g. not being able to transition
          * to the requested target level or state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.2
          */
         valveFault?: ValveFaultEvent;
     }
@@ -434,7 +434,7 @@ export declare namespace ValveConfigurationAndControl {
          * This event shall be generated when the valve state changed. For level changes, after the end of movement, for
          * state changes when the new state has been reached.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1
          */
         valveStateChanged: ValveStateChangedEvent;
 
@@ -442,7 +442,7 @@ export declare namespace ValveConfigurationAndControl {
          * This event shall be generated when the valve registers or clears a fault, e.g. not being able to transition
          * to the requested target level or state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.2
          */
         valveFault: ValveFaultEvent;
     }
@@ -457,7 +457,7 @@ export declare namespace ValveConfigurationAndControl {
     /**
      * These are optional features supported by ValveConfigurationAndControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.4
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.4
      */
     export enum Feature {
         /**
@@ -468,7 +468,7 @@ export declare namespace ValveConfigurationAndControl {
          *
          * This feature shall NOT be supported unless the device supports the Time Synchronization cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.4.1
          */
         TimeSync = "TimeSync",
 
@@ -478,13 +478,13 @@ export declare namespace ValveConfigurationAndControl {
          * This feature shall indicate that the valve is capable of being adjusted to a specific position, as a
          * percentage, of its full range of motion.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.4.2
          */
         Level = "Level"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.5.2
      */
     export enum ValveState {
         /**
@@ -504,7 +504,7 @@ export declare namespace ValveConfigurationAndControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.5.1
      */
     export declare class ValveFault {
         constructor(values?: Partial<ValveFault> | number);
@@ -543,7 +543,7 @@ export declare namespace ValveConfigurationAndControl {
     /**
      * This command is used to set the valve to its open position.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.1
      */
     export declare class OpenRequest {
         constructor(values?: Partial<OpenRequest>);
@@ -554,14 +554,14 @@ export declare namespace ValveConfigurationAndControl {
          * A value of null shall indicate the duration is not set, meaning that the valve will remain open until closed
          * by the user or some other automation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.1.1
          */
         openDuration?: number | null;
 
         /**
          * This field shall indicate the target level used for this specific Open command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.8.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.8.1.2
          */
         targetLevel?: number;
     };
@@ -570,7 +570,7 @@ export declare namespace ValveConfigurationAndControl {
      * This event shall be generated when the valve state changed. For level changes, after the end of movement, for
      * state changes when the new state has been reached.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1
      */
     export declare class ValveStateChangedEvent {
         constructor(values?: Partial<ValveStateChangedEvent>);
@@ -578,14 +578,14 @@ export declare namespace ValveConfigurationAndControl {
         /**
          * This field shall indicate the new state of the valve.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1.1
          */
         valveState: ValveState;
 
         /**
          * This field shall indicate the new level of the valve.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.1.2
          */
         valveLevel?: number;
     };
@@ -594,7 +594,7 @@ export declare namespace ValveConfigurationAndControl {
      * This event shall be generated when the valve registers or clears a fault, e.g. not being able to transition to
      * the requested target level or state.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.2
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.2
      */
     export declare class ValveFaultEvent {
         constructor(values?: Partial<ValveFaultEvent>);
@@ -602,13 +602,13 @@ export declare namespace ValveConfigurationAndControl {
         /**
          * This field shall indicate the value of the ValveFault attribute, at the time this event is generated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.6.9.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.6.9.2.1
          */
         valveFault: ValveFault;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.6.1
      */
     export enum StatusCode {
         /**
@@ -620,7 +620,7 @@ export declare namespace ValveConfigurationAndControl {
     /**
      * Thrown for cluster status code {@link StatusCode.FailureDueToFault}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.6.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.6.6.1
      */
     export class FailureDueToFaultError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)

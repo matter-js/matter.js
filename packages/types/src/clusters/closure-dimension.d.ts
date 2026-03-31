@@ -30,7 +30,7 @@ import type { ThreeLevelAuto } from "../globals/ThreeLevelAuto.js";
  *
  * This cluster may also be used to latch or anchor a panel in a position, if the panel supports that.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 5.5
+ * @see {@link MatterSpecification.v151.Cluster} § 5.5
  */
 export declare namespace ClosureDimension {
     /**
@@ -91,7 +91,7 @@ export declare namespace ClosureDimension {
          *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
          *     Closure Control and Closure Dimension Clusters”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.1
          */
         currentState: DimensionState | null;
 
@@ -115,7 +115,7 @@ export declare namespace ClosureDimension {
          *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
          *     Closure Control and Closure Dimension Clusters”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.2
          */
         targetState: DimensionState | null;
     }
@@ -137,7 +137,7 @@ export declare namespace ClosureDimension {
          * > A resolution of 100% means that the associated dimension cannot be placed in an intermediate position - its
          *   position is binary.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.3
          */
         resolution: number;
 
@@ -151,7 +151,7 @@ export declare namespace ClosureDimension {
          * > The StepValue should be large enough to cause a visible change in the closure’s position when a Step
          *   command is invoked.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.4
          */
         stepValue: number;
     }
@@ -163,7 +163,7 @@ export declare namespace ClosureDimension {
         /**
          * Indicates the unit related to the Position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.5
          */
         unit: ClosureUnit;
 
@@ -172,7 +172,7 @@ export declare namespace ClosureDimension {
          *
          * The value of this attribute may be null if the product has not been set up.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.6
          */
         unitRange: UnitRange | null;
     }
@@ -188,7 +188,7 @@ export declare namespace ClosureDimension {
          *
          * LimitRange.Min and LimitRange.Max shall be equal to an integer multiple of the Resolution attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.7
          */
         limitRange: RangePercent100ths;
     }
@@ -203,7 +203,7 @@ export declare namespace ClosureDimension {
          * A properly configured closure dimension SHOULD reflect as best as possible the translation as seen by the
          * user. This attribute is not supposed to change once the installation is finalized.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.8
          */
         translationDirection: TranslationDirection;
     }
@@ -218,7 +218,7 @@ export declare namespace ClosureDimension {
          * A properly configured closure dimension SHOULD reflect as best as possible the rotation axis as perceived by
          * the user. This attribute is not supposed to change once the installation is finalized.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.9
          */
         rotationAxis: RotationAxis;
 
@@ -230,7 +230,7 @@ export declare namespace ClosureDimension {
          * case, this attribute shall use Top/Bottom/Left/Right Inside or Top/Bottom/Left/Right Outside enumerated
          * value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.10
          */
         overflow: Overflow;
     }
@@ -245,7 +245,7 @@ export declare namespace ClosureDimension {
          * The server SHOULD reflect, as best as possible, the modulation type as perceived by the user. This attribute
          * is not supposed to change once the installation is finalized.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.11
          */
         modulationType: ModulationType;
     }
@@ -257,7 +257,7 @@ export declare namespace ClosureDimension {
         /**
          * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.12
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.12
          */
         latchControlModes: LatchControlModes;
     }
@@ -301,7 +301,7 @@ export declare namespace ClosureDimension {
          *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
          *     Closure Control and Closure Dimension Clusters”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.1
          */
         currentState: DimensionState | null;
 
@@ -325,7 +325,7 @@ export declare namespace ClosureDimension {
          *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
          *     Closure Control and Closure Dimension Clusters”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.2
          */
         targetState: DimensionState | null;
 
@@ -342,7 +342,7 @@ export declare namespace ClosureDimension {
          * > A resolution of 100% means that the associated dimension cannot be placed in an intermediate position - its
          *   position is binary.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.3
          */
         resolution: number;
 
@@ -356,14 +356,14 @@ export declare namespace ClosureDimension {
          * > The StepValue should be large enough to cause a visible change in the closure’s position when a Step
          *   command is invoked.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.4
          */
         stepValue: number;
 
         /**
          * Indicates the unit related to the Position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.5
          */
         unit: ClosureUnit;
 
@@ -372,7 +372,7 @@ export declare namespace ClosureDimension {
          *
          * The value of this attribute may be null if the product has not been set up.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.6
          */
         unitRange: UnitRange | null;
 
@@ -383,7 +383,7 @@ export declare namespace ClosureDimension {
          *
          * LimitRange.Min and LimitRange.Max shall be equal to an integer multiple of the Resolution attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.7
          */
         limitRange: RangePercent100ths;
 
@@ -393,7 +393,7 @@ export declare namespace ClosureDimension {
          * A properly configured closure dimension SHOULD reflect as best as possible the translation as seen by the
          * user. This attribute is not supposed to change once the installation is finalized.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.8
          */
         translationDirection: TranslationDirection;
 
@@ -403,7 +403,7 @@ export declare namespace ClosureDimension {
          * A properly configured closure dimension SHOULD reflect as best as possible the rotation axis as perceived by
          * the user. This attribute is not supposed to change once the installation is finalized.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.9
          */
         rotationAxis: RotationAxis;
 
@@ -415,7 +415,7 @@ export declare namespace ClosureDimension {
          * case, this attribute shall use Top/Bottom/Left/Right Inside or Top/Bottom/Left/Right Outside enumerated
          * value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.10
          */
         overflow: Overflow;
 
@@ -425,14 +425,14 @@ export declare namespace ClosureDimension {
          * The server SHOULD reflect, as best as possible, the modulation type as perceived by the user. This attribute
          * is not supposed to change once the installation is finalized.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.11
          */
         modulationType: ModulationType;
 
         /**
          * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.7.12
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.12
          */
         latchControlModes: LatchControlModes;
     }
@@ -450,7 +450,7 @@ export declare namespace ClosureDimension {
          * server, invokes a command that includes both position and speed, a server that does not support the speed
          * feature would simply ignore the speed field while still adjusting its position as requested.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1
          */
         setTarget(request: SetTargetRequest): MaybePromise;
     }
@@ -462,7 +462,7 @@ export declare namespace ClosureDimension {
         /**
          * This command is used to move a dimension of the closure to a target position by a number of steps.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2
          */
         step(request: StepRequest): MaybePromise;
     }
@@ -491,7 +491,7 @@ export declare namespace ClosureDimension {
     /**
      * These are optional features supported by ClosureDimensionCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.5
      */
     export enum Feature {
         /**
@@ -506,7 +506,7 @@ export declare namespace ClosureDimension {
          *   For example, if the Modulation feature is supported and the ModulationType is SlatsOrientation or
          *   StripesAlignment, the panel can be fully closed at 0.00% and 100.00%, and be fully opened at 50.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.1
          */
         Positioning = "Positioning",
 
@@ -517,7 +517,7 @@ export declare namespace ClosureDimension {
          * feature has capabilities that will prevent actuators from moving along parts of that axis if the dimension is
          * latched.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.2
          */
         MotionLatching = "MotionLatching",
 
@@ -526,7 +526,7 @@ export declare namespace ClosureDimension {
          *
          * This feature shall indicate additional information about the closure dimension’s possible range of movement.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.3
          */
         Unit = "Unit",
 
@@ -536,7 +536,7 @@ export declare namespace ClosureDimension {
          * This feature shall indicate that the closure dimension supports degradation of its functioning. Reachable
          * Position range may be limited compared to full scope of a nominal behavior.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.4
          */
         Limitation = "Limitation",
 
@@ -551,7 +551,7 @@ export declare namespace ClosureDimension {
          * > The server might not support three different speed values. The manufacturer shall select speed values
          *   linked to Low, Medium and High such that Low <= Medium <= High.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.5
          */
         Speed = "Speed",
 
@@ -562,7 +562,7 @@ export declare namespace ClosureDimension {
          * downward, upward, leftward, rightward, forward, and backward. The Translation feature is used to control the
          * position of the panel along the specified axis.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.6
          */
         Translation = "Translation",
 
@@ -573,7 +573,7 @@ export declare namespace ClosureDimension {
          * right, top, bottom, centered vertical, and centered horizontal. The Rotation feature is used to control the
          * orientation of the panel around the specified axis.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.7
          */
         Rotation = "Rotation",
 
@@ -585,13 +585,13 @@ export declare namespace ClosureDimension {
          * opacity, and ventilation. The Modulation feature is used to adjust the panel’s properties to achieve the
          * desired effect.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.5.8
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.8
          */
         Modulation = "Modulation"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.9
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.9
      */
     export declare class DimensionState {
         constructor(values?: Partial<DimensionState>);
@@ -601,7 +601,7 @@ export declare namespace ClosureDimension {
          *
          * A null value indicates that the position is not known or is not set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.9.1
          */
         position?: number | null;
 
@@ -611,7 +611,7 @@ export declare namespace ClosureDimension {
          *
          * A null value indicates that the latch is not known or is not set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.9.2
          */
         latch?: boolean | null;
 
@@ -621,13 +621,13 @@ export declare namespace ClosureDimension {
          * If no speed value has yet been set, the server shall select and set one of the speed values defined in the
          * ThreeLevelAutoEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.9.3
          */
         speed?: ThreeLevelAuto;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.5
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.5
      */
     export enum ClosureUnit {
         /**
@@ -642,7 +642,7 @@ export declare namespace ClosureDimension {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.8
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.8
      */
     export declare class UnitRange {
         constructor(values?: Partial<UnitRange>);
@@ -651,7 +651,7 @@ export declare namespace ClosureDimension {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.7
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.7
      */
     export declare class RangePercent100ths {
         constructor(values?: Partial<RangePercent100ths>);
@@ -662,7 +662,7 @@ export declare namespace ClosureDimension {
     /**
      * ### Legend: Open Closed
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.1
      */
     export enum TranslationDirection {
         /**
@@ -729,7 +729,7 @@ export declare namespace ClosureDimension {
     /**
      * ### Legend: Open Closed
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.2
      */
     export enum RotationAxis {
         /**
@@ -789,7 +789,7 @@ export declare namespace ClosureDimension {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.3
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.3
      */
     export enum Overflow {
         /**
@@ -849,7 +849,7 @@ export declare namespace ClosureDimension {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.4
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.4
      */
     export enum ModulationType {
         /**
@@ -879,7 +879,7 @@ export declare namespace ClosureDimension {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.10
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.10
      */
     export declare class LatchControlModes {
         constructor(values?: Partial<LatchControlModes> | number);
@@ -893,7 +893,7 @@ export declare namespace ClosureDimension {
          *
          *   - 1 = the latch can be latched via remote control (e.g., electronic or remote actuation).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.10.1
          */
         remoteLatching?: boolean;
 
@@ -906,7 +906,7 @@ export declare namespace ClosureDimension {
          *
          *   - 1 = the latch can be unlatched via remote control (e.g., electronic or remote actuation).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.10.2
          */
         remoteUnlatching?: boolean;
     };
@@ -920,7 +920,7 @@ export declare namespace ClosureDimension {
      * server, invokes a command that includes both position and speed, a server that does not support the speed feature
      * would simply ignore the speed field while still adjusting its position as requested.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1
      */
     export declare class SetTargetRequest {
         constructor(values?: Partial<SetTargetRequest>);
@@ -945,7 +945,7 @@ export declare namespace ClosureDimension {
          * to the nearest valid position (an integer multiple of the Resolution attribute), whether by rounding the
          * requested value or using it directly if already valid, and then initiate the motion procedure.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1.1
          */
         position?: number;
 
@@ -968,7 +968,7 @@ export declare namespace ClosureDimension {
          * TargetState.Latch, or - if the "LatchControlModes" attribute specifies that manual intervention is required
          * to latch - respond with INVALID_IN_STATE and remain in its current state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1.2
          */
         latch?: boolean;
 
@@ -998,7 +998,7 @@ export declare namespace ClosureDimension {
          *       specific. If the Limitation feature is supported, the closure will automatically offset the
          *       TargetState.Position value to fit within LimitRange.Min and LimitRange.Max.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.1.3
          */
         speed?: ThreeLevelAuto;
     };
@@ -1006,7 +1006,7 @@ export declare namespace ClosureDimension {
     /**
      * This command is used to move a dimension of the closure to a target position by a number of steps.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.2
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2
      */
     export declare class StepRequest {
         constructor(values?: Partial<StepRequest>);
@@ -1018,7 +1018,7 @@ export declare namespace ClosureDimension {
          *
          *   - Decreased toward 0.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2.1
          */
         direction: StepDirection;
 
@@ -1026,14 +1026,14 @@ export declare namespace ClosureDimension {
          * This field shall indicate the number of steps by which the position should be changed. The size of one step,
          * expressed in percent100ths, is determined by the "StepValue" attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2.2
          */
         numberOfSteps: number;
 
         /**
          * This field shall indicate the desired speed of motion.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.5.8.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.5.8.2.3
          */
         speed?: ThreeLevelAuto;
     };
@@ -1041,7 +1041,7 @@ export declare namespace ClosureDimension {
     /**
      * This data type is derived from enum8 and used for the Step command to indicate the direction of the steps.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.5.6.6
+     * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.6
      */
     export enum StepDirection {
         /**

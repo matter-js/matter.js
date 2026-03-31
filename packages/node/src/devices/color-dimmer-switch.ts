@@ -23,7 +23,7 @@ import { Identity } from "@matter/general";
  * A Color Dimmer Switch is a controller device that, when bound to a lighting device such as an Extended Color Light,
  * is capable of being used to adjust the color of the light being emitted.
  *
- * @see {@link MatterSpecification.v142.Device} § 6.3
+ * @see {@link MatterSpecification.v151.Device} § 6.3
  */
 export interface ColorDimmerSwitchDevice extends Identity<typeof ColorDimmerSwitchDeviceDefinition> {}
 

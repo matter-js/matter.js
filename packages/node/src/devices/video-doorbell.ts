@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * A Video Doorbell device is a composite device which combines a camera and a switch to provide a doorbell with Video
  * and Audio streaming.
  *
- * @see {@link MatterSpecification.v142.Device} § 16.3
+ * @see {@link MatterSpecification.v151.Device} § 16.3
  */
 export interface VideoDoorbellDevice extends Identity<typeof VideoDoorbellDeviceDefinition> {}
 

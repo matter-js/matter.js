@@ -17,7 +17,7 @@ import { Identity } from "@matter/general";
  * An Electrical Utility Meter device provides utility account information, as well as optional details about tariffs
  * and metering.
  *
- * @see {@link MatterSpecification.v142.Device} § 14.9
+ * @see {@link MatterSpecification.v151.Device} § 14.9
  */
 export interface ElectricalUtilityMeterDevice extends Identity<typeof ElectricalUtilityMeterDeviceDefinition> {}
 

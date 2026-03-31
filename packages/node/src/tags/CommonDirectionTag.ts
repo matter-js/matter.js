@@ -13,7 +13,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * in a certain direction relative to the device. Note the difference with Chapter 9, Common Position Semantic Tag
  * Namespace.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 5
+ * @see {@link MatterSpecification.v151.Namespace} § 5
  */
 export const CommonDirectionTag = SemanticNamespace({
     id: 0x4,

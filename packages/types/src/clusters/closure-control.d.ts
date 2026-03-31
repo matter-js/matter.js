@@ -17,7 +17,7 @@ import type { ThreeLevelAuto } from "../globals/ThreeLevelAuto.js";
  *
  * This cluster provides an interface for controlling a Closure.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 5.4
+ * @see {@link MatterSpecification.v151.Cluster} § 5.4
  */
 export declare namespace ClosureControl {
     /**
@@ -55,7 +55,7 @@ export declare namespace ClosureControl {
          *   the internals of a closure implementation to help illustrate the aspects of function that are considered by
          *   the cluster’s normative text.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.2
          */
         mainState: MainState;
 
@@ -66,7 +66,7 @@ export declare namespace ClosureControl {
          *
          * There shall NOT be duplicate values of ClosureErrorEnum within the CurrentErrorList.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.3
          */
         currentErrorList: ClosureError[];
 
@@ -89,7 +89,7 @@ export declare namespace ClosureControl {
          *
          *   - The Stop command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.4
          */
         overallCurrentState: OverallCurrentState | null;
 
@@ -99,7 +99,7 @@ export declare namespace ClosureControl {
          *
          * Null, if the state is unknown. For example after a reboot.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.5
          */
         overallTargetState: OverallTargetState | null;
     }
@@ -135,7 +135,7 @@ export declare namespace ClosureControl {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.1
          */
         countdownTime?: number | null;
     }
@@ -147,7 +147,7 @@ export declare namespace ClosureControl {
         /**
          * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.6
          */
         latchControlModes: LatchControlModes;
     }
@@ -168,7 +168,7 @@ export declare namespace ClosureControl {
          *   the internals of a closure implementation to help illustrate the aspects of function that are considered by
          *   the cluster’s normative text.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.2
          */
         mainState: MainState;
 
@@ -179,7 +179,7 @@ export declare namespace ClosureControl {
          *
          * There shall NOT be duplicate values of ClosureErrorEnum within the CurrentErrorList.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.3
          */
         currentErrorList: ClosureError[];
 
@@ -202,7 +202,7 @@ export declare namespace ClosureControl {
          *
          *   - The Stop command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.4
          */
         overallCurrentState: OverallCurrentState | null;
 
@@ -212,7 +212,7 @@ export declare namespace ClosureControl {
          *
          * Null, if the state is unknown. For example after a reboot.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.5
          */
         overallTargetState: OverallTargetState | null;
 
@@ -243,14 +243,14 @@ export declare namespace ClosureControl {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.1
          */
         countdownTime: number | null;
 
         /**
          * This attribute shall specify whether the latch mechanism can be latched or unlatched remotely.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.6
          */
         latchControlModes: LatchControlModes;
     }
@@ -269,7 +269,7 @@ export declare namespace ClosureControl {
          * server, invokes a command that includes both position and speed, a server that does not support the speed
          * feature would simply ignore the speed field while still adjusting its position as requested.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2
          */
         moveTo(request: MoveToRequest): MaybePromise;
     }
@@ -294,7 +294,7 @@ export declare namespace ClosureControl {
          * A status code of SUCCESS shall always be returned, regardless of the value of the MainState attribute when
          * this command is received.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.1
          */
         stop(): MaybePromise;
     }
@@ -306,7 +306,7 @@ export declare namespace ClosureControl {
         /**
          * This command is used to trigger a calibration of the closure.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.3
          */
         calibrate(): MaybePromise;
     }
@@ -330,7 +330,7 @@ export declare namespace ClosureControl {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.1
          */
         operationalError: OperationalErrorEvent;
 
@@ -344,7 +344,7 @@ export declare namespace ClosureControl {
          *
          *   - False, when the closure is in an insecure state, e.g. unauthorized/undetectable access is possible.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.4
          */
         secureStateChanged: SecureStateChangedEvent;
     }
@@ -357,7 +357,7 @@ export declare namespace ClosureControl {
          * This event, if supported, shall be generated when the overall operation ends, either successfully or
          * otherwise. For example, the event is sent upon the completion of a movement operation in a blind.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.2
          */
         movementCompleted: void;
     }
@@ -376,7 +376,7 @@ export declare namespace ClosureControl {
          *
          *   - False, when the actuator is in a Disengaged state, preventing any actuator movements.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.3
          */
         engageStateChanged: EngageStateChangedEvent;
     }
@@ -394,7 +394,7 @@ export declare namespace ClosureControl {
          *
          * This event shall contain the following fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.1
          */
         operationalError: OperationalErrorEvent;
 
@@ -408,7 +408,7 @@ export declare namespace ClosureControl {
          *
          *   - False, when the closure is in an insecure state, e.g. unauthorized/undetectable access is possible.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.4
          */
         secureStateChanged: SecureStateChangedEvent;
 
@@ -416,7 +416,7 @@ export declare namespace ClosureControl {
          * This event, if supported, shall be generated when the overall operation ends, either successfully or
          * otherwise. For example, the event is sent upon the completion of a movement operation in a blind.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.2
          */
         movementCompleted: void;
 
@@ -430,7 +430,7 @@ export declare namespace ClosureControl {
          *
          *   - False, when the actuator is in a Disengaged state, preventing any actuator movements.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.3
          */
         engageStateChanged: EngageStateChangedEvent;
     }
@@ -449,7 +449,7 @@ export declare namespace ClosureControl {
     /**
      * These are optional features supported by ClosureControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.5
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.5
      */
     export enum Feature {
         /**
@@ -458,7 +458,7 @@ export declare namespace ClosureControl {
          * This feature shall indicate that the closure can be set to discrete positions, including at minimum the
          * FullyOpen and FullyClosed positions.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.1
          */
         Positioning = "Positioning",
 
@@ -468,7 +468,7 @@ export declare namespace ClosureControl {
          * This feature shall indicate that the closure can be latched and unlatched. When latched, the feature secures
          * an axis, preventing associated actuators from moving components along that axis.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.2
          */
         MotionLatching = "MotionLatching",
 
@@ -480,7 +480,7 @@ export declare namespace ClosureControl {
          * OverallCurrentState attribute shall immediately follow the OverallTargetState attribute. The state transition
          * diagram remains applicable, however, transitions involving the Stop state shall be omitted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.3
          */
         Instantaneous = "Instantaneous",
 
@@ -490,7 +490,7 @@ export declare namespace ClosureControl {
          * This feature shall indicate that the closure supports configurable speed during motion toward a target
          * position. The feature uses the values in ThreeLevelAutoEnum to set the supported speed levels.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.4
          */
         Speed = "Speed",
 
@@ -500,7 +500,7 @@ export declare namespace ClosureControl {
          * This feature shall indicate that the closure can be set to a designated Ventilation position (e.g., partially
          * open).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.5
          */
         Ventilation = "Ventilation",
 
@@ -510,7 +510,7 @@ export declare namespace ClosureControl {
          * This feature shall indicate that the closure can be set to a dedicated Pedestrian position. The Pedestrian
          * position provides a clear walkway through the closure.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.6
          */
         Pedestrian = "Pedestrian",
 
@@ -520,7 +520,7 @@ export declare namespace ClosureControl {
          * This feature shall indicate the capability to trigger a calibration procedure. The calibration can either be
          * fully automated, or require manual steps not described in this specification.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.7
          */
         Calibration = "Calibration",
 
@@ -531,7 +531,7 @@ export declare namespace ClosureControl {
          * protection against wind. A protection is manufacturer-specific, and it could be a simple software limitation,
          * or a mechanical system deployed by the closure.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.8
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.8
          */
         Protection = "Protection",
 
@@ -540,13 +540,13 @@ export declare namespace ClosureControl {
          *
          * This feature shall indicate that the closure can be operated manually by a user, such as to open a window.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.5.9
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.5.9
          */
         ManuallyOperable = "ManuallyOperable"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.3
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.3
      */
     export enum MainState {
         /**
@@ -600,7 +600,7 @@ export declare namespace ClosureControl {
      *
      * The general closure error values are defined in the table below.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.4
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.4
      */
     export enum ClosureError {
         /**
@@ -633,7 +633,7 @@ export declare namespace ClosureControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5
      */
     export declare class OverallCurrentState {
         constructor(values?: Partial<OverallCurrentState>);
@@ -651,7 +651,7 @@ export declare namespace ClosureControl {
          * closed if the value of this field is FullyClosed. Otherwise those clients SHOULD consider the closure opened
          * (non-closed).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5.1
          */
         position?: CurrentPosition | null;
 
@@ -672,7 +672,7 @@ export declare namespace ClosureControl {
          *       achieve a latched state. Such products are built with springs or similar mechanisms to unlatch but
          *       require the user to latch manually.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5.2
          */
         latch?: boolean | null;
 
@@ -685,7 +685,7 @@ export declare namespace ClosureControl {
          * most accurate current overall speed shall be used. Otherwise, the value used shall be the most appropriate
          * default supported speed value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5.3
          */
         speed?: ThreeLevelAuto;
 
@@ -712,13 +712,13 @@ export declare namespace ClosureControl {
          * intended only as supplementary information and not as a replacement for a comprehensive security system. It
          * is primarily useful for closures on the outer shell of objects, such as garage doors, windows, or doors.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.5.4
          */
         secureState: boolean | null;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.6
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.6
      */
     export declare class OverallTargetState {
         constructor(values?: Partial<OverallTargetState>);
@@ -727,7 +727,7 @@ export declare namespace ClosureControl {
          * This field shall indicate the target position that the closure is moving to. It shall be null if there is no
          * target position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.6.1
          */
         position?: TargetPosition | null;
 
@@ -735,7 +735,7 @@ export declare namespace ClosureControl {
          * This field shall indicate the desired latching state of the closure. It shall be null if there is no desired
          * latching state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.6.2
          */
         latch?: boolean | null;
 
@@ -744,13 +744,13 @@ export declare namespace ClosureControl {
          * target position. If no speed value has yet been set, the server shall select and set one of the speed values
          * defined in the ThreeLevelAutoEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.6.3
          */
         speed?: ThreeLevelAuto;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.7
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.7
      */
     export declare class LatchControlModes {
         constructor(values?: Partial<LatchControlModes> | number);
@@ -764,7 +764,7 @@ export declare namespace ClosureControl {
          *
          *   - 1 = the latch can be latched via remote control (e.g., electronic or remote actuation).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.7.1
          */
         remoteLatching?: boolean;
 
@@ -777,7 +777,7 @@ export declare namespace ClosureControl {
          *
          *   - 1 = the latch can be unlatched via remote control (e.g., electronic or remote actuation).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.7.2
          */
         remoteUnlatching?: boolean;
     };
@@ -791,7 +791,7 @@ export declare namespace ClosureControl {
      * server, invokes a command that includes both position and speed, a server that does not support the speed feature
      * would simply ignore the speed field while still adjusting its position as requested.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2
      */
     export declare class MoveToRequest {
         constructor(values?: Partial<MoveToRequest>);
@@ -810,7 +810,7 @@ export declare namespace ClosureControl {
          * OverallTargetState attribute is NULL, the position is unknown and the fallback is not applicable; in this
          * case the field shall be ignored and the closure shall NOT change its position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2.1
          */
         position?: TargetPosition;
 
@@ -833,7 +833,7 @@ export declare namespace ClosureControl {
          * OverallTargetState.Latch or, if the "LatchControlModes" attribute specifies that manual intervention is
          * required to latch - respond with INVALID_IN_STATE and remain in its current state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2.2
          */
         latch?: boolean;
 
@@ -849,7 +849,7 @@ export declare namespace ClosureControl {
          * If the closure supports the Speed(SP) feature, it shall set the Speed field of the OverallCurrentState
          * attribute to the new speed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.8.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.8.2.3
          */
         speed?: ThreeLevelAuto;
     };
@@ -860,7 +860,7 @@ export declare namespace ClosureControl {
      *
      * This event shall contain the following fields:
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.1
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.1
      */
     export declare class OperationalErrorEvent {
         constructor(values?: Partial<OperationalErrorEvent>);
@@ -877,7 +877,7 @@ export declare namespace ClosureControl {
      *
      *   - False, when the closure is in an insecure state, e.g. unauthorized/undetectable access is possible.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.4
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.4
      */
     export declare class SecureStateChangedEvent {
         constructor(values?: Partial<SecureStateChangedEvent>);
@@ -894,7 +894,7 @@ export declare namespace ClosureControl {
      *
      *   - False, when the actuator is in a Disengaged state, preventing any actuator movements.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.9.3
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.9.3
      */
     export declare class EngageStateChangedEvent {
         constructor(values?: Partial<EngageStateChangedEvent>);
@@ -902,7 +902,7 @@ export declare namespace ClosureControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.1
      */
     export enum CurrentPosition {
         /**
@@ -952,13 +952,13 @@ export declare namespace ClosureControl {
          * If no such separately defined position exists on the closure, the Signature value shall have the same
          * position meaning as FullyOpened.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.1.1
          */
         OpenedAtSignature = 5
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.4.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 5.4.6.2
      */
     export enum TargetPosition {
         /**

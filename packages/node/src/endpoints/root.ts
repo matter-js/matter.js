@@ -83,7 +83,7 @@ import { Identity } from "@matter/general";
  *
  *   - Other device types with Node scope may be supported on the same endpoint as this device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 2.1
+ * @see {@link MatterSpecification.v151.Device} § 2.1
  */
 export interface RootEndpoint extends Identity<typeof RootEndpointDefinition> {}
 

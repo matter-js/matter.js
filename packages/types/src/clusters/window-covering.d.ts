@@ -17,7 +17,7 @@ import type { MaybePromise } from "@matter/general";
  * The window covering cluster provides an interface for controlling and adjusting automatic window coverings such as
  * drapery motors, automatic shades, curtains and blinds.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 5.3
+ * @see {@link MatterSpecification.v151.Cluster} § 5.3
  */
 export declare namespace WindowCovering {
     /**
@@ -57,7 +57,7 @@ export declare namespace WindowCovering {
          *
          * If the window covering supports both the LF and TL features, the following types are allowed to be used:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.1
          */
         type: WindowCoveringType;
 
@@ -67,14 +67,14 @@ export declare namespace WindowCovering {
          * To change settings, devices shall write to the Mode attribute. The behavior causing the setting or clearing
          * of each bit is vendor specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.4
          */
         configStatus: ConfigStatus;
 
         /**
          * Indicates the currently ongoing operations and applies to all type of devices.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.11
          */
         operationalStatus: OperationalStatus;
 
@@ -92,7 +92,7 @@ export declare namespace WindowCovering {
          *
          * The table below helps to match the EndProductType attribute with the Type attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.12
          */
         endProductType: EndProductType;
 
@@ -106,7 +106,7 @@ export declare namespace WindowCovering {
          * interaction to the Mode attribute, with an unsupported mode bit or any out of bounds bits set, must be
          * ignored and a response containing the status of CONSTRAINT_ERROR will be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.13
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.13
          */
         mode: Mode;
 
@@ -115,7 +115,7 @@ export declare namespace WindowCovering {
          * movements. By default for nominal operation all flags are cleared (0). A device might support none, one or
          * several bit flags from this attribute (all optional).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.14
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.14
          */
         safetyStatus?: SafetyStatus;
     }
@@ -128,7 +128,7 @@ export declare namespace WindowCovering {
          * Indicates the total number of lift/slide actuations applied to the window covering since the device was
          * installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.2
          */
         numberOfActuationsLift?: number;
     }
@@ -140,7 +140,7 @@ export declare namespace WindowCovering {
         /**
          * Indicates the total number of tilt actuations applied to the window covering since the device was installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.3
          */
         numberOfActuationsTilt?: number;
     }
@@ -152,14 +152,14 @@ export declare namespace WindowCovering {
         /**
          * Indicates the position where the window covering lift will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.9
          */
         targetPositionLiftPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.5
          */
         currentPositionLiftPercent100ths: number | null;
 
@@ -167,7 +167,7 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionLiftPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.7
          */
         currentPositionLiftPercentage?: number | null;
     }
@@ -179,14 +179,14 @@ export declare namespace WindowCovering {
         /**
          * Indicates the position where the window covering tilt will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.10
          */
         targetPositionTiltPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.6
          */
         currentPositionTiltPercent100ths: number | null;
 
@@ -194,7 +194,7 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionTiltPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.8
          */
         currentPositionTiltPercentage?: number | null;
     }
@@ -217,7 +217,7 @@ export declare namespace WindowCovering {
          *
          * If the window covering supports both the LF and TL features, the following types are allowed to be used:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.1
          */
         type: WindowCoveringType;
 
@@ -227,14 +227,14 @@ export declare namespace WindowCovering {
          * To change settings, devices shall write to the Mode attribute. The behavior causing the setting or clearing
          * of each bit is vendor specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.4
          */
         configStatus: ConfigStatus;
 
         /**
          * Indicates the currently ongoing operations and applies to all type of devices.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.11
          */
         operationalStatus: OperationalStatus;
 
@@ -252,7 +252,7 @@ export declare namespace WindowCovering {
          *
          * The table below helps to match the EndProductType attribute with the Type attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.12
          */
         endProductType: EndProductType;
 
@@ -266,7 +266,7 @@ export declare namespace WindowCovering {
          * interaction to the Mode attribute, with an unsupported mode bit or any out of bounds bits set, must be
          * ignored and a response containing the status of CONSTRAINT_ERROR will be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.13
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.13
          */
         mode: Mode;
 
@@ -275,7 +275,7 @@ export declare namespace WindowCovering {
          * movements. By default for nominal operation all flags are cleared (0). A device might support none, one or
          * several bit flags from this attribute (all optional).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.14
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.14
          */
         safetyStatus: SafetyStatus;
 
@@ -283,28 +283,28 @@ export declare namespace WindowCovering {
          * Indicates the total number of lift/slide actuations applied to the window covering since the device was
          * installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.2
          */
         numberOfActuationsLift: number;
 
         /**
          * Indicates the total number of tilt actuations applied to the window covering since the device was installed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.3
          */
         numberOfActuationsTilt: number;
 
         /**
          * Indicates the position where the window covering lift will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.9
          */
         targetPositionLiftPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.5
          */
         currentPositionLiftPercent100ths: number | null;
 
@@ -312,21 +312,21 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionLiftPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.7
          */
         currentPositionLiftPercentage: number | null;
 
         /**
          * Indicates the position where the window covering tilt will go or is moving to as a percentage (Unit 0.01%).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.10
          */
         targetPositionTiltPercent100ths: number | null;
 
         /**
          * Indicates the actual position as a percentage with a minimal step of 0.01%. E.g Max 10000 equals 100.00%.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.6
          */
         currentPositionTiltPercent100ths: number | null;
 
@@ -334,7 +334,7 @@ export declare namespace WindowCovering {
          * Indicates the actual position as a percentage from 0% to 100% with 1% default step. This attribute is equal
          * to CurrentPositionTiltPercent100ths attribute divided by 100.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.6.8
          */
         currentPositionTiltPercentage: number | null;
     }
@@ -373,7 +373,7 @@ export declare namespace WindowCovering {
          *
          *   - CurrentPositionTilt attribute shall be equal to the InstalledOpenLimitTilt attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.1
          */
         upOrOpen(): MaybePromise;
 
@@ -407,7 +407,7 @@ export declare namespace WindowCovering {
          *
          *   - CurrentPositionTilt attribute shall be equal to the InstalledClosedLimitTilt attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.2
          */
         downOrClose(): MaybePromise;
 
@@ -421,7 +421,7 @@ export declare namespace WindowCovering {
          *   - TargetPositionTiltPercent100ths attribute will be set to CurrentPositionTiltPercent100ths attribute
          *     value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.3
          */
         stopMotion(): MaybePromise;
     }
@@ -450,7 +450,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.4
          */
         goToLiftPercentage(request: GoToLiftPercentageRequest): MaybePromise;
     }
@@ -479,7 +479,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.5
          */
         goToTiltPercentage(request: GoToTiltPercentageRequest): MaybePromise;
     }
@@ -508,7 +508,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.4
          */
         goToLiftPercentage(request: GoToLiftPercentageRequest): MaybePromise;
     }
@@ -537,7 +537,7 @@ export declare namespace WindowCovering {
          * a tilt control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be
          * returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.5
          */
         goToTiltPercentage(request: GoToTiltPercentageRequest): MaybePromise;
     }
@@ -574,7 +574,7 @@ export declare namespace WindowCovering {
     /**
      * These are optional features supported by WindowCoveringCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.4
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.4
      */
     export enum Feature {
         /**
@@ -584,7 +584,7 @@ export declare namespace WindowCovering {
          * lift Open and Close) or slide left to right (e.g. for a sliding curtain, Left and Right is lift Open and
          * Close).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.4.1
          */
         Lift = "Lift",
 
@@ -593,7 +593,7 @@ export declare namespace WindowCovering {
          *
          * The Tilt feature applies to window coverings with vertical or horizontal strips.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.4.2
          */
         Tilt = "Tilt",
 
@@ -613,7 +613,7 @@ export declare namespace WindowCovering {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.5
      */
     export enum WindowCoveringType {
         /**
@@ -673,7 +673,7 @@ export declare namespace WindowCovering {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1
      */
     export declare class ConfigStatus {
         constructor(values?: Partial<ConfigStatus> | number);
@@ -687,7 +687,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Operational
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.1
          */
         operational?: boolean;
 
@@ -702,7 +702,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Lift movement is reversed
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.2
          */
         liftMovementReversed?: boolean;
 
@@ -715,7 +715,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Lift control is position aware (PA_LF)
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.3
          */
         liftPositionAware?: boolean;
 
@@ -728,7 +728,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Tilt control is position aware (PA_TL)
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.4
          */
         tiltPositionAware?: boolean;
 
@@ -742,7 +742,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Encoder Controlled
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.5
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.5
          */
         liftEncoderControlled?: boolean;
 
@@ -756,7 +756,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Encoder Controlled
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.1.6
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.1.6
          */
         tiltEncoderControlled?: boolean;
     };
@@ -773,7 +773,7 @@ export declare namespace WindowCovering {
      *
      *   - 11b = Reserved
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3
      */
     export declare class OperationalStatus {
         constructor(values?: Partial<OperationalStatus> | number);
@@ -784,7 +784,7 @@ export declare namespace WindowCovering {
          * These bits shall indicate in which direction the covering is currently moving or if it has stopped. Global
          * operational state shall always reflect the overall motion of the device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3.1
          */
         global?: MovementStatus;
 
@@ -793,7 +793,7 @@ export declare namespace WindowCovering {
          *
          * These bits shall indicate in which direction the covering’s lift is currently moving or if it has stopped.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3.2
          */
         lift?: MovementStatus;
 
@@ -802,13 +802,13 @@ export declare namespace WindowCovering {
          *
          * These bits shall indicate in which direction the covering’s tilt is currently moving or if it has stopped.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3.3
          */
         tilt?: MovementStatus;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.6
      */
     export enum EndProductType {
         /**
@@ -938,7 +938,7 @@ export declare namespace WindowCovering {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2
      */
     export declare class Mode {
         constructor(values?: Partial<Mode> | number);
@@ -952,7 +952,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Lift movement is reversed
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2.1
          */
         motorDirectionReversed?: boolean;
 
@@ -965,7 +965,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Calibration mode
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2.2
          */
         calibrationMode?: boolean;
 
@@ -978,7 +978,7 @@ export declare namespace WindowCovering {
          *
          *   - 1 = Maintenance mode
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2.3
          */
         maintenanceMode?: boolean;
 
@@ -991,13 +991,13 @@ export declare namespace WindowCovering {
          *
          *   - 1 = LEDs will display feedback
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.2.4
          */
         ledFeedback?: boolean;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.4
      */
     export declare class SafetyStatus {
         constructor(values?: Partial<SafetyStatus> | number);
@@ -1085,7 +1085,7 @@ export declare namespace WindowCovering {
      * command and a non-zero percentage shall be treated as an DownOrClose command. If the device is only a tilt
      * control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.4
      */
     export declare class GoToLiftPercentageRequest {
         constructor(values?: Partial<GoToLiftPercentageRequest>);
@@ -1111,7 +1111,7 @@ export declare namespace WindowCovering {
      * command and a non-zero percentage shall be treated as an DownOrClose command. If the device is only a tilt
      * control device, then the command SHOULD be ignored and a UNSUPPORTED_COMMAND status SHOULD be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 5.3.7.5
+     * @see {@link MatterSpecification.v151.Cluster} § 5.3.7.5
      */
     export declare class GoToTiltPercentageRequest {
         constructor(values?: Partial<GoToTiltPercentageRequest>);

@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace are restricted for use in the closure panel domain and shall NOT be used in any
  * other domain or context.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 23
+ * @see {@link MatterSpecification.v151.Namespace} § 23
  */
 export const ClosurePanelTag = SemanticNamespace({
     id: 0x45,

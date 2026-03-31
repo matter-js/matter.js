@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace are restricted for use in the Commodity Tariff flow domain and shall NOT be used
  * in any other domain or context.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 18
+ * @see {@link MatterSpecification.v151.Namespace} § 18
  */
 export const CommodityTariffFlowTag = SemanticNamespace({
     id: 0x13,

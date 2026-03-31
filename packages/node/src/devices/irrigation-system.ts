@@ -25,7 +25,7 @@ import { Identity } from "@matter/general";
  * for lawns. A physical irrigation system typically has a set of electrical terminals to which in-ground water valves
  * are connected so that the system can actuate them.
  *
- * @see {@link MatterSpecification.v142.Device} § 5.7
+ * @see {@link MatterSpecification.v151.Device} § 5.7
  */
 export interface IrrigationSystemDevice extends Identity<typeof IrrigationSystemDeviceDefinition> {}
 

@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace may be used in any domain or context, to indicate an association with a certain
  * numeric feature of a device (e.g. a numeric input button).
  *
- * @see {@link MatterSpecification.v142.Namespace} § 8
+ * @see {@link MatterSpecification.v151.Namespace} § 8
  */
 export const CommonNumberTag = SemanticNamespace({
     id: 0x7,

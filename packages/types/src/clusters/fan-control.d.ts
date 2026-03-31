@@ -16,7 +16,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * This cluster specifies an interface to control the speed of a fan.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 4.4
+ * @see {@link MatterSpecification.v151.Cluster} § 4.4
  */
 export declare namespace FanControl {
     /**
@@ -72,14 +72,14 @@ export declare namespace FanControl {
          * When this attribute is set to any valid value, the PercentCurrent and SpeedCurrent (if present) attributes
          * shall indicate the actual currently operating fan speed, unless otherwise specified below.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.1
          */
         fanMode: FanMode;
 
         /**
          * This attribute indicates the fan speed ranges that shall be supported by the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.2
          */
         fanModeSequence: FanModeSequence;
 
@@ -95,7 +95,7 @@ export declare namespace FanControl {
          * When this attribute is successfully written, the server shall set the value of the FanMode and SpeedSetting
          * (if present) attributes to values that abide by the mapping requirements listed below.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.3
          */
         percentSetting: number | null;
 
@@ -113,7 +113,7 @@ export declare namespace FanControl {
          *
          * See Section 4.4.6.3.1, “Percent Rules” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.4
          */
         percentCurrent: number;
     }
@@ -125,7 +125,7 @@ export declare namespace FanControl {
         /**
          * Indicates the maximum value to which the SpeedSetting attribute can be set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.5
          */
         speedMax: number;
 
@@ -141,7 +141,7 @@ export declare namespace FanControl {
          * When this attribute is successfully written to, the server shall set the value of the FanMode and
          * PercentSetting attributes to values that abide by the mapping requirements listed below.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.6
          */
         speedSetting: number | null;
 
@@ -159,7 +159,7 @@ export declare namespace FanControl {
          *
          * See Section 4.4.6.6.1, “Speed Rules” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.7
          */
         speedCurrent: number;
     }
@@ -173,7 +173,7 @@ export declare namespace FanControl {
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.8
          */
         rockSupport: Rock;
 
@@ -189,7 +189,7 @@ export declare namespace FanControl {
          * For example: If RockUpDown and RockRound are both set, but this combination is not possible, then only
          * RockUpDown becomes active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.9
          */
         rockSetting: Rock;
     }
@@ -203,7 +203,7 @@ export declare namespace FanControl {
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.10
          */
         windSupport: Wind;
 
@@ -219,7 +219,7 @@ export declare namespace FanControl {
          * For example: If Sleep Wind and Natural Wind are set, but this combination is not possible, then only Sleep
          * Wind becomes active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.11
          */
         windSetting: Wind;
     }
@@ -233,7 +233,7 @@ export declare namespace FanControl {
          * new airflow direction for the fan. This attribute shall be set to one of the values in the
          * AirflowDirectionEnum table.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.12
          */
         airflowDirection: AirflowDirection;
     }
@@ -272,14 +272,14 @@ export declare namespace FanControl {
          * When this attribute is set to any valid value, the PercentCurrent and SpeedCurrent (if present) attributes
          * shall indicate the actual currently operating fan speed, unless otherwise specified below.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.1
          */
         fanMode: FanMode;
 
         /**
          * This attribute indicates the fan speed ranges that shall be supported by the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.2
          */
         fanModeSequence: FanModeSequence;
 
@@ -295,7 +295,7 @@ export declare namespace FanControl {
          * When this attribute is successfully written, the server shall set the value of the FanMode and SpeedSetting
          * (if present) attributes to values that abide by the mapping requirements listed below.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.3
          */
         percentSetting: number | null;
 
@@ -313,14 +313,14 @@ export declare namespace FanControl {
          *
          * See Section 4.4.6.3.1, “Percent Rules” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.4
          */
         percentCurrent: number;
 
         /**
          * Indicates the maximum value to which the SpeedSetting attribute can be set.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.5
          */
         speedMax: number;
 
@@ -336,7 +336,7 @@ export declare namespace FanControl {
          * When this attribute is successfully written to, the server shall set the value of the FanMode and
          * PercentSetting attributes to values that abide by the mapping requirements listed below.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.6
          */
         speedSetting: number | null;
 
@@ -354,7 +354,7 @@ export declare namespace FanControl {
          *
          * See Section 4.4.6.6.1, “Speed Rules” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.7
          */
         speedCurrent: number;
 
@@ -363,7 +363,7 @@ export declare namespace FanControl {
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.8
          */
         rockSupport: Rock;
 
@@ -379,7 +379,7 @@ export declare namespace FanControl {
          * For example: If RockUpDown and RockRound are both set, but this combination is not possible, then only
          * RockUpDown becomes active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.9
          */
         rockSetting: Rock;
 
@@ -388,7 +388,7 @@ export declare namespace FanControl {
          *
          * If this attribute is supported by the server, at least one bit shall be set in this attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.10
          */
         windSupport: Wind;
 
@@ -404,7 +404,7 @@ export declare namespace FanControl {
          * For example: If Sleep Wind and Natural Wind are set, but this combination is not possible, then only Sleep
          * Wind becomes active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.11
          */
         windSetting: Wind;
 
@@ -413,7 +413,7 @@ export declare namespace FanControl {
          * new airflow direction for the fan. This attribute shall be set to one of the values in the
          * AirflowDirectionEnum table.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.6.12
          */
         airflowDirection: AirflowDirection;
     }
@@ -439,7 +439,7 @@ export declare namespace FanControl {
          *
          * This command supports these fields:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1
          */
         step(request: StepRequest): MaybePromise;
     }
@@ -463,7 +463,7 @@ export declare namespace FanControl {
     /**
      * These are optional features supported by FanControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.4
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.4
      */
     export enum Feature {
         /**
@@ -478,7 +478,7 @@ export declare namespace FanControl {
          *
          * See Section 4.4.6.6.1, “Speed Rules” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.4.1
          */
         MultiSpeed = "MultiSpeed",
 
@@ -519,7 +519,7 @@ export declare namespace FanControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.5
      */
     export enum FanMode {
         /**
@@ -561,7 +561,7 @@ export declare namespace FanControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.6
      */
     export enum FanModeSequence {
         /**
@@ -596,7 +596,7 @@ export declare namespace FanControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.1
      */
     export declare class Rock {
         constructor(values?: Partial<Rock> | number);
@@ -618,7 +618,7 @@ export declare namespace FanControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.2
      */
     export declare class Wind {
         constructor(values?: Partial<Wind> | number);
@@ -629,7 +629,7 @@ export declare namespace FanControl {
          * The fan speed, based on current settings, shall gradually slow down to a final minimum speed. For this
          * process, the sequence, speeds and duration are MS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.2.1
          */
         sleepWind?: boolean;
 
@@ -638,13 +638,13 @@ export declare namespace FanControl {
          *
          * The fan speed shall vary to emulate natural wind. For this setting, the sequence, speeds and duration are MS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.2.2
          */
         naturalWind?: boolean;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.4
      */
     export enum AirflowDirection {
         /**
@@ -674,7 +674,7 @@ export declare namespace FanControl {
      *
      * This command supports these fields:
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1
      */
     export declare class StepRequest {
         constructor(values?: Partial<StepRequest>);
@@ -682,14 +682,14 @@ export declare namespace FanControl {
         /**
          * This field shall indicate whether the speed-oriented attributes increase or decrease to the next step value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1.1
          */
         direction: StepDirection;
 
         /**
          * This field shall indicate if the speed-oriented attributes wrap between highest and lowest step value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1.2
          */
         wrap?: boolean;
 
@@ -697,13 +697,13 @@ export declare namespace FanControl {
          * This field shall indicate that the fan being off (FanMode = Off, PercentSetting = 0, or SpeedSetting = 0) is
          * included as a step value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 4.4.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 4.4.7.1.3
          */
         lowestOff?: boolean;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 4.4.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 4.4.5.3
      */
     export enum StepDirection {
         /**

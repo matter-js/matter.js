@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
  * for the running modes of robotic vacuum cleaner devices.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 7.2
+ * @see {@link MatterSpecification.v151.Cluster} § 7.2
  */
 export declare namespace RvcRunMode {
     /**
@@ -57,12 +57,12 @@ export declare namespace RvcRunMode {
          * The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a mode’s
          * ModeTags.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.6
          */
         currentMode: number;
     }
@@ -83,12 +83,12 @@ export declare namespace RvcRunMode {
          * The Mapping, Cleaning, and Idle mode tags are mutually exclusive and shall NOT be used together in a mode’s
          * ModeTags.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.6
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.6
          */
         currentMode: number;
     }
@@ -102,7 +102,7 @@ export declare namespace RvcRunMode {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
          */
         changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
     }
@@ -118,7 +118,7 @@ export declare namespace RvcRunMode {
     /**
      * These are optional features supported by RvcRunModeCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 7.2.4
+     * @see {@link MatterSpecification.v151.Cluster} § 7.2.4
      */
     export enum Feature {
         /**
@@ -136,7 +136,7 @@ export declare namespace RvcRunMode {
          * not support such a change, the ChangeToModeResponse command shall have the StatusCode field set to the
          * InvalidInMode value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.4.1
          */
         DirectModeChange = "DirectModeChange"
     }
@@ -145,7 +145,7 @@ export declare namespace RvcRunMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 7.2.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 7.2.5.1
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -155,14 +155,14 @@ export declare namespace RvcRunMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -202,7 +202,7 @@ export declare namespace RvcRunMode {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
@@ -210,13 +210,13 @@ export declare namespace RvcRunMode {
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2
      */
     export declare class ChangeToModeResponse {
         constructor(values?: Partial<ChangeToModeResponse>);
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1
          */
         status: ModeChangeStatus | ModeBase.ModeChangeStatus;
 
@@ -225,94 +225,94 @@ export declare namespace RvcRunMode {
 
     export enum ModeChangeStatus {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         Stuck = 65,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         DustBinMissing = 66,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         DustBinFull = 67,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         WaterTankEmpty = 68,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         WaterTankMissing = 69,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         WaterTankLidOpen = 70,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         MopCleaningPadMissing = 71,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.1
          */
         BatteryLow = 72
     }
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2
          */
         Day = 9,
 
@@ -323,7 +323,7 @@ export declare namespace RvcRunMode {
          * For example, the device has completed cleaning, successfully or not, on its own or due to a command, or has
          * not been asked to clean after a restart.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2.1
          */
         Idle = 16384,
 
@@ -331,7 +331,7 @@ export declare namespace RvcRunMode {
          * The device was asked to clean so it may be actively running, or paused due to an error, due to a pause
          * command, or for recharging etc. If currently paused and the device can resume it will continue to clean.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2.2
          */
         Cleaning = 16385,
 
@@ -346,7 +346,7 @@ export declare namespace RvcRunMode {
          *   previously done that, or if the layout has substantially changed, for an optimal subsequent cleaning
          *   experience.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.2.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 7.2.7.2.3
          */
         Mapping = 16386
     }
@@ -354,7 +354,7 @@ export declare namespace RvcRunMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
@@ -370,7 +370,7 @@ export declare namespace RvcRunMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -378,7 +378,7 @@ export declare namespace RvcRunMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
     };

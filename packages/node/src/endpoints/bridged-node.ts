@@ -31,7 +31,7 @@ import { Identity } from "@matter/general";
  * describes itself and any other endpoints that make up the Bridged Node. A Bridged Node endpoint represents a device
  * on a foreign network, but is not the root endpoint of the bridge itself.
  *
- * @see {@link MatterSpecification.v142.Device} § 2.5
+ * @see {@link MatterSpecification.v151.Device} § 2.5
  */
 export interface BridgedNodeEndpoint extends Identity<typeof BridgedNodeEndpointDefinition> {}
 

@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace may be used in any domain or context, to indicate an association with an indoor
  * or outdoor area of a home.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 15
+ * @see {@link MatterSpecification.v151.Namespace} § 15
  */
 export const CommonAreaNamespaceTag = SemanticNamespace({
     id: 0x10,

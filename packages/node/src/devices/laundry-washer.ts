@@ -30,7 +30,7 @@ import { Identity } from "@matter/general";
  *
  * A Laundry Washer shall be composed of at least one endpoint with the Laundry Washer device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 13.1
+ * @see {@link MatterSpecification.v151.Device} § 13.1
  */
 export interface LaundryWasherDevice extends Identity<typeof LaundryWasherDeviceDefinition> {}
 

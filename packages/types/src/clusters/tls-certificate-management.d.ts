@@ -24,7 +24,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  * This cluster shall be present on the root node endpoint when required by a device type, may be present on that
  * endpoint otherwise, and shall NOT be present on any other Endpoint of any Node.
  *
- * @see {@link MatterSpecification.v142.Core} § 14.4
+ * @see {@link MatterSpecification.v151.Core} § 14.4
  */
 export declare namespace TlsCertificateManagement {
     /**
@@ -56,7 +56,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This attribute shall contain the maximum number of per fabric TLSRCACs that can be installed on this Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.1
          */
         maxRootCertificates: number;
 
@@ -65,7 +65,7 @@ export declare namespace TlsCertificateManagement {
          * When this attribute is read over a non Large Message capable transport, the Certificate field shall NOT be
          * included. To get the full details of a certificate use the FindRootCertificate command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.2
          */
         provisionedRootCertificates: TlsCert[];
 
@@ -73,7 +73,7 @@ export declare namespace TlsCertificateManagement {
          * This attribute shall contain the maximum number of per fabric Client Certificates that can be installed on
          * this Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.3
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.3
          */
         maxClientCertificates: number;
 
@@ -83,7 +83,7 @@ export declare namespace TlsCertificateManagement {
          * IntermediateCertificates fields shall NOT be included. To get the full details of a client certificate use
          * the FindClientCertificate command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.4
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.4
          */
         provisionedClientCertificates: TlsClientCertificateDetail[];
     }
@@ -95,7 +95,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This attribute shall contain the maximum number of per fabric TLSRCACs that can be installed on this Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.1
          */
         maxRootCertificates: number;
 
@@ -104,7 +104,7 @@ export declare namespace TlsCertificateManagement {
          * When this attribute is read over a non Large Message capable transport, the Certificate field shall NOT be
          * included. To get the full details of a certificate use the FindRootCertificate command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.2
          */
         provisionedRootCertificates: TlsCert[];
 
@@ -112,7 +112,7 @@ export declare namespace TlsCertificateManagement {
          * This attribute shall contain the maximum number of per fabric Client Certificates that can be installed on
          * this Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.3
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.3
          */
         maxClientCertificates: number;
 
@@ -122,7 +122,7 @@ export declare namespace TlsCertificateManagement {
          * IntermediateCertificates fields shall NOT be included. To get the full details of a client certificate use
          * the FindClientCertificate command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.5.4
+         * @see {@link MatterSpecification.v151.Core} § 14.4.5.4
          */
         provisionedClientCertificates: TlsClientCertificateDetail[];
     }
@@ -135,7 +135,7 @@ export declare namespace TlsCertificateManagement {
          * This command shall provision a newly provided certificate, or rotate an existing one, based on the contents
          * of the CAID field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.1
          */
         provisionRootCertificate(request: ProvisionRootCertificateRequest): MaybePromise<ProvisionRootCertificateResponse>;
 
@@ -143,14 +143,14 @@ export declare namespace TlsCertificateManagement {
          * This command shall return the specified TLS root certificate, or all provisioned TLS root certificates for
          * the accessing fabric, based on the contents of the CAID field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.3
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.3
          */
         findRootCertificate(request: FindRootCertificateRequest): MaybePromise<FindRootCertificateResponse>;
 
         /**
          * This command shall return the CAID for the passed in fingerprint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.5
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.5
          */
         lookupRootCertificate(request: LookupRootCertificateRequest): MaybePromise<LookupRootCertificateResponse>;
 
@@ -158,7 +158,7 @@ export declare namespace TlsCertificateManagement {
          * This command shall be generated to request the server removes the certificate provisioned to the provided
          * Certificate Authority ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.7
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.7
          */
         removeRootCertificate(request: RemoveRootCertificateRequest): MaybePromise;
 
@@ -166,7 +166,7 @@ export declare namespace TlsCertificateManagement {
          * This command shall be generated to request the Node generates a certificate signing request for a new TLS key
          * pair or use an existing CCDID for certificate rotation.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.8
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.8
          */
         clientCsr(request: ClientCsrRequest): MaybePromise<ClientCsrResponse>;
 
@@ -177,7 +177,7 @@ export declare namespace TlsCertificateManagement {
          * This command is typically invoked after having created a new client certificate using the CSR requested in
          * ClientCSR, with the TLSCCDID returned by ClientCSRResponse.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.10
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.10
          */
         provisionClientCertificate(request: ProvisionClientCertificateRequest): MaybePromise;
 
@@ -185,21 +185,21 @@ export declare namespace TlsCertificateManagement {
          * This command shall return the TLSClientCertificateDetailStruct for the passed in CCDID, or all TLS client
          * certificates for the accessing fabric, based on the contents of the CCDID field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.11
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.11
          */
         findClientCertificate(request: FindClientCertificateRequest): MaybePromise<FindClientCertificateResponse>;
 
         /**
          * This command shall return the CCDID for the passed in Fingerprint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.13
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.13
          */
         lookupClientCertificate(request: LookupClientCertificateRequest): MaybePromise<LookupClientCertificateResponse>;
 
         /**
          * This command shall be used to request the Node removes all stored information for the provided CCDID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.15
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.15
          */
         removeClientCertificate(request: RemoveClientCertificateRequest): MaybePromise;
     }
@@ -214,7 +214,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This encodes the mapping between a TLSCAID and the associated root certificate.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.4.3
+     * @see {@link MatterSpecification.v151.Core} § 14.4.4.3
      */
     export declare class TlsCert {
         constructor(values?: Partial<TlsCert>);
@@ -222,7 +222,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCAID representing the unique Certificate Authority ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.4.3.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.4.3.1
          */
         caid: number;
 
@@ -233,7 +233,7 @@ export declare namespace TlsCertificateManagement {
          * field exists and is read over a non Large Message capable transport, it shall NOT be included. To get the
          * full details of a certificate use the FindRootCertificate command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.4.3.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.4.3.2
          */
         certificate?: Bytes;
 
@@ -243,7 +243,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This encodes a TLS Client Certificate and corresponding ICAC chain.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.4.4
+     * @see {@link MatterSpecification.v151.Core} § 14.4.4.4
      */
     export declare class TlsClientCertificateDetail {
         constructor(values?: Partial<TlsClientCertificateDetail>);
@@ -251,7 +251,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.4.4.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.4.4.1
          */
         ccdid: number;
 
@@ -264,7 +264,7 @@ export declare namespace TlsCertificateManagement {
          *
          * A NULL value indicates that the TLS Client Certificate Signing Request (CSR) Procedure has not yet completed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.4.4.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.4.4.2
          */
         clientCertificate?: Bytes | null;
 
@@ -279,7 +279,7 @@ export declare namespace TlsCertificateManagement {
          * An empty value means that no intermediate certificates are needed for the TLS Server to validate the
          * ClientCertificate.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.4.4.3
+         * @see {@link MatterSpecification.v151.Core} § 14.4.4.4.3
          */
         intermediateCertificates?: Bytes[];
 
@@ -290,7 +290,7 @@ export declare namespace TlsCertificateManagement {
      * This command shall provision a newly provided certificate, or rotate an existing one, based on the contents of
      * the CAID field.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.1
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.1
      */
     export declare class ProvisionRootCertificateRequest {
         constructor(values?: Partial<ProvisionRootCertificateRequest>);
@@ -298,7 +298,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be an octet string that represents a certificate encoded using DER encoding.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.1.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.1.1
          */
         certificate: Bytes;
 
@@ -356,7 +356,7 @@ export declare namespace TlsCertificateManagement {
          * Note when using this command for certificate rotation, the updated certificate will only be used for new
          * underlying TLS connections established after this call.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.1.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.1.2
          */
         caid: number | null;
     };
@@ -364,7 +364,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be generated in response to a ProvisionRootCertificate command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.2
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.2
      */
     export declare class ProvisionRootCertificateResponse {
         constructor(values?: Partial<ProvisionRootCertificateResponse>);
@@ -372,7 +372,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCAID representing the unique Certificate Authority ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.2.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.2.1
          */
         caid: number;
     };
@@ -381,7 +381,7 @@ export declare namespace TlsCertificateManagement {
      * This command shall return the specified TLS root certificate, or all provisioned TLS root certificates for the
      * accessing fabric, based on the contents of the CAID field.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.3
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.3
      */
     export declare class FindRootCertificateRequest {
         constructor(values?: Partial<FindRootCertificateRequest>);
@@ -427,7 +427,7 @@ export declare namespace TlsCertificateManagement {
          *
          *   - Return the resulting list in the corresponding FindRootCertificateResponse command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.3.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.3.1
          */
         caid: number | null;
     };
@@ -435,7 +435,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be generated in response to a FindRootCertificate command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.4
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.4
      */
     export declare class FindRootCertificateResponse {
         constructor(values?: Partial<FindRootCertificateResponse>);
@@ -443,7 +443,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a list of TLSCertStructs containing a minimum of one TLSCertStruct.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.4.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.4.1
          */
         certificateDetails: TlsCert[];
     };
@@ -451,7 +451,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall return the CAID for the passed in fingerprint.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.5
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.5
      */
     export declare class LookupRootCertificateRequest {
         constructor(values?: Partial<LookupRootCertificateRequest>);
@@ -474,7 +474,7 @@ export declare namespace TlsCertificateManagement {
          *
          *   - Return the CAID of that entry, in the corresponding LookupRootCertificateResponse command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.5.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.5.1
          */
         fingerprint: Bytes;
     };
@@ -482,7 +482,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be generated in response to a LookupRootCertificate command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.6
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.6
      */
     export declare class LookupRootCertificateResponse {
         constructor(values?: Partial<LookupRootCertificateResponse>);
@@ -490,7 +490,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCAID representing the unique Certificate Authority ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.6.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.6.1
          */
         caid: number;
     };
@@ -499,7 +499,7 @@ export declare namespace TlsCertificateManagement {
      * This command shall be generated to request the server removes the certificate provisioned to the provided
      * Certificate Authority ID.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.7
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.7
      */
     export declare class RemoveRootCertificateRequest {
         constructor(values?: Partial<RemoveRootCertificateRequest>);
@@ -531,7 +531,7 @@ export declare namespace TlsCertificateManagement {
          *
          *   - Remove the entry for the passed in CAID from the ProvisionedRootCertificates list.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.7.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.7.1
          */
         caid: number;
     };
@@ -540,7 +540,7 @@ export declare namespace TlsCertificateManagement {
      * This command shall be generated to request the Node generates a certificate signing request for a new TLS key
      * pair or use an existing CCDID for certificate rotation.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.8
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.8
      */
     export declare class ClientCsrRequest {
         constructor(values?: Partial<ClientCsrRequest>);
@@ -549,7 +549,7 @@ export declare namespace TlsCertificateManagement {
          * This field shall be an octet string that represents the nonce to be signed by the private key used in the
          * CSR, with the resulting signature returned in the NonceSignature field of ClientCSRResponse.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.8.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.8.1
          */
         nonce: Bytes;
 
@@ -612,7 +612,7 @@ export declare namespace TlsCertificateManagement {
          *   - Return the CCDID as CCDID, the DER-encoded tls_csr as CSR, and tls_nonce_signature as NonceSignature, in
          *     the corresponding ClientCSRResponse command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.8.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.8.2
          */
         ccdid: number | null;
     };
@@ -620,7 +620,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be generated in response to a ClientCSR command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.9
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.9
      */
     export declare class ClientCsrResponse {
         constructor(values?: Partial<ClientCsrResponse>);
@@ -628,14 +628,14 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate Details ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.9.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.9.1
          */
         ccdid: number;
 
         /**
          * This field shall be a DER-encoded octet string of a PKCS #10 format Certificate Signing Request.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.9.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.9.2
          */
         csr: Bytes;
 
@@ -643,7 +643,7 @@ export declare namespace TlsCertificateManagement {
          * This field shall be an octet string of the ec-signature of the Nonce field from the corresponding ClientCSR
          * command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.9.3
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.9.3
          */
         nonceSignature: Bytes;
     };
@@ -655,7 +655,7 @@ export declare namespace TlsCertificateManagement {
      * This command is typically invoked after having created a new client certificate using the CSR requested in
      * ClientCSR, with the TLSCCDID returned by ClientCSRResponse.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.10
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.10
      */
     export declare class ProvisionClientCertificateRequest {
         constructor(values?: Partial<ProvisionClientCertificateRequest>);
@@ -663,14 +663,14 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate Details ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.10.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.10.1
          */
         ccdid: number;
 
         /**
          * This field shall be an octet string that represents a TLS Client Certificate encoded using DER encoding.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.10.2
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.10.2
          */
         clientCertificate: Bytes;
 
@@ -720,7 +720,7 @@ export declare namespace TlsCertificateManagement {
          * Note: When using this command for client certificate rotation, only new underlying TLS connections
          * (established after this finishes processing), will use the updated Certificate.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.10.3
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.10.3
          */
         intermediateCertificates: Bytes[];
     };
@@ -729,7 +729,7 @@ export declare namespace TlsCertificateManagement {
      * This command shall return the TLSClientCertificateDetailStruct for the passed in CCDID, or all TLS client
      * certificates for the accessing fabric, based on the contents of the CCDID field.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.11
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.11
      */
     export declare class FindClientCertificateRequest {
         constructor(values?: Partial<FindClientCertificateRequest>);
@@ -780,7 +780,7 @@ export declare namespace TlsCertificateManagement {
          * Note: If an entry in the returned list has an empty ClientCertificate field, it means the ClientCSR command
          * was invoked, but the corresponding ProvisionClientCertificate has not been invoked yet.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.11.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.11.1
          */
         ccdid: number | null;
     };
@@ -788,7 +788,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be generated in response to a FindClientCertificate command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.12
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.12
      */
     export declare class FindClientCertificateResponse {
         constructor(values?: Partial<FindClientCertificateResponse>);
@@ -796,7 +796,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a list of TLSClientCertificateDetailStruct containing a minimum of one entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.12.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.12.1
          */
         certificateDetails: TlsClientCertificateDetail[];
     };
@@ -804,7 +804,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall return the CCDID for the passed in Fingerprint.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.13
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.13
      */
     export declare class LookupClientCertificateRequest {
         constructor(values?: Partial<LookupClientCertificateRequest>);
@@ -832,7 +832,7 @@ export declare namespace TlsCertificateManagement {
          *   - Return the CCDID field of the matching entry, as the CCDID field in the corresponding
          *     LookupClientCertificateResponse command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.13.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.13.1
          */
         fingerprint: Bytes;
     };
@@ -840,7 +840,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be generated in response to a LookupClientCertificate command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.14
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.14
      */
     export declare class LookupClientCertificateResponse {
         constructor(values?: Partial<LookupClientCertificateResponse>);
@@ -848,7 +848,7 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate Details ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.14.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.14.1
          */
         ccdid: number;
     };
@@ -856,7 +856,7 @@ export declare namespace TlsCertificateManagement {
     /**
      * This command shall be used to request the Node removes all stored information for the provided CCDID.
      *
-     * @see {@link MatterSpecification.v142.Core} § 14.4.6.15
+     * @see {@link MatterSpecification.v151.Core} § 14.4.6.15
      */
     export declare class RemoveClientCertificateRequest {
         constructor(values?: Partial<RemoveClientCertificateRequest>);
@@ -890,7 +890,7 @@ export declare namespace TlsCertificateManagement {
          *
          *   - Remove the TLS Key Pair belonging to the passed in CCDID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 14.4.6.15.1
+         * @see {@link MatterSpecification.v151.Core} § 14.4.6.15.1
          */
         ccdid: number;
     };

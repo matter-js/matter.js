@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
  * A Floodlight Camera device is a composite device which combines a camera and a light, primarily used in security use
  * cases.
  *
- * @see {@link MatterSpecification.v142.Device} § 16.2
+ * @see {@link MatterSpecification.v151.Device} § 16.2
  */
 export interface FloodlightCameraDevice extends Identity<typeof FloodlightCameraDeviceDefinition> {}
 

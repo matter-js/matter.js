@@ -20,7 +20,7 @@ import type { Bytes, MaybePromise } from "@matter/general";
  * clusters, like Section 11.9, “Network Commissioning Cluster”. It also hosts functionalities those other clusters may
  * depend on.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.10
+ * @see {@link MatterSpecification.v151.Core} § 11.10
  */
 export declare namespace GeneralCommissioning {
     /**
@@ -64,7 +64,7 @@ export declare namespace GeneralCommissioning {
          * functioning of any cluster, other than being set as a side-effect of commands where this behavior is
          * described.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.1
          */
         breadcrumb: number | bigint;
 
@@ -72,7 +72,7 @@ export declare namespace GeneralCommissioning {
          * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See Section
          * 11.10.5.4, “BasicCommissioningInfo” for more information.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.2
          */
         basicCommissioningInfo: BasicCommissioningInfo;
 
@@ -82,7 +82,7 @@ export declare namespace GeneralCommissioning {
          * Note that the country code is part of Section 11.1, “Basic Information Cluster” and therefore NOT listed on
          * the RegulatoryConfig attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.3
          */
         regulatoryConfig: RegulatoryLocationType;
 
@@ -99,7 +99,7 @@ export declare namespace GeneralCommissioning {
          * The default value of the RegulatoryConfig attribute is the value of LocationCapability attribute. This means
          * devices always have a safe default value, and Commissioners which choose to implement smarter handling can.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.4
          */
         locationCapability: RegulatoryLocationType;
 
@@ -107,7 +107,7 @@ export declare namespace GeneralCommissioning {
          * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
          * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.5
          */
         supportsConcurrentConnection: boolean;
 
@@ -122,7 +122,7 @@ export declare namespace GeneralCommissioning {
          * This attribute is used by the Commissioner as described in step 18 of Section 5.5, “Commissioning Flows”.
          * This attribute is linked to the Commissionee behavior after reception of the ConnectNetwork Command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.13
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.13
          */
         isCommissioningWithoutPower?: boolean;
     }
@@ -140,7 +140,7 @@ export declare namespace GeneralCommissioning {
          * attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning the user
          * back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.6
          */
         tcAcceptedVersion: number;
 
@@ -152,7 +152,7 @@ export declare namespace GeneralCommissioning {
          * the device shall update TCAcknowledgementsRequired to True so that an administrator can detect that a newer
          * version of the texts needs to be presented to the user.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.7
          */
         tcMinRequiredVersion: number;
 
@@ -167,7 +167,7 @@ export declare namespace GeneralCommissioning {
          * with the latest responses. This may happen in response to updated terms that were presented to the user. On a
          * factory reset this field shall be reset with all bits set to 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.8
          */
         tcAcknowledgements: number;
 
@@ -188,7 +188,7 @@ export declare namespace GeneralCommissioning {
          * that this attribute is set to False before returning the user back to the original Commissioner (see Section
          * 5.7.4, “Enhanced Setup Flow (ESF)”).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.9
          */
         tcAcknowledgementsRequired: boolean;
 
@@ -199,7 +199,7 @@ export declare namespace GeneralCommissioning {
          *
          * A null value indicates that there is no pending deadline for updated TC acceptance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.10
          */
         tcUpdateDeadline: number | null;
     }
@@ -218,7 +218,7 @@ export declare namespace GeneralCommissioning {
          * 64-bit number space to ensure a high likelihood of uniqueness from values selected by other Nodes. This value
          * SHOULD be obtained through Crypto_DRBG(len = 64).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.11
          */
         recoveryIdentifier: Bytes;
 
@@ -226,7 +226,7 @@ export declare namespace GeneralCommissioning {
          * This attribute shall contain the primary reason that triggered the Network Recovery flow and its associated
          * advertisements. Null when the Node is not undergoing a Network Recovery flow.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.12
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.12
          */
         networkRecoveryReason: NetworkRecoveryReason | null;
     }
@@ -253,7 +253,7 @@ export declare namespace GeneralCommissioning {
          * functioning of any cluster, other than being set as a side-effect of commands where this behavior is
          * described.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.1
          */
         breadcrumb: number | bigint;
 
@@ -261,7 +261,7 @@ export declare namespace GeneralCommissioning {
          * This attribute shall describe critical parameters needed at the beginning of commissioning flow. See Section
          * 11.10.5.4, “BasicCommissioningInfo” for more information.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.2
          */
         basicCommissioningInfo: BasicCommissioningInfo;
 
@@ -271,7 +271,7 @@ export declare namespace GeneralCommissioning {
          * Note that the country code is part of Section 11.1, “Basic Information Cluster” and therefore NOT listed on
          * the RegulatoryConfig attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.3
          */
         regulatoryConfig: RegulatoryLocationType;
 
@@ -288,7 +288,7 @@ export declare namespace GeneralCommissioning {
          * The default value of the RegulatoryConfig attribute is the value of LocationCapability attribute. This means
          * devices always have a safe default value, and Commissioners which choose to implement smarter handling can.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.4
          */
         locationCapability: RegulatoryLocationType;
 
@@ -296,7 +296,7 @@ export declare namespace GeneralCommissioning {
          * Indicates whether this device supports "concurrent connection flow" commissioning mode (see Section 5.5,
          * “Commissioning Flows”). If false, the device only supports "non-concurrent connection flow" mode.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.5
          */
         supportsConcurrentConnection: boolean;
 
@@ -311,7 +311,7 @@ export declare namespace GeneralCommissioning {
          * This attribute is used by the Commissioner as described in step 18 of Section 5.5, “Commissioning Flows”.
          * This attribute is linked to the Commissionee behavior after reception of the ConnectNetwork Command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.13
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.13
          */
         isCommissioningWithoutPower: boolean;
 
@@ -324,7 +324,7 @@ export declare namespace GeneralCommissioning {
          * attribute is set to a value which is greater than or equal to TCMinRequiredVersion before returning the user
          * back to the originating Commissioner (see Section 5.7.4, “Enhanced Setup Flow (ESF)”).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.6
          */
         tcAcceptedVersion: number;
 
@@ -336,7 +336,7 @@ export declare namespace GeneralCommissioning {
          * the device shall update TCAcknowledgementsRequired to True so that an administrator can detect that a newer
          * version of the texts needs to be presented to the user.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.7
          */
         tcMinRequiredVersion: number;
 
@@ -351,7 +351,7 @@ export declare namespace GeneralCommissioning {
          * with the latest responses. This may happen in response to updated terms that were presented to the user. On a
          * factory reset this field shall be reset with all bits set to 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.8
          */
         tcAcknowledgements: number;
 
@@ -372,7 +372,7 @@ export declare namespace GeneralCommissioning {
          * that this attribute is set to False before returning the user back to the original Commissioner (see Section
          * 5.7.4, “Enhanced Setup Flow (ESF)”).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.9
          */
         tcAcknowledgementsRequired: boolean;
 
@@ -383,7 +383,7 @@ export declare namespace GeneralCommissioning {
          *
          * A null value indicates that there is no pending deadline for updated TC acceptance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.10
          */
         tcUpdateDeadline: number | null;
 
@@ -397,7 +397,7 @@ export declare namespace GeneralCommissioning {
          * 64-bit number space to ensure a high likelihood of uniqueness from values selected by other Nodes. This value
          * SHOULD be obtained through Crypto_DRBG(len = 64).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.11
          */
         recoveryIdentifier: Bytes;
 
@@ -405,7 +405,7 @@ export declare namespace GeneralCommissioning {
          * This attribute shall contain the primary reason that triggered the Network Recovery flow and its associated
          * advertisements. Null when the Node is not undergoing a Network Recovery flow.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.6.12
+         * @see {@link MatterSpecification.v151.Core} § 11.10.6.12
          */
         networkRecoveryReason: NetworkRecoveryReason | null;
     }
@@ -535,7 +535,7 @@ export declare namespace GeneralCommissioning {
          *   10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the Node
          *       rollback the state of all non fabric-scoped data present in the Fail-Safe context.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.2
          */
         armFailSafe(request: ArmFailSafeRequest): MaybePromise<ArmFailSafeResponse>;
 
@@ -571,7 +571,7 @@ export declare namespace GeneralCommissioning {
          * when SetRegulatoryConfigResponse has the ErrorCode field set to OK. If the command fails, the Breadcrumb
          * attribute shall be left unchanged.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.4
          */
         setRegulatoryConfig(request: SetRegulatoryConfigRequest): MaybePromise<SetRegulatoryConfigResponse>;
 
@@ -630,7 +630,7 @@ export declare namespace GeneralCommissioning {
          * After receipt of a CommissioningCompleteResponse with an ErrorCode value of OK, a client cannot expect any
          * previously established PASE session to still be usable, due to the server having cleared such sessions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.6
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.6
          */
         commissioningComplete(): MaybePromise<CommissioningCompleteResponse>;
     }
@@ -643,7 +643,7 @@ export declare namespace GeneralCommissioning {
          * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions
          * into the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.8
          */
         setTcAcknowledgements(request: SetTcAcknowledgementsRequest): MaybePromise<SetTcAcknowledgementsResponse>;
     }
@@ -671,7 +671,7 @@ export declare namespace GeneralCommissioning {
     /**
      * These are optional features supported by GeneralCommissioningCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.4
+     * @see {@link MatterSpecification.v151.Core} § 11.10.4
      */
     export enum Feature {
         /**
@@ -692,7 +692,7 @@ export declare namespace GeneralCommissioning {
     /**
      * This structure provides some constant values that may be of use to all commissioners.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.5.4
+     * @see {@link MatterSpecification.v151.Core} § 11.10.5.4
      */
     export declare class BasicCommissioningInfo {
         constructor(values?: Partial<BasicCommissioningInfo>);
@@ -704,7 +704,7 @@ export declare namespace GeneralCommissioning {
          * SHOULD allow a Commissioner to proceed with a nominal commissioning without having to-rearm the fail-safe,
          * with some margin.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.5.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.5.4.1
          */
         failSafeExpiryLengthSeconds: number;
 
@@ -716,7 +716,7 @@ export declare namespace GeneralCommissioning {
          * guidelines, it is recommended that the value of this field be aligned with the initial Section 5.4.2.3,
          * “Announcement Duration” and default to 900 seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.5.4.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.5.4.2
          */
         maxCumulativeFailsafeSeconds: number;
     };
@@ -725,7 +725,7 @@ export declare namespace GeneralCommissioning {
      * This enumeration is used by the RegulatoryConfig and LocationCapability attributes to indicate possible radio
      * usage.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.5.2
+     * @see {@link MatterSpecification.v151.Core} § 11.10.5.2
      */
     export enum RegulatoryLocationType {
         /**
@@ -750,7 +750,7 @@ export declare namespace GeneralCommissioning {
      * This enumeration is used by the NetworkRecoveryReason attribute and may be embedded in the beacons advertising
      * the need for Network Recovery.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.5.3
+     * @see {@link MatterSpecification.v151.Core} § 11.10.5.3
      */
     export enum NetworkRecoveryReason {
         /**
@@ -890,7 +890,7 @@ export declare namespace GeneralCommissioning {
      *   10. Optionally: if no factory-reset resulted from the previous steps, it is recommended that the Node rollback
      *       the state of all non fabric-scoped data present in the Fail-Safe context.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.2
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.2
      */
     export declare class ArmFailSafeRequest {
         constructor(values?: Partial<ArmFailSafeRequest>);
@@ -901,7 +901,7 @@ export declare namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the ArmFailSafe command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.3
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.3
      */
     export declare class ArmFailSafeResponse {
         constructor(values?: Partial<ArmFailSafeResponse>);
@@ -910,14 +910,14 @@ export declare namespace GeneralCommissioning {
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the ArmFailSafe command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.3.1
          */
         errorCode: CommissioningError;
 
         /**
          * See Section 11.10.7.1, “Common fields in General Commissioning cluster responses”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.3.2
          */
         debugText: string;
     };
@@ -954,7 +954,7 @@ export declare namespace GeneralCommissioning {
      * SetRegulatoryConfigResponse has the ErrorCode field set to OK. If the command fails, the Breadcrumb attribute
      * shall be left unchanged.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.4
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.4
      */
     export declare class SetRegulatoryConfigRequest {
         constructor(values?: Partial<SetRegulatoryConfigRequest>);
@@ -966,7 +966,7 @@ export declare namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the SetRegulatoryConfig command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.5
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.5
      */
     export declare class SetRegulatoryConfigResponse {
         constructor(values?: Partial<SetRegulatoryConfigResponse>);
@@ -975,14 +975,14 @@ export declare namespace GeneralCommissioning {
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the SetRegulatoryConfig command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.5.1
          */
         errorCode: CommissioningError;
 
         /**
          * See Section 11.10.7.1, “Common fields in General Commissioning cluster responses”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.5.2
          */
         debugText: string;
     };
@@ -990,7 +990,7 @@ export declare namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the CommissioningComplete command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.7
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.7
      */
     export declare class CommissioningCompleteResponse {
         constructor(values?: Partial<CommissioningCompleteResponse>);
@@ -999,14 +999,14 @@ export declare namespace GeneralCommissioning {
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the CommissioningComplete command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.7.1
          */
         errorCode: CommissioningError;
 
         /**
          * See Section 11.10.7.1, “Common fields in General Commissioning cluster responses”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.7.2
          */
         debugText: string;
     };
@@ -1015,7 +1015,7 @@ export declare namespace GeneralCommissioning {
      * This command is used to set the user acknowledgements received in the Enhanced Setup Flow Terms & Conditions into
      * the node.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.8
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.8
      */
     export declare class SetTcAcknowledgementsRequest {
         constructor(values?: Partial<SetTcAcknowledgementsRequest>);
@@ -1024,7 +1024,7 @@ export declare namespace GeneralCommissioning {
          * This field shall contain the version of the Enhanced Setup Flow Terms & Conditions that were presented to the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.8.1
          */
         tcVersion: number;
 
@@ -1050,7 +1050,7 @@ export declare namespace GeneralCommissioning {
          * not all required terms were accepted by the user, then the ErrorCode of RequiredTCNotAccepted shall be
          * returned and TCAcknowledgements shall remain unchanged.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.8.2
          */
         tcUserResponse: number;
     };
@@ -1058,7 +1058,7 @@ export declare namespace GeneralCommissioning {
     /**
      * This command is used to report the result of the SetTCAcknowledgements command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.7.9
+     * @see {@link MatterSpecification.v151.Core} § 11.10.7.9
      */
     export declare class SetTcAcknowledgementsResponse {
         constructor(values?: Partial<SetTcAcknowledgementsResponse>);
@@ -1067,7 +1067,7 @@ export declare namespace GeneralCommissioning {
          * This field shall contain the result of the operation, based on the behavior specified in the functional
          * description of the SetTCAcknowledgements command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.10.7.9.1
+         * @see {@link MatterSpecification.v151.Core} § 11.10.7.9.1
          */
         errorCode: CommissioningError;
     };
@@ -1075,7 +1075,7 @@ export declare namespace GeneralCommissioning {
     /**
      * This enumeration is used by several response commands in this cluster to indicate particular errors.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.10.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.10.5.1
      */
     export enum CommissioningError {
         /**

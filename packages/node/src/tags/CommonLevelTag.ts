@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace may be used in any domain or context, to indicate an association with a certain
  * level for a feature of a device (e.g. a button to set the speed of a fan).
  *
- * @see {@link MatterSpecification.v142.Namespace} § 6
+ * @see {@link MatterSpecification.v151.Namespace} § 6
  */
 export const CommonLevelTag = SemanticNamespace({
     id: 0x5,

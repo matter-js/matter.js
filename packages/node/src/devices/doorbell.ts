@@ -19,7 +19,7 @@ import { Identity } from "@matter/general";
  * DoorbellDevice requires Switch cluster but Switch is not added by default because you must select the features your
  * device supports. You can add manually using DoorbellDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 16.9
+ * @see {@link MatterSpecification.v151.Device} § 16.9
  */
 export interface DoorbellDevice extends Identity<typeof DoorbellDeviceDefinition> {}
 

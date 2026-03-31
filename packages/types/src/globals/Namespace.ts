@@ -11,7 +11,7 @@
  *
  * The Namespace type identifies the namespace used for a semantic tag.
  *
- * @see {@link MatterSpecification.v142.Core} § 7.19.2.47
+ * @see {@link MatterSpecification.v151.Core} § 7.19.2.47
  */
 export enum Namespace {
     /**

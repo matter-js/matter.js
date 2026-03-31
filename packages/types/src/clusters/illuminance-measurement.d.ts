@@ -16,7 +16,7 @@ import type { ClusterModel } from "@matter/model";
  * The Illuminance Measurement cluster provides an interface to illuminance measurement functionality, including
  * configuration and provision of notifications of illuminance measurements.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.2
+ * @see {@link MatterSpecification.v151.Cluster} § 2.2
  */
 export declare namespace IlluminanceMeasurement {
     /**
@@ -62,7 +62,7 @@ export declare namespace IlluminanceMeasurement {
          *
          * The MeasuredValue attribute is updated continuously as new measurements are made.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.1
          */
         measuredValue: number | null;
 
@@ -70,7 +70,7 @@ export declare namespace IlluminanceMeasurement {
          * Indicates the minimum value of MeasuredValue that can be measured. A value of null indicates that this
          * attribute is not defined. See Measured Value for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.2
          */
         minMeasuredValue: number | null;
 
@@ -78,14 +78,14 @@ export declare namespace IlluminanceMeasurement {
          * Indicates the maximum value of MeasuredValue that can be measured. A value of null indicates that this
          * attribute is not defined. See Measured Value for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.4
          */
         tolerance?: number;
 
@@ -93,7 +93,7 @@ export declare namespace IlluminanceMeasurement {
          * Indicates the electronic type of the light sensor. This attribute shall be set to one of the non-reserved
          * values listed in LightSensorTypeEnum or null in case the sensor type is unknown.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.5
          */
         lightSensorType?: number | null;
     }
@@ -121,7 +121,7 @@ export declare namespace IlluminanceMeasurement {
          *
          * The MeasuredValue attribute is updated continuously as new measurements are made.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.1
          */
         measuredValue: number | null;
 
@@ -129,7 +129,7 @@ export declare namespace IlluminanceMeasurement {
          * Indicates the minimum value of MeasuredValue that can be measured. A value of null indicates that this
          * attribute is not defined. See Measured Value for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.2
          */
         minMeasuredValue: number | null;
 
@@ -137,14 +137,14 @@ export declare namespace IlluminanceMeasurement {
          * Indicates the maximum value of MeasuredValue that can be measured. A value of null indicates that this
          * attribute is not defined. See Measured Value for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.4
          */
         tolerance: number;
 
@@ -152,7 +152,7 @@ export declare namespace IlluminanceMeasurement {
          * Indicates the electronic type of the light sensor. This attribute shall be set to one of the non-reserved
          * values listed in LightSensorTypeEnum or null in case the sensor type is unknown.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.2.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.2.5.5
          */
         lightSensorType: number | null;
     }
@@ -160,7 +160,7 @@ export declare namespace IlluminanceMeasurement {
     export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 2.2.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 2.2.4.1
      */
     export enum LightSensorType {
         /**

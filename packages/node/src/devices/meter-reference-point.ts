@@ -14,7 +14,7 @@ import { Identity } from "@matter/general";
 /**
  * A Meter Reference Point device provides details about tariffs and metering.
  *
- * @see {@link MatterSpecification.v142.Device} § 14.6
+ * @see {@link MatterSpecification.v151.Device} § 14.6
  */
 export interface MeterReferencePointDevice extends Identity<typeof MeterReferencePointDeviceDefinition> {}
 

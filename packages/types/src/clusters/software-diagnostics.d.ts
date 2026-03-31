@@ -18,7 +18,7 @@ import type { MaybePromise, Bytes } from "@matter/general";
  * Node to assist a user or Administrator in diagnosing potential problems. The Software Diagnostics Cluster attempts to
  * centralize all metrics that are relevant to the software that may be running on a Node.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.13
+ * @see {@link MatterSpecification.v151.Core} § 11.13
  */
 export declare namespace SoftwareDiagnostics {
     /**
@@ -51,7 +51,7 @@ export declare namespace SoftwareDiagnostics {
          * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
          * represented by a single entry within the ThreadMetrics attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.1
          */
         threadMetrics?: ThreadMetrics[];
 
@@ -59,14 +59,14 @@ export declare namespace SoftwareDiagnostics {
          * Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective amount may
          * be smaller due to heap fragmentation or other reasons.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.2
          */
         currentHeapFree?: number | bigint;
 
         /**
          * Indicates the current amount of heap memory, in bytes, that is being used.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.3
          */
         currentHeapUsed?: number | bigint;
     }
@@ -79,7 +79,7 @@ export declare namespace SoftwareDiagnostics {
          * Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value shall only
          * be reset upon a Node reboot or upon receiving of the ResetWatermarks command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.4
          */
         currentHeapHighWatermark: number | bigint;
     }
@@ -95,7 +95,7 @@ export declare namespace SoftwareDiagnostics {
          * This attribute shall be a list of ThreadMetricsStruct structs. Each active thread on the Node shall be
          * represented by a single entry within the ThreadMetrics attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.1
          */
         threadMetrics: ThreadMetrics[];
 
@@ -103,14 +103,14 @@ export declare namespace SoftwareDiagnostics {
          * Indicates the current amount of heap memory, in bytes, that are free for allocation. The effective amount may
          * be smaller due to heap fragmentation or other reasons.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.2
          */
         currentHeapFree: number | bigint;
 
         /**
          * Indicates the current amount of heap memory, in bytes, that is being used.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.3
          */
         currentHeapUsed: number | bigint;
 
@@ -118,7 +118,7 @@ export declare namespace SoftwareDiagnostics {
          * Indicates the maximum amount of heap memory, in bytes, that has been used by the Node. This value shall only
          * be reset upon a Node reboot or upon receiving of the ResetWatermarks command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.13.6.4
          */
         currentHeapHighWatermark: number | bigint;
     }
@@ -146,7 +146,7 @@ export declare namespace SoftwareDiagnostics {
          * If implemented, the server shall set the value of the StackFreeMinimum field for every thread to the value of
          * the corresponding thread’s StackFreeCurrent field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.7.1
          */
         resetWatermarks(): MaybePromise;
     }
@@ -163,7 +163,7 @@ export declare namespace SoftwareDiagnostics {
         /**
          * This Event shall be generated when a software fault occurs on the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.8.1
          */
         softwareFault?: SoftwareFaultEvent;
     }
@@ -178,7 +178,7 @@ export declare namespace SoftwareDiagnostics {
         /**
          * This Event shall be generated when a software fault occurs on the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.8.1
          */
         softwareFault: SoftwareFaultEvent;
     }
@@ -192,7 +192,7 @@ export declare namespace SoftwareDiagnostics {
     /**
      * These are optional features supported by SoftwareDiagnosticsCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.13.4
+     * @see {@link MatterSpecification.v151.Core} § 11.13.4
      */
     export enum Feature {
         /**
@@ -204,7 +204,7 @@ export declare namespace SoftwareDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.13.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.13.5.1
      */
     export declare class ThreadMetrics {
         constructor(values?: Partial<ThreadMetrics>);
@@ -213,7 +213,7 @@ export declare namespace SoftwareDiagnostics {
          * The Id field shall be a server-assigned per-thread unique ID that is constant for the duration of the thread.
          * Efforts SHOULD be made to avoid reusing ID values when possible.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.5.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.5.1.1
          */
         id: number | bigint;
 
@@ -221,7 +221,7 @@ export declare namespace SoftwareDiagnostics {
          * The Name field shall be set to a vendor defined name or prefix of the software thread that is static for the
          * duration of the thread.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.5.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.13.5.1.2
          */
         name?: string;
 
@@ -229,7 +229,7 @@ export declare namespace SoftwareDiagnostics {
          * The StackFreeCurrent field shall indicate the current amount of stack memory, in bytes, that are not being
          * utilized on the respective thread.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.5.1.3
+         * @see {@link MatterSpecification.v151.Core} § 11.13.5.1.3
          */
         stackFreeCurrent?: number;
 
@@ -239,7 +239,7 @@ export declare namespace SoftwareDiagnostics {
          * respective thread. This value shall only be reset upon a Node reboot or upon receiving of the ResetWatermarks
          * command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.5.1.4
+         * @see {@link MatterSpecification.v151.Core} § 11.13.5.1.4
          */
         stackFreeMinimum?: number;
 
@@ -247,7 +247,7 @@ export declare namespace SoftwareDiagnostics {
          * The StackSize field shall indicate the amount of stack memory, in bytes, that has been allocated for use by
          * the respective thread.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.5.1.5
+         * @see {@link MatterSpecification.v151.Core} § 11.13.5.1.5
          */
         stackSize?: number;
     };
@@ -255,7 +255,7 @@ export declare namespace SoftwareDiagnostics {
     /**
      * This Event shall be generated when a software fault occurs on the Node.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.13.8.1
+     * @see {@link MatterSpecification.v151.Core} § 11.13.8.1
      */
     export declare class SoftwareFaultEvent {
         constructor(values?: Partial<SoftwareFaultEvent>);
@@ -263,7 +263,7 @@ export declare namespace SoftwareDiagnostics {
         /**
          * This field shall be set to the ID of the software thread in which the last software fault occurred.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.8.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.13.8.1.1
          */
         id: number | bigint;
 
@@ -271,7 +271,7 @@ export declare namespace SoftwareDiagnostics {
          * This field shall be set to a manufacturer-specified name or prefix of the software thread in which the last
          * software fault occurred.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.8.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.13.8.1.2
          */
         name?: string;
 
@@ -280,7 +280,7 @@ export declare namespace SoftwareDiagnostics {
          * diagnosing or debugging a software fault. The FaultRecording field may be used to convey information such as,
          * but not limited to, thread backtraces or register contents.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.13.8.1.3
+         * @see {@link MatterSpecification.v151.Core} § 11.13.8.1.3
          */
         faultRecording?: Bytes;
     };

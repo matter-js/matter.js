@@ -42,7 +42,7 @@ import { Identity } from "@matter/general";
 /**
  * A Camera controller device is a device that provides interfaces for controlling and managing camera devices.
  *
- * @see {@link MatterSpecification.v142.Device} § 16.8
+ * @see {@link MatterSpecification.v151.Device} § 16.8
  */
 export interface CameraControllerDevice extends Identity<typeof CameraControllerDeviceDefinition> {}
 

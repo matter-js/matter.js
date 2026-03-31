@@ -18,7 +18,7 @@ import type { MaybePromise } from "@matter/general";
  * The WebRTC transport requestor cluster provides a way for stream consumers (e.g. Matter Stream Viewer) to establish a
  * WebRTC connection with a stream provider that implements the WebRTC Transport Provider Cluster.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 11.6
+ * @see {@link MatterSpecification.v151.Cluster} § 11.6
  */
 export declare namespace WebRtcTransportRequestor {
     /**
@@ -51,7 +51,7 @@ export declare namespace WebRtcTransportRequestor {
          * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions on
          * this Node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.4.1
          */
         currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
@@ -64,7 +64,7 @@ export declare namespace WebRtcTransportRequestor {
          * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions on
          * this Node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.4.1
          */
         currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
@@ -82,7 +82,7 @@ export declare namespace WebRtcTransportRequestor {
          * fabric and the Peer Node ID entry stored in the Secure Session Context (see Chapter 4 Secure Channel, Secure
          * Session Context section, in [MatterCore]) of the session this command was received on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1
          */
         offer(request: OfferRequest): MaybePromise;
 
@@ -95,7 +95,7 @@ export declare namespace WebRtcTransportRequestor {
          * fabric and the Peer Node ID entry stored in the Secure Session Context of the session this command was
          * received on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.2
          */
         answer(request: AnswerRequest): MaybePromise;
 
@@ -110,14 +110,14 @@ export declare namespace WebRtcTransportRequestor {
          * fabric and the Peer Node ID entry stored in the Secure Session Context of the session this command was
          * received on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.3
          */
         iceCandidates(request: IceCandidatesRequest): MaybePromise;
 
         /**
          * This command notifies the stream requestor that the provider has ended the WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.4
          */
         end(request: EndRequest): MaybePromise;
     }
@@ -138,7 +138,7 @@ export declare namespace WebRtcTransportRequestor {
      * and the Peer Node ID entry stored in the Secure Session Context (see Chapter 4 Secure Channel, Secure Session
      * Context section, in [MatterCore]) of the session this command was received on.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1
      */
     export declare class OfferRequest {
         constructor(values?: Partial<OfferRequest>);
@@ -146,7 +146,7 @@ export declare namespace WebRtcTransportRequestor {
         /**
          * This field shall contain the ID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1.1
          */
         webRtcSessionId: number;
 
@@ -154,7 +154,7 @@ export declare namespace WebRtcTransportRequestor {
          * This field shall contain the string based SDP Offer. See WebRTC Transport for further details on SDP and
          * Offer/Answer semantics.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1.2
          */
         sdp: string;
 
@@ -162,7 +162,7 @@ export declare namespace WebRtcTransportRequestor {
          * This field shall be a list of ICEServerStruct which contains the ICE servers and their credentials to use for
          * this session. See ICEServerStruct for further details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1.3
          */
         iceServers?: WebRtcTransportDefinitions.IceServer[];
 
@@ -170,7 +170,7 @@ export declare namespace WebRtcTransportRequestor {
          * This field controls the gathering and usage of ICE candidates and shall have one of the values found in
          * ICETransportPolicy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.1.4
          */
         iceTransportPolicy?: string;
     };
@@ -183,7 +183,7 @@ export declare namespace WebRtcTransportRequestor {
      * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context of the session this command was received on.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.2
      */
     export declare class AnswerRequest {
         constructor(values?: Partial<AnswerRequest>);
@@ -191,7 +191,7 @@ export declare namespace WebRtcTransportRequestor {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.2.1
          */
         webRtcSessionId: number;
 
@@ -199,7 +199,7 @@ export declare namespace WebRtcTransportRequestor {
          * This field shall contain the string based SDP Answer. See WebRTC Transport for further details on SDP and
          * Offer/Answer semantics.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.2.2
          */
         sdp: string;
     };
@@ -214,7 +214,7 @@ export declare namespace WebRtcTransportRequestor {
      * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context of the session this command was received on.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.3
      */
     export declare class IceCandidatesRequest {
         constructor(values?: Partial<IceCandidatesRequest>);
@@ -222,14 +222,14 @@ export declare namespace WebRtcTransportRequestor {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.3.1
          */
         webRtcSessionId: number;
 
         /**
          * This field shall contain a list of JSEP compliant ICE Candidate Format objects.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.3.2
          */
         iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
     };
@@ -237,7 +237,7 @@ export declare namespace WebRtcTransportRequestor {
     /**
      * This command notifies the stream requestor that the provider has ended the WebRTC session.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.4
      */
     export declare class EndRequest {
         constructor(values?: Partial<EndRequest>);
@@ -245,14 +245,14 @@ export declare namespace WebRtcTransportRequestor {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.4.1
          */
         webRtcSessionId: number;
 
         /**
          * This field shall be one of the values in WebRTCEndReasonEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.6.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.6.5.4.2
          */
         reason: WebRtcTransportDefinitions.WebRtcEndReason;
     };

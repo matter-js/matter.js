@@ -16,7 +16,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * This cluster provides facilities to configure and play Chime sounds, such as those used in a doorbell.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 11.8
+ * @see {@link MatterSpecification.v151.Cluster} § 11.8
  */
 export declare namespace Chime {
     /**
@@ -49,7 +49,7 @@ export declare namespace Chime {
          * This attribute shall contain all installed chime sounds, represented by a list of Chime Sounds. Each entry in
          * this list shall have a unique ChimeID value and a unique Name value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.5.1
          */
         installedChimeSounds: ChimeSound[];
 
@@ -62,7 +62,7 @@ export declare namespace Chime {
          * attribute while a chime is currently playing shall NOT affect the playback in progress and shall only apply
          * starting at the next PlayChimeSound command invocation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.5.2
          */
         selectedChime: number;
 
@@ -70,7 +70,7 @@ export declare namespace Chime {
          * Indicates if chime sounds can currently be played or not, and may be written by the client to enable /
          * disable playing of chime sounds.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.5.3
          */
         enabled: boolean;
     }
@@ -83,7 +83,7 @@ export declare namespace Chime {
          * This attribute shall contain all installed chime sounds, represented by a list of Chime Sounds. Each entry in
          * this list shall have a unique ChimeID value and a unique Name value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.5.1
          */
         installedChimeSounds: ChimeSound[];
 
@@ -96,7 +96,7 @@ export declare namespace Chime {
          * attribute while a chime is currently playing shall NOT affect the playback in progress and shall only apply
          * starting at the next PlayChimeSound command invocation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.5.2
          */
         selectedChime: number;
 
@@ -104,7 +104,7 @@ export declare namespace Chime {
          * Indicates if chime sounds can currently be played or not, and may be written by the client to enable /
          * disable playing of chime sounds.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.5.3
          */
         enabled: boolean;
     }
@@ -117,7 +117,7 @@ export declare namespace Chime {
          * This command will play the currently selected chime or the chime passed in. In either case the server shall
          * generate the ChimeStartedPlaying event.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.6.1
          */
         playChimeSound(request: PlayChimeSoundRequest): MaybePromise;
     }
@@ -136,7 +136,7 @@ export declare namespace Chime {
          *
          * The data on this event shall contain the following information.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.7.1
          */
         chimeStartedPlaying: ChimeStartedPlayingEvent;
     }
@@ -150,7 +150,7 @@ export declare namespace Chime {
          *
          * The data on this event shall contain the following information.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.7.1
          */
         chimeStartedPlaying: ChimeStartedPlayingEvent;
     }
@@ -160,7 +160,7 @@ export declare namespace Chime {
     /**
      * This struct is used to encode information needed to define a Chime Sound.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.8.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.8.4.1
      */
     export declare class ChimeSound {
         constructor(values?: Partial<ChimeSound>);
@@ -168,14 +168,14 @@ export declare namespace Chime {
         /**
          * This field shall represent the unique ID for a Chime sound.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.4.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.4.1.1
          */
         chimeId: number;
 
         /**
          * This field shall represent the unique user friendly name of the Chime Sound.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.4.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.4.1.2
          */
         name: string;
     };
@@ -184,7 +184,7 @@ export declare namespace Chime {
      * This command will play the currently selected chime or the chime passed in. In either case the server shall
      * generate the ChimeStartedPlaying event.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.8.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.8.6.1
      */
     export declare class PlayChimeSoundRequest {
         constructor(values?: Partial<PlayChimeSoundRequest>);
@@ -193,7 +193,7 @@ export declare namespace Chime {
          * This field shall represent the unique ID for a Chime sound to play if present, instead of the current value
          * in SelectedChime.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.6.1.1
          */
         chimeId?: number;
     };
@@ -203,7 +203,7 @@ export declare namespace Chime {
      *
      * The data on this event shall contain the following information.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.8.7.1
      */
     export declare class ChimeStartedPlayingEvent {
         constructor(values?: Partial<ChimeStartedPlayingEvent>);
@@ -211,7 +211,7 @@ export declare namespace Chime {
         /**
          * This field shall represent the unique ID for the Chime sound that just started playing.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.8.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.8.7.1.1
          */
         chimeId: number;
     };

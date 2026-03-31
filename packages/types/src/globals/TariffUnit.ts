@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v142.Cluster} § 9.1.3
+ * @see {@link MatterSpecification.v151.Cluster} § 9.1.3
  */
 export enum TariffUnit {
     /**

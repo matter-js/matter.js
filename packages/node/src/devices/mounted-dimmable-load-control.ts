@@ -36,7 +36,7 @@ import { Identity } from "@matter/general";
  *   backward compatibility with existing clients. See Dimmable Plug-In Unit client guidance for additional information,
  *   regarding the inclusion of these two device types.
  *
- * @see {@link MatterSpecification.v142.Device} § 5.4
+ * @see {@link MatterSpecification.v151.Device} § 5.4
  */
 export interface MountedDimmableLoadControlDevice extends Identity<typeof MountedDimmableLoadControlDeviceDefinition> {}
 

@@ -35,7 +35,7 @@ import { Identity } from "@matter/general";
  *   backward compatibility with existing clients. See On/Off Plug-in Unit client guidance for additional information,
  *   regarding the inclusion of these two device types.
  *
- * @see {@link MatterSpecification.v142.Device} § 5.3
+ * @see {@link MatterSpecification.v151.Device} § 5.3
  */
 export interface MountedOnOffControlDevice extends Identity<typeof MountedOnOffControlDeviceDefinition> {}
 

@@ -20,7 +20,7 @@ import type { TariffPriceType } from "../globals/TariffPriceType.js";
  *
  * The CommodityTariffCluster provides the mechanism for communicating Commodity Tariff information within the premises.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.12
+ * @see {@link MatterSpecification.v151.Cluster} § 9.12
  */
 export declare namespace CommodityTariff {
     /**
@@ -54,7 +54,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.1
          */
         tariffInfo: TariffInformation | null;
 
@@ -63,7 +63,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.2
          */
         tariffUnit: TariffUnit | null;
 
@@ -73,7 +73,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.3
          */
         startDate: number | null;
 
@@ -85,7 +85,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.4
          */
         dayEntries: DayEntry[] | null;
 
@@ -94,7 +94,7 @@ export declare namespace CommodityTariff {
          *
          * Each day pattern in this list shall define the specific schedule that applies to the days it covers.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.5
          */
         dayPatterns: DayPattern[] | null;
 
@@ -111,7 +111,7 @@ export declare namespace CommodityTariff {
          *
          * If the calendar is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.6
          */
         calendarPeriods: CalendarPeriod[] | null;
 
@@ -123,7 +123,7 @@ export declare namespace CommodityTariff {
          *
          * If the calendar is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.7
          */
         individualDays: Day[] | null;
 
@@ -132,7 +132,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or CurrentDay information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.8
          */
         currentDay: Day | null;
 
@@ -141,7 +141,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or NextDay information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.9
          */
         nextDay: Day | null;
 
@@ -150,7 +150,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or day entry information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.10
          */
         currentDayEntry: DayEntry | null;
 
@@ -160,7 +160,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or day entry information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.11
          */
         currentDayEntryDate: number | null;
 
@@ -169,7 +169,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.12
          */
         nextDayEntry: DayEntry | null;
 
@@ -179,7 +179,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.13
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.13
          */
         nextDayEntryDate: number | null;
 
@@ -188,7 +188,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.14
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.14
          */
         tariffComponents: TariffComponent[] | null;
 
@@ -197,7 +197,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.15
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.15
          */
         tariffPeriods: TariffPeriod[] | null;
 
@@ -206,7 +206,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.16
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.16
          */
         currentTariffComponents: TariffComponent[] | null;
 
@@ -215,7 +215,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.17
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.17
          */
         nextTariffComponents: TariffComponent[] | null;
     }
@@ -228,14 +228,14 @@ export declare namespace CommodityTariff {
          * Indicates a default randomization offset for DayEntryStructs in this tariff. See RandomizationOffset for
          * details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.18
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.18
          */
         defaultRandomizationOffset: number | null;
 
         /**
          * Indicates a default randomization type for DayEntryStruct in this tariff. See RandomizationType for details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.19
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.19
          */
         defaultRandomizationType: DayEntryRandomizationType | null;
     }
@@ -252,7 +252,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.1
          */
         tariffInfo: TariffInformation | null;
 
@@ -261,7 +261,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.2
          */
         tariffUnit: TariffUnit | null;
 
@@ -271,7 +271,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.3
          */
         startDate: number | null;
 
@@ -283,7 +283,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.4
          */
         dayEntries: DayEntry[] | null;
 
@@ -292,7 +292,7 @@ export declare namespace CommodityTariff {
          *
          * Each day pattern in this list shall define the specific schedule that applies to the days it covers.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.5
          */
         dayPatterns: DayPattern[] | null;
 
@@ -309,7 +309,7 @@ export declare namespace CommodityTariff {
          *
          * If the calendar is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.6
          */
         calendarPeriods: CalendarPeriod[] | null;
 
@@ -321,7 +321,7 @@ export declare namespace CommodityTariff {
          *
          * If the calendar is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.7
          */
         individualDays: Day[] | null;
 
@@ -330,7 +330,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or CurrentDay information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.8
          */
         currentDay: Day | null;
 
@@ -339,7 +339,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or NextDay information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.9
          */
         nextDay: Day | null;
 
@@ -348,7 +348,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or day entry information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.10
          */
         currentDayEntry: DayEntry | null;
 
@@ -358,7 +358,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or day entry information is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.11
          */
         currentDayEntryDate: number | null;
 
@@ -367,7 +367,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.12
          */
         nextDayEntry: DayEntry | null;
 
@@ -377,7 +377,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is not active or is not available, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.13
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.13
          */
         nextDayEntryDate: number | null;
 
@@ -386,7 +386,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.14
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.14
          */
         tariffComponents: TariffComponent[] | null;
 
@@ -395,7 +395,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.15
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.15
          */
         tariffPeriods: TariffPeriod[] | null;
 
@@ -404,7 +404,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.16
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.16
          */
         currentTariffComponents: TariffComponent[] | null;
 
@@ -413,7 +413,7 @@ export declare namespace CommodityTariff {
          *
          * If the tariff is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.17
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.17
          */
         nextTariffComponents: TariffComponent[] | null;
 
@@ -421,14 +421,14 @@ export declare namespace CommodityTariff {
          * Indicates a default randomization offset for DayEntryStructs in this tariff. See RandomizationOffset for
          * details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.18
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.18
          */
         defaultRandomizationOffset: number | null;
 
         /**
          * Indicates a default randomization type for DayEntryStruct in this tariff. See RandomizationType for details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.6.19
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.6.19
          */
         defaultRandomizationType: DayEntryRandomizationType | null;
     }
@@ -441,7 +441,7 @@ export declare namespace CommodityTariff {
          * The GetTariffComponent command allows a client to request information for a tariff component identifier that
          * may no longer be available in the TariffPeriods attributes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.1
          */
         getTariffComponent(request: GetTariffComponentRequest): MaybePromise<GetTariffComponentResponse>;
 
@@ -449,7 +449,7 @@ export declare namespace CommodityTariff {
          * The GetDayEntry command allows a client to request information for a calendar day entry identifier that may
          * no longer be available in the CalendarPeriods or IndividualDays attributes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.3
          */
         getDayEntry(request: GetDayEntryRequest): MaybePromise<GetDayEntryResponse>;
     }
@@ -468,7 +468,7 @@ export declare namespace CommodityTariff {
     /**
      * These are optional features supported by CommodityTariffCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.4
      */
     export enum Feature {
         /**
@@ -517,7 +517,7 @@ export declare namespace CommodityTariff {
     /**
      * This represents particular Tariff Price information.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.14
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14
      */
     export declare class TariffInformation {
         constructor(values?: Partial<TariffInformation>);
@@ -525,28 +525,28 @@ export declare namespace CommodityTariff {
         /**
          * This field shall indicate a label for the tariff.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.14.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14.1
          */
         tariffLabel: string | null;
 
         /**
          * This field shall indicate the name of the commodity provider for this tariff.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.14.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14.2
          */
         providerName: string | null;
 
         /**
          * This field shall indicate the currency for the value of the Price field on all TariffPriceStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.14.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14.3
          */
         currency?: Currency | null;
 
         /**
          * This field shall indicate the mode for metering blocks of usage.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.14.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.14.4
          */
         blockMode: BlockMode | null;
     };
@@ -555,7 +555,7 @@ export declare namespace CommodityTariff {
      * This struct represents a day entry at a particular time of day, along with an optional duration and randomization
      * parameters.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.10
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10
      */
     export declare class DayEntry {
         constructor(values?: Partial<DayEntry>);
@@ -584,7 +584,7 @@ export declare namespace CommodityTariff {
          * Once an identifier has been used for a given combination above, it shall never be used for any other
          * combination of these values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10.1
          */
         dayEntryId: number;
 
@@ -608,7 +608,7 @@ export declare namespace CommodityTariff {
          * DayEntryStruct on daylight saving time days SHOULD be handled by a DayStruct in the IndividualDays attribute
          * whose Date field indicates the date of the day entry.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10.2
          */
         startTime: number;
 
@@ -620,7 +620,7 @@ export declare namespace CommodityTariff {
          * next DayEntryID in the containing list. If the DayEntryStruct is the last item in the containing list, then
          * the day entry shall last until the end of the day.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10.3
          */
         duration?: number;
 
@@ -635,7 +635,7 @@ export declare namespace CommodityTariff {
          *
          *   3. Otherwise the value of this field shall be greater than or equal to zero
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10.4
          */
         randomizationOffset?: number;
 
@@ -661,7 +661,7 @@ export declare namespace CommodityTariff {
          * seconds whose value is greater than or equal to the calculated value of the RandomizationOffset field shall
          * be added to the start time of the day entry.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.10.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.10.5
          */
         randomizationType?: DayEntryRandomizationType;
     };
@@ -669,7 +669,7 @@ export declare namespace CommodityTariff {
     /**
      * This represents a series of day entries over the course of a day for a given set of days of the week.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.12
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.12
      */
     export declare class DayPattern {
         constructor(values?: Partial<DayPattern>);
@@ -681,7 +681,7 @@ export declare namespace CommodityTariff {
          * Once an identifier has been used for this combination, it shall NOT be used to represent any other
          * combination of these values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.12.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.12.1
          */
         dayPatternId: number;
 
@@ -689,7 +689,7 @@ export declare namespace CommodityTariff {
          * This field shall indicate which days of the week the associated set of DayEntryStructs applies to. If no bits
          * are set, then this shall be a rotating day. See DayPatternIDs.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.12.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.12.2
          */
         daysOfWeek: DayPatternDayOfWeek;
 
@@ -700,7 +700,7 @@ export declare namespace CommodityTariff {
          * This list shall NOT contain two DayEntryIDs for the DayEntryStructs with the same value of the StartTime
          * field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.12.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.12.3
          */
         dayEntryIDs: number[];
     };
@@ -714,7 +714,7 @@ export declare namespace CommodityTariff {
      *   periods e.g. monthly or quarterly. The minimum resolution is 1 day, although a week would normally be the
      *   smallest interval.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.9
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.9
      */
     export declare class CalendarPeriod {
         constructor(values?: Partial<CalendarPeriod>);
@@ -724,7 +724,7 @@ export declare namespace CommodityTariff {
          *
          * A null value shall indicate the calendar period becomes active immediately. See CalendarPeriods attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.9.1
          */
         startDate: number | null;
 
@@ -748,7 +748,7 @@ export declare namespace CommodityTariff {
          * Meeting these constraints ensures that every day of the week during this week has specified day entries, and
          * no day of the week has more than one set of day entries.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.9.2
          */
         dayPatternIDs: number[];
     };
@@ -756,7 +756,7 @@ export declare namespace CommodityTariff {
     /**
      * This represents a series of day entries over the course of a day for a specific date.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.11
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.11
      */
     export declare class Day {
         constructor(values?: Partial<Day>);
@@ -764,14 +764,14 @@ export declare namespace CommodityTariff {
         /**
          * This field shall indicate the date the associated set of DayEntryStructs applies to.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.11.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.11.1
          */
         date: number;
 
         /**
          * This field shall indicate the type of day represented by the struct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.11.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.11.2
          */
         dayType: DayType;
 
@@ -800,7 +800,7 @@ export declare namespace CommodityTariff {
          *      referenced by this list. In other words, day entries with a set duration can not overlap any other day
          *      entries.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.11.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.11.3
          */
         dayEntryIDs: number[];
     };
@@ -812,7 +812,7 @@ export declare namespace CommodityTariff {
      * tariff. For example, a tariff component may indicate changes in power thresholds, friendly credit status, or the
      * expected state of auxiliary switches.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16
      */
     export declare class TariffComponent {
         constructor(values?: Partial<TariffComponent>);
@@ -826,7 +826,7 @@ export declare namespace CommodityTariff {
          * Once an identifier has been used for this combination, it shall NOT be used to represent any other
          * combination of these values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.1
          */
         tariffComponentId: number;
 
@@ -839,7 +839,7 @@ export declare namespace CommodityTariff {
          * When the Predicted field is set to FALSE, a null value shall indicate that the server is unable to provide a
          * specific price or price level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.2
          */
         price?: TariffPrice | null;
 
@@ -860,28 +860,28 @@ export declare namespace CommodityTariff {
          *   of the meter will be resumed, and if the meter’s credit balance has dropped below the disablement threshold
          *   during the Friendly Credit Period, then the meter will disconnect upon resuming normal delivery rules
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.3
          */
         friendlyCredit?: boolean;
 
         /**
          * This field shall indicate the required state of auxiliary load switches.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.4
          */
         auxiliaryLoad?: AuxiliaryLoadSwitchSettings;
 
         /**
          * This field shall indicate whether the tariff component represents a peak period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.5
          */
         peakPeriod?: PeakPeriod;
 
         /**
          * This field shall indicate whether the tariff component represents a power threshold.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.6
          */
         powerThreshold?: PowerThreshold;
 
@@ -890,21 +890,21 @@ export declare namespace CommodityTariff {
          * specified by the TariffUnit attribute. If the tariff component applies to any level of consumption, this
          * field shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.7
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.7
          */
         threshold: number | bigint | null;
 
         /**
          * A free-form label for the tariff component.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.8
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.8
          */
         label?: string | null;
 
         /**
          * This field shall indicate whether the tariff component represents a price prediction.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.16.9
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.9
          */
         predicted?: boolean;
     };
@@ -912,7 +912,7 @@ export declare namespace CommodityTariff {
     /**
      * This represents the tariff components in effect for a set of calendar day entry IDs.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.17
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.17
      */
     export declare class TariffPeriod {
         constructor(values?: Partial<TariffPeriod>);
@@ -920,7 +920,7 @@ export declare namespace CommodityTariff {
         /**
          * A free-form label for the tariff period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.17.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.17.1
          */
         label: string | null;
 
@@ -931,7 +931,7 @@ export declare namespace CommodityTariff {
          * Each DayEntryID shall be included in at most one DayEntryIDs field. In other words, there shall be only one
          * TariffPeriodStruct for each DayEntryID.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.17.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.17.2
          */
         dayEntryIDs: number[];
 
@@ -939,13 +939,13 @@ export declare namespace CommodityTariff {
          * This field shall indicate a list of TariffComponentIDs for the TariffComponentStructs active during the
          * specified day entries.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.17.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.17.3
          */
         tariffComponentIDs: number[];
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.5
      */
     export enum DayEntryRandomizationType {
         /**
@@ -978,7 +978,7 @@ export declare namespace CommodityTariff {
      * The GetTariffComponent command allows a client to request information for a tariff component identifier that may
      * no longer be available in the TariffPeriods attributes.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.1
      */
     export declare class GetTariffComponentRequest {
         constructor(values?: Partial<GetTariffComponentRequest>);
@@ -986,7 +986,7 @@ export declare namespace CommodityTariff {
         /**
          * This field shall be used to indicate the TariffComponentID of the DayEntryStruct to be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.1.1
          */
         tariffComponentId: number;
     };
@@ -994,7 +994,7 @@ export declare namespace CommodityTariff {
     /**
      * The GetTariffComponentResponse command is sent in response to a GetTariffComponent command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.2
      */
     export declare class GetTariffComponentResponse {
         constructor(values?: Partial<GetTariffComponentResponse>);
@@ -1002,7 +1002,7 @@ export declare namespace CommodityTariff {
         /**
          * A free-form label for the tariff period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.2.1
          */
         label: string | null;
 
@@ -1010,7 +1010,7 @@ export declare namespace CommodityTariff {
          * This field shall indicate a list of DayEntryIDs for the DayEntryStructs during which the tariff component is
          * active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.2.2
          */
         dayEntryIDs: number[];
 
@@ -1018,7 +1018,7 @@ export declare namespace CommodityTariff {
          * This field shall indicate the TariffComponentStruct whose TariffComponentID field matches the requested
          * GetTariffComponentTariffComponentID.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.2.3
          */
         tariffComponent: TariffComponent;
     };
@@ -1027,7 +1027,7 @@ export declare namespace CommodityTariff {
      * The GetDayEntry command allows a client to request information for a calendar day entry identifier that may no
      * longer be available in the CalendarPeriods or IndividualDays attributes.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.3
      */
     export declare class GetDayEntryRequest {
         constructor(values?: Partial<GetDayEntryRequest>);
@@ -1035,7 +1035,7 @@ export declare namespace CommodityTariff {
         /**
          * This field shall be used to indicate the DayEntryID of the DayEntryStruct to be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.3.1
          */
         dayEntryId: number;
     };
@@ -1043,7 +1043,7 @@ export declare namespace CommodityTariff {
     /**
      * The GetDayEntryResponse command is sent in response to a GetDayEntry command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.7.4
      */
     export declare class GetDayEntryResponse {
         constructor(values?: Partial<GetDayEntryResponse>);
@@ -1051,7 +1051,7 @@ export declare namespace CommodityTariff {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.1
      */
     export declare class DayPatternDayOfWeek {
         constructor(values?: Partial<DayPatternDayOfWeek> | number);
@@ -1095,7 +1095,7 @@ export declare namespace CommodityTariff {
     /**
      * This enumeration shall indicated the required state of an auxiliary switch.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.2
      */
     export enum AuxiliaryLoadSetting {
         /**
@@ -1115,7 +1115,7 @@ export declare namespace CommodityTariff {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.3
      */
     export enum DayType {
         /**
@@ -1140,7 +1140,7 @@ export declare namespace CommodityTariff {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.4
      */
     export enum PeakPeriodSeverity {
         /**
@@ -1165,7 +1165,7 @@ export declare namespace CommodityTariff {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.6
      */
     export enum BlockMode {
         /**
@@ -1174,7 +1174,7 @@ export declare namespace CommodityTariff {
          * This value shall indicate that the tariff has no usage blocks. All Threshold fields on TariffComponentStruct
          * in a tariff whose BlockMode field is set to NoBlock shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.6.1
          */
         NoBlock = 0,
 
@@ -1184,7 +1184,7 @@ export declare namespace CommodityTariff {
          * This value shall indicate that all Threshold fields apply to combined usage across all TariffComponentStruct
          * during the billing period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.6.2
          */
         Combined = 1,
 
@@ -1194,7 +1194,7 @@ export declare namespace CommodityTariff {
          * This value shall indicate that all Threshold fields apply only to usage during the active period of the
          * associated TariffComponentStruct in the billing period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.6.3
          */
         Individual = 2
     }
@@ -1202,7 +1202,7 @@ export declare namespace CommodityTariff {
     /**
      * This represents the settings for a given auxiliary load switch in a tariff component.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.7
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.7
      */
     export declare class AuxiliaryLoadSwitchSettings {
         constructor(values?: Partial<AuxiliaryLoadSwitchSettings>);
@@ -1213,7 +1213,7 @@ export declare namespace CommodityTariff {
     /**
      * This represents the set of auxiliary load settings in a tariff component.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.8
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.8
      */
     export declare class AuxiliaryLoadSwitchesSettings {
         constructor(values?: Partial<AuxiliaryLoadSwitchesSettings>);
@@ -1221,7 +1221,7 @@ export declare namespace CommodityTariff {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.13
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.13
      */
     export declare class PeakPeriod {
         constructor(values?: Partial<PeakPeriod>);
@@ -1229,14 +1229,14 @@ export declare namespace CommodityTariff {
         /**
          * This field shall indicate the severity of the peak period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.13.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.13.1
          */
         severity: PeakPeriodSeverity;
 
         /**
          * This field shall indicate the PeakPeriod number.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.13.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.13.2
          */
         peakPeriod: number;
     };
@@ -1244,7 +1244,7 @@ export declare namespace CommodityTariff {
     /**
      * This indicates a price or price level for a given tariff component, as well as what type of pricing it represents
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.15
+     * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.15
      */
     export declare class TariffPrice {
         constructor(values?: Partial<TariffPrice>);
@@ -1252,21 +1252,21 @@ export declare namespace CommodityTariff {
         /**
          * This field shall indicate the type of price for the Price or PriceLevel fields.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.15.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.15.1
          */
         priceType: TariffPriceType;
 
         /**
          * This field shall indicate the tariff price.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.15.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.15.2
          */
         price?: number | bigint;
 
         /**
          * This field shall indicate the tariff price level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.12.5.15.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.15.3
          */
         priceLevel?: number;
     };

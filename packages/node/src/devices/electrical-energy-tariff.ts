@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * A Electrical Energy Tariff is a device that defines a tariff for the consumption or production of electrical energy.
  *
- * @see {@link MatterSpecification.v142.Device} § 14.7
+ * @see {@link MatterSpecification.v151.Device} § 14.7
  */
 export interface ElectricalEnergyTariffDevice extends Identity<typeof ElectricalEnergyTariffDeviceDefinition> {}
 

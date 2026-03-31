@@ -45,7 +45,7 @@ import { Identity } from "@matter/general";
  * A Casting Video Client is a client that can launch content on a Casting Video Player, for example, a Smart Speaker or
  * a Content Provider phone app.
  *
- * @see {@link MatterSpecification.v142.Device} § 10.6
+ * @see {@link MatterSpecification.v151.Device} § 10.6
  */
 export interface CastingVideoClientDevice extends Identity<typeof CastingVideoClientDeviceDefinition> {}
 

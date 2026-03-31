@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * A Soil Sensor device reports measurements of soil values, such as moisture and (optionally) temperature.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.14
+ * @see {@link MatterSpecification.v151.Device} § 7.14
  */
 export interface SoilSensorDevice extends Identity<typeof SoilSensorDeviceDefinition> {}
 

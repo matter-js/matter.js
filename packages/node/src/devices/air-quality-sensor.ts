@@ -54,7 +54,7 @@ import { Identity } from "@matter/general";
  * An air quality sensor is a device designed to monitor and measure various parameters related to the quality of
  * ambient air in indoor or outdoor environments.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.10
+ * @see {@link MatterSpecification.v151.Device} § 7.10
  */
 export interface AirQualitySensorDevice extends Identity<typeof AirQualitySensorDeviceDefinition> {}
 

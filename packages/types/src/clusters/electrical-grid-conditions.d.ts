@@ -23,7 +23,7 @@ import type { ClusterModel } from "@matter/model";
  * point has effectively no green house gas emissions, and so this cluster allows devices to understand both the grid
  * and local conditions.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.13
+ * @see {@link MatterSpecification.v151.Cluster} § 9.13
  */
 export declare namespace ElectricalGridConditions {
     /**
@@ -58,7 +58,7 @@ export declare namespace ElectricalGridConditions {
          *
          * If the presence of any local generation is unknown, or cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.1
          */
         localGenerationAvailable: boolean | null;
 
@@ -66,7 +66,7 @@ export declare namespace ElectricalGridConditions {
          * This shall indicate the current electricity supply conditions. If the current conditions are unknown, or
          * cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.2
          */
         currentConditions: ElectricalGridConditionsStruct | null;
     }
@@ -85,7 +85,7 @@ export declare namespace ElectricalGridConditions {
          *
          *   - For all entries except the first one, PeriodStart shall be greater than the previous entry’s PeriodEnd.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.3
          */
         forecastConditions: ElectricalGridConditionsStruct[];
     }
@@ -103,7 +103,7 @@ export declare namespace ElectricalGridConditions {
          *
          * If the presence of any local generation is unknown, or cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.1
          */
         localGenerationAvailable: boolean | null;
 
@@ -111,7 +111,7 @@ export declare namespace ElectricalGridConditions {
          * This shall indicate the current electricity supply conditions. If the current conditions are unknown, or
          * cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.2
          */
         currentConditions: ElectricalGridConditionsStruct | null;
 
@@ -125,7 +125,7 @@ export declare namespace ElectricalGridConditions {
          *
          *   - For all entries except the first one, PeriodStart shall be greater than the previous entry’s PeriodEnd.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.3
          */
         forecastConditions: ElectricalGridConditionsStruct[];
     }
@@ -137,7 +137,7 @@ export declare namespace ElectricalGridConditions {
         /**
          * This event shall be generated when the value of the CurrentConditions attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.7.1
          */
         currentConditionsChanged?: CurrentConditionsChangedEvent;
     }
@@ -152,7 +152,7 @@ export declare namespace ElectricalGridConditions {
         /**
          * This event shall be generated when the value of the CurrentConditions attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.7.1
          */
         currentConditionsChanged: CurrentConditionsChangedEvent;
     }
@@ -166,7 +166,7 @@ export declare namespace ElectricalGridConditions {
     /**
      * These are optional features supported by ElectricalGridConditionsCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.13.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.13.4
      */
     export enum Feature {
         /**
@@ -175,7 +175,7 @@ export declare namespace ElectricalGridConditions {
          * The feature indicates the server is capable of providing a forecast of grid and local conditions for several
          * hours in the future.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.4.1
          */
         Forecasting = "Forecasting"
     }
@@ -183,7 +183,7 @@ export declare namespace ElectricalGridConditions {
     /**
      * This represents the greenhouse gas carbon intensity over a given period.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2
      */
     export declare class ElectricalGridConditionsStruct {
         constructor(values?: Partial<ElectricalGridConditionsStruct>);
@@ -191,7 +191,7 @@ export declare namespace ElectricalGridConditions {
         /**
          * This field shall indicate the beginning timestamp in UTC of the period.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.1
          */
         periodStart: number;
 
@@ -199,7 +199,7 @@ export declare namespace ElectricalGridConditions {
          * This field shall indicate the ending timestamp in UTC of the period. This shall be greater than PeriodStart.
          * If this field is null, then the period has no definite end.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.2
          */
         periodEnd: number | null;
 
@@ -207,7 +207,7 @@ export declare namespace ElectricalGridConditions {
          * This field shall indicate the estimated carbon intensity in grams of CO2 equivalent per kWh of the grid. This
          * is not impacted by any local generation.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.3
          */
         gridCarbonIntensity: number;
 
@@ -219,7 +219,7 @@ export declare namespace ElectricalGridConditions {
          * carbon levels for this region or market, since this can vary significantly between countries across the
          * world.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.4
          */
         gridCarbonLevel: ThreeLevel;
 
@@ -239,7 +239,7 @@ export declare namespace ElectricalGridConditions {
          *
          * If there is no local generation, this value shall be the same as the GridCarbonIntensity at all times.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.5
          */
         localCarbonIntensity: number;
 
@@ -258,7 +258,7 @@ export declare namespace ElectricalGridConditions {
          *
          * If there is no local generation, this value shall be the same as the GridCarbonLevel at all times.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.2.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.2.6
          */
         localCarbonLevel: ThreeLevel;
     };
@@ -266,7 +266,7 @@ export declare namespace ElectricalGridConditions {
     /**
      * This event shall be generated when the value of the CurrentConditions attribute changes.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.13.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.13.7.1
      */
     export declare class CurrentConditionsChangedEvent {
         constructor(values?: Partial<CurrentConditionsChangedEvent>);
@@ -274,7 +274,7 @@ export declare namespace ElectricalGridConditions {
         /**
          * This field shall be the new value of the CurrentConditions attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.13.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.13.7.1.1
          */
         currentConditions: ElectricalGridConditionsStruct | null;
     };
@@ -282,7 +282,7 @@ export declare namespace ElectricalGridConditions {
     /**
      * This data type is derived from enum8 and is used for indicating three levels: Low, Medium, High.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.13.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.13.5.1
      */
     export enum ThreeLevel {
         /**

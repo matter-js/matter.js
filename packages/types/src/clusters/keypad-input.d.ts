@@ -30,7 +30,7 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
  * Devices may understand a subset of these key codes. Feature flags are used to indicate a specific subset that is
  * supported. Device may support additional codes beyond what is indicated in feature flags.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.8
+ * @see {@link MatterSpecification.v151.Cluster} § 6.8
  */
 export declare namespace KeypadInput {
     /**
@@ -71,7 +71,7 @@ export declare namespace KeypadInput {
          * consider the first key press to be a press and hold. When such a repeat KeyCode value is not received within
          * 200 ms, then the endpoint will consider the last key press to be a release.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.8.6.1
          */
         sendKey(request: SendKeyRequest): MaybePromise<SendKeyResponse>;
     }
@@ -87,7 +87,7 @@ export declare namespace KeypadInput {
     /**
      * These are optional features supported by KeypadInputCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.4
      */
     export enum Feature {
         /**
@@ -124,7 +124,7 @@ export declare namespace KeypadInput {
      * consider the first key press to be a press and hold. When such a repeat KeyCode value is not received within 200
      * ms, then the endpoint will consider the last key press to be a release.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.6.1
      */
     export declare class SendKeyRequest {
         constructor(values?: Partial<SendKeyRequest>);
@@ -132,7 +132,7 @@ export declare namespace KeypadInput {
         /**
          * This field shall indicate the key code to process.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.8.6.1.1
          */
         keyCode: CecKeyCode;
     };
@@ -140,7 +140,7 @@ export declare namespace KeypadInput {
     /**
      * This command shall be generated in response to a SendKey command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.6.2
      */
     export declare class SendKeyResponse {
         constructor(values?: Partial<SendKeyResponse>);
@@ -148,13 +148,13 @@ export declare namespace KeypadInput {
         /**
          * This field shall indicate the status of the request.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.8.6.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.8.6.2.1
          */
         status: Status;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.5.1
      */
     export enum Status {
         /**
@@ -176,7 +176,7 @@ export declare namespace KeypadInput {
     /**
      * Thrown for cluster status code {@link Status.UnsupportedKey}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.5.1
      */
     export class UnsupportedKeyError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -185,14 +185,14 @@ export declare namespace KeypadInput {
     /**
      * Thrown for cluster status code {@link Status.InvalidKeyInCurrentState}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.5.1
      */
     export class InvalidKeyInCurrentStateError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.8.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.8.5.2
      */
     export enum CecKeyCode {
         Select = 0,

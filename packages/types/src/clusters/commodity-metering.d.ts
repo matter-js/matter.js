@@ -17,7 +17,7 @@ import type { TariffUnit } from "../globals/TariffUnit.js";
  * The Commodity Metering Cluster provides the mechanism for communicating commodity consumption information within a
  * premises.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.11
+ * @see {@link MatterSpecification.v151.Cluster} § 9.11
  */
 export declare namespace CommodityMetering {
     /**
@@ -50,7 +50,7 @@ export declare namespace CommodityMetering {
          * The most recent summed value of a commodity delivered to and consumed in the premises. A null value indicates
          * that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.1
          */
         meteredQuantity: MeteredQuantity[] | null;
 
@@ -58,7 +58,7 @@ export declare namespace CommodityMetering {
          * The timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null value
          * indicates that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.2
          */
         meteredQuantityTimestamp: number | null;
 
@@ -66,7 +66,7 @@ export declare namespace CommodityMetering {
          * Indicates the unit for the Quantity field on all MeteredQuantityStructs in the MeteredQuantity attribute. A
          * null value indicates that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.3
          */
         tariffUnit: TariffUnit | null;
 
@@ -74,7 +74,7 @@ export declare namespace CommodityMetering {
          * Indicates the maximum number of MeteredQuantityStructs in the MeteredQuantity attribute. A null value
          * indicates that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.4
          */
         maximumMeteredQuantities: number | null;
     }
@@ -87,7 +87,7 @@ export declare namespace CommodityMetering {
          * The most recent summed value of a commodity delivered to and consumed in the premises. A null value indicates
          * that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.1
          */
         meteredQuantity: MeteredQuantity[] | null;
 
@@ -95,7 +95,7 @@ export declare namespace CommodityMetering {
          * The timestamp in UTC for when the value of the MeteredQuantity attribute was last updated. A null value
          * indicates that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.2
          */
         meteredQuantityTimestamp: number | null;
 
@@ -103,7 +103,7 @@ export declare namespace CommodityMetering {
          * Indicates the unit for the Quantity field on all MeteredQuantityStructs in the MeteredQuantity attribute. A
          * null value indicates that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.3
          */
         tariffUnit: TariffUnit | null;
 
@@ -111,7 +111,7 @@ export declare namespace CommodityMetering {
          * Indicates the maximum number of MeteredQuantityStructs in the MeteredQuantity attribute. A null value
          * indicates that metering data is currently unavailable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.5.4
          */
         maximumMeteredQuantities: number | null;
     }
@@ -121,7 +121,7 @@ export declare namespace CommodityMetering {
     /**
      * Provides access to the Electric Metering device’s readings.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.11.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.11.4.1
      */
     export declare class MeteredQuantity {
         constructor(values?: Partial<MeteredQuantity>);
@@ -129,14 +129,14 @@ export declare namespace CommodityMetering {
         /**
          * Indicates the specific TariffComponentStructs associated with the metered commodity.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.4.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.4.1.1
          */
         tariffComponentIDs: number[];
 
         /**
          * This field indicates the amount of a commodity metered during the associated TariffComponentStructs.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.11.4.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.11.4.1.2
          */
         quantity: number | bigint;
     };

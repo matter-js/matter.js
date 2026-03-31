@@ -28,7 +28,7 @@ import { Identity } from "@matter/general";
  * default because you must select the features your device supports. You can add manually using
  * DeviceEnergyManagementEndpoint.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 2.7
+ * @see {@link MatterSpecification.v151.Device} § 2.7
  */
 export interface DeviceEnergyManagementEndpoint extends Identity<typeof DeviceEnergyManagementEndpointDefinition> {}
 

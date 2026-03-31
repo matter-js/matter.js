@@ -20,7 +20,7 @@ import type { TariffPriceType } from "../globals/TariffPriceType.js";
  * The Commodity Price Cluster provides the mechanism for communicating Gas, Energy, or Water pricing information within
  * the premises.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.9
+ * @see {@link MatterSpecification.v151.Cluster} § 9.9
  */
 export declare namespace CommodityPrice {
     /**
@@ -52,7 +52,7 @@ export declare namespace CommodityPrice {
         /**
          * Indicates the unit of measure for all pricing reported by this cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.1
          */
         tariffUnit: TariffUnit;
 
@@ -60,7 +60,7 @@ export declare namespace CommodityPrice {
          * Indicates the currency for all pricing reported by this cluster. If the current currency is unknown, or
          * cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.2
          */
         currency: Currency | null;
 
@@ -70,7 +70,7 @@ export declare namespace CommodityPrice {
          *
          * The Description and Components fields shall be omitted in this attribute’s value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.3
          */
         currentPrice: CommodityPriceStruct | null;
     }
@@ -93,7 +93,7 @@ export declare namespace CommodityPrice {
          *
          * If the PeriodEnd field is null on the value of the CurrentPrice attribute, then this list shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.4
          */
         priceForecast: CommodityPriceStruct[];
     }
@@ -108,7 +108,7 @@ export declare namespace CommodityPrice {
         /**
          * Indicates the unit of measure for all pricing reported by this cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.1
          */
         tariffUnit: TariffUnit;
 
@@ -116,7 +116,7 @@ export declare namespace CommodityPrice {
          * Indicates the currency for all pricing reported by this cluster. If the current currency is unknown, or
          * cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.2
          */
         currency: Currency | null;
 
@@ -126,7 +126,7 @@ export declare namespace CommodityPrice {
          *
          * The Description and Components fields shall be omitted in this attribute’s value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.3
          */
         currentPrice: CommodityPriceStruct | null;
 
@@ -144,7 +144,7 @@ export declare namespace CommodityPrice {
          *
          * If the PeriodEnd field is null on the value of the CurrentPrice attribute, then this list shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.4
          */
         priceForecast: CommodityPriceStruct[];
     }
@@ -156,7 +156,7 @@ export declare namespace CommodityPrice {
         /**
          * Upon receipt, this shall generate a GetDetailedPrice Response command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.1
          */
         getDetailedPriceRequest(request: GetDetailedPriceRequest): MaybePromise<GetDetailedPriceResponse>;
     }
@@ -168,7 +168,7 @@ export declare namespace CommodityPrice {
         /**
          * Upon receipt, this shall generate a GetDetailedForecast Response command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.3
          */
         getDetailedForecastRequest(request: GetDetailedForecastRequest): MaybePromise<GetDetailedForecastResponse>;
     }
@@ -188,7 +188,7 @@ export declare namespace CommodityPrice {
         /**
          * This event shall be generated when the value of the CurrentPrice attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.8.1
          */
         priceChange?: PriceChangeEvent;
     }
@@ -203,7 +203,7 @@ export declare namespace CommodityPrice {
         /**
          * This event shall be generated when the value of the CurrentPrice attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.8.1
          */
         priceChange: PriceChangeEvent;
     }
@@ -217,7 +217,7 @@ export declare namespace CommodityPrice {
     /**
      * These are optional features supported by CommodityPriceCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.4
      */
     export enum Feature {
         /**
@@ -231,7 +231,7 @@ export declare namespace CommodityPrice {
     /**
      * This represents a price over a given period.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3
      */
     export declare class CommodityPriceStruct {
         constructor(values?: Partial<CommodityPriceStruct>);
@@ -240,7 +240,7 @@ export declare namespace CommodityPrice {
          * This field shall indicate the beginning timestamp in UTC of the period covered by the price indicated in the
          * Price field, or the price level indicated in the Price Level field, or both.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.1
          */
         periodStart: number;
 
@@ -250,21 +250,21 @@ export declare namespace CommodityPrice {
          *
          * If this field is null, then the period has no definite end.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.2
          */
         periodEnd: number | null;
 
         /**
          * This field shall indicate the price of the commodity per TariffUnit.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.3
          */
         price?: number | bigint;
 
         /**
          * This field shall indicate the tariff price level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.4
          */
         priceLevel?: number;
 
@@ -272,7 +272,7 @@ export declare namespace CommodityPrice {
          * This field shall indicate a description of the pricing plan yielding the value of the Price field, or the
          * Price Level field. For example, this field may contain the name of the selected billing plan.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.5
          */
         description?: string;
 
@@ -283,7 +283,7 @@ export declare namespace CommodityPrice {
          *
          * If this field is not empty, the Price fields in the list shall sum to the value in the Price field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.3.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.3.6
          */
         components?: CommodityPriceComponent[];
     };
@@ -291,7 +291,7 @@ export declare namespace CommodityPrice {
     /**
      * Upon receipt, this shall generate a GetDetailedPrice Response command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.1
      */
     export declare class GetDetailedPriceRequest {
         constructor(values?: Partial<GetDetailedPriceRequest>);
@@ -300,7 +300,7 @@ export declare namespace CommodityPrice {
          * This field shall indicate which fields on the CommodityPriceStruct in the
          * GetDetailedPriceResponseCurrentPrice field will be included.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.1.1
          */
         details: CommodityPriceDetail;
     };
@@ -308,7 +308,7 @@ export declare namespace CommodityPrice {
     /**
      * This command shall be generated in response to a GetDetailedPrice Request command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.2
      */
     export declare class GetDetailedPriceResponse {
         constructor(values?: Partial<GetDetailedPriceResponse>);
@@ -320,7 +320,7 @@ export declare namespace CommodityPrice {
          *
          * If the current price is unknown, or cannot be determined, the value shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.2.1
          */
         currentPrice: CommodityPriceStruct | null;
     };
@@ -328,7 +328,7 @@ export declare namespace CommodityPrice {
     /**
      * Upon receipt, this shall generate a GetDetailedForecast Response command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.3
      */
     export declare class GetDetailedForecastRequest {
         constructor(values?: Partial<GetDetailedForecastRequest>);
@@ -337,7 +337,7 @@ export declare namespace CommodityPrice {
          * This field shall indicate which fields on the CommodityPriceStructs in the
          * GetDetailedForecastResponsePriceForecast field will be included.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.3.1
          */
         details: CommodityPriceDetail;
     };
@@ -345,7 +345,7 @@ export declare namespace CommodityPrice {
     /**
      * This command shall be generated in response to a GetDetailedForecast Request command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.4
      */
     export declare class GetDetailedForecastResponse {
         constructor(values?: Partial<GetDetailedForecastResponse>);
@@ -357,7 +357,7 @@ export declare namespace CommodityPrice {
          *
          * If the forecast is unable to be determined, this list shall be empty.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.7.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.7.4.1
          */
         priceForecast: CommodityPriceStruct[];
     };
@@ -365,7 +365,7 @@ export declare namespace CommodityPrice {
     /**
      * This event shall be generated when the value of the CurrentPrice attribute changes.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.8.1
      */
     export declare class PriceChangeEvent {
         constructor(values?: Partial<PriceChangeEvent>);
@@ -373,13 +373,13 @@ export declare namespace CommodityPrice {
         /**
          * This field shall be the new value of the CurrentPrice attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.8.1.1
          */
         currentPrice: CommodityPriceStruct | null;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.1
      */
     export declare class CommodityPriceDetail {
         constructor(values?: Partial<CommodityPriceDetail> | number);
@@ -398,7 +398,7 @@ export declare namespace CommodityPrice {
     /**
      * This represents a component of a given price; it is only used in the Components field.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2
      */
     export declare class CommodityPriceComponent {
         constructor(values?: Partial<CommodityPriceComponent>);
@@ -407,14 +407,14 @@ export declare namespace CommodityPrice {
          * This field shall indicate the component price of the commodity per TariffUnit, with the currency indicated by
          * the currency of the Price field of the parent CommodityPriceStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2.1
          */
         price: number | bigint;
 
         /**
          * This field shall indicate the source of the price component.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2.3
          */
         source: TariffPriceType;
 
@@ -423,7 +423,7 @@ export declare namespace CommodityPrice {
          * example, this field may contain the name of the current block of the selected billing plan, or the name of
          * the time of usage tier.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2.4
          */
         description?: string;
 
@@ -431,7 +431,7 @@ export declare namespace CommodityPrice {
          * This field shall indicate the ID of the associated TariffComponent for this price component. If there is no
          * associated TariffComponent, this field shall be omitted.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.9.5.2.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.9.5.2.5
          */
         tariffComponentId?: number;
     };

@@ -22,7 +22,7 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
  * This cluster server would be supported on Video Player devices or endpoints that provide media playback, such as a
  * Content App. This cluster provides an interface for controlling Media Playback.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.10
+ * @see {@link MatterSpecification.v151.Cluster} § 6.10
  */
 export declare namespace MediaPlayback {
     /**
@@ -56,7 +56,7 @@ export declare namespace MediaPlayback {
          *
          * During fast-forward, rewind, and other seek operations; this attribute shall be set to PLAYING.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.1
          */
         currentState: PlaybackState;
     }
@@ -71,7 +71,7 @@ export declare namespace MediaPlayback {
          * video-on-demand). This time is a UTC time. The client needs to handle conversion to local time, as required,
          * taking in account time zone and possible local DST offset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.2
          */
         startTime: number | bigint | null;
 
@@ -79,7 +79,7 @@ export declare namespace MediaPlayback {
          * Indicates the duration, in milliseconds, of the current media being played back or null when duration is not
          * applicable (for example, in live streaming content with no known duration). This attribute shall never be 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.3
          */
         duration: number | bigint | null;
 
@@ -101,7 +101,7 @@ export declare namespace MediaPlayback {
          *
          *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.4
          */
         sampledPosition: PlaybackPosition | null;
 
@@ -136,7 +136,7 @@ export declare namespace MediaPlayback {
          *
          * Following examples illustrate the PlaybackSpeed attribute values in various conditions.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.5
          */
         playbackSpeed: number;
 
@@ -148,7 +148,7 @@ export declare namespace MediaPlayback {
          * milliseconds towards 0. A value of NULL when StartTime is not specified shall indicate that seeking forward
          * is not allowed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.7
          */
         seekRangeEnd: number | bigint | null;
 
@@ -156,7 +156,7 @@ export declare namespace MediaPlayback {
          * Indicates the earliest valid position to which a client may seek back, in milliseconds from start of the
          * media. A value of NULL shall indicate that seeking backwards is not allowed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.6
          */
         seekRangeStart: number | bigint | null;
     }
@@ -169,7 +169,7 @@ export declare namespace MediaPlayback {
          * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of null
          * shall indicate that no Audio Track corresponding to the current media is currently being played.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.8
          */
         activeAudioTrack: Track | null;
 
@@ -177,7 +177,7 @@ export declare namespace MediaPlayback {
          * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A value
          * of null shall indicate that no Audio Tracks corresponding to the current media are selectable by the client.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.9
          */
         availableAudioTracks: Track[] | null;
     }
@@ -191,7 +191,7 @@ export declare namespace MediaPlayback {
          * value of null shall indicate that no Text Track corresponding to the current media is currently being
          * displayed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.10
          */
         activeTextTrack: Track | null;
 
@@ -200,7 +200,7 @@ export declare namespace MediaPlayback {
          * be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current media are
          * selectable by the client.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.11
          */
         availableTextTracks: Track[] | null;
     }
@@ -217,7 +217,7 @@ export declare namespace MediaPlayback {
          *
          * During fast-forward, rewind, and other seek operations; this attribute shall be set to PLAYING.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.1
          */
         currentState: PlaybackState;
 
@@ -227,7 +227,7 @@ export declare namespace MediaPlayback {
          * video-on-demand). This time is a UTC time. The client needs to handle conversion to local time, as required,
          * taking in account time zone and possible local DST offset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.2
          */
         startTime: number | bigint | null;
 
@@ -235,7 +235,7 @@ export declare namespace MediaPlayback {
          * Indicates the duration, in milliseconds, of the current media being played back or null when duration is not
          * applicable (for example, in live streaming content with no known duration). This attribute shall never be 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.3
          */
         duration: number | bigint | null;
 
@@ -257,7 +257,7 @@ export declare namespace MediaPlayback {
          *
          *   - Updating of playback speed as a result of explicit request, or as a result of buffering events
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.4
          */
         sampledPosition: PlaybackPosition | null;
 
@@ -292,7 +292,7 @@ export declare namespace MediaPlayback {
          *
          * Following examples illustrate the PlaybackSpeed attribute values in various conditions.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.5
          */
         playbackSpeed: number;
 
@@ -304,7 +304,7 @@ export declare namespace MediaPlayback {
          * milliseconds towards 0. A value of NULL when StartTime is not specified shall indicate that seeking forward
          * is not allowed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.7
          */
         seekRangeEnd: number | bigint | null;
 
@@ -312,7 +312,7 @@ export declare namespace MediaPlayback {
          * Indicates the earliest valid position to which a client may seek back, in milliseconds from start of the
          * media. A value of NULL shall indicate that seeking backwards is not allowed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.6
          */
         seekRangeStart: number | bigint | null;
 
@@ -320,7 +320,7 @@ export declare namespace MediaPlayback {
          * ActiveTrack refers to the Audio track currently set and being used for the streaming media. A value of null
          * shall indicate that no Audio Track corresponding to the current media is currently being played.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.8
          */
         activeAudioTrack: Track | null;
 
@@ -328,7 +328,7 @@ export declare namespace MediaPlayback {
          * AvailableAudioTracks refers to the list of Audio tracks available for the current title being played. A value
          * of null shall indicate that no Audio Tracks corresponding to the current media are selectable by the client.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.9
          */
         availableAudioTracks: Track[] | null;
 
@@ -337,7 +337,7 @@ export declare namespace MediaPlayback {
          * value of null shall indicate that no Text Track corresponding to the current media is currently being
          * displayed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.10
          */
         activeTextTrack: Track | null;
 
@@ -346,7 +346,7 @@ export declare namespace MediaPlayback {
          * be an empty list. A value of null shall indicate that no Text Tracks corresponding to the current media are
          * selectable by the client.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.6.11
          */
         availableTextTracks: Track[] | null;
     }
@@ -361,7 +361,7 @@ export declare namespace MediaPlayback {
          * Upon receipt, this shall play media. If content is currently in a FastForward or Rewind state. Play shall
          * return media to normal playback speed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.1
          */
         play(): MaybePromise<PlaybackResponse>;
 
@@ -370,7 +370,7 @@ export declare namespace MediaPlayback {
          *
          * Upon receipt, this shall pause playback of the media.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.2
          */
         pause(): MaybePromise<PlaybackResponse>;
 
@@ -380,7 +380,7 @@ export declare namespace MediaPlayback {
          * Upon receipt, this shall stop playback of the media. User-visible outcome is context-specific. This may
          * navigate the user back to the location from where the media was originally launched.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.3
          */
         stop(): MaybePromise<PlaybackResponse>;
 
@@ -389,7 +389,7 @@ export declare namespace MediaPlayback {
          *
          * Upon receipt, this shall Start Over with the current media playback item.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.4
          */
         startOver(): MaybePromise<PlaybackResponse>;
 
@@ -399,7 +399,7 @@ export declare namespace MediaPlayback {
          * Upon receipt, this shall cause the handler to be invoked for "Previous". User experience is context-specific.
          * This will often Go back to the previous media playback item.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.5
          */
         previous(): MaybePromise<PlaybackResponse>;
 
@@ -409,7 +409,7 @@ export declare namespace MediaPlayback {
          * Upon receipt, this shall cause the handler to be invoked for "Next". User experience is context-specific.
          * This will often Go forward to the next media playback item.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.6
          */
         next(): MaybePromise<PlaybackResponse>;
 
@@ -418,7 +418,7 @@ export declare namespace MediaPlayback {
          *
          * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.9
          */
         skipForward(request: SkipForwardRequest): MaybePromise<PlaybackResponse>;
 
@@ -427,7 +427,7 @@ export declare namespace MediaPlayback {
          *
          * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.10
          */
         skipBackward(request: SkipBackwardRequest): MaybePromise<PlaybackResponse>;
     }
@@ -441,7 +441,7 @@ export declare namespace MediaPlayback {
          *
          * Upon receipt, this shall change the playback position in the media to the given position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.11
          */
         seek(request: SeekRequest): MaybePromise<PlaybackResponse>;
     }
@@ -458,7 +458,7 @@ export declare namespace MediaPlayback {
          * to the streaming media OR no media is being streamed at the time of receipt of this command, the server will
          * return an error status of INVALID_ARGUMENT.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.13
          */
         activateAudioTrack(request: ActivateAudioTrackRequest): MaybePromise;
     }
@@ -475,7 +475,7 @@ export declare namespace MediaPlayback {
          * to the streaming media OR no media is being streamed at the time of receipt of this command, the server shall
          * return an error status of INVALID_ARGUMENT.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.14
          */
         activateTextTrack(request: ActivateTextTrackRequest): MaybePromise;
 
@@ -485,7 +485,7 @@ export declare namespace MediaPlayback {
          * If a Text Track is active (i.e. being displayed), upon receipt of this command, the server shall stop
          * displaying it.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.15
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.15
          */
         deactivateTextTrack(): MaybePromise;
     }
@@ -509,7 +509,7 @@ export declare namespace MediaPlayback {
          * speed has reached the maximum supported speed for media playing backwards, the status of SPEED_OUT_OF_RANGE
          * shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.7
          */
         rewind(request: RewindRequest): MaybePromise<PlaybackResponse>;
 
@@ -528,7 +528,7 @@ export declare namespace MediaPlayback {
          * playback speed has reached the maximum supported speed for media playing forward, the status of
          * SPEED_OUT_OF_RANGE shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.8
          */
         fastForward(request: FastForwardRequest): MaybePromise<PlaybackResponse>;
     }
@@ -552,7 +552,7 @@ export declare namespace MediaPlayback {
          * If supported, this event shall be generated when there is a change in any of the supported attributes of the
          * Media Playback cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1
          */
         stateChanged?: StateChangedEvent;
     }
@@ -568,7 +568,7 @@ export declare namespace MediaPlayback {
          * If supported, this event shall be generated when there is a change in any of the supported attributes of the
          * Media Playback cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1
          */
         stateChanged: StateChangedEvent;
     }
@@ -586,7 +586,7 @@ export declare namespace MediaPlayback {
     /**
      * These are optional features supported by MediaPlaybackCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.4
      */
     export enum Feature {
         /**
@@ -596,7 +596,7 @@ export declare namespace MediaPlayback {
          * to a specific location using time offsets. This enables clients to implement more advanced media seeking
          * behavior in their user interface, for instance a "seek bar".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.4.1
          */
         AdvancedSeek = "AdvancedSeek",
 
@@ -605,7 +605,7 @@ export declare namespace MediaPlayback {
          *
          * This feature is for a device which supports variable speed playback on media that supports it.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.4.2
          */
         VariableSpeed = "VariableSpeed",
 
@@ -614,7 +614,7 @@ export declare namespace MediaPlayback {
          *
          * This feature is for a device or app that supports Text Tracks.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.4.3
          */
         TextTracks = "TextTracks",
 
@@ -623,7 +623,7 @@ export declare namespace MediaPlayback {
          *
          * This feature is for a device or app that supports Audio Tracks.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.4.4
          */
         AudioTracks = "AudioTracks",
 
@@ -636,13 +636,13 @@ export declare namespace MediaPlayback {
          *
          * A cluster implementing AA shall implement AS.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.4.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.4.5
          */
         AudioAdvance = "AudioAdvance"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.1
      */
     export enum PlaybackState {
         /**
@@ -669,7 +669,7 @@ export declare namespace MediaPlayback {
     /**
      * This structure defines a playback position within a media stream being played.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.4
      */
     export declare class PlaybackPosition {
         constructor(values?: Partial<PlaybackPosition>);
@@ -677,7 +677,7 @@ export declare namespace MediaPlayback {
         /**
          * This field shall indicate the time when the position was last updated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.4.1
          */
         updatedAt: number | bigint;
 
@@ -690,7 +690,7 @@ export declare namespace MediaPlayback {
          * A value of null shall indicate that playback position is not applicable for the current state of the media
          * playback (For example : Live media with no known duration and where seek is not supported).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.4.2
          */
         position: number | bigint | null;
     };
@@ -698,7 +698,7 @@ export declare namespace MediaPlayback {
     /**
      * This structure defines a uniquely identifiable Text Track or Audio Track.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.5
      */
     export declare class Track {
         constructor(values?: Partial<Track>);
@@ -707,14 +707,14 @@ export declare namespace MediaPlayback {
          * This field shall indicate the Identifier for the Track which is unique within the Track catalog. The Track
          * catalog contains all the Text/Audio tracks corresponding to the main media content.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.5.1
          */
         id: string;
 
         /**
          * This field shall indicate the Attributes associated to the Track, like languageCode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.5.2
          */
         trackAttributes: TrackAttributes;
     };
@@ -724,7 +724,7 @@ export declare namespace MediaPlayback {
      *
      * This command shall be generated in response to various Playback Commands.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.12
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.12
      */
     export declare class PlaybackResponse {
         constructor(values?: Partial<PlaybackResponse>);
@@ -732,14 +732,14 @@ export declare namespace MediaPlayback {
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.12.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.12.1
          */
         status: Status;
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.12.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.12.2
          */
         data?: string;
     };
@@ -749,7 +749,7 @@ export declare namespace MediaPlayback {
      *
      * Upon receipt, this shall Skip forward in the media by the given number of milliseconds.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.9
      */
     export declare class SkipForwardRequest {
         constructor(values?: Partial<SkipForwardRequest>);
@@ -762,7 +762,7 @@ export declare namespace MediaPlayback {
          * should be set to that furthest valid position. If the SampledPosition attribute is supported it shall be
          * updated on the cluster accordingly.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.9.1
          */
         deltaPositionMilliseconds: number | bigint;
     };
@@ -772,7 +772,7 @@ export declare namespace MediaPlayback {
      *
      * Upon receipt, this shall Skip backward in the media by the given number of milliseconds.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.10
      */
     export declare class SkipBackwardRequest {
         constructor(values?: Partial<SkipBackwardRequest>);
@@ -785,7 +785,7 @@ export declare namespace MediaPlayback {
          * set to that earliest valid position. If the SampledPosition attribute is supported it shall be updated on the
          * cluster accordingly.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.10.1
          */
         deltaPositionMilliseconds: number | bigint;
     };
@@ -795,7 +795,7 @@ export declare namespace MediaPlayback {
      *
      * Upon receipt, this shall change the playback position in the media to the given position.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.11
      */
     export declare class SeekRequest {
         constructor(values?: Partial<SeekRequest>);
@@ -808,7 +808,7 @@ export declare namespace MediaPlayback {
          * the status of SEEK_OUT_OF_RANGE shall be returned and no change shall be made to the position of the
          * playback.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.11.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.11.1
          */
         position: number | bigint;
     };
@@ -821,7 +821,7 @@ export declare namespace MediaPlayback {
      * the streaming media OR no media is being streamed at the time of receipt of this command, the server will return
      * an error status of INVALID_ARGUMENT.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.13
      */
     export declare class ActivateAudioTrackRequest {
         constructor(values?: Partial<ActivateAudioTrackRequest>);
@@ -829,7 +829,7 @@ export declare namespace MediaPlayback {
         /**
          * This field shall indicate the Audio Track to activate.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.13.1
          */
         trackId: string;
 
@@ -839,7 +839,7 @@ export declare namespace MediaPlayback {
          * Tracks and only present for Audio Tracks. A value of null shall indicate that the server can choose the audio
          * output(s) to play the Audio Track on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.13.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.13.2
          */
         audioOutputIndex?: number | null;
     };
@@ -852,7 +852,7 @@ export declare namespace MediaPlayback {
      * the streaming media OR no media is being streamed at the time of receipt of this command, the server shall return
      * an error status of INVALID_ARGUMENT.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.14
      */
     export declare class ActivateTextTrackRequest {
         constructor(values?: Partial<ActivateTextTrackRequest>);
@@ -860,7 +860,7 @@ export declare namespace MediaPlayback {
         /**
          * This field shall indicate the Text Track to activate.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.14.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.14.1
          */
         trackId: string;
     };
@@ -879,7 +879,7 @@ export declare namespace MediaPlayback {
      * content not supporting seek), the status of NOT_ALLOWED shall be returned. If the playback speed has reached the
      * maximum supported speed for media playing backwards, the status of SPEED_OUT_OF_RANGE shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.7
      */
     export declare class RewindRequest {
         constructor(values?: Partial<RewindRequest>);
@@ -890,7 +890,7 @@ export declare namespace MediaPlayback {
          * A value of true does not guarantee that audio can be heard by the user since the speaker may be muted, turned
          * down to a low level and/or unplugged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.7.1
          */
         audioAdvanceUnmuted?: boolean;
     };
@@ -909,7 +909,7 @@ export declare namespace MediaPlayback {
      * content not supporting seek), the status of NOT_ALLOWED shall be returned. If the playback speed has reached the
      * maximum supported speed for media playing forward, the status of SPEED_OUT_OF_RANGE shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.8
      */
     export declare class FastForwardRequest {
         constructor(values?: Partial<FastForwardRequest>);
@@ -920,7 +920,7 @@ export declare namespace MediaPlayback {
          * A value of true does not guarantee that audio can be heard by the user since the speaker may be muted, turned
          * down to a low level and/or unplugged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.7.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.7.8.1
          */
         audioAdvanceUnmuted?: boolean;
     };
@@ -929,7 +929,7 @@ export declare namespace MediaPlayback {
      * If supported, this event shall be generated when there is a change in any of the supported attributes of the
      * Media Playback cluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1
      */
     export declare class StateChangedEvent {
         constructor(values?: Partial<StateChangedEvent>);
@@ -938,7 +938,7 @@ export declare namespace MediaPlayback {
          * This field shall indicate the updated playback state as defined by the CurrentState attribute, and has the
          * same constraint as that attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.1
          */
         currentState: PlaybackState;
 
@@ -948,7 +948,7 @@ export declare namespace MediaPlayback {
          *
          * This field value shall be 0 when the value of the StartTime attribute is NULL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.2
          */
         startTime?: number | bigint;
 
@@ -958,7 +958,7 @@ export declare namespace MediaPlayback {
          *
          * This field value shall be 0 when the value of the Duration attribute is NULL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.3
          */
         duration?: number | bigint;
 
@@ -969,7 +969,7 @@ export declare namespace MediaPlayback {
          * The UpdatedAt field value of the PlaybackPositionStruct shall be 0, and the Position field value of the
          * PlaybackPositionStruct shall be NULL, when the value of the SampledPosition attribute is NULL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.4
          */
         sampledPosition?: PlaybackPosition;
 
@@ -977,7 +977,7 @@ export declare namespace MediaPlayback {
          * This field shall indicate the updated speed at which the current media is being played as defined by the
          * PlaybackSpeed attribute, and has the same constraint as that attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.5
          */
         playbackSpeed?: number;
 
@@ -987,7 +987,7 @@ export declare namespace MediaPlayback {
          *
          * This field value shall be 0 when the value of the SeekRangeEnd attribute is NULL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.7
          */
         seekRangeEnd?: number | bigint;
 
@@ -997,14 +997,14 @@ export declare namespace MediaPlayback {
          *
          * This field value shall be 0 when the value of the SeekRangeStart attribute is NULL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.6
          */
         seekRangeStart?: number | bigint;
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.8
          */
         data?: Bytes;
 
@@ -1017,13 +1017,13 @@ export declare namespace MediaPlayback {
          * A value of true does not guarantee that audio can be heard by the user since the speaker may be muted, turned
          * down to a low level and/or unplugged.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.8.1.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.8.1.9
          */
         audioAdvanceUnmuted?: boolean;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
      */
     export enum Status {
         /**
@@ -1062,7 +1062,7 @@ export declare namespace MediaPlayback {
     /**
      * Thrown for cluster status code {@link Status.InvalidStateForCommand}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
      */
     export class InvalidStateForCommandError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -1071,7 +1071,7 @@ export declare namespace MediaPlayback {
     /**
      * Thrown for cluster status code {@link Status.NotAllowed}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
      */
     export class NotAllowedError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -1080,7 +1080,7 @@ export declare namespace MediaPlayback {
     /**
      * Thrown for cluster status code {@link Status.NotActive}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
      */
     export class NotActiveError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -1089,7 +1089,7 @@ export declare namespace MediaPlayback {
     /**
      * Thrown for cluster status code {@link Status.SpeedOutOfRange}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
      */
     export class SpeedOutOfRangeError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -1098,14 +1098,14 @@ export declare namespace MediaPlayback {
     /**
      * Thrown for cluster status code {@link Status.SeekOutOfRange}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.2
      */
     export class SeekOutOfRangeError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.3
      */
     export enum Characteristic {
         /**
@@ -1214,7 +1214,7 @@ export declare namespace MediaPlayback {
     /**
      * This structure includes the attributes associated with a Text/Audio Track
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.6
      */
     export declare class TrackAttributes {
         constructor(values?: Partial<TrackAttributes>);
@@ -1223,7 +1223,7 @@ export declare namespace MediaPlayback {
          * The value is a String containing one of the standard Tags for Identifying Languages RFC 5646, which
          * identifies the primary language used in the Track.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.6.1
          */
         languageCode: string;
 
@@ -1231,7 +1231,7 @@ export declare namespace MediaPlayback {
          * This is a list of enumerated CharacteristicEnum values that indicate a purpose, trait or feature associated
          * with the Track. A value of null shall indicate that there are no Characteristics corresponding to the Track.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.6.2
          */
         characteristics?: Characteristic[] | null;
 
@@ -1239,7 +1239,7 @@ export declare namespace MediaPlayback {
          * The value is a String containing a user displayable name for the Track. A value of null shall indicate that
          * there is no DisplayName corresponding to the Track.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.10.5.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.10.5.6.3
          */
         displayName?: string | null;
     };

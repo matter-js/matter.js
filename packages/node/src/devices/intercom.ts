@@ -42,7 +42,7 @@ import { Identity } from "@matter/general";
  * IntercomDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default because
  * you must select the features your device supports. You can add manually using IntercomDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 16.4
+ * @see {@link MatterSpecification.v151.Device} § 16.4
  */
 export interface IntercomDevice extends Identity<typeof IntercomDeviceDefinition> {}
 

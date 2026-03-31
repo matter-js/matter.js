@@ -12,7 +12,7 @@ import type { ClusterModel } from "@matter/model";
 /**
  * Definitions for the WebRtcTransportDefinitions cluster.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 11.4
+ * @see {@link MatterSpecification.v151.Cluster} § 11.4
  */
 export declare namespace WebRtcTransportDefinitions {
     /**

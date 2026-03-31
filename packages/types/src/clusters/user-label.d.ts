@@ -17,7 +17,7 @@ import type { Label } from "./label.js";
  * This cluster is derived from the Label cluster and provides a feature to tag an endpoint with zero or more writable
  * labels.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.9
+ * @see {@link MatterSpecification.v151.Core} § 9.9
  */
 export declare namespace UserLabel {
     /**
@@ -57,7 +57,7 @@ export declare namespace UserLabel {
          * If an attempt is made to write to this attribute with a list length that is not supported by the server, the
          * server shall respond with RESOURCE_EXHAUSTED.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.9.4.1
+         * @see {@link MatterSpecification.v151.Core} § 9.9.4.1
          */
         labelList: Label.LabelStruct[];
     }
@@ -77,7 +77,7 @@ export declare namespace UserLabel {
          * If an attempt is made to write to this attribute with a list length that is not supported by the server, the
          * server shall respond with RESOURCE_EXHAUSTED.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.9.4.1
+         * @see {@link MatterSpecification.v151.Core} § 9.9.4.1
          */
         labelList: Label.LabelStruct[];
     }

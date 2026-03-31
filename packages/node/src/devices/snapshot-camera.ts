@@ -28,7 +28,7 @@ import { Identity } from "@matter/general";
  * SnapshotCameraDevice requires CameraAvStreamManagement cluster but CameraAvStreamManagement is not added by default
  * because you must select the features your device supports. You can add manually using SnapshotCameraDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 16.6
+ * @see {@link MatterSpecification.v151.Device} § 16.6
  */
 export interface SnapshotCameraDevice extends Identity<typeof SnapshotCameraDeviceDefinition> {}
 

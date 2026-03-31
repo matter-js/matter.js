@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * A Door Lock Controller is a device capable of controlling a door lock.
  *
- * @see {@link MatterSpecification.v142.Device} § 8.2
+ * @see {@link MatterSpecification.v151.Device} § 8.2
  */
 export interface DoorLockControllerDevice extends Identity<typeof DoorLockControllerDeviceDefinition> {}
 

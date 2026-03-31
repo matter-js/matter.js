@@ -33,7 +33,7 @@ import { Identity } from "@matter/general";
  * ClosurePanelDevice requires ClosureDimension cluster but ClosureDimension is not added by default because you must
  * select the features your device supports. You can add manually using ClosurePanelDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 8.6
+ * @see {@link MatterSpecification.v151.Device} § 8.6
  */
 export interface ClosurePanelDevice extends Identity<typeof ClosurePanelDeviceDefinition> {}
 

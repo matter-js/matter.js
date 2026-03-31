@@ -12,7 +12,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * The tags contained in this namespace may be used in any domain or context, to indicate an association with a home
  * landmark.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 16
+ * @see {@link MatterSpecification.v151.Namespace} § 16
  */
 export const CommonLandmarkNamespaceTag = SemanticNamespace({
     id: 0x11,

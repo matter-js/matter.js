@@ -17,7 +17,7 @@ import type { PowerThreshold } from "../globals/PowerThreshold.js";
  * This Meter Identification Cluster provides attributes for determining advanced information about utility metering
  * device.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.10
+ * @see {@link MatterSpecification.v151.Cluster} § 9.10
  */
 export declare namespace MeterIdentification {
     /**
@@ -50,7 +50,7 @@ export declare namespace MeterIdentification {
          * Indicates the Meter type features, decided by manufacturer. If the type is unavailable, this attribute shall
          * be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.1
          */
         meterType: MeterType | null;
 
@@ -58,14 +58,14 @@ export declare namespace MeterIdentification {
          * Indicates the unique identification of the connection point for the premises for billing purposes. If the
          * point of delivery is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.2
          */
         pointOfDelivery: string | null;
 
         /**
          * Indicates the serial number of the meter. If the serial number is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.3
          */
         meterSerialNumber: string | null;
 
@@ -73,7 +73,7 @@ export declare namespace MeterIdentification {
          * Indicates the underlying protocol version to express local market features. If the protocol version is
          * unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.4
          */
         protocolVersion?: string | null;
     }
@@ -83,7 +83,7 @@ export declare namespace MeterIdentification {
      */
     export interface PowerThresholdAttributes {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6
          */
         powerThreshold: PowerThreshold | null;
     }
@@ -99,7 +99,7 @@ export declare namespace MeterIdentification {
          * Indicates the Meter type features, decided by manufacturer. If the type is unavailable, this attribute shall
          * be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.1
          */
         meterType: MeterType | null;
 
@@ -107,14 +107,14 @@ export declare namespace MeterIdentification {
          * Indicates the unique identification of the connection point for the premises for billing purposes. If the
          * point of delivery is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.2
          */
         pointOfDelivery: string | null;
 
         /**
          * Indicates the serial number of the meter. If the serial number is unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.3
          */
         meterSerialNumber: string | null;
 
@@ -122,12 +122,12 @@ export declare namespace MeterIdentification {
          * Indicates the underlying protocol version to express local market features. If the protocol version is
          * unavailable, this attribute shall be null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6.4
          */
         protocolVersion: string | null;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 9.10.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.10.6
          */
         powerThreshold: PowerThreshold | null;
     }
@@ -141,7 +141,7 @@ export declare namespace MeterIdentification {
     /**
      * These are optional features supported by MeterIdentificationCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.10.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.10.4
      */
     export enum Feature {
         /**
@@ -153,7 +153,7 @@ export declare namespace MeterIdentification {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.10.5.1
      */
     export enum MeterType {
         /**

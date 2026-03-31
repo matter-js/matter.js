@@ -18,7 +18,7 @@ import type { Viewport } from "../globals/Viewport.js";
  * This cluster provides an interface into controls associated with the operation of a camera that provides pan, tilt,
  * and zoom functions, either mechanically, or against a digital image.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 11.3
+ * @see {@link MatterSpecification.v151.Cluster} § 11.3
  */
 export declare namespace CameraAvSettingsUserLevelManagement {
     /**
@@ -51,14 +51,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This attribute indicates the currently selected mechanical pan, tilt, and zoom position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.1
          */
         mptzPosition: Mptz;
 
         /**
          * Indicates the current movement state of the camera.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.10
          */
         movementState: PhysicalMovement;
     }
@@ -70,7 +70,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This attribute indicates the maximum number of presets for the mechanical pan, tilt, zoom.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.2
          */
         maxPresets: number;
 
@@ -78,7 +78,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This attribute shall be a list of MPTZPresetStruct. Each entry in the list contains a preset for mechanical
          * pan, tilt, and/or zoom, the values for which are represented by an instance of an MPTZStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.3
          */
         mptzPresets: MptzPreset[];
     }
@@ -92,7 +92,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * via DPTZSetViewport or DPTZRelativeMove. The initial values for each Viewport entry shall be the values found
          * in the global Viewport.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.4
          */
         dptzStreams: Dptz[];
     }
@@ -105,7 +105,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * Indicates the maximum value for the mechanical zoom specified by the camera manufacturer that allows for
          * increments of 1 to be noticeable. The handling of this value is implementation specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.5
          */
         zoomMax: number;
     }
@@ -117,14 +117,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * Indicates the minimum value for the mechanical tilt specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.6
          */
         tiltMin: number;
 
         /**
          * Indicates the maximum value for the mechanical tilt specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.7
          */
         tiltMax: number;
     }
@@ -136,14 +136,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * Indicates the minimum value for the mechanical pan specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.8
          */
         panMin: number;
 
         /**
          * Indicates the maximum value for the mechanical pan specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.9
          */
         panMax: number;
     }
@@ -158,21 +158,21 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This attribute indicates the currently selected mechanical pan, tilt, and zoom position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.1
          */
         mptzPosition: Mptz;
 
         /**
          * Indicates the current movement state of the camera.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.10
          */
         movementState: PhysicalMovement;
 
         /**
          * This attribute indicates the maximum number of presets for the mechanical pan, tilt, zoom.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.2
          */
         maxPresets: number;
 
@@ -180,7 +180,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This attribute shall be a list of MPTZPresetStruct. Each entry in the list contains a preset for mechanical
          * pan, tilt, and/or zoom, the values for which are represented by an instance of an MPTZStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.3
          */
         mptzPresets: MptzPreset[];
 
@@ -189,7 +189,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * via DPTZSetViewport or DPTZRelativeMove. The initial values for each Viewport entry shall be the values found
          * in the global Viewport.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.4
          */
         dptzStreams: Dptz[];
 
@@ -197,35 +197,35 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * Indicates the maximum value for the mechanical zoom specified by the camera manufacturer that allows for
          * increments of 1 to be noticeable. The handling of this value is implementation specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.5
          */
         zoomMax: number;
 
         /**
          * Indicates the minimum value for the mechanical tilt specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.6
          */
         tiltMin: number;
 
         /**
          * Indicates the maximum value for the mechanical tilt specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.7
          */
         tiltMax: number;
 
         /**
          * Indicates the minimum value for the mechanical pan specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.8
          */
         panMin: number;
 
         /**
          * Indicates the maximum value for the mechanical pan specified by the camera manufacturer in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.6.9
          */
         panMax: number;
     }
@@ -238,14 +238,14 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This command shall move the camera to the provided values for pan, tilt, and zoom in the mechanical PTZ.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1
          */
         mptzSetPosition(request: MptzSetPositionRequest): MaybePromise;
 
         /**
          * This command shall move the camera by the delta values relative to the currently defined position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2
          */
         mptzRelativeMove(request: MptzRelativeMoveRequest): MaybePromise;
     }
@@ -257,21 +257,21 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This command shall move the camera to the positions specified by the Preset passed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.3
          */
         mptzMoveToPreset(request: MptzMoveToPresetRequest): MaybePromise;
 
         /**
          * This command allows creating a new preset or updating the values of an existing one.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.4
          */
         mptzSavePreset(request: MptzSavePresetRequest): MaybePromise;
 
         /**
          * This command shall remove a preset entry from the PresetMptzTable.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.5
          */
         mptzRemovePreset(request: MptzRemovePresetRequest): MaybePromise;
     }
@@ -284,7 +284,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This command allows for setting the digital viewport for a specific Video Stream. This command is a
          * per-stream version of the Viewport Attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.6
          */
         dptzSetViewport(request: DptzSetViewportRequest): MaybePromise;
 
@@ -293,7 +293,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * for multiple users to interact with a directional arrow based user interface. It is recommended to increment
          * or decrement the values by 10% of the SensorWidth and SensorHeight found in VideoSensorParams.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7
          */
         dptzRelativeMove(request: DptzRelativeMoveRequest): MaybePromise;
     }
@@ -339,7 +339,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * These are optional features supported by CameraAvSettingsUserLevelManagementCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.4
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.4
      */
     export enum Feature {
         /**
@@ -347,7 +347,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          *
          * This feature indicates that per video stream digital pan, tilt, and zoom is supported.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.4.1
          */
         DigitalPtz = "DigitalPtz",
 
@@ -356,7 +356,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          *
          * This feature indicates that mechanical pan is supported on the camera.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.4.2
          */
         MechanicalPan = "MechanicalPan",
 
@@ -365,7 +365,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          *
          * This feature indicates that mechanical tilt is supported on the camera.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.4.3
          */
         MechanicalTilt = "MechanicalTilt",
 
@@ -374,7 +374,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          *
          * This feature indicates that mechanical zoom is supported on the camera.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.4.4
          */
         MechanicalZoom = "MechanicalZoom",
 
@@ -383,7 +383,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          *
          * This feature indicates that the storage of presets is supported on the camera.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.4.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.4.5
          */
         MechanicalPresets = "MechanicalPresets"
     }
@@ -391,7 +391,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This type is used to indicate the mechanical pan, tilt, and zoom values.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.3
      */
     export declare class Mptz {
         constructor(values?: Partial<Mptz>);
@@ -403,7 +403,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * positive value shall indicate a rightward rotation of the camera about the vertical axis of the camera
          * coordinate system.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.3.1
          */
         pan?: number;
 
@@ -413,7 +413,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * rotation of the camera about the horizontal axis of the camera coordinate system. A positive value shall
          * indicate an upward rotation of the camera about the horizontal axis of the camera coordinate system.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.3.2
          */
         tilt?: number;
 
@@ -421,7 +421,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This field shall indicate the zoom value to use. A value of 1 shall indicate the widest possible optical
          * field of view. A value of ZoomMax shall indicate the narrowest possible field of optical view.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.3.3
          */
         zoom?: number;
     };
@@ -430,7 +430,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      * The PhysicalMovementEnum provides an enumeration of the possible physical movement states in which the camera
      * could be.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.1
      */
     export enum PhysicalMovement {
         /**
@@ -438,7 +438,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          *
          * The camera is idle, there is no movement active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.1.1
          */
         Idle = 0,
 
@@ -448,7 +448,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * The camera is moving to a new value of Pan, Tilt, and/or Zoom as a result of the reception of a command that
          * changes one or more of these values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.1.2
          */
         Moving = 1
     }
@@ -456,7 +456,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This type is used to save a preset location for mechanical pan, tilt and zoom.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.4
      */
     export declare class MptzPreset {
         constructor(values?: Partial<MptzPreset>);
@@ -465,21 +465,21 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This shall be derived from uint8 and represents the ID for a saved set of preset values for mechanical pan,
          * tilt and zoom.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.4.1
          */
         presetId: number;
 
         /**
          * The shall be a string representing the name of the Preset.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.4.2
          */
         name: string;
 
         /**
          * This shall hold the mechanical pan, tilt and zoom values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.4.3
          */
         settings: Mptz;
     };
@@ -487,7 +487,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This type is used to indicate support for the per stream digital pan, tilt, and zoom values.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.2
      */
     export declare class Dptz {
         constructor(values?: Partial<Dptz>);
@@ -495,7 +495,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall indicate the video stream this applies too.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.2.1
          */
         videoStreamId: number;
 
@@ -503,7 +503,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This field shall indicate the per stream viewport applied to this video stream. See Viewport for details on
          * the coordinate system.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.5.2.2
          */
         viewport: Viewport;
     };
@@ -511,7 +511,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This command shall move the camera to the provided values for pan, tilt, and zoom in the mechanical PTZ.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1
      */
     export declare class MptzSetPositionRequest {
         constructor(values?: Partial<MptzSetPositionRequest>);
@@ -519,21 +519,21 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall indicate the absolute pan value in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1.1
          */
         pan?: number;
 
         /**
          * This field shall indicate the absolute tilt value in angular degrees.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1.2
          */
         tilt?: number;
 
         /**
          * This field shall indicate the absolute zoom value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.1.3
          */
         zoom?: number;
     };
@@ -541,7 +541,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This command shall move the camera by the delta values relative to the currently defined position.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2
      */
     export declare class MptzRelativeMoveRequest {
         constructor(values?: Partial<MptzRelativeMoveRequest>);
@@ -550,7 +550,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This field shall indicate the change in the pan value in degrees relative to the current location. A value of
          * 0 means no movement. A negative value means move left. A positive value means move right.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2.1
          */
         panDelta?: number;
 
@@ -558,7 +558,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This field shall indicate the change in the tilt value in degrees relative to the current location. A value
          * of 0 means no movement. A negative value means move down. A positive value means move up.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2.2
          */
         tiltDelta?: number;
 
@@ -566,7 +566,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This field shall indicate the percentage change in the zoom value relative to the current zoom value on the
          * camera. A value of 0 means no change. A negative value means zoom out. A positive value means zoom in.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.2.3
          */
         zoomDelta?: number;
     };
@@ -574,7 +574,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This command shall move the camera to the positions specified by the Preset passed.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.3
      */
     export declare class MptzMoveToPresetRequest {
         constructor(values?: Partial<MptzMoveToPresetRequest>);
@@ -582,7 +582,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall match the PresetID of an entry in MptzPresets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.3.1
          */
         presetId: number;
     };
@@ -590,7 +590,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This command allows creating a new preset or updating the values of an existing one.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.4
      */
     export declare class MptzSavePresetRequest {
         constructor(values?: Partial<MptzSavePresetRequest>);
@@ -598,7 +598,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall indicate the ID of an entry in MptzPresets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.4.1
          */
         presetId?: number;
 
@@ -608,7 +608,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * This command shall remove a preset entry from the PresetMptzTable.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.5
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.5
      */
     export declare class MptzRemovePresetRequest {
         constructor(values?: Partial<MptzRemovePresetRequest>);
@@ -616,7 +616,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall indicate the ID of an entry in MptzPresets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.5.1
          */
         presetId: number;
     };
@@ -625,7 +625,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      * This command allows for setting the digital viewport for a specific Video Stream. This command is a per-stream
      * version of the Viewport Attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.6
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.6
      */
     export declare class DptzSetViewportRequest {
         constructor(values?: Partial<DptzSetViewportRequest>);
@@ -633,7 +633,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall be a VideoStreamID representing the video stream to modify.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.6.1
          */
         videoStreamId: number;
 
@@ -641,7 +641,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * This field shall be a ViewportStruct representing the new viewport to apply to the requested stream. The
          * aspect ratio of the viewport shall match the aspect ratio of the stream requested.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.6.2
          */
         viewport: Viewport;
     };
@@ -651,7 +651,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
      * multiple users to interact with a directional arrow based user interface. It is recommended to increment or
      * decrement the values by 10% of the SensorWidth and SensorHeight found in VideoSensorParams.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7
+     * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7
      */
     export declare class DptzRelativeMoveRequest {
         constructor(values?: Partial<DptzRelativeMoveRequest>);
@@ -659,7 +659,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
         /**
          * This field shall be a VideoStreamID representing the video stream to modify.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7.1
          */
         videoStreamId: number;
 
@@ -668,7 +668,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * SensorHeight found in VideoSensorParams. A value of 0 means no movement. A negative value means move the
          * viewport left. A positive value means move the viewport right.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7.2
          */
         deltaX?: number;
 
@@ -677,7 +677,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * SensorHeight found in VideoSensorParams. A value of 0 means no movement. A negative value means move the
          * viewport down. A positive value means move the viewport up.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7.3
          */
         deltaY?: number;
 
@@ -686,7 +686,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
          * SensorHeight found in VideoSensorParams. A value of 0 means no change. A negative value means make the
          * viewport larger. A positive value means make the viewport smaller.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.3.7.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.3.7.7.4
          */
         zoomDelta?: number;
     };

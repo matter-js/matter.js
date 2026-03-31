@@ -21,7 +21,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  * data through WebRTC. Devices implementing this cluster shall also implement Camera AV Stream Management Cluster on
  * the same endpoint.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 11.5
+ * @see {@link MatterSpecification.v151.Cluster} § 11.5
  */
 export declare namespace WebRtcTransportProvider {
     /**
@@ -53,7 +53,7 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.6.1
          */
         currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
@@ -68,7 +68,7 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This attribute shall be a list of WebRTCSessionStruct, which represents all the active WebRTC Sessions.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.6.1
          */
         currentSessions: WebRtcTransportDefinitions.WebRtcSession[];
     }
@@ -81,7 +81,7 @@ export declare namespace WebRtcTransportProvider {
          * Requests that the Provider initiates a new session with the Offer / Answer flow in a way that allows for
          * options to be passed and work with devices needing the standby flow.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1
          */
         solicitOffer(request: SolicitOfferRequest): MaybePromise<SolicitOfferResponse>;
 
@@ -89,7 +89,7 @@ export declare namespace WebRtcTransportProvider {
          * This command allows an SDP Offer to be set and start a new session. This command can also be used in the
          * re-offer flow of an existing session to change the details of the SDP (e.g. to enable/disable two-way talk).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3
          */
         provideOffer(request: ProvideOfferRequest): MaybePromise<ProvideOfferResponse>;
 
@@ -102,7 +102,7 @@ export declare namespace WebRtcTransportProvider {
          * fabric and the Peer Node ID entry stored in the Secure Session Context of the session this command was
          * received on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5
          */
         provideAnswer(request: ProvideAnswerRequest): MaybePromise;
 
@@ -117,14 +117,14 @@ export declare namespace WebRtcTransportProvider {
          * fabric and the Peer Node ID entry stored in the Secure Session Context of the session this command was
          * received on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6
          */
         provideIceCandidates(request: ProvideIceCandidatesRequest): MaybePromise;
 
         /**
          * This command instructs the stream provider to end the WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.7
          */
         endSession(request: EndSessionRequest): MaybePromise;
     }
@@ -140,7 +140,7 @@ export declare namespace WebRtcTransportProvider {
     /**
      * These are optional features supported by WebRtcTransportProviderCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.4
      */
     export enum Feature {
         /**
@@ -156,7 +156,7 @@ export declare namespace WebRtcTransportProvider {
          * If SFrame End-to-End Encryption is active in a session, all metadata transmissions shall be sent using the
          * protocol name urn:csa:matter:sframe:av-metadata instead with each transmission being wrapped in SFrames.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.4.1
          */
         Metadata = "Metadata"
     }
@@ -165,7 +165,7 @@ export declare namespace WebRtcTransportProvider {
      * Requests that the Provider initiates a new session with the Offer / Answer flow in a way that allows for options
      * to be passed and work with devices needing the standby flow.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1
      */
     export declare class SolicitOfferRequest {
         constructor(values?: Partial<SolicitOfferRequest>);
@@ -174,7 +174,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall contain the StreamUsageEnum that indicates the stream usage for this session and is used per
          * Resource Management and Stream Priorities.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.1
          */
         streamUsage: StreamUsage;
 
@@ -182,7 +182,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall indicate the endpoint that originates this command. This endpoint shall be used when acting
          * as a client to invoke the commands on the Requestor cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.2
          */
         originatingEndpointId: EndpointNumber;
 
@@ -198,7 +198,7 @@ export declare namespace WebRtcTransportProvider {
          *   - If present and non-null, the specific video stream identified by the VideoStreamID is added as an entry
          *     to the VideoStreams list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.4
          */
         videoStreamId?: number | null;
 
@@ -214,7 +214,7 @@ export declare namespace WebRtcTransportProvider {
          *   - If present and non-null, the specific audio stream identified by the AudioStreamID is added as an entry
          *     to the AudioStreams list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.3
          */
         audioStreamId?: number | null;
 
@@ -222,7 +222,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be a list of ICEServerStruct which contains the ICE servers and their credentials to use for
          * this session. See ICEServerStruct for further details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.5
          */
         iceServers?: WebRtcTransportDefinitions.IceServer[];
 
@@ -233,14 +233,14 @@ export declare namespace WebRtcTransportProvider {
          * approach to network routing and privacy. This field shall mirror the acceptable values in the W3C WebRTC API
          * RTCIceTransportPolicy enum, which are listed below for convenience:
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.6
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.6
          */
         iceTransportPolicy?: string;
 
         /**
          * This field indicates if metadata transmission shall be active in this session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.7
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.7
          */
         metadataEnabled?: boolean;
 
@@ -248,7 +248,7 @@ export declare namespace WebRtcTransportProvider {
          * This field if present indicates that SFrame End-to-End Encryption shall be active in this session using the
          * configuration provided.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.8
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.8
          */
         sFrameConfig?: SFrame;
 
@@ -256,7 +256,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be the list of requested VideoStreamID for this session. Valid values are found in the
          * AllocatedVideoStreams attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.9
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.9
          */
         videoStreams?: number[];
 
@@ -264,7 +264,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be a list of requested AudioStreamID for this session. Valid values are found in the
          * AllocatedAudioStreams attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.1.10
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.1.10
          */
         audioStreams?: number[];
     };
@@ -283,7 +283,7 @@ export declare namespace WebRtcTransportProvider {
      * The session establishment shall be considered failed unless a Offer command is received by the Requestor from the
      * PeerEndpointID / FabricIndex within 30 seconds.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2
      */
     export declare class SolicitOfferResponse {
         constructor(values?: Partial<SolicitOfferResponse>);
@@ -291,7 +291,7 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This field shall contain the ID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2.1
          */
         webRtcSessionId: number;
 
@@ -306,7 +306,7 @@ export declare namespace WebRtcTransportProvider {
          * use this extra time gap to begin its own ICE Candidate generation until the Offer arrives. (See further
          * details in the section WebRTC Battery Camera in Standby Flow)
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2.2
          */
         deferredOffer: boolean;
 
@@ -315,7 +315,7 @@ export declare namespace WebRtcTransportProvider {
          * VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the session if
          * known or null if unknown at this time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2.3
          */
         videoStreamId?: number | null;
 
@@ -324,7 +324,7 @@ export declare namespace WebRtcTransportProvider {
          * AudioStreamID field in the request. When included, it shall contain a AudioStreamID used for the session if
          * known or null if unknown at this time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.2.4
          */
         audioStreamId?: number | null;
     };
@@ -333,7 +333,7 @@ export declare namespace WebRtcTransportProvider {
      * This command allows an SDP Offer to be set and start a new session. This command can also be used in the re-offer
      * flow of an existing session to change the details of the SDP (e.g. to enable/disable two-way talk).
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3
      */
     export declare class ProvideOfferRequest {
         constructor(values?: Partial<ProvideOfferRequest>);
@@ -342,7 +342,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be a WebRTCSessionID and contain the ID of an established WebRTC session or null if
          * requesting a new session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.1
          */
         webRtcSessionId: number | null;
 
@@ -350,14 +350,14 @@ export declare namespace WebRtcTransportProvider {
          * This field shall contain the string based SDP Offer. See WebRTC Transport for further details on SDP and
          * Offer/Answer semantics.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.2
          */
         sdp: string;
 
         /**
          * This field shall contain the StreamUsageEnum that indicates the stream usage for this session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.3
          */
         streamUsage?: StreamUsage;
 
@@ -365,7 +365,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall indicate the endpoint that originates this command. This endpoint shall be used when acting
          * as a client to invoke the commands on the Requestor cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.4
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.4
          */
         originatingEndpointId?: EndpointNumber;
 
@@ -381,7 +381,7 @@ export declare namespace WebRtcTransportProvider {
          *   - If present and non-null, the specific video stream identified by the VideoStreamID shall be added as an
          *     entry to the VideoStreams list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.5
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.5
          */
         videoStreamId?: number | null;
 
@@ -397,7 +397,7 @@ export declare namespace WebRtcTransportProvider {
          *   - If present and non-null, the specific video stream identified by the AudioStreamID shall be added as an
          *     entry to the AudioStreams list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.6
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.6
          */
         audioStreamId?: number | null;
 
@@ -405,7 +405,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be a list of ICEServerStruct which contains the ICE servers and their credentials to use for
          * this session. See ICEServerStruct for further details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.7
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.7
          */
         iceServers?: WebRtcTransportDefinitions.IceServer[];
 
@@ -413,14 +413,14 @@ export declare namespace WebRtcTransportProvider {
          * This field controls the gathering and usage of ICE candidates and shall have one of the values found in
          * ICETransportPolicy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.8
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.8
          */
         iceTransportPolicy?: string;
 
         /**
          * This field indicates if metadata transmission shall be active in this session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.9
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.9
          */
         metadataEnabled?: boolean;
 
@@ -428,7 +428,7 @@ export declare namespace WebRtcTransportProvider {
          * This field if present indicates that SFrame End-to-End Encryption shall be active in this session using the
          * configuration provided.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.10
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.10
          */
         sFrameConfig?: SFrame;
 
@@ -436,7 +436,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be the list of requested VideoStreamID for this session. Valid values are found in the
          * AllocatedVideoStreams attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.11
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.11
          */
         videoStreams?: number[];
 
@@ -444,7 +444,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall be a list of requested AudioStreamID for this session. Valid values are found in the
          * AllocatedAudioStreams attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.3.12
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.3.12
          */
         audioStreams?: number[];
     };
@@ -457,7 +457,7 @@ export declare namespace WebRtcTransportProvider {
      * PeerNodeID and FabricIndex values, and store it in the WebRTC Transport Requestor cluster’s CurrentSessions
      * attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4
      */
     export declare class ProvideOfferResponse {
         constructor(values?: Partial<ProvideOfferResponse>);
@@ -465,7 +465,7 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4.1
          */
         webRtcSessionId: number;
 
@@ -474,7 +474,7 @@ export declare namespace WebRtcTransportProvider {
          * VideoStreamID field in the request. When included, it shall contain a VideoStreamID used for the session if
          * known or null if unknown at this time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4.2
          */
         videoStreamId?: number | null;
 
@@ -483,7 +483,7 @@ export declare namespace WebRtcTransportProvider {
          * AudioStreamID field in the request. When included, shall contain a AudioStreamID used for the session if
          * known or null if unknown at this time.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4.3
          */
         audioStreamId?: number | null;
     };
@@ -496,7 +496,7 @@ export declare namespace WebRtcTransportProvider {
      * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context of the session this command was received on.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.5
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5
      */
     export declare class ProvideAnswerRequest {
         constructor(values?: Partial<ProvideAnswerRequest>);
@@ -504,7 +504,7 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5.1
          */
         webRtcSessionId: number;
 
@@ -512,7 +512,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall contain the string based SDP Answer. See WebRTC Transport for further details on SDP and
          * Offer/Answer semantics.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5.2
          */
         sdp: string;
     };
@@ -527,7 +527,7 @@ export declare namespace WebRtcTransportProvider {
      * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context of the session this command was received on.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6
      */
     export declare class ProvideIceCandidatesRequest {
         constructor(values?: Partial<ProvideIceCandidatesRequest>);
@@ -535,14 +535,14 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6.1
          */
         webRtcSessionId: number;
 
         /**
          * This field shall contain a list of JSEP compliant ICE Candidate Format objects.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6.2
          */
         iceCandidates: WebRtcTransportDefinitions.IceCandidate[];
     };
@@ -550,7 +550,7 @@ export declare namespace WebRtcTransportProvider {
     /**
      * This command instructs the stream provider to end the WebRTC session.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.7
      */
     export declare class EndSessionRequest {
         constructor(values?: Partial<EndSessionRequest>);
@@ -558,14 +558,14 @@ export declare namespace WebRtcTransportProvider {
         /**
          * This field shall contain the WebRTCSessionID of the established WebRTC session.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.7.1
          */
         webRtcSessionId: number;
 
         /**
          * This field shall be one of the values in WebRTCEndReasonEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.7.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.7.2
          */
         reason: WebRtcTransportDefinitions.WebRtcEndReason;
     };
@@ -574,7 +574,7 @@ export declare namespace WebRtcTransportProvider {
      * This type shall specify the RFC 9605 data needed to use SFrames as an end-to-end encryption mechanism with
      * WebRTC.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1
      */
     export declare class SFrame {
         constructor(values?: Partial<SFrame>);
@@ -583,7 +583,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall specify the SFrame cipher suite value as defined in RFC 9605 Section 8.1 Cipher Suites
          * table, and maintained in the IANA SFrame Registry.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1.1
          */
         cipherSuite: number;
 
@@ -591,7 +591,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall specify the SFrame base_key value to use for a session. The length of this key depends on
          * the selected cipher suite’s Nk value as defined in Section 4.5 Cipher Suites.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1.2
          */
         baseKey: Bytes;
 
@@ -599,7 +599,7 @@ export declare namespace WebRtcTransportProvider {
          * This field shall specify the initial SFrame KID (Key Id) value to be used. The bottom 8 bits of this value
          * will be overwritten and used for ratchet step tracking.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 11.5.5.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1.3
          */
         kid: Bytes;
     };

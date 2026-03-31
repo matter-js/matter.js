@@ -13,7 +13,7 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  * in a certain compass direction (e.g. an outdoor sensor in the North garden). Note the difference with Chapter 3,
  * Common Compass Direction Semantic Tag Namespace.
  *
- * @see {@link MatterSpecification.v142.Namespace} § 4
+ * @see {@link MatterSpecification.v151.Namespace} § 4
  */
 export const CommonCompassLocationTag = SemanticNamespace({
     id: 0x3,

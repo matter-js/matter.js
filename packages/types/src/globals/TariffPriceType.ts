@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v142.Cluster} § 9.1.5
+ * @see {@link MatterSpecification.v151.Cluster} § 9.1.5
  */
 export enum TariffPriceType {
     /**
@@ -15,7 +15,7 @@ export enum TariffPriceType {
      *
      * This value shall indicate that a price comes from a standard tariff rate.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.5.1
      */
     Standard = 0,
 
@@ -24,7 +24,7 @@ export enum TariffPriceType {
      *
      * This value shall indicate that a price comes from a critical peak pricing event.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.5.2
      */
     Critical = 1,
 
@@ -33,7 +33,7 @@ export enum TariffPriceType {
      *
      * This value shall indicate that a price comes from a virtual power plant event.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.5.3
      */
     Virtual = 2,
 
@@ -42,7 +42,7 @@ export enum TariffPriceType {
      *
      * This value shall indicate that a price comes from a incentive event.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.5.4
      */
     Incentive = 3,
 
@@ -51,7 +51,7 @@ export enum TariffPriceType {
      *
      * This value shall indicate that a price is synthesized from a non-tariff source; e.g. gCO2e/kWh.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.5.5
      */
     IncentiveSignal = 4
 }

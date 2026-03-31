@@ -21,7 +21,7 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
  * Node-wide and not specific to any subset of Endpoints. When present, this Cluster shall be implemented once for the
  * Node. The Node SHOULD also implement the BDX Initiator and BDX Sender roles as defined in the BDX Protocol.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.11
+ * @see {@link MatterSpecification.v151.Core} § 11.11
  */
 export declare namespace DiagnosticLogs {
     /**
@@ -53,7 +53,7 @@ export declare namespace DiagnosticLogs {
         /**
          * Reception of this command starts the process of retrieving diagnostic logs from a Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.1
          */
         retrieveLogsRequest(request: RetrieveLogsRequest): MaybePromise<RetrieveLogsResponse>;
     }
@@ -68,7 +68,7 @@ export declare namespace DiagnosticLogs {
     /**
      * Reception of this command starts the process of retrieving diagnostic logs from a Node.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.11.5.1
      */
     export declare class RetrieveLogsRequest {
         constructor(values?: Partial<RetrieveLogsRequest>);
@@ -77,7 +77,7 @@ export declare namespace DiagnosticLogs {
          * This field shall indicate why the diagnostic logs are being retrieved from the Node. A Node may utilize this
          * field to selectively determine the logs to transfer.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.1.1
          */
         intent: Intent;
 
@@ -88,7 +88,7 @@ export declare namespace DiagnosticLogs {
          * TransferProtocolEnum of ResponsePayload. If this field is set to ResponsePayload the receiving Node shall
          * only utilize the LogContent field of the RetrieveLogsResponse command to transfer diagnostic log information.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.1.2
          */
         requestedProtocol: TransferProtocol;
 
@@ -124,7 +124,7 @@ export declare namespace DiagnosticLogs {
          * If the Intent and/or the RequestedProtocol arguments contain invalid (out of range) values the command shall
          * fail with a Status Code of INVALID_COMMAND.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.1.3
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.1.3
          */
         transferFileDesignator?: string;
     };
@@ -134,7 +134,7 @@ export declare namespace DiagnosticLogs {
      *
      * The data for this command is shown in the following.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.5.2
+     * @see {@link MatterSpecification.v151.Core} § 11.11.5.2
      */
     export declare class RetrieveLogsResponse {
         constructor(values?: Partial<RetrieveLogsResponse>);
@@ -142,7 +142,7 @@ export declare namespace DiagnosticLogs {
         /**
          * This field shall indicate the result of an attempt to retrieve diagnostic logs.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.2.1
          */
         status: Status;
 
@@ -151,7 +151,7 @@ export declare namespace DiagnosticLogs {
          * SHOULD utilize this field to transfer the newest diagnostic log entries. This field shall be empty if BDX is
          * requested and the Status field has a value of Success.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.2.2
          */
         logContent: Bytes;
 
@@ -160,7 +160,7 @@ export declare namespace DiagnosticLogs {
          * maintains a wall clock. When included, the UTCTimeStamp field shall contain the value of the oldest log entry
          * in the diagnostic logs that are being transferred.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.3
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.2.3
          */
         utcTimeStamp?: number | bigint;
 
@@ -169,13 +169,13 @@ export declare namespace DiagnosticLogs {
          * TimeSinceBoot field shall contain the time of the oldest log entry in the diagnostic logs that are being
          * transferred represented by the number of microseconds since the last time the Node went through a reboot.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.5.2.4
+         * @see {@link MatterSpecification.v151.Core} § 11.11.5.2.4
          */
         timeSinceBoot?: number | bigint;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.1
      */
     export enum Intent {
         /**
@@ -184,7 +184,7 @@ export declare namespace DiagnosticLogs {
          * shall indicate that the purpose of the log request is to retrieve logs for the intention of providing support
          * to an end-user.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.1.1
          */
         EndUserSupport = 0,
 
@@ -194,7 +194,7 @@ export declare namespace DiagnosticLogs {
          * shall indicate that the purpose of the log request is to diagnose the network(s) for which the Node is
          * currently commissioned (and/or connected) or has previously been commissioned (and/or connected).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.1.2
          */
         NetworkDiag = 1,
 
@@ -204,13 +204,13 @@ export declare namespace DiagnosticLogs {
          * shall indicate that the purpose of the log request is to retrieve any crash logs that may be present on a
          * Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.1.3
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.1.3
          */
         CrashLogs = 2
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.2
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.2
      */
     export enum Status {
         /**
@@ -218,7 +218,7 @@ export declare namespace DiagnosticLogs {
          *
          * shall be used if diagnostic logs will be or are being transferred.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.1
          */
         Success = 0,
 
@@ -228,7 +228,7 @@ export declare namespace DiagnosticLogs {
          * shall be used when a BDX session is requested, however, all available logs were provided in a LogContent
          * field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.2
          */
         Exhausted = 1,
 
@@ -238,7 +238,7 @@ export declare namespace DiagnosticLogs {
          * shall be used if the Node does not currently have any diagnostic logs of the requested type (Intent) to
          * transfer.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.3
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.3
          */
         NoLogs = 2,
 
@@ -248,7 +248,7 @@ export declare namespace DiagnosticLogs {
          * shall be used if the Node is unable to handle the request (e.g. in the process of another transfer) and the
          * Client SHOULD re-attempt the request later.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.4
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.4
          */
         Busy = 3,
 
@@ -257,7 +257,7 @@ export declare namespace DiagnosticLogs {
          *
          * shall be used if the Node is denying the current transfer of diagnostic logs for any reason.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.5
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.5
          */
         Denied = 4
     }
@@ -265,7 +265,7 @@ export declare namespace DiagnosticLogs {
     /**
      * Thrown for cluster status code {@link Status.Exhausted}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.2
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.2
      */
     export class ExhaustedError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -274,7 +274,7 @@ export declare namespace DiagnosticLogs {
     /**
      * Thrown for cluster status code {@link Status.NoLogs}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.3
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.3
      */
     export class NoLogsError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -283,7 +283,7 @@ export declare namespace DiagnosticLogs {
     /**
      * Thrown for cluster status code {@link Status.Busy}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.4
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.4
      */
     export class BusyError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -292,14 +292,14 @@ export declare namespace DiagnosticLogs {
     /**
      * Thrown for cluster status code {@link Status.Denied}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.2.5
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.2.5
      */
     export class DeniedError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.11.4.3
+     * @see {@link MatterSpecification.v151.Core} § 11.11.4.3
      */
     export enum TransferProtocol {
         /**
@@ -307,7 +307,7 @@ export declare namespace DiagnosticLogs {
          *
          * shall be used by a Client to request that logs are transferred using the LogContent attribute of the response
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.3.1
          */
         ResponsePayload = 0,
 
@@ -316,7 +316,7 @@ export declare namespace DiagnosticLogs {
          *
          * shall be used by a Client to request that logs are transferred using BDX as defined in BDX Protocol
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.11.4.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.11.4.3.2
          */
         Bdx = 1
     }

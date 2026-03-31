@@ -38,7 +38,7 @@ import { Identity } from "@matter/general";
  * A Video Remote Control is a client that can control a Video Player, for example, a traditional universal remote
  * control.
  *
- * @see {@link MatterSpecification.v142.Device} § 10.7
+ * @see {@link MatterSpecification.v151.Device} § 10.7
  */
 export interface VideoRemoteControlDevice extends Identity<typeof VideoRemoteControlDeviceDefinition> {}
 

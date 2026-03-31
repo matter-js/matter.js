@@ -24,7 +24,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  *
  * The generalized flow supported by the Commissioner Control Cluster can be seen in the following diagram.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.26
+ * @see {@link MatterSpecification.v151.Core} § 11.26
  */
 export declare namespace CommissionerControl {
     /**
@@ -60,7 +60,7 @@ export declare namespace CommissionerControl {
          * A client shall NOT send the RequestCommissioningApproval command if the intended node to be commissioned does
          * not conform to any of the values specified in SupportedDeviceCategories.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.26.5.1
          */
         supportedDeviceCategories: SupportedDeviceCategory;
     }
@@ -76,7 +76,7 @@ export declare namespace CommissionerControl {
          * A client shall NOT send the RequestCommissioningApproval command if the intended node to be commissioned does
          * not conform to any of the values specified in SupportedDeviceCategories.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.26.5.1
          */
         supportedDeviceCategories: SupportedDeviceCategory;
     }
@@ -106,7 +106,7 @@ export declare namespace CommissionerControl {
          *
          * The parameters for RequestCommissioningApproval command are as follows:
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.26.6.1
          */
         requestCommissioningApproval(request: RequestCommissioningApprovalRequest): MaybePromise;
 
@@ -131,7 +131,7 @@ export declare namespace CommissionerControl {
          *
          * The parameters for CommissionNode command are as follows:
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.26.6.5
          */
         commissionNode(request: CommissionNodeRequest): MaybePromise<ReverseOpenCommissioningWindowResponse>;
     }
@@ -155,7 +155,7 @@ export declare namespace CommissionerControl {
          *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately
          *   upon receiving a CommissioningRequestResult event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.26.7.1
          */
         commissioningRequestResult: CommissioningRequestResultEvent;
     }
@@ -174,7 +174,7 @@ export declare namespace CommissionerControl {
          *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately
          *   upon receiving a CommissioningRequestResult event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.26.7.1
          */
         commissioningRequestResult: CommissioningRequestResultEvent;
     }
@@ -182,7 +182,7 @@ export declare namespace CommissionerControl {
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands, events: BaseEvents }];
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.26.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.26.4.1
      */
     export declare class SupportedDeviceCategory {
         constructor(values?: Partial<SupportedDeviceCategory> | number);
@@ -193,7 +193,7 @@ export declare namespace CommissionerControl {
          * The FabricSynchronization bit shall be set to 1 if and only if the server supports commissioning nodes that
          * support Fabric Synchronization.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.26.4.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.26.4.1.1
          */
         fabricSynchronization?: boolean;
     };
@@ -219,7 +219,7 @@ export declare namespace CommissionerControl {
      *
      * The parameters for RequestCommissioningApproval command are as follows:
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.26.6.1
+     * @see {@link MatterSpecification.v151.Core} § 11.26.6.1
      */
     export declare class RequestCommissioningApprovalRequest {
         constructor(values?: Partial<RequestCommissioningApprovalRequest>);
@@ -248,7 +248,7 @@ export declare namespace CommissionerControl {
      *
      * The parameters for CommissionNode command are as follows:
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.26.6.5
+     * @see {@link MatterSpecification.v151.Core} § 11.26.6.5
      */
     export declare class CommissionNodeRequest {
         constructor(values?: Partial<CommissionNodeRequest>);
@@ -273,7 +273,7 @@ export declare namespace CommissionerControl {
      *
      * The parameters for ReverseOpenCommissioningWindow command are as follows:
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.26.6.8
+     * @see {@link MatterSpecification.v151.Core} § 11.26.6.8
      */
     export declare class ReverseOpenCommissioningWindowResponse {
         constructor(values?: Partial<ReverseOpenCommissioningWindowResponse>);
@@ -294,7 +294,7 @@ export declare namespace CommissionerControl {
      *   the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately upon receiving a
      *   CommissioningRequestResult event.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.26.7.1
+     * @see {@link MatterSpecification.v151.Core} § 11.26.7.1
      */
     export declare class CommissioningRequestResultEvent {
         constructor(values?: Partial<CommissioningRequestResultEvent>);

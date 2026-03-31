@@ -17,7 +17,7 @@ import type { MaybePromise } from "@matter/general";
  * This cluster provides an interface for controlling a characteristic of a device that can be set to a level, for
  * example the brightness of a light or lamp, a pump’s flow rate setpoint, etc.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.6
+ * @see {@link MatterSpecification.v151.Cluster} § 1.6
  */
 export declare namespace LevelControl {
     /**
@@ -57,7 +57,7 @@ export declare namespace LevelControl {
          *
          *   - When it changes from null to any other value and vice versa.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.2
          */
         currentLevel: number | null;
 
@@ -70,7 +70,7 @@ export declare namespace LevelControl {
          * OnLevel represents a mandatory field that was previously not present or optional. Implementers should be
          * aware that older devices may not implement it.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.11
          */
         onLevel: number | null;
 
@@ -94,7 +94,7 @@ export declare namespace LevelControl {
          *
          *   - The value of the ExecuteIfOff bit is 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.9
          */
         options: Options;
 
@@ -106,7 +106,7 @@ export declare namespace LevelControl {
          * > This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As such,
          *   when the Lighting feature is supported this value shall be 1.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.4
          */
         minLevel?: number;
 
@@ -118,7 +118,7 @@ export declare namespace LevelControl {
          * > This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As such,
          *   when the Lighting feature is supported this value shall be 254.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.5
          */
         maxLevel?: number;
 
@@ -130,7 +130,7 @@ export declare namespace LevelControl {
          * the device is not able to move at a variable rate, the OnOffTransitionTime attribute SHOULD NOT be
          * implemented.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.10
          */
         onOffTransitionTime?: number;
 
@@ -139,7 +139,7 @@ export declare namespace LevelControl {
          * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a second. If
          * this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be used instead.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.12
          */
         onTransitionTime?: number | null;
 
@@ -148,7 +148,7 @@ export declare namespace LevelControl {
          * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a second. If
          * this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be used instead.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.13
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.13
          */
         offTransitionTime?: number | null;
 
@@ -156,7 +156,7 @@ export declare namespace LevelControl {
          * Indicates the movement rate, in units per second, when a Move command is received with a null value Rate
          * parameter.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.14
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.14
          */
         defaultMoveRate?: number | null;
     }
@@ -182,7 +182,7 @@ export declare namespace LevelControl {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.3
          */
         remainingTime: number;
 
@@ -193,7 +193,7 @@ export declare namespace LevelControl {
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentLevel attribute
          * shall return to its value prior to the restart.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.15
          */
         startUpCurrentLevel: number | null;
     }
@@ -213,7 +213,7 @@ export declare namespace LevelControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.6
          */
         currentFrequency: number;
 
@@ -221,7 +221,7 @@ export declare namespace LevelControl {
          * Indicates the minimum value of CurrentFrequency that is capable of being assigned. MinFrequency shall be less
          * than or equal to MaxFrequency. A value of 0 indicates undefined.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.7
          */
         minFrequency: number;
 
@@ -229,7 +229,7 @@ export declare namespace LevelControl {
          * Indicates the maximum value of CurrentFrequency that is capable of being assigned. MaxFrequency shall be
          * greater than or equal to MinFrequency. A value of 0 indicates undefined.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.8
          */
         maxFrequency: number;
     }
@@ -252,7 +252,7 @@ export declare namespace LevelControl {
          *
          *   - When it changes from null to any other value and vice versa.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.2
          */
         currentLevel: number | null;
 
@@ -265,7 +265,7 @@ export declare namespace LevelControl {
          * OnLevel represents a mandatory field that was previously not present or optional. Implementers should be
          * aware that older devices may not implement it.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.11
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.11
          */
         onLevel: number | null;
 
@@ -289,7 +289,7 @@ export declare namespace LevelControl {
          *
          *   - The value of the ExecuteIfOff bit is 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.9
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.9
          */
         options: Options;
 
@@ -301,7 +301,7 @@ export declare namespace LevelControl {
          * > This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As such,
          *   when the Lighting feature is supported this value shall be 1.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.4
          */
         minLevel: number;
 
@@ -313,7 +313,7 @@ export declare namespace LevelControl {
          * > This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As such,
          *   when the Lighting feature is supported this value shall be 254.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.5
          */
         maxLevel: number;
 
@@ -325,7 +325,7 @@ export declare namespace LevelControl {
          * the device is not able to move at a variable rate, the OnOffTransitionTime attribute SHOULD NOT be
          * implemented.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.10
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.10
          */
         onOffTransitionTime: number;
 
@@ -334,7 +334,7 @@ export declare namespace LevelControl {
          * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a second. If
          * this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be used instead.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.12
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.12
          */
         onTransitionTime: number | null;
 
@@ -343,7 +343,7 @@ export declare namespace LevelControl {
          * command is received by an On/Off cluster on the same endpoint. It is specified in 1/10ths of a second. If
          * this attribute is not implemented, or contains a null value, the OnOffTransitionTime shall be used instead.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.13
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.13
          */
         offTransitionTime: number | null;
 
@@ -351,7 +351,7 @@ export declare namespace LevelControl {
          * Indicates the movement rate, in units per second, when a Move command is received with a null value Rate
          * parameter.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.14
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.14
          */
         defaultMoveRate: number | null;
 
@@ -372,7 +372,7 @@ export declare namespace LevelControl {
          * As this attribute is not being reported during a regular countdown, clients SHOULD NOT rely on the reporting
          * of this attribute in order to keep track of the remaining duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.3
          */
         remainingTime: number;
 
@@ -383,7 +383,7 @@ export declare namespace LevelControl {
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentLevel attribute
          * shall return to its value prior to the restart.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.15
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.15
          */
         startUpCurrentLevel: number | null;
 
@@ -398,7 +398,7 @@ export declare namespace LevelControl {
          *
          *   - At the end of the movement/transition.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.6
          */
         currentFrequency: number;
 
@@ -406,7 +406,7 @@ export declare namespace LevelControl {
          * Indicates the minimum value of CurrentFrequency that is capable of being assigned. MinFrequency shall be less
          * than or equal to MaxFrequency. A value of 0 indicates undefined.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.7
          */
         minFrequency: number;
 
@@ -414,7 +414,7 @@ export declare namespace LevelControl {
          * Indicates the maximum value of CurrentFrequency that is capable of being assigned. MaxFrequency shall be
          * greater than or equal to MinFrequency. A value of 0 indicates undefined.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.6.8
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.8
          */
         maxFrequency: number;
     }
@@ -426,48 +426,48 @@ export declare namespace LevelControl {
         /**
          * This command will move the device to the specified level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.1
          */
         moveToLevel(request: MoveToLevelRequest): MaybePromise;
 
         /**
          * This command will move the device using the specified values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.2
          */
         move(request: MoveRequest): MaybePromise;
 
         /**
          * This command will do a relative step change of the device using the specified values.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.3
          */
         step(request: StepRequest): MaybePromise;
 
         /**
          * This command will stop the actions of various other commands that are still in progress.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.4
          */
         stop(request: StopRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7
          */
         moveToLevelWithOnOff(request: MoveToLevelRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7
          */
         moveWithOnOff(request: MoveRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7
          */
         stepWithOnOff(request: StepRequest): MaybePromise;
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7
          */
         stopWithOnOff(request: StopRequest): MaybePromise;
     }
@@ -479,7 +479,7 @@ export declare namespace LevelControl {
         /**
          * This command will cause the device to change the current frequency to the requested value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.5
          */
         moveToClosestFrequency(request: MoveToClosestFrequencyRequest): MaybePromise;
     }
@@ -502,7 +502,7 @@ export declare namespace LevelControl {
     /**
      * These are optional features supported by LevelControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.4
      */
     export enum Feature {
         /**
@@ -529,7 +529,7 @@ export declare namespace LevelControl {
          *
          * All other values are application specific gradations from the minimum to the maximum level.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.4.2
          */
         Lighting = "Lighting",
 
@@ -540,13 +540,13 @@ export declare namespace LevelControl {
          *
          * > The Frequency feature is provisional.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.4.3
          */
         Frequency = "Frequency"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.5.1
      */
     export declare class Options {
         constructor(values?: Partial<Options> | number);
@@ -556,7 +556,7 @@ export declare namespace LevelControl {
          *
          * This bit indicates if this cluster has a dependency with the On/Off cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.5.1.1
          */
         executeIfOff?: boolean;
 
@@ -565,7 +565,7 @@ export declare namespace LevelControl {
          *
          * This bit indicates if this cluster has a dependency with the Color Control cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.5.1.2
          */
         coupleColorTempToLevel?: boolean;
     };
@@ -573,7 +573,7 @@ export declare namespace LevelControl {
     /**
      * This command will move the device to the specified level.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.1
      */
     export declare class MoveToLevelRequest {
         constructor(values?: Partial<MoveToLevelRequest>);
@@ -586,7 +586,7 @@ export declare namespace LevelControl {
     /**
      * This command will move the device using the specified values.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.2
      */
     export declare class MoveRequest {
         constructor(values?: Partial<MoveRequest>);
@@ -594,7 +594,7 @@ export declare namespace LevelControl {
         /**
          * This field shall be one of the non-reserved values in MoveModeEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.2.1
          */
         moveMode: MoveMode;
 
@@ -605,7 +605,7 @@ export declare namespace LevelControl {
          * and the DefaultMoveRate attribute is either not supported or set to null, then the device SHOULD move as fast
          * as it is able. If the device is not able to move at a variable rate, this field may be disregarded.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.2.2
          */
         rate: number | null;
 
@@ -616,7 +616,7 @@ export declare namespace LevelControl {
     /**
      * This command will do a relative step change of the device using the specified values.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.3
      */
     export declare class StepRequest {
         constructor(values?: Partial<StepRequest>);
@@ -624,14 +624,14 @@ export declare namespace LevelControl {
         /**
          * This field shall be one of the non-reserved values in StepModeEnum.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.3.1
          */
         stepMode: StepMode;
 
         /**
          * This field shall indicate the change to CurrentLevel.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.3.2
          */
         stepSize: number;
 
@@ -642,7 +642,7 @@ export declare namespace LevelControl {
          *
          * If the device is not able to move at a variable rate, the TransitionTime field may be disregarded.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.3.3
          */
         transitionTime: number | null;
 
@@ -653,7 +653,7 @@ export declare namespace LevelControl {
     /**
      * This command will stop the actions of various other commands that are still in progress.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.4
      */
     export declare class StopRequest {
         constructor(values?: Partial<StopRequest>);
@@ -664,7 +664,7 @@ export declare namespace LevelControl {
     /**
      * This command will cause the device to change the current frequency to the requested value.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.7.5
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.7.5
      */
     export declare class MoveToClosestFrequencyRequest {
         constructor(values?: Partial<MoveToClosestFrequencyRequest>);
@@ -672,7 +672,7 @@ export declare namespace LevelControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.5.2
      */
     export enum MoveMode {
         /**
@@ -687,7 +687,7 @@ export declare namespace LevelControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.6.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.6.5.3
      */
     export enum StepMode {
         /**

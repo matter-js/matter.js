@@ -7,7 +7,7 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 /**
- * @see {@link MatterSpecification.v142.Cluster} § 9.1.4
+ * @see {@link MatterSpecification.v151.Cluster} § 9.1.4
  */
 export enum PowerThresholdSource {
     /**

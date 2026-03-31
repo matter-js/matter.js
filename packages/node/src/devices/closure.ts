@@ -27,7 +27,7 @@ import { Identity } from "@matter/general";
  * ClosureDevice requires ClosureControl cluster but ClosureControl is not added by default because you must select the
  * features your device supports. You can add manually using ClosureDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 8.5
+ * @see {@link MatterSpecification.v151.Device} § 8.5
  */
 export interface ClosureDevice extends Identity<typeof ClosureDeviceDefinition> {}
 

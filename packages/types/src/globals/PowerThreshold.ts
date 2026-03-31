@@ -15,14 +15,14 @@ import { TypeFromSchema } from "../tlv/TlvSchema.js";
 /**
  * This struct represents information about a power threshold.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.1.6
+ * @see {@link MatterSpecification.v151.Cluster} § 9.1.6
  */
 export const TlvPowerThreshold = TlvObject({
     /**
      * This field shall indicate the instantaneous power demand that can be distributed to the customer without any risk
      * of overload. The value is in mW and could be provided by the contract or Distribution Network Operator (DNO).
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.6.1
      */
     powerThreshold: TlvOptionalField(0, TlvInt64),
 
@@ -31,7 +31,7 @@ export const TlvPowerThreshold = TlvObject({
      * any risk of overload. The value is in mVA and could be provided by the contract or Distribution Network Operator
      * (DNO).
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.6.2
      */
     apparentPowerThreshold: TlvOptionalField(1, TlvInt64),
 
@@ -39,7 +39,7 @@ export const TlvPowerThreshold = TlvObject({
      * This field shall indicate the reason why the PowerThreshold field was set. If the reason is unavailable, this
      * field shall be null.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.1.6.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.1.6.3
      */
     powerThresholdSource: TlvField(2, TlvNullable(TlvEnum<PowerThresholdSource>()))
 });
@@ -47,6 +47,6 @@ export const TlvPowerThreshold = TlvObject({
 /**
  * This struct represents information about a power threshold.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.1.6
+ * @see {@link MatterSpecification.v151.Cluster} § 9.1.6
  */
 export interface PowerThreshold extends TypeFromSchema<typeof TlvPowerThreshold> {}

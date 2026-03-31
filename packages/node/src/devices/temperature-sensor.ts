@@ -20,7 +20,7 @@ import { Identity } from "@matter/general";
 /**
  * A Temperature Sensor device reports measurements of temperature.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.4
+ * @see {@link MatterSpecification.v151.Device} § 7.4
  */
 export interface TemperatureSensorDevice extends Identity<typeof TemperatureSensorDeviceDefinition> {}
 

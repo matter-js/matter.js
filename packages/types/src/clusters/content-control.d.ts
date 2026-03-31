@@ -27,7 +27,7 @@ import type { Status } from "../globals/Status.js";
  *
  * > Support for Content Control cluster is provisional.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.13
+ * @see {@link MatterSpecification.v151.Cluster} § 6.13
  */
 export declare namespace ContentControl {
     /**
@@ -60,7 +60,7 @@ export declare namespace ContentControl {
          * Indicates whether the Content Control feature implemented on a media device is turned off (FALSE) or turned
          * on (TRUE).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.1
          */
         enabled: boolean;
     }
@@ -82,7 +82,7 @@ export declare namespace ContentControl {
          * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
          * oldest viewers. Each rating in the list shall be unique.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.2
          */
         onDemandRatings: RatingName[];
 
@@ -98,7 +98,7 @@ export declare namespace ContentControl {
          * example, if the feature does not control content within apps, then the device should make this clear to the
          * user when the attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.3
          */
         onDemandRatingThreshold: string;
     }
@@ -119,7 +119,7 @@ export declare namespace ContentControl {
          * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
          * oldest viewers. Each rating in the list shall be unique.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.4
          */
         scheduledContentRatings: RatingName[];
 
@@ -135,7 +135,7 @@ export declare namespace ContentControl {
          * example, if the feature does not control content within apps, then the device should make this clear to the
          * user when the attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.5
          */
         scheduledContentRatingThreshold: string;
     }
@@ -148,7 +148,7 @@ export declare namespace ContentControl {
          * Indicates the amount of time (in seconds) which the User is allowed to spend watching TV within one day when
          * the Content Control feature is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.6
          */
         screenDailyTime: number;
 
@@ -160,7 +160,7 @@ export declare namespace ContentControl {
          * This attribute shall be updated when the AddBonusTime command is received and processed successfully (with
          * the correct PIN).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.7
          */
         remainingScreenTime: number;
     }
@@ -178,7 +178,7 @@ export declare namespace ContentControl {
          * example, if the feature does not control content within apps, then the device should make this clear to the
          * user when the attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.8
          */
         blockUnrated: boolean;
     }
@@ -190,7 +190,7 @@ export declare namespace ContentControl {
         /**
          * Indicates a set of channels that shall be blocked when the Content Control feature is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.9
          */
         blockChannelList: BlockChannel[];
     }
@@ -202,7 +202,7 @@ export declare namespace ContentControl {
         /**
          * Indicates a set of applications that shall be blocked when the Content Control feature is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.10
          */
         blockApplicationList: AppInfo[];
     }
@@ -218,7 +218,7 @@ export declare namespace ContentControl {
          * content which is playing and generate an event EnteringBlockContentTimeWindow. There shall NOT be multiple
          * entries in this attribute list for the same day of week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.11
          */
         blockContentTimeWindow: TimeWindow[];
     }
@@ -234,7 +234,7 @@ export declare namespace ContentControl {
          * Indicates whether the Content Control feature implemented on a media device is turned off (FALSE) or turned
          * on (TRUE).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.1
          */
         enabled: boolean;
 
@@ -251,7 +251,7 @@ export declare namespace ContentControl {
          * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
          * oldest viewers. Each rating in the list shall be unique.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.2
          */
         onDemandRatings: RatingName[];
 
@@ -267,7 +267,7 @@ export declare namespace ContentControl {
          * example, if the feature does not control content within apps, then the device should make this clear to the
          * user when the attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.3
          */
         onDemandRatingThreshold: string;
 
@@ -283,7 +283,7 @@ export declare namespace ContentControl {
          * The ratings in this collection shall be in order from a rating for the youngest viewers to the one for the
          * oldest viewers. Each rating in the list shall be unique.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.4
          */
         scheduledContentRatings: RatingName[];
 
@@ -299,7 +299,7 @@ export declare namespace ContentControl {
          * example, if the feature does not control content within apps, then the device should make this clear to the
          * user when the attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.5
          */
         scheduledContentRatingThreshold: string;
 
@@ -307,7 +307,7 @@ export declare namespace ContentControl {
          * Indicates the amount of time (in seconds) which the User is allowed to spend watching TV within one day when
          * the Content Control feature is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.6
          */
         screenDailyTime: number;
 
@@ -319,7 +319,7 @@ export declare namespace ContentControl {
          * This attribute shall be updated when the AddBonusTime command is received and processed successfully (with
          * the correct PIN).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.7
          */
         remainingScreenTime: number;
 
@@ -332,21 +332,21 @@ export declare namespace ContentControl {
          * example, if the feature does not control content within apps, then the device should make this clear to the
          * user when the attribute changes.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.8
          */
         blockUnrated: boolean;
 
         /**
          * Indicates a set of channels that shall be blocked when the Content Control feature is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.9
          */
         blockChannelList: BlockChannel[];
 
         /**
          * Indicates a set of applications that shall be blocked when the Content Control feature is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.10
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.10
          */
         blockApplicationList: AppInfo[];
 
@@ -357,7 +357,7 @@ export declare namespace ContentControl {
          * content which is playing and generate an event EnteringBlockContentTimeWindow. There shall NOT be multiple
          * entries in this attribute list for the same day of week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.7.11
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.7.11
          */
         blockContentTimeWindow: TimeWindow[];
     }
@@ -371,7 +371,7 @@ export declare namespace ContentControl {
          *
          * Upon receipt of the Enable command, the media device shall set the Enabled attribute to TRUE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.4
          */
         enable(): MaybePromise;
 
@@ -380,7 +380,7 @@ export declare namespace ContentControl {
          *
          * On receipt of the Disable command, the media device shall set the Enabled attribute to FALSE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.5
          */
         disable(): MaybePromise;
     }
@@ -396,7 +396,7 @@ export declare namespace ContentControl {
          * one of values present in the OnDemandRatings attribute. If not, then a response with InvalidRating error
          * status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.10
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.10
          */
         setOnDemandRatingThreshold(request: SetOnDemandRatingThresholdRequest): MaybePromise;
     }
@@ -412,7 +412,7 @@ export declare namespace ContentControl {
          * field is one of values present in the ScheduledContentRatings attribute. If not, then a response with
          * InvalidRating error status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.11
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.11
          */
         setScheduledContentRatingThreshold(request: SetScheduledContentRatingThresholdRequest): MaybePromise;
     }
@@ -441,7 +441,7 @@ export declare namespace ContentControl {
          *
          *   - The client has provided a PINCode that matches the expected PIN value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.6
          */
         addBonusTime(request: AddBonusTimeRequest): MaybePromise;
 
@@ -451,7 +451,7 @@ export declare namespace ContentControl {
          * Upon receipt of the SetScreenDailyTime command, the media device shall set the ScreenDailyTime attribute to
          * the ScreenTime value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.7
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.7
          */
         setScreenDailyTime(request: SetScreenDailyTimeRequest): MaybePromise;
     }
@@ -467,7 +467,7 @@ export declare namespace ContentControl {
          * Upon receipt of the BlockUnratedContent command, the media device shall set the BlockUnrated attribute to
          * TRUE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.8
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.8
          */
         blockUnratedContent(): MaybePromise;
 
@@ -478,7 +478,7 @@ export declare namespace ContentControl {
          * Upon receipt of the UnblockUnratedContent command, the media device shall set the BlockUnrated attribute to
          * FALSE.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.9
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.9
          */
         unblockUnratedContent(): MaybePromise;
     }
@@ -502,7 +502,7 @@ export declare namespace ContentControl {
          * If all channels in Channel field already exist in the BlockChannelList attribute, then a response with
          * ChannelAlreadyExist error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.12
          */
         addBlockChannels(request: AddBlockChannelsRequest): MaybePromise;
 
@@ -514,7 +514,7 @@ export declare namespace ContentControl {
          * indicated by ChannelIndexes passed in this command field are not present in the BlockChannelList attribute,
          * then a response with ChannelNotExist error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.13
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.13
          */
         removeBlockChannels(request: RemoveBlockChannelsRequest): MaybePromise;
     }
@@ -537,7 +537,7 @@ export declare namespace ContentControl {
          * If all applications in Applications field are already present in BlockApplicationList attribute, then a
          * response with ApplicationAlreadyExist error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.14
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.14
          */
         addBlockApplications(request: AddBlockApplicationsRequest): MaybePromise;
 
@@ -549,7 +549,7 @@ export declare namespace ContentControl {
          * field which are not present in the BlockApplicationList attribute, then a response with ApplicationNotExist
          * error Status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.15
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.15
          */
         removeBlockApplications(request: RemoveBlockApplicationsRequest): MaybePromise;
     }
@@ -571,7 +571,7 @@ export declare namespace ContentControl {
          * If the TimeWindowIndex field is not NULL and presents in the BlockContentTimeWindow attribute, the media
          * device shall replace the original time window with the new time window passed in this command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.16
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.16
          */
         setBlockContentTimeWindow(request: SetBlockContentTimeWindowRequest): MaybePromise;
 
@@ -584,7 +584,7 @@ export declare namespace ContentControl {
          * If one or more time window indexes passed in this command are not present in BlockContentTimeWindow
          * attribute, then a response with TimeWindowNotExist error status shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.17
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.17
          */
         removeBlockContentTimeWindow(request: RemoveBlockContentTimeWindowRequest): MaybePromise;
     }
@@ -610,7 +610,7 @@ export declare namespace ContentControl {
          * configuration of the Content Control settings exposed by this cluster. The ResetPIN command can also be used
          * to obtain the default PIN.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.1
          */
         updatePin(request: UpdatePinRequest): MaybePromise;
 
@@ -619,7 +619,7 @@ export declare namespace ContentControl {
          *
          * If this command is executed successfully, a ResetPINResponse command with a new PIN shall be returned.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.2
          */
         resetPin(): MaybePromise<ResetPinResponse>;
     }
@@ -646,7 +646,7 @@ export declare namespace ContentControl {
         /**
          * This event shall be generated when the RemainingScreenTime equals 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.9.1
          */
         remainingScreenTimeExpired: void;
     }
@@ -659,7 +659,7 @@ export declare namespace ContentControl {
          * This event shall be generated when entering a period of blocked content as configured in the
          * BlockContentTimeWindow attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.9.2
          */
         enteringBlockContentTimeWindow: void;
     }
@@ -674,7 +674,7 @@ export declare namespace ContentControl {
         /**
          * This event shall be generated when the RemainingScreenTime equals 0.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.9.1
          */
         remainingScreenTimeExpired: void;
 
@@ -682,7 +682,7 @@ export declare namespace ContentControl {
          * This event shall be generated when entering a period of blocked content as configured in the
          * BlockContentTimeWindow attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.9.2
          */
         enteringBlockContentTimeWindow: void;
     }
@@ -730,7 +730,7 @@ export declare namespace ContentControl {
     /**
      * These are optional features supported by ContentControlCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.4
      */
     export enum Feature {
         /**
@@ -792,7 +792,7 @@ export declare namespace ContentControl {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.2
      */
     export declare class RatingName {
         constructor(values?: Partial<RatingName>);
@@ -802,20 +802,20 @@ export declare namespace ContentControl {
          * system is dependent upon the region or country where the Node has been provisioned, and may vary from one
          * country to another.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.2.1
          */
         ratingName: string;
 
         /**
          * This field shall specify a human readable (displayable) description for RatingName.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.2.2
          */
         ratingNameDesc?: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3
      */
     export declare class BlockChannel {
         constructor(values?: Partial<BlockChannel>);
@@ -824,7 +824,7 @@ export declare namespace ContentControl {
          * This field shall indicate a unique index value for a blocked channel. This value may be used to indicate one
          * selected channel which will be removed from BlockChannelList attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3.1
          */
         blockChannelIndex: number | null;
 
@@ -834,7 +834,7 @@ export declare namespace ContentControl {
          * This field is required but shall be set to 0 for channels such as over-the-top channels that are not
          * represented by a major or minor number.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3.2
          */
         majorNumber: number;
 
@@ -844,7 +844,7 @@ export declare namespace ContentControl {
          * This field is required but shall be set to 0 for channels such as over-the-top channels that are not
          * represented by a major or minor number.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3.3
          */
         minorNumber: number;
 
@@ -852,13 +852,13 @@ export declare namespace ContentControl {
          * This field shall indicate the unique identifier for a specific channel. This field is optional, but SHOULD be
          * provided when MajorNumber and MinorNumber are not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.3.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.3.4
          */
         identifier?: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.4
      */
     export declare class AppInfo {
         constructor(values?: Partial<AppInfo>);
@@ -870,7 +870,7 @@ export declare namespace ContentControl {
          * Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) and will
          * assign an ApplicationID to each Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.4.1
          */
         catalogVendorId: number;
 
@@ -878,13 +878,13 @@ export declare namespace ContentControl {
          * This field shall indicate the application identifier, expressed as a string, such as "PruneVideo" or "Company
          * X". This field shall be unique within a catalog.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.4.2
          */
         applicationId: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.5
      */
     export declare class TimeWindow {
         constructor(values?: Partial<TimeWindow>);
@@ -893,21 +893,21 @@ export declare namespace ContentControl {
          * This field shall indicate a unique index of a specific time window. This value may be used to indicate a
          * selected time window which will be removed from the BlockContentTimeWindow attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.5.1
          */
         timeWindowIndex: number | null;
 
         /**
          * This field shall indicate a day of week.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.5.2
          */
         dayOfWeek: DayOfWeek;
 
         /**
          * This field shall indicate one or more discrete time periods.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.5.3
          */
         timePeriod: TimePeriod[];
     };
@@ -919,7 +919,7 @@ export declare namespace ContentControl {
      * of values present in the OnDemandRatings attribute. If not, then a response with InvalidRating error status shall
      * be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.10
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.10
      */
     export declare class SetOnDemandRatingThresholdRequest {
         constructor(values?: Partial<SetOnDemandRatingThresholdRequest>);
@@ -928,7 +928,7 @@ export declare namespace ContentControl {
          * This field indicates a threshold rating for filtering on-demand content. This field shall be set to one of
          * the values present in the OnDemandRatings attribute
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.10.1
          */
         rating: string;
     };
@@ -940,7 +940,7 @@ export declare namespace ContentControl {
      * is one of values present in the ScheduledContentRatings attribute. If not, then a response with InvalidRating
      * error status shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.11
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.11
      */
     export declare class SetScheduledContentRatingThresholdRequest {
         constructor(values?: Partial<SetScheduledContentRatingThresholdRequest>);
@@ -949,7 +949,7 @@ export declare namespace ContentControl {
          * This field indicates a threshold rating for filtering scheduled content. This field shall be set to one of
          * the values present in the ScheduledContentRatings attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.11.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.11.1
          */
         rating: string;
     };
@@ -974,7 +974,7 @@ export declare namespace ContentControl {
      *
      *   - The client has provided a PINCode that matches the expected PIN value.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.6
      */
     export declare class AddBonusTimeRequest {
         constructor(values?: Partial<AddBonusTimeRequest>);
@@ -987,7 +987,7 @@ export declare namespace ContentControl {
          * permission is allowed to invoke this command only if the PIN passed in this command is equal to the current
          * PIN value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.6.1
          */
         pinCode?: string;
 
@@ -995,7 +995,7 @@ export declare namespace ContentControl {
          * This field shall indicate the amount of extra time (in seconds) to increase RemainingScreenTime. This field
          * shall NOT exceed the remaining time of this day.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.6.2
          */
         bonusTime: number;
     };
@@ -1006,7 +1006,7 @@ export declare namespace ContentControl {
      * Upon receipt of the SetScreenDailyTime command, the media device shall set the ScreenDailyTime attribute to the
      * ScreenTime value.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.7
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.7
      */
     export declare class SetScreenDailyTimeRequest {
         constructor(values?: Partial<SetScreenDailyTimeRequest>);
@@ -1015,7 +1015,7 @@ export declare namespace ContentControl {
          * This field shall indicate the time (in seconds) which the User is allowed to spend watching TV on this media
          * device within one day.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.7.1
          */
         screenTime: number;
     };
@@ -1034,7 +1034,7 @@ export declare namespace ContentControl {
      * If all channels in Channel field already exist in the BlockChannelList attribute, then a response with
      * ChannelAlreadyExist error Status shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.12
      */
     export declare class AddBlockChannelsRequest {
         constructor(values?: Partial<AddBlockChannelsRequest>);
@@ -1044,7 +1044,7 @@ export declare namespace ContentControl {
          * This field shall be set to values present in ChannelList attribute in the Channel cluster. The
          * BlockChannelIndex field passed in this command shall be NULL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.12.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.12.1
          */
         channels: BlockChannel[];
     };
@@ -1057,7 +1057,7 @@ export declare namespace ContentControl {
      * indicated by ChannelIndexes passed in this command field are not present in the BlockChannelList attribute, then
      * a response with ChannelNotExist error Status shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.13
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.13
      */
     export declare class RemoveBlockChannelsRequest {
         constructor(values?: Partial<RemoveBlockChannelsRequest>);
@@ -1066,7 +1066,7 @@ export declare namespace ContentControl {
          * This field shall specify a set of indexes indicating Which channels shall be removed from the
          * BlockChannelList attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.13.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.13.1
          */
         channelIndexes: number[];
     };
@@ -1085,7 +1085,7 @@ export declare namespace ContentControl {
      * If all applications in Applications field are already present in BlockApplicationList attribute, then a response
      * with ApplicationAlreadyExist error Status shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.14
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.14
      */
     export declare class AddBlockApplicationsRequest {
         constructor(values?: Partial<AddBlockApplicationsRequest>);
@@ -1094,7 +1094,7 @@ export declare namespace ContentControl {
          * This field indicates a set of applications that shall be blocked when the Content Control feature is
          * activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.14.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.14.1
          */
         applications: AppInfo[];
     };
@@ -1107,7 +1107,7 @@ export declare namespace ContentControl {
      * which are not present in the BlockApplicationList attribute, then a response with ApplicationNotExist error
      * Status shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.15
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.15
      */
     export declare class RemoveBlockApplicationsRequest {
         constructor(values?: Partial<RemoveBlockApplicationsRequest>);
@@ -1115,7 +1115,7 @@ export declare namespace ContentControl {
         /**
          * This field indicates a set of applications which shall be removed from BlockApplicationList attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.15.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.15.1
          */
         applications: AppInfo[];
     };
@@ -1133,7 +1133,7 @@ export declare namespace ContentControl {
      * If the TimeWindowIndex field is not NULL and presents in the BlockContentTimeWindow attribute, the media device
      * shall replace the original time window with the new time window passed in this command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.16
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.16
      */
     export declare class SetBlockContentTimeWindowRequest {
         constructor(values?: Partial<SetBlockContentTimeWindowRequest>);
@@ -1141,7 +1141,7 @@ export declare namespace ContentControl {
         /**
          * This field shall indicate a time window requested to set to the BlockContentTimeWindow attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.16.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.16.1
          */
         timeWindow: TimeWindow;
     };
@@ -1155,7 +1155,7 @@ export declare namespace ContentControl {
      * If one or more time window indexes passed in this command are not present in BlockContentTimeWindow attribute,
      * then a response with TimeWindowNotExist error status shall be returned.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.17
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.17
      */
     export declare class RemoveBlockContentTimeWindowRequest {
         constructor(values?: Partial<RemoveBlockContentTimeWindowRequest>);
@@ -1164,7 +1164,7 @@ export declare namespace ContentControl {
          * This field shall specify a set of time window indexes indicating which time windows will be removed from the
          * BlockContentTimeWindow attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.17.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.17.1
          */
         timeWindowIndexes: number[];
     };
@@ -1186,7 +1186,7 @@ export declare namespace ContentControl {
      * configuration of the Content Control settings exposed by this cluster. The ResetPIN command can also be used to
      * obtain the default PIN.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.1
      */
     export declare class UpdatePinRequest {
         constructor(values?: Partial<UpdatePinRequest>);
@@ -1195,14 +1195,14 @@ export declare namespace ContentControl {
          * This field shall specify the original PIN. Once the UpdatePIN command is performed successfully, it shall be
          * invalid.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.1.1
          */
         oldPin: string;
 
         /**
          * This field shall indicate a new PIN for the Content Control feature.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.1.2
          */
         newPin: string;
     };
@@ -1210,7 +1210,7 @@ export declare namespace ContentControl {
     /**
      * This command shall be generated in response to a ResetPIN command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.3
      */
     export declare class ResetPinResponse {
         constructor(values?: Partial<ResetPinResponse>);
@@ -1218,13 +1218,13 @@ export declare namespace ContentControl {
         /**
          * This field shall indicate a new PIN of the Content Control feature.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.8.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.8.3.1
          */
         pinCode: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.1
      */
     export declare class DayOfWeek {
         constructor(values?: Partial<DayOfWeek> | number);
@@ -1266,7 +1266,7 @@ export declare namespace ContentControl {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6
      */
     export declare class TimePeriod {
         constructor(values?: Partial<TimePeriod>);
@@ -1274,21 +1274,21 @@ export declare namespace ContentControl {
         /**
          * This field shall indicate the starting hour.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6.1
          */
         startHour: number;
 
         /**
          * This field shall indicate the starting minute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6.2
          */
         startMinute: number;
 
         /**
          * This field shall indicate the ending hour. EndHour shall be equal to or greater than StartHour
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6.3
          */
         endHour: number;
 
@@ -1297,13 +1297,13 @@ export declare namespace ContentControl {
          * than StartMinute. If the EndHour is equal to 23 and the EndMinute is equal to 59, all contents shall be
          * blocked until 23:59:59.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.13.5.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.13.5.6.4
          */
         endMinute: number;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export enum StatusCode {
         /**
@@ -1360,7 +1360,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.InvalidPinCode}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class InvalidPinCodeError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1369,7 +1369,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.InvalidRating}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class InvalidRatingError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1378,7 +1378,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.InvalidChannel}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class InvalidChannelError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1387,7 +1387,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.ChannelAlreadyExist}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class ChannelAlreadyExistError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1396,7 +1396,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.ChannelNotExist}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class ChannelNotExistError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1405,7 +1405,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.UnidentifiableApplication}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class UnidentifiableApplicationError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1414,7 +1414,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.ApplicationAlreadyExist}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class ApplicationAlreadyExistError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1423,7 +1423,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.ApplicationNotExist}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class ApplicationNotExistError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1432,7 +1432,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.TimeWindowAlreadyExist}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class TimeWindowAlreadyExistError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)
@@ -1441,7 +1441,7 @@ export declare namespace ContentControl {
     /**
      * Thrown for cluster status code {@link StatusCode.TimeWindowNotExist}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.13.6.1
      */
     export class TimeWindowNotExistError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)

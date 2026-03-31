@@ -22,7 +22,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  *
  * The cluster implements the requirements of the Check-In Protocol that enables the ICD Check-In use case.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.16
+ * @see {@link MatterSpecification.v151.Core} § 9.16
  */
 export declare namespace IcdManagement {
     /**
@@ -55,7 +55,7 @@ export declare namespace IcdManagement {
          * Indicates the maximum interval in seconds the server can stay in idle mode. The IdleModeDuration shall NOT be
          * smaller than the ActiveModeDuration.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.1
          */
         idleModeDuration: number;
 
@@ -63,7 +63,7 @@ export declare namespace IcdManagement {
          * Indicates the minimum interval in milliseconds the server typically will stay in active mode after initial
          * transition out of idle mode. The ActiveModeDuration does not include the ActiveModeThreshold.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.2
          */
         activeModeDuration: number;
 
@@ -71,7 +71,7 @@ export declare namespace IcdManagement {
          * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
          * activity when in active mode.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.3
          */
         activeModeThreshold: number;
 
@@ -100,7 +100,7 @@ export declare namespace IcdManagement {
          * UserActiveModeTriggerInstruction attribute, the string shall consist of exactly 6 hexadecimal digits using
          * the ASCII characters 0-F and encoding the RGB color value as used in HTML encodings.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.8
          */
         userActiveModeTriggerInstruction?: string;
     }
@@ -115,14 +115,14 @@ export declare namespace IcdManagement {
          * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
          * Credentials cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.4
          */
         registeredClients: MonitoringRegistration[];
 
         /**
          * This attribute returns the value of the ICD Counter.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.5
          */
         icdCounter: number;
 
@@ -130,7 +130,7 @@ export declare namespace IcdManagement {
          * Indicates the maximum number of entries that the server is able to store for each fabric in the
          * RegisteredClients attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.6
          */
         clientsSupportedPerFabric: number;
 
@@ -140,7 +140,7 @@ export declare namespace IcdManagement {
          *
          * If the MaximumCheckInBackoff is equal to the IdleModeDuration, it means the ICD does not back-off.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.10
          */
         maximumCheckInBackoff: number;
     }
@@ -163,7 +163,7 @@ export declare namespace IcdManagement {
          * same time. However, a device shall NOT set more than one bit which has a dependency on the
          * UserActiveModeTriggerInstruction attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
          */
         userActiveModeTriggerHint: UserActiveModeTrigger;
     }
@@ -179,7 +179,7 @@ export declare namespace IcdManagement {
          *
          *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.9
          */
         operatingMode: OperatingMode;
     }
@@ -195,7 +195,7 @@ export declare namespace IcdManagement {
          * Indicates the maximum interval in seconds the server can stay in idle mode. The IdleModeDuration shall NOT be
          * smaller than the ActiveModeDuration.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.1
          */
         idleModeDuration: number;
 
@@ -203,7 +203,7 @@ export declare namespace IcdManagement {
          * Indicates the minimum interval in milliseconds the server typically will stay in active mode after initial
          * transition out of idle mode. The ActiveModeDuration does not include the ActiveModeThreshold.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.2
          */
         activeModeDuration: number;
 
@@ -211,7 +211,7 @@ export declare namespace IcdManagement {
          * Indicates the minimum amount of time in milliseconds the server typically will stay active after network
          * activity when in active mode.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.3
          */
         activeModeThreshold: number;
 
@@ -240,7 +240,7 @@ export declare namespace IcdManagement {
          * UserActiveModeTriggerInstruction attribute, the string shall consist of exactly 6 hexadecimal digits using
          * the ASCII characters 0-F and encoding the RGB color value as used in HTML encodings.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.8
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.8
          */
         userActiveModeTriggerInstruction: string;
 
@@ -250,14 +250,14 @@ export declare namespace IcdManagement {
          * supported on the server, as indicated by the value of the SupportedFabrics attribute in the Operational
          * Credentials cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.4
          */
         registeredClients: MonitoringRegistration[];
 
         /**
          * This attribute returns the value of the ICD Counter.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.5
          */
         icdCounter: number;
 
@@ -265,7 +265,7 @@ export declare namespace IcdManagement {
          * Indicates the maximum number of entries that the server is able to store for each fabric in the
          * RegisteredClients attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.6
          */
         clientsSupportedPerFabric: number;
 
@@ -275,7 +275,7 @@ export declare namespace IcdManagement {
          *
          * If the MaximumCheckInBackoff is equal to the IdleModeDuration, it means the ICD does not back-off.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.10
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.10
          */
         maximumCheckInBackoff: number;
 
@@ -293,7 +293,7 @@ export declare namespace IcdManagement {
          * same time. However, a device shall NOT set more than one bit which has a dependency on the
          * UserActiveModeTriggerInstruction attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.7
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.7
          */
         userActiveModeTriggerHint: UserActiveModeTrigger;
 
@@ -304,7 +304,7 @@ export declare namespace IcdManagement {
          *
          *   - If the ICD is operating as a SIT ICD, OperatingMode shall be SIT.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.6.9
+         * @see {@link MatterSpecification.v151.Core} § 9.16.6.9
          */
         operatingMode: OperatingMode;
     }
@@ -340,7 +340,7 @@ export declare namespace IcdManagement {
          * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
          * client.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
          */
         stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
     }
@@ -353,7 +353,7 @@ export declare namespace IcdManagement {
          * This command allows a client to register itself with the ICD to be notified when the device is available for
          * communication.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.1
          */
         registerClient(request: RegisterClientRequest): MaybePromise<RegisterClientResponse>;
 
@@ -362,7 +362,7 @@ export declare namespace IcdManagement {
          * (e.g. running on a phone which is leaving the home) can (and should) remove its subscriptions and send this
          * UnregisterClient command before leaving to prevent the burden on the ICD of an absent client.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
          */
         unregisterClient(request: UnregisterClientRequest): MaybePromise;
     }
@@ -398,7 +398,7 @@ export declare namespace IcdManagement {
          * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the
          * client.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
          */
         stayActiveRequest(request: StayActiveRequest): MaybePromise<StayActiveResponse>;
     }
@@ -432,7 +432,7 @@ export declare namespace IcdManagement {
     /**
      * These are optional features supported by IcdManagementCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.4
+     * @see {@link MatterSpecification.v151.Core} § 9.16.4
      */
     export enum Feature {
         /**
@@ -441,7 +441,7 @@ export declare namespace IcdManagement {
          * When this feature is supported, the device shall support all the associated commands and attributes to
          * properly support the Check-In Protocol.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.4.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.4.1
          */
         CheckInProtocolSupport = "CheckInProtocolSupport",
 
@@ -450,7 +450,7 @@ export declare namespace IcdManagement {
          *
          * This feature is supported if and only if the device has a user active mode trigger.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.4.2
+         * @see {@link MatterSpecification.v151.Core} § 9.16.4.2
          */
         UserActiveModeTrigger = "UserActiveModeTrigger",
 
@@ -459,7 +459,7 @@ export declare namespace IcdManagement {
          *
          * This feature is supported if and only the device is a Long Idle Time ICD.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.4.3
+         * @see {@link MatterSpecification.v151.Core} § 9.16.4.3
          */
         LongIdleTimeSupport = "LongIdleTimeSupport",
 
@@ -469,13 +469,13 @@ export declare namespace IcdManagement {
          * This feature is supported if and only if the device can switch between SIT and LIT operating modes even if it
          * has a valid registered client. See the dynamic SIT / LIT operating mode switching for more details.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.4.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.4.4
          */
         DynamicSitLitSupport = "DynamicSitLitSupport"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.3
+     * @see {@link MatterSpecification.v151.Core} § 9.16.5.3
      */
     export declare class MonitoringRegistration {
         constructor(values?: Partial<MonitoringRegistration>);
@@ -484,7 +484,7 @@ export declare namespace IcdManagement {
          * This field shall indicate the NodeID of the Node to which Check-In messages will be sent when the
          * MonitoredSubject is not subscribed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.5.3.1
          */
         checkInNodeId: NodeId;
 
@@ -508,7 +508,7 @@ export declare namespace IcdManagement {
          * the server on the entry’s associated fabric bears the CASE Authenticated TAG value 0xAA12 and the version
          * 0x0002 or higher within its NOC, then the entry matches.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.2
+         * @see {@link MatterSpecification.v151.Core} § 9.16.5.3.2
          */
         monitoredSubject: SubjectId;
 
@@ -516,7 +516,7 @@ export declare namespace IcdManagement {
          * This field shall indicate the client’s type to inform the ICD of the availability for communication of the
          * client.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.5.3.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.5.3.4
          */
         clientType: ClientType;
 
@@ -526,7 +526,7 @@ export declare namespace IcdManagement {
     /**
      * See the UserActiveModeTriggerHint table for requirements associated to each bit.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.1
+     * @see {@link MatterSpecification.v151.Core} § 9.16.5.1
      */
     export declare class UserActiveModeTrigger {
         constructor(values?: Partial<UserActiveModeTrigger> | number);
@@ -618,7 +618,7 @@ export declare namespace IcdManagement {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.2
+     * @see {@link MatterSpecification.v151.Core} § 9.16.5.2
      */
     export enum OperatingMode {
         /**
@@ -658,7 +658,7 @@ export declare namespace IcdManagement {
      *
      * The ICD shall report the calculated PromisedActiveDuration in a StayActiveResponse message back to the client.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.7.4
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.4
      */
     export declare class StayActiveRequest {
         constructor(values?: Partial<StayActiveRequest>);
@@ -669,7 +669,7 @@ export declare namespace IcdManagement {
      * This message shall be sent by the ICD in response to the StayActiveRequest command and shall contain the computed
      * duration (in milliseconds) that the ICD intends to stay active for.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.7.5
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.5
      */
     export declare class StayActiveResponse {
         constructor(values?: Partial<StayActiveResponse>);
@@ -695,7 +695,7 @@ export declare namespace IcdManagement {
          *     ICD’s remaining active time is 20000 milliseconds. The ICD responds with 20000 milliseconds in its
          *     PromisedActiveDuration field since it intends to stay active that long.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.5.1
          */
         promisedActiveDuration: number;
     };
@@ -704,7 +704,7 @@ export declare namespace IcdManagement {
      * This command allows a client to register itself with the ICD to be notified when the device is available for
      * communication.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.7.1
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.1
      */
     export declare class RegisterClientRequest {
         constructor(values?: Partial<RegisterClientRequest>);
@@ -713,14 +713,14 @@ export declare namespace IcdManagement {
          * This field shall provide the node ID to which a Check-In message will be sent if there are no active
          * subscriptions matching MonitoredSubject.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.1.1
          */
         checkInNodeId: NodeId;
 
         /**
          * This field shall provide the monitored subject ID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.1.2
          */
         monitoredSubject: SubjectId;
 
@@ -728,7 +728,7 @@ export declare namespace IcdManagement {
          * This field shall contain the ICDToken, a 128-bit symmetric key shared by the ICD and the ICD Client, used to
          * encrypt Check-In messages from this ICD to the MonitoredSubject.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.3
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.1.3
          */
         key: Bytes;
 
@@ -740,7 +740,7 @@ export declare namespace IcdManagement {
          * provided by clients with administrator permissions for the server cluster. The verification key shall be
          * ignored by the server if it is provided by a client with administrator permissions for the server cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.4
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.1.4
          */
         verificationKey?: Bytes;
 
@@ -802,7 +802,7 @@ export declare namespace IcdManagement {
          *     b. If the status is not SUCCESS, the server shall generate a default response with the Status field set
          *        to the evaluated error status.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.1.5
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.1.5
          */
         clientType: ClientType;
     };
@@ -816,7 +816,7 @@ export declare namespace IcdManagement {
      * This command shall be generated in response to a successful RegisterClient command. The ICDCounter field shall be
      * set to the ICDCounter attribute of the server.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.7.2
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.2
      */
     export declare class RegisterClientResponse {
         constructor(values?: Partial<RegisterClientResponse>);
@@ -828,7 +828,7 @@ export declare namespace IcdManagement {
      * (e.g. running on a phone which is leaving the home) can (and should) remove its subscriptions and send this
      * UnregisterClient command before leaving to prevent the burden on the ICD of an absent client.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.16.7.3
+     * @see {@link MatterSpecification.v151.Core} § 9.16.7.3
      */
     export declare class UnregisterClientRequest {
         constructor(values?: Partial<UnregisterClientRequest>);
@@ -836,7 +836,7 @@ export declare namespace IcdManagement {
         /**
          * This field shall provide the registered client node ID to remove from storage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.3.1
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.3.1
          */
         checkInNodeId: NodeId;
 
@@ -903,13 +903,13 @@ export declare namespace IcdManagement {
          *
          *   6. The server shall generate a response with the Status field set to the evaluated status.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.16.7.3.2
+         * @see {@link MatterSpecification.v151.Core} § 9.16.7.3.2
          */
         verificationKey?: Bytes;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.16.5.1.1
+     * @see {@link MatterSpecification.v151.Core} § 9.16.5.1.1
      */
     export enum ClientType {
         /**

@@ -20,7 +20,7 @@ import type { ClusterModel } from "@matter/model";
  * attributes/events and thus be informed of the interactions, and can perform actions based on this, for example by
  * sending commands to perform an action such as controlling a light or a window shade.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.13
+ * @see {@link MatterSpecification.v151.Cluster} § 1.13
  */
 export declare namespace Switch {
     /**
@@ -53,7 +53,7 @@ export declare namespace Switch {
          * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2 positions.
          * Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.5.1
          */
         numberOfPositions: number;
 
@@ -65,7 +65,7 @@ export declare namespace Switch {
          * CurrentPosition value 0 shall be assigned to the default position of the switch: for example the "open" state
          * of a rocker switch, or the "idle" state of a push button switch.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.5.2
          */
         currentPosition: number;
     }
@@ -97,7 +97,7 @@ export declare namespace Switch {
          * presses beyond MultiPressMax that may be taken in account specially by switches (e.g. to trigger special
          * behavior such as factory reset for which generating events towards the client is not appropriate).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.5.3
          */
         multiPressMax: number;
     }
@@ -113,7 +113,7 @@ export declare namespace Switch {
          * Indicates the maximum number of positions the switch has. Any kind of switch has a minimum of 2 positions.
          * Also see Section 1.13.10, “Multi Position Details” for the case NumberOfPositions>2.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.5.1
          */
         numberOfPositions: number;
 
@@ -125,7 +125,7 @@ export declare namespace Switch {
          * CurrentPosition value 0 shall be assigned to the default position of the switch: for example the "open" state
          * of a rocker switch, or the "idle" state of a push button switch.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.5.2
          */
         currentPosition: number;
 
@@ -152,7 +152,7 @@ export declare namespace Switch {
          * presses beyond MultiPressMax that may be taken in account specially by switches (e.g. to trigger special
          * behavior such as factory reset for which generating events towards the client is not appropriate).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.5.3
          */
         multiPressMax: number;
     }
@@ -192,7 +192,7 @@ export declare namespace Switch {
          *       taken into account since for values from 1 to MultiPressMax, the user action that led to the event was
          *       different depending on the count.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.7
          */
         multiPressComplete: MultiPressCompleteEvent;
     }
@@ -205,7 +205,7 @@ export declare namespace Switch {
          * This event shall be generated, when the latching switch is moved to a new position. It may have been delayed
          * by debouncing within the switch.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.1
          */
         switchLatched: SwitchLatchedEvent;
     }
@@ -217,7 +217,7 @@ export declare namespace Switch {
         /**
          * This event shall be generated, when the momentary switch starts to be pressed (after debouncing).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.2
          */
         initialPress: InitialPressEvent;
     }
@@ -257,7 +257,7 @@ export declare namespace Switch {
          * The rationale for this constraint is the ambiguity of interpretation of events when mixing long presses and
          * multi-press events.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.3
          */
         longPress: LongPressEvent;
 
@@ -267,7 +267,7 @@ export declare namespace Switch {
          * LongPress event has been generated since the previous InitialPress event. Also see Section 1.13.7, “Sequence
          * of generated events”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.5
          */
         longRelease: LongReleaseEvent;
     }
@@ -292,7 +292,7 @@ export declare namespace Switch {
          *
          *   - Also see Section 1.13.7, “Sequence of generated events”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.4
          */
         shortRelease: ShortReleaseEvent;
     }
@@ -308,7 +308,7 @@ export declare namespace Switch {
          * This event shall be generated to indicate how many times the momentary switch has been pressed in a
          * multi-press sequence, during that sequence. See Section 1.13.8, “Sequence of events for MultiPress”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6
          */
         multiPressOngoing: MultiPressOngoingEvent;
     }
@@ -351,7 +351,7 @@ export declare namespace Switch {
          *       taken into account since for values from 1 to MultiPressMax, the user action that led to the event was
          *       different depending on the count.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.7
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.7
          */
         multiPressComplete: MultiPressCompleteEvent;
 
@@ -359,14 +359,14 @@ export declare namespace Switch {
          * This event shall be generated, when the latching switch is moved to a new position. It may have been delayed
          * by debouncing within the switch.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.1
          */
         switchLatched: SwitchLatchedEvent;
 
         /**
          * This event shall be generated, when the momentary switch starts to be pressed (after debouncing).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.2
          */
         initialPress: InitialPressEvent;
 
@@ -401,7 +401,7 @@ export declare namespace Switch {
          * The rationale for this constraint is the ambiguity of interpretation of events when mixing long presses and
          * multi-press events.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.3
          */
         longPress: LongPressEvent;
 
@@ -411,7 +411,7 @@ export declare namespace Switch {
          * LongPress event has been generated since the previous InitialPress event. Also see Section 1.13.7, “Sequence
          * of generated events”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.5
          */
         longRelease: LongReleaseEvent;
 
@@ -431,7 +431,7 @@ export declare namespace Switch {
          *
          *   - Also see Section 1.13.7, “Sequence of generated events”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.4
          */
         shortRelease: ShortReleaseEvent;
 
@@ -442,7 +442,7 @@ export declare namespace Switch {
          * This event shall be generated to indicate how many times the momentary switch has been pressed in a
          * multi-press sequence, during that sequence. See Section 1.13.8, “Sequence of events for MultiPress”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6
          */
         multiPressOngoing: MultiPressOngoingEvent;
     }
@@ -469,7 +469,7 @@ export declare namespace Switch {
     /**
      * These are optional features supported by SwitchCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.4
      */
     export enum Feature {
         /**
@@ -477,7 +477,7 @@ export declare namespace Switch {
          *
          * This feature flag is for a switch that maintains its position after being pressed (or turned).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.4.1
          */
         LatchingSwitch = "LatchingSwitch",
 
@@ -487,7 +487,7 @@ export declare namespace Switch {
          * This feature flag is for a switch that does not maintain its position after being pressed (or turned). After
          * releasing, it goes back to its idle position.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.4.2
          */
         MomentarySwitch = "MomentarySwitch",
 
@@ -496,7 +496,7 @@ export declare namespace Switch {
          *
          * This feature flag is for a momentary switch that can distinguish and report release events.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.4.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.4.3
          */
         MomentarySwitchRelease = "MomentarySwitchRelease",
 
@@ -505,7 +505,7 @@ export declare namespace Switch {
          *
          * This feature flag is for a momentary switch that can distinguish and report long presses from short presses.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.4.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.4.4
          */
         MomentarySwitchLongPress = "MomentarySwitchLongPress",
 
@@ -515,7 +515,7 @@ export declare namespace Switch {
          * This feature flag is for a momentary switch that can distinguish and report double press and potentially
          * multiple presses with more events, such as triple press, etc.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.4.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.4.5
          */
         MomentarySwitchMultiPress = "MomentarySwitchMultiPress",
 
@@ -525,7 +525,7 @@ export declare namespace Switch {
          * This feature flag indicates simplified handling of events for multi-press-capable switches. See Section
          * 1.13.8, “Sequence of events for MultiPress”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.4.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.4.6
          */
         ActionSwitch = "ActionSwitch"
     }
@@ -560,7 +560,7 @@ export declare namespace Switch {
      *       account since for values from 1 to MultiPressMax, the user action that led to the event was different
      *       depending on the count.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.7
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.7
      */
     export declare class MultiPressCompleteEvent {
         constructor(values?: Partial<MultiPressCompleteEvent>);
@@ -572,7 +572,7 @@ export declare namespace Switch {
      * This event shall be generated, when the latching switch is moved to a new position. It may have been delayed by
      * debouncing within the switch.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.1
      */
     export declare class SwitchLatchedEvent {
         constructor(values?: Partial<SwitchLatchedEvent>);
@@ -580,7 +580,7 @@ export declare namespace Switch {
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. after the move.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.1.1
          */
         newPosition: number;
     };
@@ -588,7 +588,7 @@ export declare namespace Switch {
     /**
      * This event shall be generated, when the momentary switch starts to be pressed (after debouncing).
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.2
      */
     export declare class InitialPressEvent {
         constructor(values?: Partial<InitialPressEvent>);
@@ -596,7 +596,7 @@ export declare namespace Switch {
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. while pressed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.2.1
          */
         newPosition: number;
     };
@@ -632,7 +632,7 @@ export declare namespace Switch {
      * The rationale for this constraint is the ambiguity of interpretation of events when mixing long presses and
      * multi-press events.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.3
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.3
      */
     export declare class LongPressEvent {
         constructor(values?: Partial<LongPressEvent>);
@@ -640,7 +640,7 @@ export declare namespace Switch {
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. while pressed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.3.1
          */
         newPosition: number;
     };
@@ -651,7 +651,7 @@ export declare namespace Switch {
      * has been generated since the previous InitialPress event. Also see Section 1.13.7, “Sequence of generated
      * events”.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.5
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.5
      */
     export declare class LongReleaseEvent {
         constructor(values?: Partial<LongReleaseEvent>);
@@ -659,7 +659,7 @@ export declare namespace Switch {
         /**
          * This field shall indicate the previous value of the CurrentPosition attribute, i.e. just prior to release.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.5.1
          */
         previousPosition: number;
     };
@@ -679,7 +679,7 @@ export declare namespace Switch {
      *
      *   - Also see Section 1.13.7, “Sequence of generated events”.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.4
      */
     export declare class ShortReleaseEvent {
         constructor(values?: Partial<ShortReleaseEvent>);
@@ -687,7 +687,7 @@ export declare namespace Switch {
         /**
          * This field shall indicate the previous value of the CurrentPosition attribute, i.e. just prior to release.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.4.1
          */
         previousPosition: number;
     };
@@ -699,7 +699,7 @@ export declare namespace Switch {
      * This event shall be generated to indicate how many times the momentary switch has been pressed in a multi-press
      * sequence, during that sequence. See Section 1.13.8, “Sequence of events for MultiPress”.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6
+     * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6
      */
     export declare class MultiPressOngoingEvent {
         constructor(values?: Partial<MultiPressOngoingEvent>);
@@ -707,7 +707,7 @@ export declare namespace Switch {
         /**
          * This field shall indicate the new value of the CurrentPosition attribute, i.e. while pressed.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6.1
          */
         newPosition: number;
 
@@ -720,7 +720,7 @@ export declare namespace Switch {
          *
          *   - a value of N when the Nth press of a multi-press sequence has been detected.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.13.6.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.13.6.6.2
          */
         currentNumberOfPressesCounted: number;
     };

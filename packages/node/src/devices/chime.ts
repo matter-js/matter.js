@@ -16,7 +16,7 @@ import { Identity } from "@matter/general";
  * A Chime device is a device which can play from a range of pre installed sounds and is typically used with a Doorbell,
  * Audio Doorbell, or Video Doorbell.
  *
- * @see {@link MatterSpecification.v142.Device} § 16.7
+ * @see {@link MatterSpecification.v151.Device} § 16.7
  */
 export interface ChimeDevice extends Identity<typeof ChimeDeviceDefinition> {}
 

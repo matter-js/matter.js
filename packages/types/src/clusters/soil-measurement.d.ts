@@ -17,7 +17,7 @@ import type { MeasurementAccuracy } from "../globals/MeasurementAccuracy.js";
  * This cluster provides an interface to soil measurement functionality, including configuration and provision of
  * notifications of soil measurements.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.15
+ * @see {@link MatterSpecification.v151.Cluster} § 2.15
  */
 export declare namespace SoilMeasurement {
     /**
@@ -60,7 +60,7 @@ export declare namespace SoilMeasurement {
          * the MaxMeasuredValue field. The entry shall only indicate a PercentMax value and the value shall NOT be
          * greater than 10.00 percent.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.15.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.15.4.1
          */
         soilMoistureMeasurementLimits: MeasurementAccuracy;
 
@@ -69,7 +69,7 @@ export declare namespace SoilMeasurement {
          *
          * The null value indicates that the measurement is unknown e.g. no measurement has been performed yet.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.15.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.15.4.2
          */
         soilMoistureMeasuredValue: number | null;
     }
@@ -92,7 +92,7 @@ export declare namespace SoilMeasurement {
          * the MaxMeasuredValue field. The entry shall only indicate a PercentMax value and the value shall NOT be
          * greater than 10.00 percent.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.15.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.15.4.1
          */
         soilMoistureMeasurementLimits: MeasurementAccuracy;
 
@@ -101,7 +101,7 @@ export declare namespace SoilMeasurement {
          *
          * The null value indicates that the measurement is unknown e.g. no measurement has been performed yet.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.15.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.15.4.2
          */
         soilMoistureMeasuredValue: number | null;
     }

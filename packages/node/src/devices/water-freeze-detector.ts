@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
 /**
  * This defines conformance to the Water Freeze Detector device type.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.11
+ * @see {@link MatterSpecification.v151.Device} § 7.11
  */
 export interface WaterFreezeDetectorDevice extends Identity<typeof WaterFreezeDetectorDeviceDefinition> {}
 
