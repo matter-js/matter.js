@@ -216,6 +216,7 @@ export class ControllerCommissioner {
         } = options;
 
         this.#assertRequestedNodeIdAvailable(fabric, nodeId);
+        this.#validateCommissioningOptions(options);
 
         // Each address becomes an independent candidate so that a credential failure on one does not
         // cancel attempts on others.  UDP is prioritised within the sorted list.
@@ -395,6 +396,30 @@ export class ControllerCommissioner {
     #assertRequestedNodeIdAvailable(fabric: Fabric, nodeId?: NodeId) {
         if (nodeId !== undefined) {
             this.#assertPeerAddress(fabric.addressOf(nodeId));
+        }
+    }
+
+    #validateCommissioningOptions(options: Partial<ControllerCommissioningFlowOptions>) {
+        if (options.threadNetwork !== undefined) {
+            const { operationalDataset } = options.threadNetwork;
+            if (operationalDataset.length === 0) {
+                throw new CommissioningError("Thread operational dataset must not be empty");
+            }
+            if (operationalDataset.length % 2 !== 0) {
+                throw new CommissioningError("Thread operational dataset must have an even number of hex characters");
+            }
+            if (!/^[0-9a-fA-F]+$/.test(operationalDataset)) {
+                throw new CommissioningError(
+                    "Thread operational dataset must only contain valid hexadecimal characters",
+                );
+            }
+        }
+
+        if (options.wifiNetwork !== undefined) {
+            const { wifiSsid } = options.wifiNetwork;
+            if (wifiSsid.length === 0) {
+                throw new CommissioningError("Wi-Fi SSID must not be empty");
+            }
         }
     }
 

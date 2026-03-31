@@ -85,38 +85,9 @@ export interface Observable<T extends any[] = any[], R = void> extends AsyncIter
     isObservedBy(observer: Observer<T, R>): boolean;
 
     /**
-     * Errors throw by observers will interrupt emitters unless an error handler is installed here and the handler does
-     * not rethrow.
-     *
-     * The only exception to this is if {@link handlePromise} is false and an observer is asynchronous.  In this case
-     * the emitter cannot be made aware of the exception.
-     */
-    handleError: ObserverErrorHandler;
-
-    /**
-     * We allow emitters to be async, but we do not want to overburden either the emitter or the observer with promise
-     * tracking if the lifetime of the observer is not relevant to the emitter.
-     *
-     * To facilitate this we allow observables to be configured in one of three promise handling modes:
-     *
-     * * If you set handlePromise, isAsync is true; the handler is invoked for any observer promise
-     *
-     * * If isAsync is true but you do not set handlePromise, any observer promise is returned to the emitter which must
-     *   handle the promise
-     *
-     * * If isAsync is false, we log observer promise errors but the promise is otherwise untracked
-     *
-     * If the promiseHandler returns a promise or is true and the emitter returns a promise, the observable will emit to
-     * successive observers only after the promise resolves.
+     * Whether this observable supports async observers.
      */
     isAsync: boolean;
-
-    /**
-     * A promise handler.
-     *
-     * If you set {@link isAsync} (either true or false) the promise handler is set by the Observable.
-     */
-    handlePromise: ObserverPromiseHandler | boolean;
 
     /**
      * Creates a promise that resolves when next emitted.
@@ -211,21 +182,13 @@ export interface AsyncObservable<T extends any[] = any[], R = void> extends Obse
  */
 export interface AsyncObservableValue<T extends [any, ...any[]] = [boolean]> extends ObservableValue<T, MaybePromise> {}
 
-function defaultErrorHandler(error: Error) {
-    throw error;
-}
-
 export type ObserverErrorHandler = (error: Error, observer: Observer<any[], any>) => void;
-
-export type ObserverPromiseHandler = (promise: Promise<unknown>, observer: Observer<any[], any>) => unknown;
 
 /**
  * A concrete {@link Observable} implementation.
  */
 export class BasicObservable<T extends any[] = any[], R = void> implements Observable<T, R> {
-    #handleError!: ObserverErrorHandler;
-    #isAsync!: boolean;
-    #handlePromise!: ObserverPromiseHandler;
+    #isAsync = false;
     #observers?: Set<Observer<T, R>>;
     #once?: Set<Observer<T, R>>;
     #instrumentAs?: string;
@@ -234,12 +197,12 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
     #removeIterator?: () => void;
     #stopIteration?: () => void;
 
-    constructor(handleError?: ObserverErrorHandler, asyncConfig?: ObserverPromiseHandler | boolean) {
-        this.handleError = handleError ?? defaultErrorHandler;
-        if (typeof asyncConfig === "function") {
-            this.handlePromise = asyncConfig;
-        } else {
-            this.isAsync = asyncConfig ?? false;
+    constructor(handleError?: ObserverErrorHandler, isAsync?: boolean) {
+        if (handleError) {
+            this.handleError = handleError;
+        }
+        if (isAsync) {
+            this.#isAsync = true;
         }
     }
 
@@ -253,52 +216,16 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
         this.#stopIteration?.();
     }
 
-    set handleError(handleError: ObserverErrorHandler) {
-        this.#handleError = handleError;
-    }
-
-    get handleError() {
-        return this.#handleError;
+    protected handleError(error: Error, _observer: Observer<any[], any>) {
+        throw error;
     }
 
     set isAsync(isAsync: boolean) {
         this.#isAsync = isAsync;
-        if (isAsync) {
-            // Promises handled by emitter
-            this.#handlePromise = promise => promise;
-        } else {
-            // We log promise errors but do not otherwise track.  This generally should not be invoked because types
-            // should align with this.#isAsync, so observers should not be returning promises
-            this.#handlePromise = (promise, observer) => {
-                promise.catch(error => {
-                    let identity: string;
-                    if (observer.name) {
-                        identity = ` "${observer.name}"`;
-                    } else {
-                        identity = "";
-                    }
-
-                    if (this.#handleError === defaultErrorHandler) {
-                        logger.error(`Unhandled error in async observer${identity}:`, error);
-                    } else {
-                        this.#handleError(error, observer);
-                    }
-                });
-            };
-        }
     }
 
     get isAsync() {
         return this.#isAsync;
-    }
-
-    set handlePromise(handlePromise: ObserverPromiseHandler) {
-        this.isAsync = true;
-        this.#handlePromise = handlePromise;
-    }
-
-    get handlePromise() {
-        return this.#handlePromise;
     }
 
     get isObserved() {
@@ -381,7 +308,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
                 log?.(observer);
                 result = observer(...payload);
             } catch (e) {
-                this.#handleError(asError(e), observer);
+                this.handleError(asError(e), observer);
             }
 
             if (result === undefined) {
@@ -396,7 +323,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
                             try {
                                 result = await result;
                             } catch (e) {
-                                this.#handleError(asError(e), observer);
+                                this.handleError(asError(e), observer);
                             }
                         }
 
@@ -414,7 +341,7 @@ export class BasicObservable<T extends any[] = any[], R = void> implements Obser
                         try {
                             result = observer(...payload);
                         } catch (e) {
-                            this.#handleError(asError(e), observer);
+                            this.handleError(asError(e), observer);
                         }
                     }
 
@@ -609,8 +536,8 @@ export class BasicObservableValue<T extends [any, ...any[]] = [boolean], R exten
         reject?: ((reason: any) => void) | null;
     }[];
 
-    constructor(value?: T[0], handleError?: ObserverErrorHandler, asyncConfig?: ObserverPromiseHandler | boolean) {
-        super(handleError, asyncConfig);
+    constructor(value?: T[0], handleError?: ObserverErrorHandler, isAsync?: boolean) {
+        super(handleError, isAsync);
         this.#value = value;
 
         const maybeResolve = this.#maybeResolve.bind(this) as unknown as Observer<T, R>;
@@ -1061,14 +988,7 @@ export class QuietObservable<T extends any[] = any[], R extends MaybePromise<voi
         if ("sink" in config) {
             this.sink = config.sink;
         }
-        if ("handleError" in config) {
-            this.handleError = config.handleError ?? defaultErrorHandler;
-        }
-        if ("handlePromise" in config && config.handlePromise) {
-            this.handlePromise = config.handlePromise;
-        } else {
-            this.isAsync = config.isAsync ?? false;
-        }
+        this.isAsync = config.isAsync ?? false;
     }
 
     get emitAutomatically() {
@@ -1291,19 +1211,9 @@ export namespace QuietObservable {
         shouldEmit?: EmitPredicate<T>;
 
         /**
-         * Handler for errors returned by observers.
-         */
-        handleError?: ObserverErrorHandler;
-
-        /**
-         * Designates async support (overridden if you supply {@link handlePromise}).
+         * Designates async support.
          */
         isAsync?: boolean;
-
-        /**
-         * Handler for promises returned by observers.
-         */
-        handlePromise?: ObserverPromiseHandler;
 
         /**
          * If true, skips emission when rate limited rather than delaying.

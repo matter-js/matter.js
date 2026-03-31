@@ -6,7 +6,7 @@
 
 import { Bytes, Diagnostic, Logger } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
-import { BLE_MATTER_SERVICE_UUID_SHORT } from "@matter/protocol";
+import { MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
 import { platform } from "node:process";
 import { BleOptions } from "./NodeJsBle.js";
@@ -87,7 +87,7 @@ export class NobleBleClient {
         this.shouldScan = true;
         if (this.nobleState === "poweredOn") {
             logger.debug("Start BLE scanning for Matter Services ...");
-            await noble.startScanningAsync([BLE_MATTER_SERVICE_UUID_SHORT], true);
+            await noble.startScanningAsync([MatterBle.SERVICE_UUID_SHORT], true);
         } else {
             logger.debug("noble state is not poweredOn ... delay scanning till poweredOn");
         }
@@ -111,7 +111,7 @@ export class NobleBleClient {
         //  see https://github.com/stoprocent/noble/issues/20
         if (
             process.platform === "win32" &&
-            !peripheral.advertisement.serviceData.some(({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT)
+            !peripheral.advertisement.serviceData.some(({ uuid }) => MatterBle.isServiceUuid(uuid))
         ) {
             return;
         }
@@ -127,8 +127,8 @@ export class NobleBleClient {
             logger.debug(`Peripheral ${address} is not connectable ... ignoring`);
             return;
         }
-        const matterServiceData = peripheral.advertisement.serviceData.find(
-            ({ uuid }) => uuid === BLE_MATTER_SERVICE_UUID_SHORT,
+        const matterServiceData = peripheral.advertisement.serviceData.find(({ uuid }) =>
+            MatterBle.isServiceUuid(uuid),
         );
         if (matterServiceData === undefined || matterServiceData.data.length !== 8) {
             logger.info(`Peripheral ${address} does not advertise Matter Service ... ignoring`);
@@ -151,8 +151,12 @@ export class NobleBleClient {
         // This is a hack because it can else happen that stop is hanging because it needs response data when the HCI
         // based driver is used. Also Check for Win32 is not 100% correct, but likely good enough for now.
         // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
-        if (platform !== "win32" && platform !== "darwin") {
-            noble.startScanning();
+        try {
+            if (platform !== "win32" && platform !== "darwin") {
+                noble.startScanning();
+            }
+        } catch (error) {
+            logger.info("Error starting scan during close, proceeding to stop:", error);
         }
 
         noble.stop();
