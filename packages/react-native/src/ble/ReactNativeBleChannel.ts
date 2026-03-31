@@ -124,13 +124,19 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
                 this.#openChannels.delete(address.peripheralAddress);
                 disconnectSub.remove();
             });
-            return await ReactNativeBleChannel.create(
-                device,
-                characteristicC1ForWrite,
-                characteristicC2ForSubscribe,
-                this.#onMatterMessageListener,
-                additionalCommissioningRelatedData,
-            );
+            try {
+                return await ReactNativeBleChannel.create(
+                    device,
+                    characteristicC1ForWrite,
+                    characteristicC2ForSubscribe,
+                    this.#onMatterMessageListener,
+                    additionalCommissioningRelatedData,
+                );
+            } catch (error) {
+                this.#openChannels.delete(address.peripheralAddress);
+                disconnectSub.remove();
+                throw error;
+            }
         }
 
         throw new BleError(`No Matter service found on peripheral ${device.id}`);

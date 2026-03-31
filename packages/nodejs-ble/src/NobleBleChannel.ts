@@ -160,12 +160,14 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                     peripheral.removeListener("connect", connectListener);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
+                    this.#connectionsInProgress.delete(peripheralAddress);
                     rejectOnce(new BleError(`Timeout while connecting to peripheral ${peripheralAddress}`));
                 }),
                 disconnectTimeout: Time.getTimer("BLE disconnect timeout", Minutes.one, () => {
                     logger.debug(`Timeout while disconnecting to peripheral ${peripheralAddress}`);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
+                    this.#connectionsInProgress.delete(peripheralAddress);
                     rejectOnce(new BleError(`Timeout while disconnecting to peripheral ${peripheralAddress}`));
                 }),
                 // Timeout when trying to interview the device because sometimes when no response from device
@@ -174,6 +176,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                     logger.debug(`Timeout while interviewing peripheral ${peripheralAddress}`);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
+                    this.#connectionsInProgress.delete(peripheralAddress);
                     if (peripheral.state === "connected") {
                         // We accept the dangling promise potentially because we got a timeout on reading data,
                         // so chance is high also disconnect does not work reliably for now
