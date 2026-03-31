@@ -42,7 +42,7 @@ export class PeerExchangeProvider extends ExchangeProvider {
     get channelType() {
         const session = this.#peer.newestSession();
         if (session && !session.isClosed) {
-            return session.channel.channel.type;
+            return session.channel.transportChannel.type;
         }
         return ChannelType.UDP;
     }

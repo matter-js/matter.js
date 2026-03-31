@@ -12,7 +12,7 @@ import {
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     Transport,
     withTimeout,
-    type TcpSocket,
+    type TcpConnection,
 } from "@matter/general";
 import { createConnection, type Socket as RnSocket } from "react-native-tcp-socket";
 
@@ -20,10 +20,10 @@ import { createConnection, type Socket as RnSocket } from "react-native-tcp-sock
 const TCP_CONNECT_TIMEOUT = Seconds(TCP_CONNECTION_TIMEOUT_MS / 1000);
 
 /**
- * React Native implementation of {@link TcpSocket}.
+ * React Native implementation of {@link TcpConnection}.
  * Wraps a `react-native-tcp-socket` Socket.
  */
-export class TcpSocketReactNative implements TcpSocket {
+export class TcpConnectionReactNative implements TcpConnection {
     readonly remoteAddress: string;
     readonly remotePort: number;
     readonly localPort: number;
@@ -89,10 +89,10 @@ export class TcpSocketReactNative implements TcpSocket {
 }
 
 /** Create a client TCP connection using react-native-tcp-socket. */
-export function connectReactNativeTcp(host: string, port: number): Promise<TcpSocketReactNative> {
+export function connectReactNativeTcp(host: string, port: number): Promise<TcpConnectionReactNative> {
     let socket: RnSocket | undefined;
 
-    const connected = new Promise<TcpSocketReactNative>((resolve, reject) => {
+    const connected = new Promise<TcpConnectionReactNative>((resolve, reject) => {
         let settled = false;
         const settle = (fn: () => void) => {
             if (!settled) {
@@ -102,7 +102,7 @@ export function connectReactNativeTcp(host: string, port: number): Promise<TcpSo
         };
 
         socket = createConnection({ host, port }, () => {
-            settle(() => resolve(new TcpSocketReactNative(socket!)));
+            settle(() => resolve(new TcpConnectionReactNative(socket!)));
         });
 
         socket.on("error", (err: Error) => {

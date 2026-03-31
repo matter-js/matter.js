@@ -9,7 +9,7 @@ import {
     NetworkError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
-    TcpSocket,
+    TcpConnection,
     Transport,
     withTimeout,
 } from "@matter/general";
@@ -19,10 +19,10 @@ import type { Socket } from "node:net";
 const TCP_CLOSE_TIMEOUT = Seconds(5);
 
 /**
- * Node.js implementation of the {@link TcpSocket} interface.
+ * Node.js implementation of the {@link TcpConnection} interface.
  * Wraps a connected `net.Socket`.
  */
-export class NodeJsTcpSocket implements TcpSocket {
+export class NodeJsTcpConnection implements TcpConnection {
     readonly remoteAddress: string;
     readonly remotePort: number;
     readonly localPort: number;

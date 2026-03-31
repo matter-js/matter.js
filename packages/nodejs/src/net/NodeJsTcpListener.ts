@@ -9,16 +9,16 @@ import {
     NetworkError,
     Seconds,
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
-    TcpServer,
-    TcpServerOptions,
-    TcpSocket,
+    TcpConnection,
+    TcpListener,
+    TcpListenerOptions,
     Transport,
     withTimeout,
 } from "@matter/general";
 import { createServer, type Server, type Socket } from "node:net";
-import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
+import { NodeJsTcpConnection } from "./NodeJsTcpConnection.js";
 
-const logger = Logger.get("NodeJsTcpServer");
+const logger = Logger.get("NodeJsTcpListener");
 
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
@@ -32,14 +32,14 @@ function serverPort(server: Server): number {
 }
 
 /**
- * Node.js implementation of the {@link TcpServer} interface.
+ * Node.js implementation of the {@link TcpListener} interface.
  * Wraps a `net.Server` that accepts incoming TCP connections.
  */
-export class NodeJsTcpServer implements TcpServer {
+export class NodeJsTcpListener implements TcpListener {
     readonly #server: Server;
     readonly #activeSockets = new Set<Socket>();
 
-    static async create(options: TcpServerOptions = {}): Promise<NodeJsTcpServer> {
+    static async create(options: TcpListenerOptions = {}): Promise<NodeJsTcpListener> {
         const { listeningPort, listeningAddress } = options;
 
         const server = createServer({
@@ -67,7 +67,7 @@ export class NodeJsTcpServer implements TcpServer {
         const port = serverPort(server);
         logger.debug(`TCP server listening on ${listeningAddress ?? "all interfaces"} port ${port}`);
 
-        return new NodeJsTcpServer(server);
+        return new NodeJsTcpListener(server);
     }
 
     private constructor(server: Server) {
@@ -83,9 +83,9 @@ export class NodeJsTcpServer implements TcpServer {
         return serverPort(this.#server);
     }
 
-    onConnection(listener: (socket: TcpSocket) => void): Transport.Listener {
+    onConnection(listener: (socket: TcpConnection) => void): Transport.Listener {
         const handler = (socket: Socket) => {
-            listener(new NodeJsTcpSocket(socket));
+            listener(new NodeJsTcpConnection(socket));
         };
         this.#server.on("connection", handler);
         return {

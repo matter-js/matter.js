@@ -11,14 +11,14 @@ import {
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     Transport,
     withTimeout,
-    type TcpServer,
-    type TcpServerOptions,
-    type TcpSocket,
+    type TcpConnection,
+    type TcpListener,
+    type TcpListenerOptions,
 } from "@matter/general";
 import { createServer, type Server as RnServer, type Socket as RnSocket } from "react-native-tcp-socket";
-import { TcpSocketReactNative } from "./TcpSocketReactNative.js";
+import { TcpConnectionReactNative } from "./TcpConnectionReactNative.js";
 
-const logger = Logger.get("TcpServerReactNative");
+const logger = Logger.get("TcpListenerReactNative");
 
 /** Timeout for server listen to complete. */
 const TCP_LISTEN_TIMEOUT = Seconds(10);
@@ -27,20 +27,20 @@ const TCP_LISTEN_TIMEOUT = Seconds(10);
 const TCP_CLOSE_TIMEOUT = Seconds(5);
 
 /**
- * React Native implementation of {@link TcpServer}.
+ * React Native implementation of {@link TcpListener}.
  * Wraps a `react-native-tcp-socket` Server.
  */
-export class TcpServerReactNative implements TcpServer {
+export class TcpListenerReactNative implements TcpListener {
     readonly #server: RnServer;
     readonly #port: number;
 
-    static async create(options: TcpServerOptions = {}): Promise<TcpServerReactNative> {
+    static async create(options: TcpListenerOptions = {}): Promise<TcpListenerReactNative> {
         const server = createServer({
             keepAlive: true,
             keepAliveInitialDelay: TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
         });
 
-        const listening = new Promise<TcpServerReactNative>((resolve, reject) => {
+        const listening = new Promise<TcpListenerReactNative>((resolve, reject) => {
             const handleError = (error: Error) => {
                 server.removeListener("error", handleError);
                 reject(new NetworkError(error.message));
@@ -55,7 +55,7 @@ export class TcpServerReactNative implements TcpServer {
                     return;
                 }
                 logger.debug(`TCP server listening on port ${port}`);
-                resolve(new TcpServerReactNative(server, port));
+                resolve(new TcpListenerReactNative(server, port));
             });
         });
 
@@ -74,9 +74,9 @@ export class TcpServerReactNative implements TcpServer {
         return this.#port;
     }
 
-    onConnection(listener: (socket: TcpSocket) => void): Transport.Listener {
+    onConnection(listener: (socket: TcpConnection) => void): Transport.Listener {
         const handler = (socket: RnSocket) => {
-            listener(new TcpSocketReactNative(socket));
+            listener(new TcpConnectionReactNative(socket));
         };
         this.#server.on("connection", handler);
         return {

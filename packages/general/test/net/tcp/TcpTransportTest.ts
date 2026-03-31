@@ -6,7 +6,7 @@
 
 import { Channel, ChannelType } from "#net/Channel.js";
 import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
-import { TcpConnection } from "#net/tcp/TcpConnection.js";
+import { TcpChannel } from "#net/tcp/TcpChannel.js";
 import { TcpTransport } from "#net/tcp/TcpTransport.js";
 import { Bytes } from "#util/Bytes.js";
 
@@ -84,7 +84,7 @@ describe("TcpTransport", () => {
                     port: SERVER_PORT,
                 });
 
-                expect(channel).instanceof(TcpConnection);
+                expect(channel).instanceof(TcpChannel);
                 expect(channel.type).equals(ChannelType.TCP);
             } finally {
                 await clientTransport.close();
@@ -172,7 +172,7 @@ describe("TcpTransport", () => {
                 await clientTransport.openChannel({ ip: "abcd::1", port: SERVER_PORT });
 
                 expect(connected).length(1);
-                expect(connected[0]).instanceof(TcpConnection);
+                expect(connected[0]).instanceof(TcpChannel);
             } finally {
                 await clientTransport.close();
                 await serverTransport.close();

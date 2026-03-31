@@ -7,18 +7,18 @@
 import { Time } from "#time/Time.js";
 import { Bytes } from "#util/Bytes.js";
 import type { Transport } from "../Transport.js";
-import type { TcpSocket } from "../tcp/TcpSocket.js";
+import type { TcpConnection } from "../tcp/TcpConnection.js";
 
 /**
  * Mock TCP socket for testing.  Two sockets are created as a connected pair;
  * data written to one is delivered to the other's data listeners.
  */
-export class MockTcpSocket implements TcpSocket {
+export class MockTcpConnection implements TcpConnection {
     readonly remoteAddress: string;
     readonly remotePort: number;
     readonly localPort: number;
 
-    #peer?: MockTcpSocket;
+    #peer?: MockTcpConnection;
     readonly #dataListeners = new Set<(data: Bytes) => void>();
     readonly #closeListeners = new Set<() => void>();
     readonly #errorListeners = new Set<(error: Error) => void>();
@@ -38,9 +38,9 @@ export class MockTcpSocket implements TcpSocket {
         clientPort: number,
         serverAddress: string,
         serverPort: number,
-    ): [client: MockTcpSocket, server: MockTcpSocket] {
-        const client = new MockTcpSocket(clientPort, serverAddress, serverPort);
-        const server = new MockTcpSocket(serverPort, clientAddress, clientPort);
+    ): [client: MockTcpConnection, server: MockTcpConnection] {
+        const client = new MockTcpConnection(clientPort, serverAddress, serverPort);
+        const server = new MockTcpConnection(serverPort, clientAddress, clientPort);
         client.#peer = server;
         server.#peer = client;
         return [client, server];
@@ -55,7 +55,7 @@ export class MockTcpSocket implements TcpSocket {
             throw new Error("Peer socket is closed");
         }
 
-        // Deliver asynchronously like MockUdpChannel
+        // Deliver asynchronously like MockUdpSocket
         await Time.macrotask;
 
         for (const listener of peer.#dataListeners) {

@@ -20,7 +20,7 @@ import {
     TcpTransport,
     Transport,
     TransportSet,
-    UdpInterface,
+    UdpTransport,
 } from "@matter/general";
 import { DeviceClassification } from "@matter/model";
 import {
@@ -65,7 +65,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     #mdnsAdvertiser?: MdnsAdvertiser;
     #bleAdvertiser?: BleAdvertiser;
     #bleTransport?: Transport;
-    #ipv6UdpInterface?: UdpInterface;
+    #ipv6UdpTransport?: UdpTransport;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
 
@@ -159,9 +159,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const maxPortRetries = port ? 1 : MAX_PORT_ASSIGNMENT_RETRIES;
 
         for (let attempt = 1; attempt <= maxPortRetries; attempt++) {
-            let ipv6Interface: UdpInterface;
+            let ipv6Interface: UdpTransport;
             try {
-                ipv6Interface = await UdpInterface.create(
+                ipv6Interface = await UdpTransport.create(
                     network,
                     "udp6",
                     port ? port : undefined,
@@ -173,10 +173,10 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 throw error;
             }
 
-            let ipv4Interface: UdpInterface | undefined;
+            let ipv4Interface: UdpTransport | undefined;
             if (netconf.ipv4) {
                 try {
-                    ipv4Interface = await UdpInterface.create(
+                    ipv4Interface = await UdpTransport.create(
                         network,
                         "udp4",
                         ipv6Interface.port,
@@ -218,7 +218,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 }
             }
 
-            this.#ipv6UdpInterface = ipv6Interface;
+            this.#ipv6UdpTransport = ipv6Interface;
             interfaces.add(ipv6Interface);
             if (ipv4Interface !== undefined) {
                 interfaces.add(ipv4Interface);
@@ -477,12 +477,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             logger.warn("Group networking already initialized, skipping.");
             return;
         }
-        if (this.#ipv6UdpInterface === undefined) {
+        if (this.#ipv6UdpTransport === undefined) {
             logger.warn("No IPv6 UDP interface available, skipping group networking initialization.");
             return;
         }
 
-        this.#groupNetworking = new ServerGroupNetworking(this.owner.env, this.#ipv6UdpInterface);
+        this.#groupNetworking = new ServerGroupNetworking(this.owner.env, this.#ipv6UdpTransport);
         await this.#groupNetworking.construction;
     }
 }

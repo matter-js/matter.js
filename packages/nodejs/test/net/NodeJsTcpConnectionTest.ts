@@ -7,9 +7,9 @@
 import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import * as net from "node:net";
-import { NodeJsTcpSocket } from "../../src/net/NodeJsTcpSocket.js";
+import { NodeJsTcpConnection } from "../../src/net/NodeJsTcpConnection.js";
 
-describe("NodeJsTcpSocket", () => {
+describe("NodeJsTcpConnection", () => {
     let server: net.Server;
     let serverPort: number;
 
@@ -25,14 +25,18 @@ describe("NodeJsTcpSocket", () => {
         server.close(() => done());
     });
 
-    function connectClient(): Promise<{ clientSocket: NodeJsTcpSocket; rawClient: net.Socket; rawServer: net.Socket }> {
+    function connectClient(): Promise<{
+        clientSocket: NodeJsTcpConnection;
+        rawClient: net.Socket;
+        rawServer: net.Socket;
+    }> {
         return new Promise((resolve, reject) => {
             let rawServer: net.Socket | undefined;
             let connected = false;
 
             const tryResolve = () => {
                 if (rawServer && connected) {
-                    resolve({ clientSocket: new NodeJsTcpSocket(rawClient), rawClient, rawServer });
+                    resolve({ clientSocket: new NodeJsTcpConnection(rawClient), rawClient, rawServer });
                 }
             };
 

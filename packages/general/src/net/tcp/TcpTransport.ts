@@ -12,8 +12,8 @@ import { ConnectionOrientedTransport, Transport } from "#net/Transport.js";
 import { Time } from "#time/Time.js";
 import { Seconds } from "#time/TimeUnit.js";
 import { Bytes } from "#util/Bytes.js";
-import { TcpConnection } from "./TcpConnection.js";
-import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpServer } from "./TcpSocket.js";
+import { TcpChannel } from "./TcpChannel.js";
+import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpListener } from "./TcpConnection.js";
 
 const logger = Logger.get("TcpTransport");
 
@@ -42,8 +42,8 @@ export interface TcpTransportOptions {
  * be closed by that layer.
  */
 export class TcpTransport implements ConnectionOrientedTransport {
-    readonly #connections = new Map<string, TcpConnection>();
-    #server?: TcpServer;
+    readonly #connections = new Map<string, TcpChannel>();
+    #server?: TcpListener;
     readonly #network: Network;
     readonly #maxMessageSize: number;
 
@@ -63,13 +63,13 @@ export class TcpTransport implements ConnectionOrientedTransport {
         const transport = new TcpTransport(options);
 
         if (options.listeningPort !== undefined) {
-            transport.#server = await options.network.createTcpServer({
+            transport.#server = await options.network.createTcpListener({
                 listeningPort: options.listeningPort,
                 listeningAddress: options.listeningAddress,
             });
 
             transport.#server.onConnection(socket => {
-                const connection = new TcpConnection(socket, transport.#maxMessageSize, true);
+                const connection = new TcpChannel(socket, transport.#maxMessageSize, true);
 
                 if (transport.#countConnectionsFromIp(connection.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
                     logger.warn(`Rejecting TCP connection from ${connection.name}: too many connections from this IP`);
@@ -151,7 +151,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
         }
 
         const socket = await this.#network.connectTcp(address.ip, address.port);
-        const connection = new TcpConnection(socket, this.#maxMessageSize);
+        const connection = new TcpChannel(socket, this.#maxMessageSize);
         this.#registerConnection(connection);
         return connection;
     }
@@ -169,7 +169,7 @@ export class TcpTransport implements ConnectionOrientedTransport {
         }
     }
 
-    #registerConnection(connection: TcpConnection): void {
+    #registerConnection(connection: TcpChannel): void {
         const { ip, port } = connection.networkAddress;
         const key = `${ip}:${port}`;
 

@@ -5,23 +5,23 @@
  */
 
 import type { Transport } from "../Transport.js";
-import type { TcpServer, TcpServerOptions, TcpSocket } from "../tcp/TcpSocket.js";
+import type { TcpConnection, TcpListener, TcpListenerOptions } from "../tcp/TcpConnection.js";
 import type { MockNetwork } from "./MockNetwork.js";
-import { MockTcpSocket } from "./MockTcpSocket.js";
+import { MockTcpConnection } from "./MockTcpConnection.js";
 
 /**
  * Mock TCP server for testing.  Registers itself with a {@link MockNetwork} so
  * that {@link MockNetwork.connectTcp} can route incoming connections.
  */
-export class MockTcpServer implements TcpServer {
+export class MockTcpListener implements TcpListener {
     readonly port: number;
     readonly #host: MockNetwork;
-    readonly #connectionListeners = new Set<(socket: TcpSocket) => void>();
+    readonly #connectionListeners = new Set<(socket: TcpConnection) => void>();
 
-    constructor(host: MockNetwork, options: TcpServerOptions) {
+    constructor(host: MockNetwork, options: TcpListenerOptions) {
         this.port = options.listeningPort ?? 1024 + Math.floor(Math.random() * 64511);
         this.#host = host;
-        host.registerTcpServer(this);
+        host.registerTcpListener(this);
     }
 
     /**
@@ -29,8 +29,8 @@ export class MockTcpServer implements TcpServer {
      * Creates a socket pair, notifies connection listeners with the server-side
      * socket, and returns the client-side socket.
      */
-    accept(clientAddress: string, clientPort: number): MockTcpSocket {
-        const [clientSocket, serverSocket] = MockTcpSocket.createPair(
+    accept(clientAddress: string, clientPort: number): MockTcpConnection {
+        const [clientSocket, serverSocket] = MockTcpConnection.createPair(
             clientAddress,
             clientPort,
             this.#host.defaultRoute,
@@ -44,7 +44,7 @@ export class MockTcpServer implements TcpServer {
         return clientSocket;
     }
 
-    onConnection(listener: (socket: TcpSocket) => void): Transport.Listener {
+    onConnection(listener: (socket: TcpConnection) => void): Transport.Listener {
         this.#connectionListeners.add(listener);
         return {
             close: async () => {
@@ -54,6 +54,6 @@ export class MockTcpServer implements TcpServer {
     }
 
     async close(): Promise<void> {
-        this.#host.unregisterTcpServer(this.port);
+        this.#host.unregisterTcpListener(this.port);
     }
 }

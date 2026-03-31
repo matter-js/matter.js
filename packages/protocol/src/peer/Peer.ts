@@ -394,7 +394,7 @@ export class Peer {
                 continue;
             }
 
-            if (type !== undefined && session.channel.channel.type !== type) {
+            if (type !== undefined && session.channel.transportChannel.type !== type) {
                 continue;
             }
 

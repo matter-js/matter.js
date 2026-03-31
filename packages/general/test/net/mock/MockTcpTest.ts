@@ -5,14 +5,14 @@
  */
 
 import { ChannelType } from "#net/Channel.js";
-import { MockTcpSocket } from "#net/mock/MockTcpSocket.js";
+import { MockTcpConnection } from "#net/mock/MockTcpConnection.js";
 import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
-import type { TcpSocket } from "#net/tcp/TcpSocket.js";
+import type { TcpConnection } from "#net/tcp/TcpConnection.js";
 import { Bytes } from "#util/Bytes.js";
 
-describe("MockTcpSocket", () => {
+describe("MockTcpConnection", () => {
     it("sends data between paired sockets", async () => {
-        const [client, server] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
         const received: Bytes[] = [];
         server.onData(data => received.push(data));
@@ -26,7 +26,7 @@ describe("MockTcpSocket", () => {
     });
 
     it("sends data in both directions", async () => {
-        const [client, server] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
         const clientReceived: Bytes[] = [];
         const serverReceived: Bytes[] = [];
@@ -46,7 +46,7 @@ describe("MockTcpSocket", () => {
     });
 
     it("propagates close to peer", async () => {
-        const [client, server] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
         let serverClosed = false;
         server.onClose(() => {
@@ -59,7 +59,7 @@ describe("MockTcpSocket", () => {
     });
 
     it("exposes correct addresses and ports", async () => {
-        const [client, server] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
         expect(client.remoteAddress).equals("5.6.7.8");
         expect(client.remotePort).equals(6000);
@@ -74,7 +74,7 @@ describe("MockTcpSocket", () => {
     });
 
     it("throws on send after close", async () => {
-        const [client] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        const [client] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
         await client.close();
 
         let threw = false;
@@ -87,15 +87,15 @@ describe("MockTcpSocket", () => {
     });
 });
 
-describe("MockTcpServer", () => {
+describe("MockTcpListener", () => {
     it("accepts connections via MockNetwork.connectTcp", async () => {
         const simulator = new NetworkSimulator();
         const hostA = simulator.addHost(1);
         const hostB = simulator.addHost(2);
 
-        const server = await hostB.createTcpServer({ listeningPort: 5540 });
+        const server = await hostB.createTcpListener({ listeningPort: 5540 });
 
-        let accepted: TcpSocket | undefined;
+        let accepted: TcpConnection | undefined;
         server.onConnection(socket => {
             accepted = socket;
         });
@@ -118,9 +118,9 @@ describe("MockTcpServer", () => {
         const hostA = simulator.addHost(1);
         const hostB = simulator.addHost(2);
 
-        const server = await hostB.createTcpServer({ listeningPort: 5540 });
+        const server = await hostB.createTcpListener({ listeningPort: 5540 });
 
-        let serverSocket: TcpSocket | undefined;
+        let serverSocket: TcpConnection | undefined;
         server.onConnection(socket => {
             serverSocket = socket;
         });
@@ -151,9 +151,9 @@ describe("MockTcpServer", () => {
         const hostA = simulator.addHost(1);
         const hostB = simulator.addHost(2);
 
-        const server = await hostB.createTcpServer({ listeningPort: 5540 });
+        const server = await hostB.createTcpListener({ listeningPort: 5540 });
 
-        let serverSocket: TcpSocket | undefined;
+        let serverSocket: TcpConnection | undefined;
         server.onConnection(socket => {
             serverSocket = socket;
         });

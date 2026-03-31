@@ -16,14 +16,14 @@ import {
     NetworkError,
     NoAddressAvailableError,
     repackErrorAs,
-    UdpChannel,
-    UdpChannelOptions,
+    UdpSocket,
+    UdpSocketOptions,
     UdpSocketType,
 } from "@matter/general";
 import { Platform } from "react-native";
 import { NetworkReactNative } from "./NetworkReactNative.js";
 
-const logger = Logger.get("UdpChannelNode");
+const logger = Logger.get("UdpSocketNode");
 
 // Move out some dram types not available in react-native-udp
 // TODO find a way to clean that up once anything is working
@@ -106,12 +106,12 @@ function createDgramSocket(host: string | undefined, port: number | undefined, o
     });
 }
 
-export class UdpChannelReactNative implements UdpChannel {
+export class UdpSocketReactNative implements UdpSocket {
     readonly #type: UdpSocketType;
     readonly #socket: Socket;
     readonly #netInterface?: string;
 
-    static async create({ listeningPort, type, listeningAddress, netInterface }: UdpChannelOptions) {
+    static async create({ listeningPort, type, listeningAddress, netInterface }: UdpSocketOptions) {
         const socketOptions: SocketOptions = { type, reuseAddr: true };
         if (type === "udp6") {
             socketOptions.ipv6Only = true;
@@ -145,7 +145,7 @@ export class UdpChannelReactNative implements UdpChannel {
             );
             socket.setMulticastInterface(multicastInterface);
         }
-        return new UdpChannelReactNative(type, socket, netInterfaceZone);
+        return new UdpSocketReactNative(type, socket, netInterfaceZone);
     }
 
     readonly maxPayloadSize = MAX_UDP_MESSAGE_SIZE;
