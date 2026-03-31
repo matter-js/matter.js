@@ -182,7 +182,7 @@ export type ClusterClientObj<N extends ClusterTyping = ClusterTyping> = {
     readonly revision: number;
     readonly name: string;
     readonly isUnknown: boolean;
-    readonly supportedFeatures: N["SupportedFeatures"];
+    readonly supportedFeatures: ClusterType.FeaturesOf<N>;
     readonly attributes: AttributeClients<N["Attributes"]>;
     readonly endpointId: number;
     readonly events: EventClients<N["Events"]>;

@@ -301,7 +301,7 @@ export namespace ClusterBehavior {
         /**
          * Supported features as a flag object.
          */
-        readonly features: Record<string, boolean>;
+        readonly features: ClusterType.FeaturesOf<N>;
 
         readonly Events: ClusterEvents.Type<N, B>;
         readonly State: new () => ClusterState.Type<N, B>;
