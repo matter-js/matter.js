@@ -5,7 +5,7 @@
  */
 
 import type { RemoteActorContext } from "#behavior/context/server/RemoteActorContext.js";
-import { Duration, InternalError, Logger, MatterFlowError, Seconds, Time, Timer, Worker } from "@matter/general";
+import { Duration, InternalError, Logger, Seconds, Time, Timer, Worker } from "@matter/general";
 import {
     assertRemoteActor,
     DeviceCommissioner,
@@ -122,18 +122,20 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
     /**
      * This method is used to revoke a commissioning window.
      *
-     * Spec 1.5.1 requires Step 1 cleanup to run regardless of window state before checking the window.
+     * TODO Spec 1.5.1 restructured the Effect on Receipt to run Step 1 cleanup (PASE termination, fail-safe expiry)
+     * regardless of window state before checking the window. Disabled for now — as of 1.5.1 release, certification
+     * tests are not yet adjusted for this.
      */
     override async revokeCommissioning() {
+        if (this.internal.commissioningWindowTimeout === undefined) {
+            throw new AdministratorCommissioning.WindowNotOpenError(
+                "No commissioning window is opened that could be revoked.",
+            );
+        }
+
         logger.debug("Revoking commissioning window");
 
-        // Step 1: Regardless of window state — terminate PASE sessions and expire PASE-held fail-safe
-        const paseSession = this.env.get(SessionManager).getPaseSession();
-        if (paseSession) {
-            await paseSession.initiateForceClose({
-                cause: new MatterFlowError("PASE session terminated by RevokeCommissioning"),
-            });
-        }
+        await this.#closeCommissioningWindow();
 
         if (this.env.has(FailsafeContext)) {
             const failsafeContext = this.env.get(FailsafeContext);
@@ -141,16 +143,6 @@ export class AdministratorCommissioningServer extends AdministratorCommissioning
                 await failsafeContext.close((this.context as RemoteActorContext).exchange);
             }
         }
-
-        // Step 2: If window was not open, return error
-        if (this.internal.commissioningWindowTimeout === undefined) {
-            throw new AdministratorCommissioning.WindowNotOpenError(
-                "No commissioning window is opened that could be revoked.",
-            );
-        }
-
-        // Step 3: Close the commissioning window
-        await this.#closeCommissioningWindow();
     }
 
     /**
