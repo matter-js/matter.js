@@ -14,6 +14,7 @@ import {
     Duration,
     Logger,
     MatterAggregateError,
+    NetworkError,
     NoResponseTimeoutError,
     ServerAddress,
     TimeoutError,
@@ -111,7 +112,7 @@ export async function CommissioningConnection(
                         lastNonRetryableError = asErr;
                         deviceAc.abort();
                         pool.markInvalidCredentials(candidate.deviceKey);
-                    } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError)) {
+                    } else if (causedBy(asErr, NoResponseTimeoutError, TransientPeerCommunicationError, NetworkError)) {
                         lastError = asErr;
                         logger.warn(
                             `Address ${ServerAddress.urlFor(candidate.address)} unreachable for ${candidate.device.deviceIdentifier}`,
