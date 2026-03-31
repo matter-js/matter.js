@@ -427,6 +427,7 @@ export class Peer {
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
                 timing: options?.timing,
+                handleError: options?.handleError,
                 abort,
                 kicker,
             }).finally(() => {
@@ -489,6 +490,11 @@ export namespace Peer {
          * ongoing attempt.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.
+         */
+        handleError?: (error: Error) => Duration | void;
     }
 }
 

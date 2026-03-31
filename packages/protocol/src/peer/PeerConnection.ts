@@ -514,9 +514,10 @@ export async function PeerConnection(
             error(address, `General connection error (retry in ${Duration.format(delay)}):`, e);
         }
 
-        if (delay !== undefined && context.handleError) {
+        const handleError = options?.handleError ?? context.handleError;
+        if (delay !== undefined && handleError) {
             try {
-                const result = context.handleError(e);
+                const result = handleError(e);
                 if (result !== undefined) {
                     delay = result;
                 }
@@ -573,6 +574,11 @@ export namespace PeerConnection {
          * Other concurrent or future connections are not affected.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Per-call error handler, overrides {@link Context.handleError} for this connection only.
+         */
+        handleError?: (error: Error) => Duration | void;
     }
 
     export function createExchange(

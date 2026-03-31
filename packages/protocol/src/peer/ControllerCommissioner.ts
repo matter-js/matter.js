@@ -43,7 +43,7 @@ import {
     Seconds,
     ServerAddress,
 } from "@matter/general";
-import { NodeId, SECURE_CHANNEL_PROTOCOL_ID } from "@matter/types";
+import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 import { PeerAddress } from "./PeerAddress.js";
 import { CommissioningTransitionError, PeerCommunicationError } from "./PeerCommunicationError.js";
@@ -554,7 +554,19 @@ export class ControllerCommissioner {
 
                 const peer = this.#context.peers.for(address);
                 peer.descriptor.discoveryData = discoveryData;
-                await peer.connect({ connectionTimeout: Minutes(4), timing: caseConnectionTiming });
+                await peer.connect({
+                    connectionTimeout: Minutes(4),
+                    timing: caseConnectionTiming,
+
+                    handleError: error => {
+                        const csre = ChannelStatusResponseError.of(error);
+                        if (csre?.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots) {
+                            // During commissioning the device may not yet recognize the fabric; retry quickly
+                            logger.warn("Peer reports no shared trust roots during commissioning, retrying quickly");
+                            return Seconds(15);
+                        }
+                    },
+                });
 
                 return new ClientInteraction({
                     environment: this.#context.environment,
