@@ -10,3 +10,5 @@ import { WalStorageDriver } from "./WalStorageDriver.js";
 
 /** @deprecated Use {@link WalStorageDriver} */
 export const WalStorage = WalStorageDriver;
+/** @deprecated Use {@link WalStorageDriver} */
+export type WalStorage = WalStorageDriver;
