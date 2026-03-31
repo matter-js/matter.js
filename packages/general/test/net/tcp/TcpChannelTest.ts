@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType } from "#net/Channel.js";
+import { ChannelType, isConnectedChannel } from "#net/Channel.js";
 import { MockTcpConnection } from "#net/mock/MockTcpConnection.js";
 import { TcpChannel } from "#net/tcp/TcpChannel.js";
 import { DEFAULT_MAX_TCP_MESSAGE_SIZE } from "#net/tcp/TcpConnection.js";
@@ -160,6 +160,15 @@ describe("TcpChannel", () => {
             expect(conn.isReliable).equals(true);
             expect(conn.supportsLargeMessages).equals(true);
             expect(conn.type).equals(ChannelType.TCP);
+
+            await conn.close();
+        });
+
+        it("is recognized as ConnectedChannel", async () => {
+            const { server } = createPair();
+            const conn = new TcpChannel(server);
+
+            expect(isConnectedChannel(conn)).true;
 
             await conn.close();
         });
@@ -325,6 +334,101 @@ describe("TcpChannel", () => {
 
             await conn.close();
             expect(closed).true;
+        });
+    });
+
+    describe("async iteration", () => {
+        it("yields messages via for-await", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const payload1 = Bytes.fromHex("aabb");
+            const payload2 = Bytes.fromHex("ccdd");
+            await client.send(frame(Bytes.of(payload1)));
+            await client.send(frame(Bytes.of(payload2)));
+
+            const messages: Bytes[] = [];
+            const iterator = conn[Symbol.asyncIterator]();
+
+            const result1 = await iterator.next();
+            expect(result1.done).false;
+            messages.push(result1.value);
+
+            const result2 = await iterator.next();
+            expect(result2.done).false;
+            messages.push(result2.value);
+
+            expect(messages).length(2);
+            expect(Bytes.toHex(messages[0])).equals("aabb");
+            expect(Bytes.toHex(messages[1])).equals("ccdd");
+
+            await conn.close();
+        });
+
+        it("terminates iterator on close", async () => {
+            const { server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const iterator = conn[Symbol.asyncIterator]();
+
+            // Close before any messages — next() should return done
+            await conn.close();
+
+            const result = await iterator.next();
+            expect(result.done).true;
+        });
+
+        it("terminates iterator on remote disconnect", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const iterator = conn[Symbol.asyncIterator]();
+
+            // Simulate remote disconnect
+            await client.close();
+
+            const result = await iterator.next();
+            expect(result.done).true;
+        });
+
+        it("delivers queued messages then terminates on close", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            // Send a message before iterating
+            await client.send(frame(Bytes.of(Bytes.fromHex("1234"))));
+
+            // Close after message is queued
+            await client.close();
+
+            const messages: Bytes[] = [];
+            for await (const msg of conn) {
+                messages.push(msg);
+            }
+
+            expect(messages).length(1);
+            expect(Bytes.toHex(messages[0])).equals("1234");
+        });
+
+        it("works alongside callback listeners", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const callbackMessages: Bytes[] = [];
+            conn.onMessage(data => callbackMessages.push(data));
+
+            await client.send(frame(Bytes.of(Bytes.fromHex("5678"))));
+
+            // Both callback and iterator should receive the message
+            const iterator = conn[Symbol.asyncIterator]();
+            const result = await iterator.next();
+
+            expect(callbackMessages).length(1);
+            expect(result.done).false;
+            expect(Bytes.toHex(callbackMessages[0])).equals("5678");
+            expect(Bytes.toHex(result.value)).equals("5678");
+
+            await conn.close();
         });
     });
 });
