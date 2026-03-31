@@ -120,6 +120,10 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
             }
 
             this.#openChannels.set(address.peripheralAddress, device);
+            const disconnectSub = device.onDisconnected(() => {
+                this.#openChannels.delete(address.peripheralAddress);
+                disconnectSub.remove();
+            });
             return await ReactNativeBleChannel.create(
                 device,
                 characteristicC1ForWrite,
@@ -143,6 +147,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         for (const peripheral of this.#openChannels.values()) {
             await peripheral.cancelConnection();
         }
+        this.#openChannels.clear();
     }
 
     supports(type: ChannelType) {

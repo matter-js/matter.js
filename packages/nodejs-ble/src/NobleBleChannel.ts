@@ -131,9 +131,12 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 rejectOnce(new BleError(`Connection to peripheral ${peripheralAddress} is already in progress.`));
                 return;
             }
+            // Reserve slot immediately so parallel openChannel calls for the same peripheral are rejected
+            this.#connectionsInProgress.add(peripheralAddress);
 
             if (peripheral.state === "error") {
                 // Weired state, so better cancel here and try a re-discovery
+                this.#connectionsInProgress.delete(peripheralAddress);
                 rejectOnce(
                     new BleError(
                         `Can not connect to peripheral "${peripheralAddress}" because unexpected state "${peripheral.state}"`,
@@ -233,11 +236,6 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                     return;
                 }
 
-                if (this.#connectionsInProgress.has(peripheralAddress)) {
-                    return;
-                }
-                this.#connectionsInProgress.add(peripheralAddress);
-
                 try {
                     connectionGuard.interviewTimeout.start();
                     const services = await peripheral.discoverServicesAsync([MatterBle.SERVICE_UUID_SHORT]);
@@ -310,6 +308,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                         connectionGuard.interviewTimeout.stop();
                         peripheral.removeListener("disconnect", reTryHandler);
                         this.#openChannels.set(peripheralAddress, peripheral);
+                        peripheral.once("disconnect", () => this.#openChannels.delete(peripheralAddress));
                         try {
                             resolveOnce(
                                 await NobleBleChannel.create(
@@ -367,6 +366,9 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
             connectListener = (error?: any) => {
                 connectHandler(error).catch(handlerError => {
                     logger.warn(`Peripheral ${peripheralAddress}: Unexpected error in connect handler`, handlerError);
+                    clearConnectionGuard();
+                    this.#connectionsInProgress.delete(peripheralAddress);
+                    peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(handlerError);
                 });
             };
