@@ -154,7 +154,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
 
         it("stores UDP addresses after commissioning with TCP enabled", async () => {
@@ -187,7 +187,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
 
         it("invokes over UDP when TCP is enabled but not preferred", async () => {
@@ -205,7 +205,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
 
         it("subscribes and receives updates over UDP when TCP is enabled but not preferred", async () => {
@@ -226,7 +226,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
     });
 });

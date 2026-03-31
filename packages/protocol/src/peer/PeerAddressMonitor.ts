@@ -96,7 +96,7 @@ export class PeerAddressMonitor {
             return;
         }
 
-        const { channel } = session.channel;
+        const channel = session.channel.transportChannel;
         if (!isIpNetworkChannel(channel)) {
             return;
         }

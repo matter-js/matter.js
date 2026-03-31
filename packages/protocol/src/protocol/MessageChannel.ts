@@ -126,10 +126,6 @@ export class MessageChannel implements Channel<Message> {
         return this.#networkAddressChanged;
     }
 
-    get channel() {
-        return this.#channel;
-    }
-
     /** The underlying transport channel, for identity comparison and type inspection. */
     get transportChannel(): Channel<Bytes> {
         return this.#channel;

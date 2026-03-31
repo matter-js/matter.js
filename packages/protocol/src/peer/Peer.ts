@@ -127,7 +127,7 @@ export class Peer {
             });
 
             if (!session.isClosed) {
-                const { channel } = session.channel;
+                const channel = session.channel.transportChannel;
                 if (isIpNetworkChannel(channel)) {
                     if (channel.type === ChannelType.TCP) {
                         // For incoming TCP the remote port is ephemeral — use the mDNS port
