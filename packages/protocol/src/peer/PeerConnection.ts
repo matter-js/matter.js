@@ -485,38 +485,33 @@ export async function PeerConnection(
         using _handling = lifetime.join("handling error");
 
         let delay: undefined | Duration;
+        let category: "busy" | "resumption" | "peer" | "network" | "general" | undefined;
         const csre = ChannelStatusResponseError.of(e);
         if (csre) {
             if (csre.generalStatusCode === GeneralStatusCode.Busy && csre.busyDelay !== undefined) {
                 delay = Millis(csre.busyDelay + Math.round(Math.random() * timing.delayAfterNetworkError));
-                info(
-                    via,
-                    address,
-                    `Peer requested to delay and retry no earlier than ${Duration.format(csre.busyDelay)} from now (retry in ${Duration.format(delay)})`,
-                );
+                category = "busy";
             } else if (
                 csre.protocolStatusCode === SecureChannelStatusCode.NoSharedTrustRoots &&
                 (await context.sessions.deleteResumptionRecord(peer.address))
             ) {
-                warn(
-                    address,
-                    "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
-                );
+                category = "resumption";
             } else {
                 delay = timing.delayAfterPeerError;
-                error(address, `Peer error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
+                category = "peer";
             }
         } else if (causedBy(e, TransientPeerCommunicationError)) {
             delay = timing.delayAfterNetworkError;
-            error(address, `Connection error (retry in ${Duration.format(delay)}):`, Diagnostic.errorMessage(e));
+            category = "network";
         } else {
             delay = timing.delayAfterUnhandledError;
-            error(address, `General connection error (retry in ${Duration.format(delay)}):`, e);
+            category = "general";
         }
 
-        if (delay !== undefined && context.handleError) {
+        const handleError = options?.handleError ?? context.handleError;
+        if (delay !== undefined && handleError) {
             try {
-                const result = context.handleError(e);
+                const result = handleError(e);
                 if (result !== undefined) {
                     delay = result;
                 }
@@ -526,6 +521,32 @@ export async function PeerConnection(
                 overallAbort();
                 return;
             }
+        }
+
+        // Log after handleError so the reported delay is accurate
+        switch (category) {
+            case "busy":
+                info(
+                    via,
+                    address,
+                    `Peer requested to delay and retry no earlier than ${Duration.format(csre!.busyDelay!)} from now (retry in ${Duration.format(delay!)})`,
+                );
+                break;
+            case "resumption":
+                warn(
+                    address,
+                    "Authorization rejected by peer on session resumption; clearing resumption data and retrying",
+                );
+                break;
+            case "peer":
+                error(address, `Peer error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                break;
+            case "network":
+                error(address, `Connection error (retry in ${Duration.format(delay!)}):`, Diagnostic.errorMessage(e));
+                break;
+            case "general":
+                error(address, `General connection error (retry in ${Duration.format(delay!)}):`, e);
+                break;
         }
 
         if (addressAbort.aborted) {
@@ -573,6 +594,11 @@ export namespace PeerConnection {
          * Other concurrent or future connections are not affected.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Per-call error handler, overrides {@link Context.handleError} for this connection only.
+         */
+        handleError?: (error: Error) => Duration | void;
     }
 
     export function createExchange(

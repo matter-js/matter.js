@@ -304,7 +304,7 @@ export class Endpoint {
         ];
         const elementDiagnostic = Array<unknown>();
 
-        const features = client.supportedFeatures as Record<string, boolean>;
+        const features = client.supportedFeatures;
         const supportedFeatures = new Array<string>();
         for (const featureName in features) {
             if (features[featureName] === true) supportedFeatures.push(featureName);
