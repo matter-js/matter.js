@@ -700,23 +700,23 @@ export namespace LevelControlBaseServer {
             level: number,
             transitionTime: number | null,
             withOnOff: boolean,
-            options: LevelControl.Options,
+            options?: LevelControl.Options,
         ): MaybePromise;
         moveLogic(
             moveMode: LevelControl.MoveMode,
             rate: number | null,
             withOnOff: boolean,
-            options: LevelControl.Options,
+            options?: LevelControl.Options,
         ): MaybePromise;
         stepLogic(
             stepMode: LevelControl.StepMode,
             stepSize: number,
             transitionTime: number | null,
             withOnOff: boolean,
-            options: LevelControl.Options,
+            options?: LevelControl.Options,
         ): MaybePromise;
-        stopLogic(options: LevelControl.Options): MaybePromise;
-        couple(withOnOff: boolean, options: LevelControl.Options): MaybePromise;
+        stopLogic(options?: LevelControl.Options): MaybePromise;
+        couple(withOnOff: boolean, options?: LevelControl.Options): MaybePromise;
         handleOnOffChange(onOff: boolean): MaybePromise;
         createTransitions<B extends Behavior>(config: Transitions.Configuration<B>): Transitions<B>;
     };
