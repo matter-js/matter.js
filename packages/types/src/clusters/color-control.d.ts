@@ -1416,12 +1416,7 @@ export declare namespace ColorControl {
     }
 
     /**
-     * Indicates the color control capabilities of the device.
-     *
-     * Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of the
-     * FeatureMap attribute. All other bits in ColorCapabilities shall be 0.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 3.2.7.19
+     * @see {@link MatterSpecification.v142.Cluster} § 3.2.6.1
      */
     export declare class ColorCapabilities {
         constructor(values?: Partial<ColorCapabilities> | number);

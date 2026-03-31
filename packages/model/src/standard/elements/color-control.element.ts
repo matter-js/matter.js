@@ -167,16 +167,10 @@ export const ColorControl = Cluster(
     Attribute({ name: "ColorLoopTime", id: 0x4004, type: "uint16", access: "R V", conformance: "CL", quality: "N S" }),
     Attribute({ name: "ColorLoopStartEnhancedHue", id: 0x4005, type: "uint16", access: "R V", conformance: "CL" }),
     Attribute({ name: "ColorLoopStoredEnhancedHue", id: 0x4006, type: "uint16", access: "R V", conformance: "CL" }),
-
-    Attribute(
-        { name: "ColorCapabilities", id: 0x400a, type: "map16", access: "R V", conformance: "M", constraint: "max 31" },
-        Field({ name: "HueSaturation", constraint: "0" }),
-        Field({ name: "EnhancedHue", constraint: "1" }),
-        Field({ name: "ColorLoop", constraint: "2" }),
-        Field({ name: "XY", constraint: "3" }),
-        Field({ name: "ColorTemperature", constraint: "4" })
-    ),
-
+    Attribute({
+        name: "ColorCapabilities", id: 0x400a, type: "ColorCapabilitiesBitmap", access: "R V",
+        conformance: "M", constraint: "max 31"
+    }),
     Attribute({
         name: "ColorTempPhysicalMinMireds", id: 0x400b, type: "uint16", access: "R V", conformance: "CT",
         constraint: "1 to 65279"
@@ -387,6 +381,15 @@ export const ColorControl = Cluster(
         Field({ name: "ColorTemperatureMaximumMireds", id: 0x4, type: "uint16", conformance: "M", constraint: "max 65279" }),
         Field({ name: "OptionsMask", id: 0x5, type: "OptionsBitmap", conformance: "M", constraint: "desc" }),
         Field({ name: "OptionsOverride", id: 0x6, type: "OptionsBitmap", conformance: "M", constraint: "desc" })
+    ),
+
+    Datatype(
+        { name: "ColorCapabilitiesBitmap", type: "map16" },
+        Field({ name: "HueSaturation", constraint: "0" }),
+        Field({ name: "EnhancedHue", constraint: "1" }),
+        Field({ name: "ColorLoop", constraint: "2" }),
+        Field({ name: "Xy", constraint: "3" }),
+        Field({ name: "ColorTemperature", constraint: "4" })
     ),
 
     Datatype({ name: "OptionsBitmap", type: "map8" }, Field({ name: "ExecuteIfOff", constraint: "0" })),

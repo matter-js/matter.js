@@ -167,14 +167,6 @@ export declare namespace BasicInformation {
         capabilityMinima: CapabilityMinima;
 
         /**
-         * This attribute shall provide information about the appearance of the product, which could be useful to a user
-         * trying to locate or identify the node.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
-         */
-        productAppearance: ProductAppearance;
-
-        /**
          * This attribute shall contain the current version number for the specification version this Node was certified
          * against. A larger value of SpecificationVersion is newer than a lower value.
          *
@@ -327,6 +319,14 @@ export declare namespace BasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
          */
         uniqueId?: string;
+
+        /**
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         */
+        productAppearance?: ProductAppearance;
     }
 
     /**
@@ -452,14 +452,6 @@ export declare namespace BasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 11.1.5.20
          */
         capabilityMinima: CapabilityMinima;
-
-        /**
-         * This attribute shall provide information about the appearance of the product, which could be useful to a user
-         * trying to locate or identify the node.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
-         */
-        productAppearance: ProductAppearance;
 
         /**
          * This attribute shall contain the current version number for the specification version this Node was certified
@@ -614,6 +606,14 @@ export declare namespace BasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 11.1.5.19
          */
         uniqueId: string;
+
+        /**
+         * This attribute shall provide information about the appearance of the product, which could be useful to a user
+         * trying to locate or identify the node.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 11.1.5.21
+         */
+        productAppearance: ProductAppearance;
     }
 
     /**

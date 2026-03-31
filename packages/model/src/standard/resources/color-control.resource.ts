@@ -383,21 +383,7 @@ Resource.add(
                 details: "Indicates the color control capabilities of the device." +
                     "\n" +
                     "Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of " +
-                    "the FeatureMap attribute. All other bits in ColorCapabilities shall be 0.",
-
-                children: [
-                    {
-                        tag: "field", name: "HueSaturation",
-                        description: "Supports color specification via hue/saturation."
-                    },
-                    { tag: "field", name: "EnhancedHue", description: "Enhanced hue is supported." },
-                    { tag: "field", name: "ColorLoop", description: "Color loop is supported." },
-                    { tag: "field", name: "XY", description: "Supports color specification via XY." },
-                    {
-                        tag: "field", name: "ColorTemperature",
-                        description: "Supports color specification via color temperature."
-                    }
-                ]
+                    "the FeatureMap attribute. All other bits in ColorCapabilities shall be 0."
             },
 
             {
@@ -819,6 +805,24 @@ Resource.add(
                             "ColorTemperatureMaximumMireds field it shall be clipped so that the above invariant is satisfied. If " +
                             "the ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the " +
                             "upper bound for the ColorTemperatureMireds attribute."
+                    }
+                ]
+            },
+
+            {
+                tag: "datatype", name: "ColorCapabilitiesBitmap", xref: "cluster§3.2.6.1",
+
+                children: [
+                    {
+                        tag: "field", name: "HueSaturation",
+                        description: "Supports color specification via hue/saturation."
+                    },
+                    { tag: "field", name: "EnhancedHue", description: "Enhanced hue is supported." },
+                    { tag: "field", name: "ColorLoop", description: "Color loop is supported." },
+                    { tag: "field", name: "Xy", description: "Supports color specification via XY." },
+                    {
+                        tag: "field", name: "ColorTemperature",
+                        description: "Supports color specification via color temperature."
                     }
                 ]
             },

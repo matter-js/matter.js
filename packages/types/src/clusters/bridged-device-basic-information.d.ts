@@ -9,8 +9,8 @@
 import type { ClusterType, ClusterTyping } from "../cluster/ClusterType.js";
 import type { ClusterId } from "../datatype/ClusterId.js";
 import type { ClusterModel } from "@matter/model";
-import type { BasicInformation } from "./basic-information.js";
 import type { VendorId } from "../datatype/VendorId.js";
+import type { BasicInformation } from "./basic-information.js";
 import type { MaybePromise } from "@matter/general";
 
 /**
@@ -83,25 +83,6 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.5.2
          */
         reachable: boolean;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productAppearance: BasicInformation.ProductAppearance;
-
-        /**
-         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
-         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
-         *
-         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
-         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
-         * described in Section 9.2.11, “Node Configuration Changes”.
-         *
-         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
-         */
-        configurationVersion: number;
 
         /**
          * @see {@link MatterSpecification.v142.Core} § 9.13.5
@@ -186,6 +167,25 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
          */
         uniqueId?: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productAppearance?: BasicInformation.ProductAppearance;
+
+        /**
+         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
+         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
+         *
+         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
+         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
+         * described in Section 9.2.11, “Node Configuration Changes”.
+         *
+         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         */
+        configurationVersion?: number;
     }
 
     /**
@@ -208,25 +208,6 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.5.2
          */
         reachable: boolean;
-
-        /**
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5
-         */
-        productAppearance: BasicInformation.ProductAppearance;
-
-        /**
-         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
-         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
-         *
-         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
-         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
-         * described in Section 9.2.11, “Node Configuration Changes”.
-         *
-         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
-         *
-         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
-         */
-        configurationVersion: number;
 
         /**
          * @see {@link MatterSpecification.v142.Core} § 9.13.5
@@ -311,6 +292,25 @@ export declare namespace BridgedDeviceBasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 9.13.5.3
          */
         uniqueId: string;
+
+        /**
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5
+         */
+        productAppearance: BasicInformation.ProductAppearance;
+
+        /**
+         * This attribute shall contain the current version number for the configuration of the bridged device. A larger
+         * value of ConfigurationVersion shall indicate a newer configuration than a lower value.
+         *
+         * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
+         * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
+         * described in Section 9.2.11, “Node Configuration Changes”.
+         *
+         * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
+         *
+         * @see {@link MatterSpecification.v142.Core} § 9.13.5.4
+         */
+        configurationVersion: number;
     }
 
     /**
