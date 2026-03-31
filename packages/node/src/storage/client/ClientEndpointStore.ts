@@ -46,12 +46,13 @@ export class ClientEndpointStore extends EndpointStore {
      */
     createStoreForBehavior(behaviorId: string) {
         const initialValues = this.consumeInitialValues(behaviorId);
-        return DatasourceCache({
+        return new DatasourceCache({
             writer: this.#owner.write,
             endpointNumber: this.#number,
             behaviorId,
             initialValues,
             localWriter: this.#owner.localWriter,
+            buffer: this.#owner.buffer,
         });
     }
 

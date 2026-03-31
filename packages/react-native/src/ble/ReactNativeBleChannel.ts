@@ -16,22 +16,7 @@ import {
     Time,
     createPromise,
 } from "@matter/general";
-import {
-    BLE_MATTER_C1_CHARACTERISTIC_UUID,
-    BLE_MATTER_C2_CHARACTERISTIC_UUID,
-    BLE_MATTER_C3_CHARACTERISTIC_UUID,
-    BLE_MATTER_SERVICE_UUID,
-    BLE_MAXIMUM_BTP_MTU,
-    BTP_CONN_RSP_TIMEOUT,
-    BTP_MAXIMUM_WINDOW_SIZE,
-    BTP_SUPPORTED_VERSIONS,
-    Ble,
-    BleChannel,
-    BleError,
-    BtpCodec,
-    BtpFlowError,
-    BtpSessionHandler,
-} from "@matter/protocol";
+import { Ble, BleChannel, BleError, BtpCodec, BtpFlowError, BtpSessionHandler, MatterBle } from "@matter/protocol";
 import {
     BleErrorCode,
     Characteristic,
@@ -74,7 +59,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         let device: Device;
         try {
             device = await peripheral.connect();
-            await device.requestMTU(BLE_MAXIMUM_BTP_MTU);
+            await device.requestMTU(MatterBle.MAXIMUM_BTP_MTU);
         } catch (error) {
             if (error instanceof ReactNativeBleError && error.errorCode === BleErrorCode.DeviceAlreadyConnected) {
                 device = peripheral;
@@ -91,7 +76,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
 
         for (const service of services) {
             logger.debug(`found service: ${service.uuid}`);
-            if (service.uuid.toUpperCase() !== BLE_MATTER_SERVICE_UUID) continue;
+            if (!MatterBle.isServiceUuid(service.uuid)) continue;
 
             // So, discover its characteristics.
             const characteristics = await device.characteristicsForService(service.uuid);
@@ -105,17 +90,17 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
                 logger.debug("found characteristic:", characteristic.uuid);
 
                 switch (characteristic.uuid.toUpperCase()) {
-                    case BLE_MATTER_C1_CHARACTERISTIC_UUID:
+                    case MatterBle.C1_CHARACTERISTIC_UUID:
                         logger.debug("found C1 characteristic");
                         characteristicC1ForWrite = characteristic;
                         break;
 
-                    case BLE_MATTER_C2_CHARACTERISTIC_UUID:
+                    case MatterBle.C2_CHARACTERISTIC_UUID:
                         logger.debug("found C2 characteristic");
                         characteristicC2ForSubscribe = characteristic;
                         break;
 
-                    case BLE_MATTER_C3_CHARACTERISTIC_UUID:
+                    case MatterBle.C3_CHARACTERISTIC_UUID:
                         logger.debug("found C3 characteristic");
                         if (hasAdditionalAdvertisementData) {
                             logger.debug("reading additional commissioning related data");
@@ -174,21 +159,21 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         _additionalCommissioningRelatedData?: Bytes,
     ): Promise<ReactNativeBleChannel> {
         let mtu = peripheral.mtu ?? 0;
-        if (mtu > BLE_MAXIMUM_BTP_MTU) {
-            mtu = BLE_MAXIMUM_BTP_MTU;
+        if (mtu > MatterBle.MAXIMUM_BTP_MTU) {
+            mtu = MatterBle.MAXIMUM_BTP_MTU;
         }
         logger.debug(`Using MTU=${mtu} (Peripheral MTU=${peripheral.mtu})`);
         const btpHandshakeRequest = BtpCodec.encodeBtpHandshakeRequest({
-            versions: BTP_SUPPORTED_VERSIONS,
+            versions: MatterBle.BTP_SUPPORTED_VERSIONS,
             attMtu: mtu,
-            clientWindowSize: BTP_MAXIMUM_WINDOW_SIZE,
+            clientWindowSize: MatterBle.BTP_MAXIMUM_WINDOW_SIZE,
         });
         logger.debug(`sending BTP handshake request: ${Diagnostic.json(btpHandshakeRequest)}`);
         characteristicC1ForWrite = await characteristicC1ForWrite.writeWithResponse(
             Bytes.toBase64(btpHandshakeRequest),
         );
 
-        const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", BTP_CONN_RSP_TIMEOUT, async () => {
+        const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, async () => {
             await peripheral.cancelConnection();
             logger.debug("Handshake Response not received. Disconnected from peripheral");
         }).start();

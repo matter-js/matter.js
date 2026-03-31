@@ -6,9 +6,11 @@
 
 import { InternalError } from "@matter/general";
 import type { ValueModel } from "@matter/model";
-import { Conformance } from "@matter/model";
+import { Conformance, ElementTag } from "@matter/model";
 
 const { Applicability, Flag, Operator, Special } = Conformance;
+
+type Fallback = NameDependentElements.Fallback;
 
 /**
  * Collects elements whose conformance references sibling element names rather than just features.
@@ -17,6 +19,14 @@ const { Applicability, Flag, Operator, Special } = Conformance;
  *
  * - **conditionals**: No element name deps (e.g. comparison operators, `Desc`). Resolved immediately via fallback.
  * - **interdependents**: Has actual sibling element references, needs the full dependency graph resolution.
+ *
+ * Classification is a two-pass process:
+ *
+ * 1. {@link classify} recursively walks the AST to determine whether it contains any non-feature element name
+ *    references.  If not, it returns a fallback directly.
+ *
+ * 2. {@link extractInterdependencies} pattern-matches the top-level AST against known simple forms from the Matter spec
+ *    to extract dependency names.  Throws on unrecognized patterns.
  */
 export class NameDependentElements {
     /**
@@ -40,29 +50,19 @@ export class NameDependentElements {
     /**
      * Add an element whose conformance evaluated as {@link Conformance.Applicability.Conditional}.
      *
-     * Extracts deps from the conformance AST and sorts the element into either `conditionals` (resolved immediately)
-     * or `interdependents` (needs graph resolution).
+     * Classifies the conformance AST and sorts the element into either `conditionals` (resolved immediately) or
+     * `interdependents` (needs graph resolution).
      */
     add(model: ValueModel, elementType: "attribute" | "command" | "event", isImplemented: boolean) {
-        const { deps, fallback } = extractDeps(model.effectiveConformance.ast, this.#featureContext);
+        const ast = model.effectiveConformance.ast;
+        const result = classify(ast, this.#featureContext, model);
 
-        if (deps.length === 0) {
-            // No element-name deps — resolve immediately via fallback
-            let presence: boolean;
-            switch (fallback) {
-                case Applicability.Mandatory:
-                    presence = true;
-                    break;
-                case Applicability.None:
-                    presence = false;
-                    break;
-                case Applicability.Optional:
-                    presence = isImplemented;
-                    break;
-            }
-            this.conditionals.set(model.name, { model, elementType, isImplemented, presence });
+        if (result === "conditional") {
+            // Same as pre-NameDependentElements behavior: conditional elements are present iff implemented
+            this.conditionals.set(model.name, { model, elementType, isImplemented, presence: isImplemented });
         } else {
-            this.interdependents.set(model.name, { model, elementType, isImplemented, dependencies: deps, fallback });
+            const { dependencies, fallback } = extractInterdependencies(ast, this.#featureContext, model);
+            this.interdependents.set(model.name, { model, elementType, isImplemented, dependencies, fallback });
         }
     }
 }
@@ -103,147 +103,137 @@ export namespace NameDependentElements {
         | Conformance.Applicability.Mandatory;
 }
 
+// --- Pass 1: Classification ---
+
+type ClassifyResult = "conditional" | "interdependent";
+
 /**
- * Extract dependency names and fallback from a conformance AST.
+ * Recursively walks a conformance AST and determines whether it contains any command/event name references.
+ *
+ * Attribute name references are treated as conditionals — their presence semantics are handled by the normal
+ * conformance evaluation path.  Only command/event name references produce interdependencies that need static graph
+ * resolution.
  */
-function extractDeps(
-    ast: Conformance.Ast,
-    featureContext: Conformance.FeatureContext,
-): { deps: string[]; fallback: NameDependentElements.Fallback } {
+function classify(ast: Conformance.Ast, featureContext: Conformance.FeatureContext, model: ValueModel): ClassifyResult {
     switch (ast.type) {
         case Special.Name:
             if (featureContext.definedFeatures.has(ast.param)) {
-                // It's a feature — already evaluated in step 1, shouldn't be here
-                // But if it is, treat as no deps
-                return { deps: [], fallback: Applicability.None };
+                return "conditional";
             }
-            return { deps: [ast.param], fallback: Applicability.None };
-
-        case Operator.OR:
-            return extractOrDeps(ast.param, featureContext);
+            return isCommandOrEventName(ast.param, model) ? "interdependent" : "conditional";
 
         case Special.Otherwise:
-            return extractOtherwiseDeps(ast.param, featureContext);
-
-        case Special.OptionalIf: {
-            const inner = extractDeps(ast.param, featureContext);
-            if (inner.fallback === Applicability.None) {
-                inner.fallback = Applicability.Optional;
+            for (const clause of ast.param) {
+                if (classify(clause, featureContext, model) === "interdependent") {
+                    return "interdependent";
+                }
             }
-            return inner;
-        }
+            return "conditional";
 
-        case Special.Choice: {
-            return extractDeps(ast.param.expr, featureContext);
-        }
+        case Operator.OR:
+            if (classify(ast.param.lhs, featureContext, model) === "interdependent") return "interdependent";
+            if (classify(ast.param.rhs, featureContext, model) === "interdependent") return "interdependent";
+            return "conditional";
 
-        case Operator.AND: {
-            // Both sides must be true — collect deps from both
-            const left = extractDeps(ast.param.lhs, featureContext);
-            const right = extractDeps(ast.param.rhs, featureContext);
-            return { deps: [...left.deps, ...right.deps], fallback: Applicability.None };
-        }
+        case Operator.AND:
+            if (classify(ast.param.lhs, featureContext, model) === "interdependent") return "interdependent";
+            if (classify(ast.param.rhs, featureContext, model) === "interdependent") return "interdependent";
+            return "conditional";
 
-        case Operator.NOT: {
-            // Negation — if inner is a feature, it was already resolved. If an element, invert presence.
-            // For simplicity, collect deps but invert is too complex — treat as no deps with conditional fallback.
-            const inner = ast.param;
-            if (inner.type === Special.Name && !featureContext.definedFeatures.has(inner.param)) {
-                // !ElementName — present when element is absent, absent when present
-                // This is uncommon and hard to express in our model; treat as impl-dependent
-                return { deps: [], fallback: Applicability.Optional };
-            }
-            // Feature negation should have been resolved in step 1
-            return { deps: [], fallback: Applicability.None };
-        }
+        case Special.OptionalIf:
+            return classify(ast.param, featureContext, model);
 
+        case Special.Choice:
+            return classify(ast.param.expr, featureContext, model);
+
+        case Operator.NOT:
         case Operator.EQ:
         case Operator.NE:
         case Operator.GT:
         case Operator.LT:
         case Operator.GTE:
         case Operator.LTE:
-            // Comparison expressions — these reference field values, not element presence.
-            // Treat as impl-dependent since we can't evaluate field values here.
-            return { deps: [], fallback: Applicability.Optional };
-
         case Special.Desc:
         case Special.Empty:
-            // Desc conformance and empty — treat as optional
-            return { deps: [], fallback: Applicability.Optional };
-
+        case Special.Revision:
         case Flag.Mandatory:
-            return { deps: [], fallback: Applicability.Mandatory };
-
         case Flag.Optional:
-            return { deps: [], fallback: Applicability.Optional };
-
         case Flag.Disallowed:
         case Flag.Deprecated:
         case Flag.Provisional:
-            return { deps: [], fallback: Applicability.None };
+            return "conditional";
 
         default:
-            throw new InternalError(`Unsupported conformance AST type "${ast.type}" for element dependency extraction`);
+            throw new InternalError(`Unsupported conformance AST type "${ast.type}" for element classification`);
     }
 }
 
-function extractOrDeps(
-    operands: Conformance.Ast.BinaryOperands,
+// --- Pass 2: Interdependency extraction ---
+
+/**
+ * Pattern-matches the top-level AST against known interdependent forms from the Matter spec.
+ *
+ * Known patterns:
+ *
+ * - `Name` — single dep, fallback None
+ * - `Otherwise([Name..., Flag])` — name clauses with trailing flag
+ * - `OR(names...)` — flattened OR of names, fallback None
+ * - `Otherwise([OR(names...), Flag])` — OR with fallback
+ *
+ * Throws on unrecognized patterns so new conformance forms are caught immediately.
+ */
+function extractInterdependencies(
+    ast: Conformance.Ast,
     featureContext: Conformance.FeatureContext,
-): { deps: string[]; fallback: NameDependentElements.Fallback } {
-    const deps: string[] = [];
+    model: ValueModel,
+): { dependencies: string[]; fallback: Fallback } {
+    switch (ast.type) {
+        case Special.Name:
+            return { dependencies: [ast.param], fallback: Applicability.None };
 
-    function collectOr(node: Conformance.Ast) {
-        if (node.type === Operator.OR) {
-            collectOr(node.param.lhs);
-            collectOr(node.param.rhs);
-        } else if (node.type === Special.Name) {
-            if (featureContext.definedFeatures.has(node.param)) {
-                // Feature reference — if supported it short-circuits, if not just skip
-                if (featureContext.supportedFeatures.has(node.param)) {
-                    // Should have resolved in step 1 but handle gracefully
-                }
-            } else {
-                deps.push(node.param);
+        case Operator.OR:
+            return { dependencies: flattenOrNames(ast, featureContext, model), fallback: Applicability.None };
+
+        case Special.Otherwise:
+            return extractOtherwiseInterdependencies(ast.param, featureContext, model);
+
+        case Special.OptionalIf: {
+            const inner = extractInterdependencies(ast.param, featureContext, model);
+            if (inner.fallback === Applicability.None) {
+                inner.fallback = Applicability.Optional;
             }
-        } else {
-            // For complex sub-expressions in OR (AND, NOT, comparisons), just extract what we can
-            const sub = extractDeps(node, featureContext);
-            deps.push(...sub.deps);
+            return inner;
         }
-    }
 
-    collectOr({ type: Operator.OR, param: operands });
-    return { deps, fallback: Applicability.None };
+        case Special.Choice:
+            return extractInterdependencies(ast.param.expr, featureContext, model);
+
+        default:
+            throw new InternalError(`Unsupported top-level interdependent conformance pattern "${ast.type}"`);
+    }
 }
 
-function extractOtherwiseDeps(
+function extractOtherwiseInterdependencies(
     clauses: Conformance.Ast[],
     featureContext: Conformance.FeatureContext,
-): { deps: string[]; fallback: NameDependentElements.Fallback } {
-    const deps: string[] = [];
-    let fallback: NameDependentElements.Fallback = Applicability.None;
+    model: ValueModel,
+): { dependencies: string[]; fallback: Fallback } {
+    const dependencies: string[] = [];
+    let fallback: Fallback = Applicability.None;
 
     for (const clause of clauses) {
         switch (clause.type) {
             case Special.Name:
                 if (featureContext.definedFeatures.has(clause.param)) {
-                    if (featureContext.supportedFeatures.has(clause.param)) {
-                        // Feature is supported — this makes the element mandatory, should have been caught in step 1
-                        return { deps: [], fallback: Applicability.Mandatory };
-                    }
-                    // Feature not supported — skip this clause
+                    // Feature — skip (already resolved)
                 } else {
-                    deps.push(clause.param);
+                    dependencies.push(clause.param);
                 }
                 break;
 
-            case Operator.OR: {
-                const orResult = extractOrDeps(clause.param, featureContext);
-                deps.push(...orResult.deps);
+            case Operator.OR:
+                dependencies.push(...flattenOrNames(clause, featureContext, model));
                 break;
-            }
 
             case Flag.Optional:
             case Special.OptionalIf:
@@ -260,22 +250,57 @@ function extractOtherwiseDeps(
                 fallback = Applicability.None;
                 break;
 
-            case Special.Choice:
-                // Choice wraps an inner expression — extract from it
-                {
-                    const inner = extractDeps(clause.param.expr, featureContext);
-                    deps.push(...inner.deps);
-                }
-                break;
-
-            default: {
-                // For any other AST node (AND, NOT, comparisons, etc.), extract deps generically
-                const sub = extractDeps(clause, featureContext);
-                deps.push(...sub.deps);
+            case Special.Choice: {
+                const inner = extractInterdependencies(clause.param.expr, featureContext, model);
+                dependencies.push(...inner.dependencies);
                 break;
             }
+
+            default:
+                throw new InternalError(
+                    `Unsupported otherwise clause type "${clause.type}" in interdependent conformance`,
+                );
         }
     }
 
-    return { deps, fallback };
+    return { dependencies, fallback };
+}
+
+/**
+ * Flattens a binary OR tree into an array of element name strings.
+ *
+ * OR is binary in the AST, so `A | B | C` is `OR(OR(A, B), C)`.  Each leaf must be a `Special.Name` that isn't a
+ * defined feature — anything else throws.
+ */
+function flattenOrNames(ast: Conformance.Ast, featureContext: Conformance.FeatureContext, model: ValueModel): string[] {
+    const names: string[] = [];
+
+    const stack: Conformance.Ast[] = [ast];
+    while (stack.length > 0) {
+        const node = stack.pop()!;
+        if (node.type === Operator.OR) {
+            stack.push(node.param.lhs, node.param.rhs);
+        } else if (node.type === Special.Name) {
+            if (!featureContext.definedFeatures.has(node.param) && isCommandOrEventName(node.param, model)) {
+                names.push(node.param);
+            }
+            // Feature and attribute names are skipped
+        } else {
+            throw new InternalError(
+                `Unexpected node type "${node.type}" in OR tree of interdependent conformance — expected element names`,
+            );
+        }
+    }
+
+    return names;
+}
+
+/**
+ * Returns true if `name` resolves to a command or event in the element's parent (cluster) scope.
+ *
+ * Attribute references are excluded — their presence semantics are richer (value-dependent) and handled by the
+ * normal conformance evaluation path rather than the binary interdependency graph.
+ */
+function isCommandOrEventName(name: string, model: ValueModel): boolean {
+    return model.parent?.resolve(name, { tags: [ElementTag.Command, ElementTag.Event] }) !== undefined;
 }

@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./client/ClientCacheBuffer.js";
 export * from "./client/ClientNodeStore.js";
 export * from "./client/ClientNodeStores.js";
 export * from "./client/DatasourceCache.js";

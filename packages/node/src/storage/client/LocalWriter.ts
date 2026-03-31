@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { MaybePromise } from "@matter/general";
+import { MaybePromise, StorageDriver } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 import type { ClientNodeStore } from "./ClientNodeStore.js";
@@ -21,6 +21,18 @@ export class LocalWriter {
 
     async persist(endpointNumber: EndpointNumber, behaviorId: string, values: Val.Struct) {
         await this.#nodeStore.storeForEndpointNumber(endpointNumber).set({ [behaviorId]: values });
+    }
+
+    /**
+     * Persist values through a shared transaction.  The caller owns the transaction lifecycle.
+     */
+    async persistInTransaction(
+        tx: StorageDriver.Transaction,
+        endpointNumber: EndpointNumber,
+        behaviorId: string,
+        values: Val.Struct,
+    ) {
+        await this.#nodeStore.storeForEndpointNumber(endpointNumber).set({ [behaviorId]: values }, tx);
     }
 
     erase(endpointNumber: EndpointNumber, behaviorId: string): MaybePromise<void> {
