@@ -11,3 +11,5 @@ import { SqliteStorageDriver } from "./SqliteStorageDriver.js";
 
 /** @deprecated Use {@link SqliteStorageDriver} */
 export const SqliteStorage = SqliteStorageDriver;
+/** @deprecated Use {@link SqliteStorageDriver} */
+export type SqliteStorage = SqliteStorageDriver;
