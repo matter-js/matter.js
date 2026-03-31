@@ -1291,7 +1291,7 @@ export class PairedNode {
         if (adminCommissioningCluster === undefined) {
             throw new ImplementationError(`AdministratorCommissioningCluster for node ${this.nodeId} not found.`);
         }
-        if ((adminCommissioningCluster.supportedFeatures as Record<string, boolean>)?.basic === false) {
+        if (adminCommissioningCluster.supportedFeatures?.basic === false) {
             throw new ImplementationError(
                 `AdministratorCommissioningCluster for node ${this.nodeId} does not support basic commissioning.`,
             );
