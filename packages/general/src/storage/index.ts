@@ -23,3 +23,5 @@ import { MemoryStorageDriver } from "./MemoryStorageDriver.js";
 
 /** @deprecated Use {@link MemoryStorageDriver} */
 export const StorageBackendMemory = MemoryStorageDriver;
+/** @deprecated Use {@link MemoryStorageDriver} */
+export type StorageBackendMemory = MemoryStorageDriver;
