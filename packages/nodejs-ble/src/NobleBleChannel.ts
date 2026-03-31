@@ -66,9 +66,9 @@ type BleConnectionGuard = {
 
 export class NobleBleCentralInterface implements ConnectionlessTransport {
     #bleScanner: BleScanner;
-    #connectionsInProgress = new Set<ServerAddress>();
+    #connectionsInProgress = new Set<string>();
     #connectionGuards = new Set<BleConnectionGuard>();
-    #openChannels = new Map<ServerAddress, Peripheral>();
+    #openChannels = new Map<string, Peripheral>();
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
     #closed = false;
 
@@ -119,7 +119,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
             const { peripheral, hasAdditionalAdvertisementData } =
                 this.#bleScanner.getDiscoveredDevice(peripheralAddress);
 
-            if (this.#openChannels.has(address)) {
+            if (this.#openChannels.has(peripheralAddress)) {
                 rejectOnce(
                     new BleError(
                         `Peripheral ${peripheralAddress} is already connected. Only one connection supported right now.`,
@@ -127,8 +127,8 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 );
                 return;
             }
-            if (this.#connectionsInProgress.has(address)) {
-                logger.debug(`Connection to peripheral ${peripheralAddress} is already in progress.`);
+            if (this.#connectionsInProgress.has(peripheralAddress)) {
+                rejectOnce(new BleError(`Connection to peripheral ${peripheralAddress} is already in progress.`));
                 return;
             }
 
@@ -142,6 +142,10 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 return;
             }
 
+            // Wrapped listener for "connect" event — assigned after connectHandler is defined.
+            // Stored here so timeout/retry handlers can remove it by reference.
+            let connectListener: (error?: any) => void;
+
             // Guard object to indicate if the connection was cancelled. This is used as safe guard in some places
             // if data come in delayed after we already gave up.
             const connectionGuard: BleConnectionGuard = {
@@ -150,8 +154,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 // because a re-discovery is the best option to get teh device into a good state again
                 connectTimeout: Time.getTimer("BLE connect timeout", Minutes(2), () => {
                     logger.debug(`Timeout while connecting to peripheral ${peripheralAddress}`);
-                    // oxlint-disable-next-line @typescript-eslint/no-misused-promises
-                    peripheral.removeListener("connect", connectHandler);
+                    peripheral.removeListener("connect", connectListener);
                     peripheral.removeListener("disconnect", reTryHandler);
                     clearConnectionGuard();
                     rejectOnce(new BleError(`Timeout while connecting to peripheral ${peripheralAddress}`));
@@ -192,9 +195,8 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
             const reTryHandler = (error?: any) => {
                 // Cancel tracking states because we are done in this context
                 clearConnectionGuard();
-                this.#connectionsInProgress.delete(address);
-                // oxlint-disable-next-line @typescript-eslint/no-misused-promises
-                peripheral.removeListener("connect", connectHandler);
+                this.#connectionsInProgress.delete(peripheralAddress);
+                peripheral.removeListener("connect", connectListener);
                 peripheral.removeListener("disconnect", reTryHandler);
 
                 if (error) {
@@ -220,19 +222,21 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 }
                 if (error) {
                     clearConnectionGuard();
+                    peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(new BleError(`Error while connecting to peripheral ${peripheralAddress}`, error));
                     return;
                 }
                 if (this.#onMatterMessageListener === undefined) {
                     clearConnectionGuard();
+                    peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(new InternalError(`Network Interface was not added to the system yet or was cleared.`));
                     return;
                 }
 
-                if (this.#connectionsInProgress.has(address)) {
+                if (this.#connectionsInProgress.has(peripheralAddress)) {
                     return;
                 }
-                this.#connectionsInProgress.add(address);
+                this.#connectionsInProgress.add(peripheralAddress);
 
                 try {
                     connectionGuard.interviewTimeout.start();
@@ -305,7 +309,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
 
                         connectionGuard.interviewTimeout.stop();
                         peripheral.removeListener("disconnect", reTryHandler);
-                        this.#openChannels.set(address, peripheral);
+                        this.#openChannels.set(peripheralAddress, peripheral);
                         try {
                             resolveOnce(
                                 await NobleBleChannel.create(
@@ -317,11 +321,11 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                                 ),
                             );
                             clearConnectionGuard();
-                            this.#connectionsInProgress.delete(address);
+                            this.#connectionsInProgress.delete(peripheralAddress);
                             return;
                         } catch (error) {
-                            this.#connectionsInProgress.delete(address);
-                            this.#openChannels.delete(address);
+                            this.#connectionsInProgress.delete(peripheralAddress);
+                            this.#openChannels.delete(peripheralAddress);
                             if (peripheral.state === "connected") {
                                 logger.debug(
                                     `Disconnect because of initialization error of peripheral ${ServerAddress.urlFor(address)}`,
@@ -349,7 +353,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                     }
                     return;
                 } finally {
-                    this.#connectionsInProgress.delete(address);
+                    this.#connectionsInProgress.delete(peripheralAddress);
                     clearConnectionGuard();
                 }
 
@@ -357,6 +361,14 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 rejectOnce(
                     new BleError(`Peripheral ${peripheralAddress} does not have the required Matter characteristics`),
                 );
+            };
+
+            // Wrap the async connectHandler so rejected promises from the event listener are caught
+            connectListener = (error?: any) => {
+                connectHandler(error).catch(handlerError => {
+                    logger.warn(`Peripheral ${peripheralAddress}: Unexpected error in connect handler`, handlerError);
+                    rejectOnce(handlerError);
+                });
             };
 
             if (peripheral.state === "connected") {
@@ -373,8 +385,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 }
                 // connecting, disconnected
                 connectionGuard.connectTimeout.start();
-                // oxlint-disable-next-line @typescript-eslint/no-misused-promises
-                peripheral.once("connect", connectHandler);
+                peripheral.once("connect", connectListener);
                 peripheral.once("disconnect", reTryHandler);
                 logger.debug(`Peripheral ${peripheralAddress}: Connect to Peripheral now (try ${tryCount})`);
                 peripheral.connectAsync().catch(error => {

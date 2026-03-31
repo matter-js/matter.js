@@ -30,7 +30,7 @@ const logger = Logger.get("BleChannel");
 
 export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
     #ble: Ble;
-    #openChannels: Map<ServerAddress, Device> = new Map();
+    #openChannels: Map<string, Device> = new Map();
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
 
     constructor(ble: Ble) {
@@ -50,7 +50,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
             this.#ble.scanner as BleScanner
         ).getDiscoveredDevice(address.peripheralAddress);
         const peripheral = blePeripheral.device;
-        if (this.#openChannels.has(address)) {
+        if (this.#openChannels.has(address.peripheralAddress)) {
             throw new BleError(
                 `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,
             );
@@ -119,7 +119,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
                 continue;
             }
 
-            this.#openChannels.set(address, device);
+            this.#openChannels.set(address.peripheralAddress, device);
             return await ReactNativeBleChannel.create(
                 device,
                 characteristicC1ForWrite,
