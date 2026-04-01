@@ -10,8 +10,8 @@ import type { Transport } from "../Transport.js";
 import type { TcpConnection } from "../tcp/TcpConnection.js";
 
 /**
- * Mock TCP socket for testing.  Two sockets are created as a connected pair;
- * data written to one is delivered to the other's data listeners.
+ * Mock TCP connection for testing. Two connections are created as a connected pair;
+ * data written to one is delivered to the other via async iteration.
  */
 export class MockTcpConnection implements TcpConnection {
     readonly remoteAddress: string;
@@ -24,6 +24,11 @@ export class MockTcpConnection implements TcpConnection {
     readonly #errorListeners = new Set<(error: Error) => void>();
     #closed = false;
 
+    /** Queue for async iteration — chunks waiting to be consumed. */
+    #chunks = new Array<Bytes>();
+    /** Resolver for a pending next() call waiting for data. */
+    #waiter?: (value: IteratorResult<Bytes>) => void;
+
     private constructor(localPort: number, remoteAddress: string, remotePort: number) {
         this.localPort = localPort;
         this.remoteAddress = remoteAddress;
@@ -31,7 +36,7 @@ export class MockTcpConnection implements TcpConnection {
     }
 
     /**
-     * Create a connected pair of mock TCP sockets.
+     * Create a connected pair of mock TCP connections.
      */
     static createPair(
         clientAddress: string,
@@ -48,26 +53,53 @@ export class MockTcpConnection implements TcpConnection {
 
     async send(data: Bytes): Promise<void> {
         if (this.#closed) {
-            throw new Error("Socket is closed");
+            throw new Error("Connection is closed");
         }
         const peer = this.#peer;
         if (!peer || peer.#closed) {
-            throw new Error("Peer socket is closed");
+            throw new Error("Peer connection is closed");
         }
 
-        // Deliver asynchronously like MockUdpSocket
+        // Deliver asynchronously
         await Time.macrotask;
 
+        // Push to peer's data callback listeners (deprecated path)
         for (const listener of peer.#dataListeners) {
             listener(data);
         }
+
+        // Push to peer's iterator queue
+        if (peer.#waiter) {
+            const resolve = peer.#waiter;
+            peer.#waiter = undefined;
+            resolve({ value: data, done: false });
+        } else {
+            peer.#chunks.push(data);
+        }
     }
 
+    /** @deprecated Prefer async iteration. */
     onData(listener: (data: Bytes) => void): Transport.Listener {
         this.#dataListeners.add(listener);
         return {
             close: async () => {
                 this.#dataListeners.delete(listener);
+            },
+        };
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#chunks.length > 0) {
+                    return Promise.resolve({ value: this.#chunks.shift()!, done: false });
+                }
+                if (this.#closed) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#waiter = resolve;
+                });
             },
         };
     }
@@ -96,15 +128,21 @@ export class MockTcpConnection implements TcpConnection {
         }
         this.#closed = true;
 
+        // Terminate iterator
+        this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+        this.#waiter = undefined;
+
         // Notify local close listeners
         for (const listener of this.#closeListeners) {
             listener();
         }
 
-        // Notify peer's close listeners
+        // Notify peer
         const peer = this.#peer;
         if (peer && !peer.#closed) {
             peer.#closed = true;
+            peer.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            peer.#waiter = undefined;
             for (const listener of peer.#closeListeners) {
                 listener();
             }

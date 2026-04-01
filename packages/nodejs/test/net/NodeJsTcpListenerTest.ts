@@ -37,7 +37,7 @@ describe("NodeJsTcpListener", () => {
         try {
             const received = new Promise<string>(resolve => {
                 server.onConnection(socket => {
-                    socket.onData(data => {
+                    socket.onData!(data => {
                         resolve(Bytes.toString(data));
                         void socket.close();
                     });

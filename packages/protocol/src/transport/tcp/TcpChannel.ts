@@ -72,9 +72,27 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
         this.maxPayloadSize = maxPayloadSize;
         this.#maxReceiveBufferSize = maxPayloadSize * MAX_RECEIVE_BUFFER_FACTOR;
 
-        socket.onData(data => this.#handleData(data));
         socket.onClose(() => this.#handleClose());
         socket.onError(error => this.#handleError(error));
+
+        // Consume raw byte chunks from the socket via async iteration (backpressure-aware)
+        this.#workers.add(this.#consumeSocket());
+    }
+
+    async #consumeSocket(): Promise<void> {
+        try {
+            for await (const chunk of this.#socket) {
+                if (this.#closed) break;
+                this.#handleData(chunk);
+            }
+        } catch (error) {
+            if (!this.#closed) {
+                this.#handleError(error instanceof Error ? error : new Error(String(error)));
+            }
+        }
+        if (!this.#closed) {
+            this.#handleClose();
+        }
     }
 
     get name() {

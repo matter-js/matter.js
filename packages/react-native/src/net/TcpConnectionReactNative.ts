@@ -28,6 +28,9 @@ export class TcpConnectionReactNative implements TcpConnection {
     readonly remotePort: number;
     readonly localPort: number;
     readonly #socket: RnSocket;
+    #ended = false;
+    #chunks = new Array<Bytes>();
+    #waiter?: (value: IteratorResult<Bytes>) => void;
 
     constructor(socket: RnSocket) {
         this.#socket = socket;
@@ -37,6 +40,59 @@ export class TcpConnectionReactNative implements TcpConnection {
 
         socket.setNoDelay(true);
         socket.setKeepAlive(true, TCP_KEEP_ALIVE_INITIAL_DELAY_MS);
+
+        socket.on("data", (data: Buffer | string) => {
+            const bytes = typeof data === "string" ? Buffer.from(data) : new Uint8Array(data);
+            if (this.#waiter) {
+                const resolve = this.#waiter;
+                this.#waiter = undefined;
+                resolve({ value: bytes, done: false });
+            } else {
+                this.#chunks.push(bytes);
+            }
+        });
+
+        socket.on("close", () => {
+            this.#ended = true;
+            this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#waiter = undefined;
+        });
+
+        socket.on("error", () => {
+            this.#ended = true;
+            this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#waiter = undefined;
+        });
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#chunks.length > 0) {
+                    return Promise.resolve({ value: this.#chunks.shift()!, done: false });
+                }
+                if (this.#ended) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#waiter = resolve;
+                });
+            },
+        };
+    }
+
+    /** @deprecated Prefer async iteration. */
+    onData(listener: (data: Bytes) => void): Transport.Listener {
+        const handler = (data: Buffer | string) => {
+            const bytes = typeof data === "string" ? Buffer.from(data) : new Uint8Array(data);
+            listener(bytes);
+        };
+        this.#socket.on("data", handler);
+        return {
+            close: async () => {
+                this.#socket.off("data", handler);
+            },
+        };
     }
 
     send(data: Bytes): Promise<void> {
@@ -49,19 +105,6 @@ export class TcpConnectionReactNative implements TcpConnection {
                 }
             });
         });
-    }
-
-    onData(listener: (data: Bytes) => void): Transport.Listener {
-        const handler = (data: Buffer | string) => {
-            const bytes = typeof data === "string" ? Buffer.from(data) : data;
-            listener(new Uint8Array(bytes));
-        };
-        this.#socket.on("data", handler);
-        return {
-            close: async () => {
-                this.#socket.off("data", handler);
-            },
-        };
     }
 
     onClose(listener: () => void): Transport.Listener {
@@ -84,6 +127,9 @@ export class TcpConnectionReactNative implements TcpConnection {
     }
 
     async close(): Promise<void> {
+        this.#ended = true;
+        this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+        this.#waiter = undefined;
         this.#socket.end();
     }
 }

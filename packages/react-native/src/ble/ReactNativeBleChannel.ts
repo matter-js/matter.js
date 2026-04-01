@@ -297,17 +297,13 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             logger.debug(`Disconnected from peripheral ${peripheral.id}: ${error}`);
             this.connected = false;
             this.disconnectSubscription.remove();
-<<<<<<< HEAD
-            this.btpSession.close().catch(error => {
-                logger.debug(`Error closing BTP session on disconnect`, error);
-            });
-=======
             this.#terminateIterator();
             for (const listener of this.#closeListeners) {
                 listener();
             }
-            void this.btpSession.close();
->>>>>>> 1f92233a4 (Restructure transport abstractions: semantic naming and ConnectedChannel)
+            this.btpSession.close().catch(error => {
+                logger.debug(`Error closing BTP session on disconnect`, error);
+            });
         });
     }
 

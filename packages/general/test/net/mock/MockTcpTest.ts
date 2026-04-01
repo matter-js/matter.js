@@ -129,14 +129,14 @@ describe("MockTcpListener", () => {
 
         // Client -> Server
         const serverReceived: Bytes[] = [];
-        serverSocket!.onData(data => serverReceived.push(data));
+        serverSocket!.onData!(data => serverReceived.push(data));
         await clientSocket.send(Bytes.fromHex("cafe"));
         expect(serverReceived).length(1);
         expect(Bytes.toHex(serverReceived[0])).equals("cafe");
 
         // Server -> Client
         const clientReceived: Bytes[] = [];
-        clientSocket.onData(data => clientReceived.push(data));
+        clientSocket.onData!(data => clientReceived.push(data));
         await serverSocket!.send(Bytes.fromHex("babe"));
         expect(clientReceived).length(1);
         expect(Bytes.toHex(clientReceived[0])).equals("babe");

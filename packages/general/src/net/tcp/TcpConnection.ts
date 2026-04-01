@@ -31,9 +31,12 @@ export interface TcpListenerOptions {
 
 /**
  * Platform-agnostic TCP client socket abstraction.
- * Wraps a connected TCP socket with matter.js-compatible event handling.
+ *
+ * Incoming data is delivered as an async iterable of raw byte chunks.
+ * Backpressure is built in: the platform should pause the underlying socket
+ * when the consumer is not pulling, letting the OS buffer manage flow control.
  */
-export interface TcpConnection {
+export interface TcpConnection extends AsyncIterable<Bytes> {
     readonly remoteAddress: string;
     readonly remotePort: number;
     readonly localPort: number;
@@ -41,8 +44,11 @@ export interface TcpConnection {
     /** Send data over the TCP connection. */
     send(data: Bytes): Promise<void>;
 
-    /** Register a listener for incoming data chunks. */
-    onData(listener: (data: Bytes) => void): Transport.Listener;
+    /**
+     * Register a listener for incoming data chunks.
+     * @deprecated Prefer async iteration (`for await (const chunk of connection) { ... }`) for backpressure.
+     */
+    onData?(listener: (data: Bytes) => void): Transport.Listener;
 
     /** Register a listener for connection close. */
     onClose(listener: () => void): Transport.Listener;

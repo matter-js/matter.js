@@ -28,6 +28,12 @@ export class NodeJsTcpConnection implements TcpConnection {
     readonly localPort: number;
 
     readonly #socket: Socket;
+    #ended = false;
+
+    /** Queued chunks waiting for the async iterator to consume. */
+    #chunks = new Array<Uint8Array>();
+    /** Resolver for a pending iterator next() call waiting for data. */
+    #waiter?: (value: IteratorResult<Bytes>) => void;
 
     constructor(socket: Socket) {
         this.#socket = socket;
@@ -38,6 +44,74 @@ export class NodeJsTcpConnection implements TcpConnection {
         this.remoteAddress = socket.remoteAddress ?? "";
         this.remotePort = socket.remotePort ?? 0;
         this.localPort = socket.localPort ?? 0;
+
+        // Start paused — data only flows when the async iterator pulls
+        socket.pause();
+
+        socket.on("data", (data: Buffer) => {
+            const chunk = new Uint8Array(data);
+            if (this.#waiter) {
+                const resolve = this.#waiter;
+                this.#waiter = undefined;
+                resolve({ value: chunk, done: false });
+            } else {
+                this.#chunks.push(chunk);
+                // Pause until consumer drains the queue
+                socket.pause();
+            }
+        });
+
+        socket.on("close", () => {
+            this.#ended = true;
+            this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#waiter = undefined;
+        });
+
+        socket.on("error", (_error: Error) => {
+            this.#ended = true;
+            this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#waiter = undefined;
+        });
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#chunks.length > 0) {
+                    const chunk = this.#chunks.shift()!;
+                    if (this.#chunks.length === 0) {
+                        // Queue drained — resume the socket for more data
+                        this.#socket.resume();
+                    }
+                    return Promise.resolve({ value: chunk, done: false });
+                }
+
+                if (this.#ended) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+
+                // Resume socket and wait for next chunk
+                this.#socket.resume();
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#waiter = resolve;
+                });
+            },
+        };
+    }
+
+    /** @deprecated Prefer async iteration. */
+    onData(listener: (data: Bytes) => void): Transport.Listener {
+        const handler = (data: Buffer) => {
+            listener(new Uint8Array(data));
+        };
+        this.#socket.on("data", handler);
+        // Resume socket since the caller wants callback-based flow
+        this.#socket.resume();
+        return {
+            close: async () => {
+                this.#socket.removeListener("data", handler);
+            },
+        };
     }
 
     send(data: Bytes): Promise<void> {
@@ -50,18 +124,6 @@ export class NodeJsTcpConnection implements TcpConnection {
                 }
             });
         });
-    }
-
-    onData(listener: (data: Bytes) => void): Transport.Listener {
-        const handler = (data: Buffer) => {
-            listener(new Uint8Array(data));
-        };
-        this.#socket.on("data", handler);
-        return {
-            close: async () => {
-                this.#socket.removeListener("data", handler);
-            },
-        };
     }
 
     onClose(listener: () => void): Transport.Listener {
@@ -90,13 +152,16 @@ export class NodeJsTcpConnection implements TcpConnection {
             return;
         }
 
+        this.#ended = true;
+        this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+        this.#waiter = undefined;
+
         const closed = new Promise<void>(resolve => {
             this.#socket.once("close", () => resolve());
             this.#socket.end();
         });
 
         await withTimeout(TCP_CLOSE_TIMEOUT, closed, () => {
-            // Graceful close did not complete in time — force destroy
             this.#socket.destroy();
         });
     }

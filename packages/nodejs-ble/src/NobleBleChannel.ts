@@ -599,18 +599,14 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         peripheral.once("disconnect", () => {
             logger.debug(`Disconnected from peripheral ${peripheral.address}. Closing BTP session`);
             this.#connected = false;
-<<<<<<< HEAD
             this.#cleanupDataListener();
-            this.btpSession.close().catch(error => {
-                logger.debug(`Peripheral ${peripheral.address}: Error closing BTP session on disconnect`, error);
-            });
-=======
             this.#terminateIterator();
             for (const listener of this.#closeListeners) {
                 listener();
             }
-            void this.btpSession.close();
->>>>>>> 1f92233a4 (Restructure transport abstractions: semantic naming and ConnectedChannel)
+            this.btpSession.close().catch(error => {
+                logger.debug(`Peripheral ${peripheral.address}: Error closing BTP session on disconnect`, error);
+            });
         });
     }
 
@@ -688,11 +684,8 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     }
 
     async close() {
-<<<<<<< HEAD
         this.#cleanupDataListener();
-=======
         this.#terminateIterator();
->>>>>>> 1f92233a4 (Restructure transport abstractions: semantic naming and ConnectedChannel)
         await this.btpSession.close();
         if (this.connected) {
             this.peripheral
