@@ -84,7 +84,7 @@ describe("CADMIN", () => {
             .testFor("CADMIN/1.10")
             .edit(
                 edit.sed(
-                    "s/e.exception.err, _CHIP_TIMEOUT_ERROR,/e.exception.err == _CHIP_TIMEOUT_ERROR or e.exception.err == 72, true,/",
+                    "s/e.exception.err, _CHIP_TIMEOUT_ERROR,/e.exception.err == _CHIP_TIMEOUT_ERROR or e.exception.err == 72, True,/",
                 ),
             ),
     );

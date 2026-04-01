@@ -8,7 +8,6 @@ import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import { CommissioningServer } from "#behavior/system/commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "#behavior/system/product-description/ProductDescriptionServer.js";
 import { AccessControlServer } from "#behaviors/access-control";
-// import { AdministratorCommissioningServer } from "#behaviors/administrator-commissioning";
 import { Endpoint } from "#endpoint/Endpoint.js";
 import type { Node } from "#node/Node.js";
 import {
@@ -44,7 +43,6 @@ import {
     ValidationError,
     VendorId,
 } from "@matter/types";
-// import { AdministratorCommissioning } from "@matter/types/clusters/administrator-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OperationalCredentialsBehavior } from "./OperationalCredentialsBehavior.js";
 import { VendorIdVerification } from "./VendorIdVerification.js";
@@ -409,23 +407,8 @@ export class OperationalCredentialsServer extends OperationalCredentialsBase {
         // we leave the transaction open it will cause deadlock
         await this.context.transaction.rollback();
 
-        // TODO Spec 1.5: RevokeCommissioning SHOULD be invoked before and after RemoveFabric
-        // Disabled for now — as of 1.5.1 release, certification tests are not yet adjusted for this
-        // const adminCommissioning = this.agent.get(AdministratorCommissioningServer);
-        // if (
-        //     adminCommissioning.state.windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen
-        // ) {
-        //     await adminCommissioning.revokeCommissioning();
-        // }
-
         await fabric.leave(this.context.exchange);
         // The state is updated on removal via commissionedFabricChanged event, see constructor
-
-        // if (
-        //     adminCommissioning.state.windowStatus !== AdministratorCommissioning.CommissioningWindowStatus.WindowNotOpen
-        // ) {
-        //     await adminCommissioning.revokeCommissioning();
-        // }
 
         return {
             statusCode: OperationalCredentials.NodeOperationalCertStatus.Ok,
