@@ -187,7 +187,7 @@ export function normalizeAttributeStatus(
             throw new UnexpectedDataError(`Invalid attribute path ${endpointId}/${clusterId}/${attributeId}`);
         }
         const clusterModel = Matter.clusters(clusterId);
-        const attributeModel = clusterModel?.attributes(attributeId);
+        const attributeModel = clusterModel?.attributes(attributeId) ?? Matter.attributes(attributeId);
         if (attributeModel === undefined) {
             result.push({
                 path: {
@@ -232,7 +232,7 @@ export function normalizeAndDecodeAttributeData(
         }
         try {
             const clusterModel = Matter.clusters(clusterId);
-            const attributeModel = clusterModel?.attributes(attributeId);
+            const attributeModel = clusterModel?.attributes(attributeId) ?? Matter.attributes(attributeId);
             if (attributeModel === undefined) {
                 const attributeName = `Unknown (${Diagnostic.hex(attributeId)})`;
                 const value = decodeUnknownAttributeValue(values);
