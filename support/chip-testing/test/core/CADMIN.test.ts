@@ -79,7 +79,15 @@ describe("CADMIN", () => {
     // test (see equivalent in Discovery.test.ts)
     before(() => chip.testFor("CADMIN/1.22").edit(edit.sed("s/timeout=179/timeout=0/")));
 
-    before(() => chip.testFor("CADMIN/1.10").edit(edit.sed("s/_CHIP_TIMEOUT_ERROR = 50/_CHIP_TIMEOUT_ERROR = 0x48/")));
+    before(() =>
+        chip
+            .testFor("CADMIN/1.10")
+            .edit(
+                edit.sed(
+                    "s/e.exception.err, _CHIP_TIMEOUT_ERROR,/e.exception.err == _CHIP_TIMEOUT_ERROR || e.exception.err == 72, true,/",
+                ),
+            ),
+    );
 
     chip("CADMIN/*").exclude(
         // Handled below
