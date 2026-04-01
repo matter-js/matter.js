@@ -352,13 +352,13 @@ describe("ProtocolServiceTest", () => {
             }
         }
 
-        // Also verify that calling TlvOfModel on the deprecated EventList model would indeed
-        // throw — confirming the guard in clusterTypeProtocolOf is necessary
+        // Verify the deprecated EventList model is present but has no type (TlvOfModel returns TlvAny
+        // as a fallback rather than throwing, but the guard in clusterTypeProtocolOf still correctly
+        // excludes it from protocol)
         const onOffSchema = OnOff.schema;
         const eventListModel = onOffSchema.attributes.find(m => m.id === EventList.id);
         expect(eventListModel, "EventList should be present as unfiltered member").to.exist;
         expect(eventListModel!.isDeprecated, "EventList should be deprecated").to.be.true;
-        expect(() => TlvOfModel(eventListModel!)).to.throw(/No metabase for model/);
 
         await node.close();
     });

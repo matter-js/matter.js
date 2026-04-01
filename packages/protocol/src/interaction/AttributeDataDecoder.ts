@@ -301,6 +301,11 @@ export function decodeAttributeValueWithSchema<T>(
         return defaultValue;
     }
 
+    // Schema is TlvAny (e.g. unknown/untyped attributes) — delegate to the unknown decoder which handles chunked lists
+    if ((schema as TlvSchema<unknown>) === TlvAny) {
+        return decodeUnknownAttributeValue(values) as T;
+    }
+
     // We got multiple values, so assume duplicates of the same attribute
     if (schema instanceof ArraySchema) {
         return decodeListAttributeValueWithSchema<T>(schema, values, defaultValue as T[]) as T;

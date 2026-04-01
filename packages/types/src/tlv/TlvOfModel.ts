@@ -161,6 +161,11 @@ const NumberMapping: Record<string, TlvSchema<unknown>> = {
 function generateTlv(model: ClusterModel | ValueModel): TlvSchema<unknown> {
     const metatype = model.effectiveMetatype;
 
+    // No type information (e.g. unknown attributes on custom clusters) — accept any TLV
+    if (metatype === undefined && model instanceof ValueModel) {
+        return TlvAny;
+    }
+
     // Structs can be ClusterModel or ValueModel; handle separately since they don't require metabase
     if (metatype === Metatype.object) {
         if (!(model instanceof ValueModel)) {
