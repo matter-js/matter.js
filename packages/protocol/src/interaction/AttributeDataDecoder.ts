@@ -187,7 +187,7 @@ export function normalizeAttributeStatus(
             throw new UnexpectedDataError(`Invalid attribute path ${endpointId}/${clusterId}/${attributeId}`);
         }
         const clusterModel = Matter.clusters(clusterId);
-        const attributeModel = clusterModel?.attributes(attributeId);
+        const attributeModel = clusterModel?.attributes(attributeId) ?? Matter.attributes(attributeId);
         if (attributeModel === undefined) {
             result.push({
                 path: {
@@ -232,7 +232,7 @@ export function normalizeAndDecodeAttributeData(
         }
         try {
             const clusterModel = Matter.clusters(clusterId);
-            const attributeModel = clusterModel?.attributes(attributeId);
+            const attributeModel = clusterModel?.attributes(attributeId) ?? Matter.attributes(attributeId);
             if (attributeModel === undefined) {
                 const attributeName = `Unknown (${Diagnostic.hex(attributeId)})`;
                 const value = decodeUnknownAttributeValue(values);
@@ -299,6 +299,11 @@ export function decodeAttributeValueWithSchema<T>(
     // No values, so use default value if available
     if (!values.length) {
         return defaultValue;
+    }
+
+    // Schema is TlvAny (e.g. unknown/untyped attributes) — delegate to the unknown decoder which handles chunked lists
+    if ((schema as TlvSchema<unknown>) === TlvAny) {
+        return decodeUnknownAttributeValue(values) as T;
     }
 
     // We got multiple values, so assume duplicates of the same attribute
