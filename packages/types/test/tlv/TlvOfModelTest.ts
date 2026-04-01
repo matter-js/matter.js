@@ -39,6 +39,18 @@ describe("TlvOfModel", () => {
         });
     });
 
+    describe("struct with feature-conditional fields", () => {
+        it("round-trips CumulativeEnergyResetStruct", () => {
+            const eem = Matter.clusters("ElectricalEnergyMeasurement")!;
+            const cumulativeEnergyReset = eem.attributes("CumulativeEnergyReset")!;
+            const value = {
+                importedResetTimestamp: MATTER_EPOCH_OFFSET_S + 1000,
+                exportedResetTimestamp: MATTER_EPOCH_OFFSET_S + 2000,
+            };
+            expect(roundTrip(cumulativeEnergyReset, value)).deep.equal(value);
+        });
+    });
+
     describe("command round-trip", () => {
         it("preserves epoch-us fields in KeySetWrite", () => {
             const keySetWrite = grpKeyMgmt.commands("KeySetWrite")!;

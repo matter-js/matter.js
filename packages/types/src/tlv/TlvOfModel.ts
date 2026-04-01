@@ -25,7 +25,6 @@ import {
     ClusterModel,
     commandId,
     devtypeId,
-    ElementTag,
     endpointNo,
     epochS,
     epochUs,
@@ -45,7 +44,6 @@ import {
     percent,
     percent100ths,
     posixMs,
-    Scope,
     subjectId,
     systimeMs,
     systimeUs,
@@ -246,7 +244,10 @@ function generateStruct(model: ClusterModel | ValueModel) {
     // TODO - opportunity to deduplicate struct schemas: when a model extends a defining model without changing
     // conformant fields, we could reuse the TlvSchema from the defining model via definingModel lookup
 
-    const properties = model.conformant.properties;
+    // Use all fields without conformance filtering — struct fields represent physical TLV positions that must always
+    // be present in the TLV schema regardless of conformance (which is a logical constraint, not a wire-format one).
+    // Same reasoning as generateBitmap.
+    const properties = model.properties;
 
     // Events and commands with no fields use TlvNoArguments which accepts both empty structs and void
     if (!properties.length && model instanceof ValueModel) {
@@ -265,7 +266,7 @@ function generateStruct(model: ClusterModel | ValueModel) {
 function generateBitmap(model: ValueModel) {
     // Use all fields without conformance filtering — bitmap entries represent physical bit positions that must always
     // be present in the TLV schema regardless of conformance (which is a logical constraint, not a wire-format one)
-    const fields = Scope(model).membersOf(model, { tags: [ElementTag.Field] });
+    const fields = model.fields;
 
     const entries = fields.map(field => {
         const name = camelize(field.title ?? field.name);
