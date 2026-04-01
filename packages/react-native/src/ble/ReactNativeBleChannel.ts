@@ -30,7 +30,7 @@ const logger = Logger.get("BleChannel");
 
 export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
     #ble: Ble;
-    #openChannels: Map<ServerAddress, Device> = new Map();
+    #openChannels: Map<string, Device> = new Map();
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
 
     constructor(ble: Ble) {
@@ -50,7 +50,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
             this.#ble.scanner as BleScanner
         ).getDiscoveredDevice(address.peripheralAddress);
         const peripheral = blePeripheral.device;
-        if (this.#openChannels.has(address)) {
+        if (this.#openChannels.has(address.peripheralAddress)) {
             throw new BleError(
                 `Peripheral ${address.peripheralAddress} is already connected. Only one connection supported right now.`,
             );
@@ -119,14 +119,24 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
                 continue;
             }
 
-            this.#openChannels.set(address, device);
-            return await ReactNativeBleChannel.create(
-                device,
-                characteristicC1ForWrite,
-                characteristicC2ForSubscribe,
-                this.#onMatterMessageListener,
-                additionalCommissioningRelatedData,
-            );
+            this.#openChannels.set(address.peripheralAddress, device);
+            const disconnectSub = device.onDisconnected(() => {
+                this.#openChannels.delete(address.peripheralAddress);
+                disconnectSub.remove();
+            });
+            try {
+                return await ReactNativeBleChannel.create(
+                    device,
+                    characteristicC1ForWrite,
+                    characteristicC2ForSubscribe,
+                    this.#onMatterMessageListener,
+                    additionalCommissioningRelatedData,
+                );
+            } catch (error) {
+                this.#openChannels.delete(address.peripheralAddress);
+                disconnectSub.remove();
+                throw error;
+            }
         }
 
         throw new BleError(`No Matter service found on peripheral ${device.id}`);
@@ -140,7 +150,9 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
     }
 
     async close() {
-        for (const peripheral of this.#openChannels.values()) {
+        const peripherals = [...this.#openChannels.values()];
+        this.#openChannels.clear();
+        for (const peripheral of peripherals) {
             await peripheral.cancelConnection();
         }
     }
@@ -173,14 +185,18 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             Bytes.toBase64(btpHandshakeRequest),
         );
 
-        const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, async () => {
-            await peripheral.cancelConnection();
+        const btpHandshakeTimeout = Time.getTimer("BLE handshake timeout", MatterBle.BTP_CONN_RSP_TIMEOUT, () => {
+            characteristicSubscribe.remove();
+            peripheral
+                .cancelConnection()
+                .catch(error => logger.debug("Error cancelling connection on handshake timeout", error));
             logger.debug("Handshake Response not received. Disconnected from peripheral");
+            rejecter(new BleError("Handshake Response not received"));
         }).start();
 
         logger.debug("subscribing to C2 characteristic");
 
-        const { promise: handshakeResponseReceivedPromise, resolver } = createPromise<Bytes>();
+        const { promise: handshakeResponseReceivedPromise, resolver, rejecter } = createPromise<Bytes>();
 
         let handshakeReceived = false;
         let btpSession: BtpSessionHandler | undefined = undefined;
@@ -190,6 +206,10 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
                 if (error instanceof ReactNativeBleError && error.errorCode === 2) {
                     // Subscription got removed and received, all good
                     return;
+                }
+                if (!handshakeReceived) {
+                    btpHandshakeTimeout.stop();
+                    rejecter(new BleError(`BLE error during handshake: ${error?.message ?? "unknown"}`));
                 }
                 logger.debug("Error while monitoring C2 characteristic.", error?.message);
                 return;
@@ -224,34 +244,40 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
 
         const handshakeResponse = await handshakeResponseReceivedPromise;
 
-        btpSession = await BtpSessionHandler.createAsCentral(
-            handshakeResponse,
-            // callback to write data to characteristic C1
-            async data => {
-                characteristicC1ForWrite = await characteristicC1ForWrite.writeWithResponse(Bytes.toBase64(data));
-            },
-            // callback to disconnect the BLE connection
-            async () => {
-                // First, unsubscribe from characteristic
-                characteristicSubscribe.remove();
-                // Then, cancel the connection
-                if (await peripheral.isConnected()) {
-                    await peripheral.cancelConnection();
-                }
-                logger.debug("disconnected from peripheral");
-            },
+        try {
+            btpSession = await BtpSessionHandler.createAsCentral(
+                handshakeResponse,
+                // callback to write data to characteristic C1
+                async data => {
+                    characteristicC1ForWrite = await characteristicC1ForWrite.writeWithResponse(Bytes.toBase64(data));
+                },
+                // callback to disconnect the BLE connection
+                async () => {
+                    // First, unsubscribe from characteristic
+                    characteristicSubscribe.remove();
+                    // Then, cancel the connection
+                    if (await peripheral.isConnected()) {
+                        await peripheral.cancelConnection();
+                    }
+                    logger.debug("disconnected from peripheral");
+                },
 
-            // callback to forward decoded and de-assembled Matter messages to ExchangeManager
-            async data => {
-                if (onMatterMessageListener === undefined) {
-                    throw new InternalError(`No listener registered for Matter messages`);
-                }
-                onMatterMessageListener(bleChannel, data);
-            },
-        );
+                // callback to forward decoded and de-assembled Matter messages to ExchangeManager
+                async data => {
+                    if (onMatterMessageListener === undefined) {
+                        throw new InternalError(`No listener registered for Matter messages`);
+                    }
+                    onMatterMessageListener(bleChannel, data);
+                },
+            );
 
-        const bleChannel = new ReactNativeBleChannel(peripheral, btpSession);
-        return bleChannel;
+            const bleChannel = new ReactNativeBleChannel(peripheral, btpSession);
+            return bleChannel;
+        } catch (error) {
+            characteristicSubscribe.remove();
+            btpHandshakeTimeout.stop();
+            throw error;
+        }
     }
 
     private connected = true;
@@ -266,7 +292,9 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             logger.debug(`Disconnected from peripheral ${peripheral.id}: ${error}`);
             this.connected = false;
             this.disconnectSubscription.remove();
-            void this.btpSession.close();
+            this.btpSession.close().catch(error => {
+                logger.debug(`Error closing BTP session on disconnect`, error);
+            });
         });
     }
 
