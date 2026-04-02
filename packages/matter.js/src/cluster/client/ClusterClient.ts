@@ -361,6 +361,7 @@ export function ClusterClient(
                 const unknownModel = new AttributeModel({
                     id: attributeId,
                     name: `unknown_${attributeId}`,
+                    type: "any",
                     access: "RW",
                 });
                 const nsAttr: ClusterType.Attribute = {

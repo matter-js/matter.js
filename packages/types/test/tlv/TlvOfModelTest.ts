@@ -6,7 +6,7 @@
 
 import { MATTER_EPOCH_OFFSET_S, MATTER_EPOCH_OFFSET_US } from "#tlv/TlvNumber.js";
 import { TlvOfModel } from "#tlv/TlvOfModel.js";
-import { ClusterModel, Matter, ValueModel } from "@matter/model";
+import { AttributeModel, ClusterModel, Matter, ValueModel } from "@matter/model";
 
 const grpKeyMgmt = Matter.clusters("GroupKeyManagement")!;
 const groupKeySetStruct = grpKeyMgmt.datatypes("GroupKeySetStruct")!;
@@ -36,6 +36,25 @@ describe("TlvOfModel", () => {
             const decoded = roundTrip(groupKeySetStruct, groupKeySet()) as ReturnType<typeof groupKeySet>;
             expect(decoded.epochStartTime0).equal(MATTER_EPOCH_OFFSET_US + 1n);
             expect(decoded.epochStartTime1).equal(null);
+        });
+    });
+
+    describe("struct with feature-conditional fields", () => {
+        it("round-trips CumulativeEnergyResetStruct", () => {
+            const eem = Matter.clusters("ElectricalEnergyMeasurement")!;
+            const cumulativeEnergyReset = eem.attributes("CumulativeEnergyReset")!;
+            const value = {
+                importedResetTimestamp: MATTER_EPOCH_OFFSET_S + 1000,
+                exportedResetTimestamp: MATTER_EPOCH_OFFSET_S + 2000,
+            };
+            expect(roundTrip(cumulativeEnergyReset, value)).deep.equal(value);
+        });
+    });
+
+    describe("unknown attribute", () => {
+        it("returns TlvAny for attribute typed as any", () => {
+            const model = new AttributeModel({ id: 1, name: "unknown_1", type: "any", access: "RW" });
+            expect(() => TlvOfModel(model)).not.throw();
         });
     });
 

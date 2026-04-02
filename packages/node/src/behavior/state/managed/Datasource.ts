@@ -269,6 +269,7 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
     events: Datasource.Events;
     sessions?: Map<ValueSupervisor.Session, SessionContext>;
     featuresKey?: string;
+    featuresKeyPersisted?: boolean;
     persistentFields: Set<string>;
     supervisionConfig?: GlobalConfig;
 
@@ -296,11 +297,15 @@ class DatasourceImpl implements Datasource, Datasource.ExternallyMutableStore.Co
         if (options.supervisor.featureMap.children.length) {
             this.featuresKey = [...options.supervisor.supportedFeatures].join(",");
             const storedFeaturesKey = storedValues?.[FEATURES_KEY];
-            if (storedFeaturesKey !== undefined && storedFeaturesKey !== this.featuresKey) {
-                logger.warn(
-                    `Ignoring persisted values for ${options.location.path} because features changed from "${storedFeaturesKey}" to "${this.featuresKey}"`,
-                );
-                storedValues = undefined;
+            if (storedFeaturesKey !== undefined) {
+                if (storedFeaturesKey !== this.featuresKey) {
+                    logger.warn(
+                        `Ignoring persisted values for ${options.location.path} because features changed from "${storedFeaturesKey}" to "${this.featuresKey}"`,
+                    );
+                    storedValues = undefined;
+                } else {
+                    this.featuresKeyPersisted = true;
+                }
             }
         }
 
@@ -771,8 +776,9 @@ class RootReference implements ValReference<Val.Struct>, Transaction.Participant
             return;
         }
 
-        if (this.#internals.featuresKey !== undefined) {
+        if (this.#internals.featuresKey !== undefined && !this.#internals.featuresKeyPersisted) {
             persistent[FEATURES_KEY] = this.#internals.featuresKey;
+            this.#internals.featuresKeyPersisted = true;
         }
 
         return this.#internals.store?.set(this.#session.transaction, persistent);

@@ -69,6 +69,15 @@ export class ClusterModel
         return this.scope.membersOf(this, { tags: [ElementTag.Field] }) as ModelIndex<FieldModel>;
     }
 
+    /**
+     * Attributes and fields, for treating a cluster as a struct.
+     */
+    get properties() {
+        return this.scope.membersOf(this, {
+            tags: [ElementTag.Attribute, ElementTag.Field],
+        }) as ModelIndex<AttributeModel | FieldModel>;
+    }
+
     get conformant() {
         return new ClusterModel.Conformant(this);
     }
