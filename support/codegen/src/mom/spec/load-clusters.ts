@@ -8,7 +8,7 @@ import { InternalError, Logger } from "#general";
 import { Specification } from "#model";
 import { camelize } from "../../util/string.js";
 import { ScanDirective, repairIncomingHtml } from "./repairs/cluster-html-repairs.js";
-import { scanDocument } from "./scan-document.js";
+import { scanSpec } from "./scan-spec.js";
 import { ClusterReference, GlobalReference, HtmlReference } from "./spec-types.js";
 
 const logger = Logger.get("load-clusters");
@@ -54,7 +54,7 @@ export function* loadClusters(clusters: HtmlReference): Generator<ClusterReferen
     // A stack of functions that ingest subsections
     const collectors = Array<SubsectionCollector>();
 
-    for (const subref of scanDocument(clusters)) {
+    for (const subref of scanSpec(clusters)) {
         if (definition) {
             const directive = repairIncomingHtml(subref, definition);
 

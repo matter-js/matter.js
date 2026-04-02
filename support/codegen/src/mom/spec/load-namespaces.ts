@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { scanDocument } from "./scan-document.js";
+import { scanSpec } from "./scan-spec.js";
 import { HtmlReference } from "./spec-types.js";
 
 export function* loadNamespaces(namespaces: HtmlReference) {
@@ -17,7 +17,7 @@ export function* loadNamespaces(namespaces: HtmlReference) {
         }
     }
 
-    for (const section of scanDocument(namespaces)) {
+    for (const section of scanSpec(namespaces)) {
         const depth = section.xref.section.split(".").length;
         switch (depth) {
             case 1:

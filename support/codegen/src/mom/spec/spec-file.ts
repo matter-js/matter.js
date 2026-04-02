@@ -13,6 +13,7 @@ import { DEFAULT_MATTER_VERSION, IndexDetail, identifyDocument } from "./doc-uti
 import { loadClusters } from "./load-clusters.js";
 import { loadDevices } from "./load-devices.js";
 import { loadNamespaces } from "./load-namespaces.js";
+import { discoverMarkdownFiles, identifyMarkdownDocument, isMarkdownSpecPath } from "./md/load-markdown-files.js";
 import { translateCluster } from "./translate-cluster.js";
 import { translateDevice } from "./translate-device.js";
 import { translateGlobal } from "./translate-global.js";
@@ -27,9 +28,17 @@ export interface LoadOptions {
 }
 export class SpecFile {
     #index: IndexDetail;
+    #markdownContent?: string;
 
-    constructor(path: string) {
-        this.#index = identifyDocument(path);
+    constructor(path: string);
+    constructor(index: IndexDetail, markdownContent: string);
+    constructor(pathOrIndex: string | IndexDetail, markdownContent?: string) {
+        if (typeof pathOrIndex === "string") {
+            this.#index = identifyDocument(pathOrIndex);
+        } else {
+            this.#index = pathOrIndex;
+            this.#markdownContent = markdownContent;
+        }
     }
 
     get path() {
@@ -40,12 +49,20 @@ export class SpecFile {
         return this.#index.version;
     }
 
+    get #ref() {
+        const ref = this.#index.ref;
+        if (this.#markdownContent !== undefined) {
+            return { ...ref, markdownContent: this.#markdownContent };
+        }
+        return ref;
+    }
+
     ingestClusters(target: IntermediateModel) {
         if (!this.#index.hasClusters) {
             return;
         }
 
-        for (const ref of loadClusters(this.#index.ref)) {
+        for (const ref of loadClusters(this.#ref)) {
             logger.info(`translate ${ref.name} (${ref.xref.document} § ${ref.xref.section})`);
             Logger.nest(() => {
                 if (ref.type === "cluster") {
@@ -62,7 +79,7 @@ export class SpecFile {
             return;
         }
 
-        for (const deviceRef of loadDevices(this.#index.ref)) {
+        for (const deviceRef of loadDevices(this.#ref)) {
             logger.info(`translate ${deviceRef.name} (${deviceRef.xref.document} § ${deviceRef.xref.section})`);
             Logger.nest(() => target.add(...translateDevice(deviceRef)));
         }
@@ -73,7 +90,7 @@ export class SpecFile {
             return;
         }
 
-        for (const nsRef of loadNamespaces(this.#index.ref)) {
+        for (const nsRef of loadNamespaces(this.#ref)) {
             logger.info(`translate ${nsRef.name} (${nsRef.xref.document} § ${nsRef.xref.section})`);
             Logger.nest(() => target.add(...translateNamespace(nsRef)));
         }
@@ -84,6 +101,12 @@ export class SpecFile {
             options.path ??
             process.env.MATTER_SPECIFICATION_PATH ??
             resolve(homedir(), "Dropbox", "matter", options.version ?? DEFAULT_MATTER_VERSION);
+
+        // Check for markdown spec directory first
+        if (isMarkdownSpecPath(path)) {
+            yield* SpecFile.loadMarkdown(path, options);
+            return;
+        }
 
         let indices: string[];
 
@@ -122,6 +145,30 @@ export class SpecFile {
             if (options.document === undefined || file.#index.ref.xref.document === options.document) {
                 loaded.push(file);
             }
+        }
+
+        loaded.sort(
+            (a, b) => (docOrder[a.#index.ref.xref.document] ?? 99) - (docOrder[b.#index.ref.xref.document] ?? 99),
+        );
+
+        yield* loaded;
+    }
+
+    private static *loadMarkdown(basePath: string, options: LoadOptions) {
+        const docOrder: Record<string, number> = { cluster: 0, core: 1, device: 2, namespace: 3 };
+        const loaded: SpecFile[] = [];
+
+        for (const mdDoc of discoverMarkdownFiles(basePath, options.document)) {
+            const index = identifyMarkdownDocument(mdDoc.indexPath);
+            const file = new SpecFile(index, mdDoc.content);
+
+            if (options.document === undefined || file.#index.ref.xref.document === options.document) {
+                loaded.push(file);
+            }
+        }
+
+        if (!loaded.length) {
+            throw new Error(`No markdown spec documents found in ${basePath}`);
         }
 
         loaded.sort(

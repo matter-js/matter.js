@@ -203,15 +203,17 @@ function installstatusCodes(ref: GlobalReference) {
         throw new InternalError("Status codes encountered but status type was not");
     }
 
-    // Remove obselete names from the "value" column
+    // Remove obsolete names from the "value" column.  In HTML specs the name cell has <p> wrappers;
+    // in markdown HTML tables the primary name may be in a <strong> with the obsolete name as a
+    // following text node
     const table = ref.tables?.[0];
     if (table) {
         for (const record of table.rows) {
             const name = record.value;
             if (name) {
-                const paragraph = name.querySelector("p");
-                while (paragraph?.nextSibling) {
-                    paragraph.nextSibling.remove();
+                const anchor = name.querySelector("p") ?? name.querySelector("strong");
+                while (anchor?.nextSibling) {
+                    anchor.nextSibling.remove();
                 }
             }
         }

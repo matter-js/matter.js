@@ -324,7 +324,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
         const commands = translateRecordsToMatter("command", records, r => {
             let direction: CommandElement.Direction | undefined;
 
-            if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i)) {
+            if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i) || r.direction?.match(/client\s*<=\s*server/i)) {
                 direction = CommandElement.Direction.Response;
             } else if (r.direction?.match(/client.*server/i)) {
                 direction = CommandElement.Direction.Request;

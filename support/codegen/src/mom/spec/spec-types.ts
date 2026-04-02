@@ -35,6 +35,7 @@ export interface HtmlReference {
     prose?: HTMLElement[];
     detailSection?: string;
     details?: HtmlReference[];
+    markdownContent?: string;
 }
 
 /**

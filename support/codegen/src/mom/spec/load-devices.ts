@@ -5,7 +5,7 @@
  */
 
 import { Logger } from "#general";
-import { scanDocument } from "./scan-document.js";
+import { scanSpec } from "./scan-spec.js";
 import { DeviceReference, HtmlReference } from "./spec-types.js";
 
 const logger = Logger.get("load-devices");
@@ -103,7 +103,7 @@ export function* loadDevices(devices: HtmlReference) {
         }
     }
 
-    for (const section of scanDocument(devices)) {
+    for (const section of scanSpec(devices)) {
         const depth = section.xref.section.split(".").length;
         switch (depth) {
             case 1:

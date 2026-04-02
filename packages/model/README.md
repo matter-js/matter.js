@@ -93,6 +93,23 @@ cd matter.js/support/codegen
 npm run generate-spec
 ```
 
+The generator supports two input formats:
+
+- **HTML** — the original format, generated from the same Asciidoctor sources as the published PDFs
+- **Markdown** — a newer machine-generated markdown version of the specification
+
+The format is detected automatically from the `--path` argument. A directory containing subdirectories
+with `_index.md` files (`main/`, `appclusters/`, `device_library/`, `standard_namespaces/`) is treated
+as a markdown spec tree. A directory containing `.html` files is treated as the HTML spec. Examples:
+
+```sh
+npm run generate-spec -- --path ~/matter-spec/1.5.1/html
+npm run generate-spec -- --path ~/matter-spec/1.5.1/markdown
+```
+
+You can also set the `MATTER_SPECIFICATION_PATH` environment variable or omit `--path` to use the
+default location (`~/Dropbox/matter/<version>`).
+
 Details we extract from the specification include standard element names, types and detailed documentation including
 cross references to specification documents. We also extract DSL-based definitions of Matter concepts such as
 conformance, constraints, etc.
