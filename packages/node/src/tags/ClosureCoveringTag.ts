@@ -24,7 +24,7 @@ export const ClosureCoveringTag = SemanticNamespace({
         Blind: { id: 0x0, label: "Blind" },
 
         /**
-         * A protective covering, typically made of fabric or metal, that extends from a building’s exterior to provide
+         * A protective covering, typically made of fabric or metal, that extends from a building's exterior to provide
          * shade or shelter from the elements.
          */
         Awning: { id: 0x1, label: "Awning" },
