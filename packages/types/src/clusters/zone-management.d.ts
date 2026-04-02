@@ -275,7 +275,7 @@ export declare namespace ZoneManagement {
         /**
          * This event shall be generated when either the TriggerDetectedDuration value is exceeded by the
          * TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger value, as
-         * described in Section 2.14.5.9, “ZoneTriggerControlStruct”.
+         * described in Section 2.14.5.9, "ZoneTriggerControlStruct".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
          */
@@ -299,7 +299,7 @@ export declare namespace ZoneManagement {
         /**
          * This event shall be generated when either the TriggerDetectedDuration value is exceeded by the
          * TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger value, as
-         * described in Section 2.14.5.9, “ZoneTriggerControlStruct”.
+         * described in Section 2.14.5.9, "ZoneTriggerControlStruct".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
          */
@@ -420,9 +420,13 @@ export declare namespace ZoneManagement {
      *
      * This places the Node in a triggered state, at which point the Node shall internally track two values.
      *
-     * The time in seconds since the initial triggering activity.
+     * ### TimeSinceInitialTrigger
      *
-     * Initially set to the InitialDuration value.
+     * : The time in seconds since the initial triggering activity.
+     *
+     * ### TriggerDetectedDuration
+     *
+     * : Initially set to the InitialDuration value.
      *
      * If the TriggerDetectedDuration value is exceeded by the TimeSinceInitialTrigger, the Node shall generate a
      * ZoneStopped event with the reason parameter set to ActionStopped.
@@ -646,7 +650,7 @@ export declare namespace ZoneManagement {
     /**
      * This event shall be generated when either the TriggerDetectedDuration value is exceeded by the
      * TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger value, as
-     * described in Section 2.14.5.9, “ZoneTriggerControlStruct”.
+     * described in Section 2.14.5.9, "ZoneTriggerControlStruct".
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.14.8.2
      */
@@ -722,7 +726,7 @@ export declare namespace ZoneManagement {
          * Indicates a Manufacturer defined Zone.
          *
          * This value indicates the Zone is built-in and provided by the manufacturer of the device. Zones of this type
-         * can’t be created or modified using commands in this cluster.
+         * can't be created or modified using commands in this cluster.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.14.5.3.1
          */

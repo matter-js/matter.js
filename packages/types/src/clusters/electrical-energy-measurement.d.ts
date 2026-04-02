@@ -369,8 +369,8 @@ export declare namespace ElectricalEnergyMeasurement {
          * CumulativeEnergy (CUME)
          *
          * The feature indicates the server is capable of measuring how much energy has been imported or exported by the
-         * server over the device’s lifetime. This measurement may start from when a device’s firmware is updated to
-         * include this feature, when a device’s firmware is updated to correct measurement errors, or when a device is
+         * server over the device's lifetime. This measurement may start from when a device's firmware is updated to
+         * include this feature, when a device's firmware is updated to correct measurement errors, or when a device is
          * factory reset.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.12.4.3

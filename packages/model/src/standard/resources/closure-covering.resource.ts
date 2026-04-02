@@ -20,7 +20,7 @@ Resource.add({
         },
         {
             tag: "semanticTag", name: "Awning",
-            description: "A protective covering, typically made of fabric or metal, that extends from a building’s exterior to provide shade or shelter from the elements."
+            description: "A protective covering, typically made of fabric or metal, that extends from a building's exterior to provide shade or shelter from the elements."
         },
         {
             tag: "semanticTag", name: "Shutter",

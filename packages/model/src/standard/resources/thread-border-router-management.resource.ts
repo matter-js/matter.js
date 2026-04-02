@@ -26,7 +26,7 @@ Resource.add({
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> This feature flag can be used to protect an already-configured network from accidental " +
+                    "> NOTE: This feature flag can be used to protect an already-configured network from accidental " +
                     "configuration change, e.g. when the Thread Border Router serves non-Matter devices that do not " +
                     "support PAN change for an implementation-specific reason."
             }]
@@ -43,7 +43,7 @@ Resource.add({
         {
             tag: "attribute", name: "BorderAgentId", xref: "cluster§10.3.5.2",
             details: "Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is " +
-                "manufacturer-specific, and it is created and managed by the border router’s implementation."
+                "manufacturer-specific, and it is created and managed by the border router's implementation."
         },
 
         {
@@ -134,7 +134,8 @@ Resource.add({
 
                 {
                     tag: "field", name: "Breadcrumb", xref: "cluster§10.3.6.4.2",
-                    details: "See Breadcrumb Attribute section of General Commissioning Cluster in [MatterCore] for usage."
+                    details: "See Breadcrumb Attribute section of General Commissioning Cluster in [[MatterCore]](#ref_MatterCore) " +
+                        "for usage."
                 }
             ]
         },

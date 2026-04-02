@@ -14,7 +14,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
 /**
  * Definitions for the PowerSourceConfiguration cluster.
  *
- * This cluster is used to describe the configuration and capabilities of a Device’s power system. It provides an
+ * This cluster is used to describe the configuration and capabilities of a Device's power system. It provides an
  * ordering overview as well as linking to the one or more endpoints each supporting a Power Source cluster.
  *
  * @see {@link MatterSpecification.v151.Core} § 11.6

@@ -15,7 +15,7 @@ import type { Bytes, MaybePromise } from "@matter/general";
  * Definitions for the ThreadNetworkDirectory cluster.
  *
  * This cluster stores a list of Thread networks (including the credentials required to access each network), as well as
- * a designation of the user’s preferred network, to facilitate the sharing of Thread networks across fabrics.
+ * a designation of the user's preferred network, to facilitate the sharing of Thread networks across fabrics.
  *
  * @see {@link MatterSpecification.v151.Cluster} § 10.4
  */
@@ -154,8 +154,8 @@ export declare namespace ThreadNetworkDirectory {
          * Adds an entry to the ThreadNetworks attribute with the specified Thread Operational Dataset.
          *
          * If there is an existing entry with the Extended PAN ID then the Thread Operational Dataset for that entry is
-         * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, …) of an existing
-         * entry with a given Extended PAN ID can be made using this command.
+         * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, ...) of an
+         * existing entry with a given Extended PAN ID can be made using this command.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1
          */
@@ -224,7 +224,7 @@ export declare namespace ThreadNetworkDirectory {
      * Adds an entry to the ThreadNetworks attribute with the specified Thread Operational Dataset.
      *
      * If there is an existing entry with the Extended PAN ID then the Thread Operational Dataset for that entry is
-     * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, …) of an existing
+     * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, ...) of an existing
      * entry with a given Extended PAN ID can be made using this command.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1

@@ -17,6 +17,8 @@ import type { ClusterModel } from "@matter/model";
  * automatic reporting of pump status information. Note that control of pump speed is not included – speed is controlled
  * by the On/Off and Level Control clusters.
  *
+ * !pump devices
+ *
  * @see {@link MatterSpecification.v151.Cluster} § 4.2
  */
 export declare namespace PumpConfigurationAndControl {
@@ -136,6 +138,8 @@ export declare namespace PumpConfigurationAndControl {
          * The actual operating mode of the pump is a result of the setting of the attributes OperationMode, ControlMode
          * and the optional connection of a remote sensor. The operation and control is prioritized as shown in the
          * scheme below:
+         *
+         * !Priority Scheme of Pump Operation and Control.jpg
          *
          * If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is operated.
          *
@@ -573,6 +577,8 @@ export declare namespace PumpConfigurationAndControl {
          * The actual operating mode of the pump is a result of the setting of the attributes OperationMode, ControlMode
          * and the optional connection of a remote sensor. The operation and control is prioritized as shown in the
          * scheme below:
+         *
+         * !Priority Scheme of Pump Operation and Control.jpg
          *
          * If this attribute is Maximum, Minimum or Local, the OperationMode attribute decides how the pump is operated.
          *
@@ -1095,7 +1101,7 @@ export declare namespace PumpConfigurationAndControl {
          *
          * The setpoint is interpreted as a percentage of the range derived of the [MinCompPressure – MaxCompPressure]
          * attributes. The internal setpoint will be lowered (compensated) dependent on the flow in the pump (lower flow
-         * ⇒ lower internal setpoint).
+         * => lower internal setpoint).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.2.6.3.3
          */

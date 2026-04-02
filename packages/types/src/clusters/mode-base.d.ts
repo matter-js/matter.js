@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * a laundry machine.
  *
  * The server allows the client to set a mode on the server. A mode is one of a list of options that may be presented by
- * a client for a user choice, or understood by the client, via the mode’s tags.
+ * a client for a user choice, or understood by the client, via the mode's tags.
  *
  * A mode tag is either a standard tag within a standard category namespace, or a manufacturer specific tag, within the
  * namespace of the vendor ID of the manufacturer.
@@ -97,7 +97,7 @@ export declare namespace ModeBase {
          *
          * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
          * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute (see
-         * Section 1.10.6.4.1, “OnMode with Power Up”).
+         * Section 1.10.6.4.1, "OnMode with Power Up").
          *
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode attribute
          * shall return to its value prior to the restart.
@@ -174,7 +174,7 @@ export declare namespace ModeBase {
          *
          * If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when the
          * server is powered up, except in the case when the OnMode attribute overrides the StartUpMode attribute (see
-         * Section 1.10.6.4.1, “OnMode with Power Up”).
+         * Section 1.10.6.4.1, "OnMode with Power Up").
          *
          * This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode attribute
          * shall return to its value prior to the restart.
@@ -293,7 +293,7 @@ export declare namespace ModeBase {
          *     green leaf.
          *
          *   - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower level of
-         *     audible sound, less likely to disturb the household’s activities.
+         *     audible sound, less likely to disturb the household's activities.
          *
          *   - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also a
          *     Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster).
@@ -317,8 +317,8 @@ export declare namespace ModeBase {
         constructor(values?: Partial<ChangeToModeRequest>);
 
         /**
-         * If the NewMode field doesn’t match the Mode field of any entry of the SupportedModes list, the
-         * ChangeToModeResponse command’s Status field shall indicate UnsupportedMode and the StatusText field shall be
+         * If the NewMode field doesn't match the Mode field of any entry of the SupportedModes list, the
+         * ChangeToModeResponse command's Status field shall indicate UnsupportedMode and the StatusText field shall be
          * included and may be used to indicate the issue, with a human readable string, or include an empty string.
          *
          * If the NewMode field matches the Mode field of one entry of the SupportedModes list, but the device is not
@@ -370,9 +370,9 @@ export declare namespace ModeBase {
 
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
-         * 1.10.8, “Mode Namespace”).
+         * 1.10.8, "Mode Namespace").
          *
-         * This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the Value field.
+         * This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the Value field.
          *
          * The same manufacturer code and mode tag value in separate cluster instances are part of the same namespace
          * and have the same meaning. For example: a manufacturer tag meaning "pinch" can be used both in a cluster
@@ -402,7 +402,7 @@ export declare namespace ModeBase {
         Success = 0,
 
         /**
-         * The value of the NewMode field doesn’t match any entries in the SupportedModes attribute.
+         * The value of the NewMode field doesn't match any entries in the SupportedModes attribute.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1.2
          */

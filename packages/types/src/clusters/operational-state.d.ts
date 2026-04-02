@@ -25,9 +25,9 @@ import type { MaybePromise } from "@matter/general";
  * Actual state transitions are dependent on both the implementation, and the requirements that may additionally be
  * imposed by a derived cluster.
  *
- * An implementation that supports remotely starting its operation can make use of this cluster’s Start command to do
+ * An implementation that supports remotely starting its operation can make use of this cluster's Start command to do
  * so. A device that supports remote pause or stop of its currently selected operation can similarly make use of this
- * cluster’s Pause and Stop commands to do so. The ability to remotely pause or stop is independent of how the operation
+ * cluster's Pause and Stop commands to do so. The ability to remotely pause or stop is independent of how the operation
  * was started (for example, an operation started by using a manual button press can be stopped by using a Stop command
  * if the device supports remotely stopping the operation).
  *
@@ -68,7 +68,7 @@ export declare namespace OperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
@@ -111,7 +111,7 @@ export declare namespace OperationalState {
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
@@ -139,7 +139,7 @@ export declare namespace OperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -166,7 +166,7 @@ export declare namespace OperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
@@ -209,7 +209,7 @@ export declare namespace OperationalState {
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
@@ -237,7 +237,7 @@ export declare namespace OperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -273,7 +273,7 @@ export declare namespace OperationalState {
          *
          * States are defined as Pause-compatible as follows:
          *
-         *   - For states defined in this cluster specification, in Table 3, “Pause Compatibility”.
+         *   - For states defined in this cluster specification, in Table 3, "Pause Compatibility".
          *
          *   - For states defined by derived cluster specifications, in the corresponding specifications.
          *
@@ -359,7 +359,7 @@ export declare namespace OperationalState {
          *
          * States are defined as Resume-compatible as follows:
          *
-         *   - For states defined in this cluster specification, in Table 4, “Resume Compatibility”.
+         *   - For states defined in this cluster specification, in Table 4, "Resume Compatibility".
          *
          *   - For states defined by derived cluster specifications, in the corresponding specifications.
          *

@@ -68,7 +68,7 @@ export declare namespace CommodityPrice {
          * Indicates the current price. If the current price is unknown, or cannot be determined, the value shall be
          * null.
          *
-         * The Description and Components fields shall be omitted in this attribute’s value.
+         * The Description and Components fields shall be omitted in this attribute's value.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.3
          */
@@ -87,9 +87,9 @@ export declare namespace CommodityPrice {
          *
          *   - All entries except the last one shall have a non-null PeriodEnd.
          *
-         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry’s PeriodEnd.
+         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry's PeriodEnd.
          *
-         * The Description and Components fields shall be omitted from CommodityPriceStructs in this attribute’s value.
+         * The Description and Components fields shall be omitted from CommodityPriceStructs in this attribute's value.
          *
          * If the PeriodEnd field is null on the value of the CurrentPrice attribute, then this list shall be empty.
          *
@@ -124,7 +124,7 @@ export declare namespace CommodityPrice {
          * Indicates the current price. If the current price is unknown, or cannot be determined, the value shall be
          * null.
          *
-         * The Description and Components fields shall be omitted in this attribute’s value.
+         * The Description and Components fields shall be omitted in this attribute's value.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.9.6.3
          */
@@ -138,9 +138,9 @@ export declare namespace CommodityPrice {
          *
          *   - All entries except the last one shall have a non-null PeriodEnd.
          *
-         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry’s PeriodEnd.
+         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry's PeriodEnd.
          *
-         * The Description and Components fields shall be omitted from CommodityPriceStructs in this attribute’s value.
+         * The Description and Components fields shall be omitted from CommodityPriceStructs in this attribute's value.
          *
          * If the PeriodEnd field is null on the value of the CurrentPrice attribute, then this list shall be empty.
          *

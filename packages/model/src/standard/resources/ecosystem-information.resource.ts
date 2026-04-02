@@ -15,7 +15,7 @@ Resource.add({
         "represented by a Bridged Node. The Ecosystem Information Cluster presents the view of device name " +
         "and location metadata for presentation by a client of the cluster to a user. This cluster is " +
         "intended to support Fabric Synchronization and be present on an endpoint with the BridgedNode device " +
-        "type listed in the DeviceTypeList of the endpoint’s Descriptor cluster." +
+        "type listed in the DeviceTypeList of the endpoint's Descriptor cluster." +
         "\n" +
         "This augments the Bridged Device Basic Information Cluster in the following ways:" +
         "\n" +
@@ -32,7 +32,7 @@ Resource.add({
         "A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user " +
         "organize and interact with their devices. Some examples may include:" +
         "\n" +
-        "  - Directly organizing and labeling the devices in a client’s user interface." +
+        "  - Directly organizing and labeling the devices in a client's user interface." +
         "\n" +
         "  - Providing hints in the user interface, which can assist the user in organizing and labeling " +
         "their devices." +
@@ -83,7 +83,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "DeviceName", xref: "core§9.17.4.2.1",
-                    details: "This field shall indicate the device’s name, which is provided externally if the user consents. (For " +
+                    details: "This field shall indicate the device's name, which is provided externally if the user consents. (For " +
                         "example, provided by the user in an ecosystem specific interface.)"
                 },
                 {
@@ -102,7 +102,7 @@ Resource.add({
                 {
                     tag: "field", name: "OriginalEndpoint", xref: "core§9.17.4.2.4",
                     details: "This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on the original " +
-                        "device represented by this bridge’s Bridged Node. If this bridge is receiving the device from " +
+                        "device represented by this bridge's Bridged Node. If this bridge is receiving the device from " +
                         "another bridge, then the OriginalEndpoint field value would be the same on both bridges. This field " +
                         "shall be present if the original device is a Matter device. If present, this field shall be set to a " +
                         "valid endpoint on the original device."
@@ -129,10 +129,10 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> If multiple server instances update the UniqueLocationIDs field at the same time, it is possible " +
-                        "one of the updates will be missed. This is considered an acceptable limitation to reduce the " +
-                        "complexity of the design. Since this is meant to be provided from user input, it is unlikely these " +
-                        "signals would be happening at one time."
+                        "> NOTE: If multiple server instances update the UniqueLocationIDs field at the same time, it is " +
+                        "possible one of the updates will be missed. This is considered an acceptable limitation to reduce " +
+                        "the complexity of the design. Since this is meant to be provided from user input, it is unlikely " +
+                        "these signals would be happening at one time."
                 }
             ]
         },
@@ -175,7 +175,7 @@ Resource.add({
                         "provided externally if the user consents. (For example, provided by the user in an ecosystem " +
                         "specific interface.)" +
                         "\n" +
-                        "\"Location\" in this context is typically used by the user’s grouping into rooms, areas or other " +
+                        "\"Location\" in this context is typically used by the user's grouping into rooms, areas or other " +
                         "logical groupings of how devices are used. So a device might be part of multiple such \"Locations\"s."
                 },
 

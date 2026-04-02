@@ -162,7 +162,7 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         * > NOTE: The UniqueID attribute was optional in cluster revisions prior to revision 4.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.13.5.3
          */
@@ -179,7 +179,7 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
          * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
-         * described in Section 9.2.11, “Node Configuration Changes”.
+         * described in Section 9.2.11, "Node Configuration Changes".
          *
          * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
          *
@@ -287,7 +287,7 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The UniqueID attribute was optional in cluster revisions prior to revision 4.
+         * > NOTE: The UniqueID attribute was optional in cluster revisions prior to revision 4.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.13.5.3
          */
@@ -304,7 +304,7 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * If the bridge detects a change on a bridged device, which it deems as a change in the configuration of the
          * bridged device, it shall increase this attribute (and the corresponding attribute on the bridge itself) as
-         * described in Section 9.2.11, “Node Configuration Changes”.
+         * described in Section 9.2.11, "Node Configuration Changes".
          *
          * The ability and the method used to detect such a change on a bridged device is manufacturer specific.
          *
@@ -384,9 +384,9 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the context
-         *   of Bridged Device Basic Information cluster, has no usable fields, but the original Basic Information
-         *   cluster’s field definition is kept for completeness.
+         * > NOTE: The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the
+         *   context of Bridged Device Basic Information cluster, has no usable fields, but the original Basic
+         *   Information cluster's field definition is kept for completeness.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.13.7.1
          */
@@ -439,9 +439,9 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the context
-         *   of Bridged Device Basic Information cluster, has no usable fields, but the original Basic Information
-         *   cluster’s field definition is kept for completeness.
+         * > NOTE: The FabricIndex field has the X conformance, indicating it shall NOT be present. This event, in the
+         *   context of Bridged Device Basic Information cluster, has no usable fields, but the original Basic
+         *   Information cluster's field definition is kept for completeness.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.13.7.1
          */
@@ -529,9 +529,9 @@ export declare namespace BridgedDeviceBasicInformation {
          *
          * > [!NOTE]
          *
-         * > TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The server will wait for
-         *   up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the server will not
-         *   perform any actions.
+         * > NOTE: TimeoutMs is a timeout for the request, NOT the time the device will be awake for. The server will
+         *   wait for up to TimeoutMs for the device. If after TimeoutMs the ICD device does NOT check-in, the server
+         *   will not perform any actions.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.13.6.1.2
          */

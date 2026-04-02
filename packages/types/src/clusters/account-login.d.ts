@@ -93,14 +93,15 @@ export declare namespace AccountLogin {
          * with the Commissionee.
          *
          * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the
-         * client’s commissionable node advertisement (see Rotating Device Identifier section in [MatterCore]) encoded
-         * as an octet string where the octets of the Rotating Device Identifier are encoded as 2-character sequences by
-         * representing each octet’s value as a 2-digit hexadecimal number, using uppercase letters.
+         * client's commissionable node advertisement (see Rotating Device Identifier section in
+         * [[MatterCore]](#ref_MatterCore)) encoded as an octet string where the octets of the Rotating Device
+         * Identifier are encoded as 2-character sequences by representing each octet’s value as a 2-digit hexadecimal
+         * number, using uppercase letters.
          *
          * The Setup PIN is a character string so that it can accommodate different future formats, including
          * alpha-numeric encodings. For a Commissionee it shall be populated with the Manual Pairing Code (see Manual
-         * Pairing Code section in [MatterCore]) encoded as a string (11 characters) or the Passcode portion of the
-         * Manual Pairing Code (when less than 11 characters).
+         * Pairing Code section in [[MatterCore]](#ref_MatterCore)) encoded as a string (11 characters) or the Passcode
+         * portion of the Manual Pairing Code (when less than 11 characters).
          *
          * The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique requests in a
          * 10 minute period shall be allowed; a command response status of FAILURE should sent for additional commands
@@ -131,12 +132,12 @@ export declare namespace AccountLogin {
          * should impose aggressive time outs for any mapping of Temporary Account Identifier to Setup PIN in order to
          * prevent accidental login due to delayed invocation.
          *
-         * Upon receipt, the Content App checks if the account associated with the client’s Temp Account Identifier has
+         * Upon receipt, the Content App checks if the account associated with the client's Temp Account Identifier has
          * a current active Setup PIN with the given value. If the Setup PIN is valid for the user account associated
          * with the Temp Account Identifier, then the Content App may make that user account active.
          *
          * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the
-         * client’s commissionable node advertisement encoded as an octet string where the octets of the Rotating Device
+         * client's commissionable node advertisement encoded as an octet string where the octets of the Rotating Device
          * Identifier are encoded as 2-character sequences by representing each octet’s value as a 2-digit hexadecimal
          * number, using uppercase letters.
          *
@@ -226,15 +227,15 @@ export declare namespace AccountLogin {
      * the Content App returns the GetSetupPIN Response which includes a Setup PIN that may be used for PASE with the
      * Commissionee.
      *
-     * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the client’s
-     * commissionable node advertisement (see Rotating Device Identifier section in [MatterCore]) encoded as an octet
-     * string where the octets of the Rotating Device Identifier are encoded as 2-character sequences by representing
-     * each octet’s value as a 2-digit hexadecimal number, using uppercase letters.
+     * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the client's
+     * commissionable node advertisement (see Rotating Device Identifier section in [[MatterCore]](#ref_MatterCore))
+     * encoded as an octet string where the octets of the Rotating Device Identifier are encoded as 2-character
+     * sequences by representing each octet’s value as a 2-digit hexadecimal number, using uppercase letters.
      *
      * The Setup PIN is a character string so that it can accommodate different future formats, including alpha-numeric
      * encodings. For a Commissionee it shall be populated with the Manual Pairing Code (see Manual Pairing Code section
-     * in [MatterCore]) encoded as a string (11 characters) or the Passcode portion of the Manual Pairing Code (when
-     * less than 11 characters).
+     * in [[MatterCore]](#ref_MatterCore)) encoded as a string (11 characters) or the Passcode portion of the Manual
+     * Pairing Code (when less than 11 characters).
      *
      * The server shall implement rate limiting to prevent brute force attacks. No more than 10 unique requests in a 10
      * minute period shall be allowed; a command response status of FAILURE should sent for additional commands received
@@ -249,7 +250,7 @@ export declare namespace AccountLogin {
         constructor(values?: Partial<GetSetupPinRequest>);
 
         /**
-         * This field shall specify the client’s Temporary Account Identifier. The length of this field shall be at
+         * This field shall specify the client's Temporary Account Identifier. The length of this field shall be at
          * least 16 characters to protect the account holder against password guessing attacks.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.1.1
@@ -272,8 +273,8 @@ export declare namespace AccountLogin {
          *
          * > [!NOTE]
          *
-         * > Newer cluster clients should be aware that AccountLogin cluster version 1 specified an 11 digit minimum
-         *   length.
+         * > NOTE: Newer cluster clients should be aware that AccountLogin cluster version 1 specified an 11 digit
+         *   minimum length.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.2.1
          */
@@ -298,11 +299,11 @@ export declare namespace AccountLogin {
      * aggressive time outs for any mapping of Temporary Account Identifier to Setup PIN in order to prevent accidental
      * login due to delayed invocation.
      *
-     * Upon receipt, the Content App checks if the account associated with the client’s Temp Account Identifier has a
+     * Upon receipt, the Content App checks if the account associated with the client's Temp Account Identifier has a
      * current active Setup PIN with the given value. If the Setup PIN is valid for the user account associated with the
      * Temp Account Identifier, then the Content App may make that user account active.
      *
-     * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the client’s
+     * The Temporary Account Identifier for a Commissionee may be populated with the Rotating ID field of the client's
      * commissionable node advertisement encoded as an octet string where the octets of the Rotating Device Identifier
      * are encoded as 2-character sequences by representing each octet’s value as a 2-digit hexadecimal number, using
      * uppercase letters.
@@ -324,7 +325,7 @@ export declare namespace AccountLogin {
         constructor(values?: Partial<LoginRequest>);
 
         /**
-         * This field shall specify the client’s temporary account identifier.
+         * This field shall specify the client's temporary account identifier.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.1
          */
@@ -335,8 +336,8 @@ export declare namespace AccountLogin {
          *
          * > [!NOTE]
          *
-         * > Newer cluster clients should be aware that AccountLogin cluster revision 1 specified an 11 digit minimum
-         *   length.
+         * > NOTE: Newer cluster clients should be aware that AccountLogin cluster revision 1 specified an 11 digit
+         *   minimum length.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.2.4.3.2
          */

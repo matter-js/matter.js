@@ -83,7 +83,7 @@ export declare namespace ElectricalGridConditions {
          *
          *   - All entries except the last one shall have a non-null PeriodEnd.
          *
-         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry’s PeriodEnd.
+         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry's PeriodEnd.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.3
          */
@@ -123,7 +123,7 @@ export declare namespace ElectricalGridConditions {
          *
          *   - All entries except the last one shall have a non-null PeriodEnd.
          *
-         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry’s PeriodEnd.
+         *   - For all entries except the first one, PeriodStart shall be greater than the previous entry's PeriodEnd.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.13.6.3
          */

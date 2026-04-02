@@ -102,9 +102,9 @@ export declare namespace Actions {
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.
          *
-         *     - Example: SetupURL could take the value of example://Actions or
-         *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
-         *       actions provided by this cluster).
+         *   - Example: SetupURL could take the value of example://Actions or
+         *     https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
+         *     actions provided by this cluster).
          *
          *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
          *     provide information about that particular action. This could be a deeplink to manufacturer-app/website
@@ -112,9 +112,9 @@ export declare namespace Actions {
          *     can view and update details of the action, e.g. edit the scene, or change the wake-up experience time
          *     period.
          *
-         *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
-         *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
-         *       action with ActionID 0x3039.
+         *   - Example of SetupURL with suffix added: example://Actions/?a=12345 or
+         *     https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
+         *     action with ActionID 0x3039.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.5.3
          */
@@ -150,9 +150,9 @@ export declare namespace Actions {
          *   - When used without suffix, it shall provide information about the various actions which the cluster
          *     provides.
          *
-         *     - Example: SetupURL could take the value of example://Actions or
-         *       https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
-         *       actions provided by this cluster).
+         *   - Example: SetupURL could take the value of example://Actions or
+         *     https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to use
+         *     actions provided by this cluster).
          *
          *   - When used with a suffix of "/?a=" and the decimal value of ActionID for one of the actions, it may
          *     provide information about that particular action. This could be a deeplink to manufacturer-app/website
@@ -160,9 +160,9 @@ export declare namespace Actions {
          *     can view and update details of the action, e.g. edit the scene, or change the wake-up experience time
          *     period.
          *
-         *     - Example of SetupURL with suffix added: example://Actions/?a=12345 or
-         *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
-         *       action with ActionID 0x3039.
+         *   - Example of SetupURL with suffix added: example://Actions/?a=12345 or
+         *     https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
+         *     action with ActionID 0x3039.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.5.3
          */
@@ -177,7 +177,7 @@ export declare namespace Actions {
          * This command is used to trigger an instantaneous action.
          *
          * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
-         * Afterwards, the action’s state shall be Inactive.
+         * Afterwards, the action's state shall be Inactive.
          *
          * Example: recall a scene on a number of lights.
          *
@@ -193,8 +193,8 @@ export declare namespace Actions {
          * transition is manufacturer dependent.
          *
          * This command triggers an action (state change) on the involved endpoints, with a specified time to transition
-         * from the current state to the new state. During the transition, the action’s state shall be Active.
-         * Afterwards, the action’s state shall be Inactive.
+         * from the current state to the new state. During the transition, the action's state shall be Active.
+         * Afterwards, the action's state shall be Inactive.
          *
          * Example: recall a scene on a number of lights, with a specified transition time.
          *
@@ -205,7 +205,7 @@ export declare namespace Actions {
         /**
          * This command is used to trigger the commencement of an action.
          *
-         * This command triggers the commencement of an action on the involved endpoints. Afterwards, the action’s state
+         * This command triggers the commencement of an action on the involved endpoints. Afterwards, the action's state
          * shall be Active.
          *
          * Example: start a dynamic lighting pattern (such as gradually rotating the colors around the setpoints of the
@@ -221,8 +221,8 @@ export declare namespace Actions {
         /**
          * This command is used to trigger the commencement of an action with a duration.
          *
-         * This command triggers the commencement of an action on the involved endpoints, and shall change the action’s
-         * state to Active. After the specified Duration, the action will stop, and the action’s state shall change to
+         * This command triggers the commencement of an action on the involved endpoints, and shall change the action's
+         * state to Active. After the specified Duration, the action will stop, and the action's state shall change to
          * Inactive.
          *
          * Example: start a dynamic lighting pattern (such as gradually rotating the colors around the setpoints of the
@@ -235,7 +235,7 @@ export declare namespace Actions {
         /**
          * This command is used to stop an action.
          *
-         * This command stops the ongoing action on the involved endpoints. Afterwards, the action’s state shall be
+         * This command stops the ongoing action on the involved endpoints. Afterwards, the action's state shall be
          * Inactive.
          *
          * Example: stop a dynamic lighting pattern which was previously started with StartAction.
@@ -247,7 +247,7 @@ export declare namespace Actions {
         /**
          * This command is used to pause an action.
          *
-         * This command pauses an ongoing action, and shall change the action’s state to Paused.
+         * This command pauses an ongoing action, and shall change the action's state to Paused.
          *
          * Example: pause a dynamic lighting effect (the lights stay at their current color) which was previously
          * started with StartAction.
@@ -259,8 +259,8 @@ export declare namespace Actions {
         /**
          * This command is used to pause an action with a duration.
          *
-         * This command pauses an ongoing action, and shall change the action’s state to Paused. After the specified
-         * Duration, the ongoing action will be automatically resumed. which shall change the action’s state to Active.
+         * This command pauses an ongoing action, and shall change the action's state to Paused. After the specified
+         * Duration, the ongoing action will be automatically resumed. which shall change the action's state to Active.
          *
          * Example: pause a dynamic lighting effect (the lights stay at their current color) for 10 minutes
          * (Duration=600).
@@ -278,7 +278,7 @@ export declare namespace Actions {
         /**
          * This command is used to resume an action.
          *
-         * This command resumes a previously paused action, and shall change the action’s state to Active.
+         * This command resumes a previously paused action, and shall change the action's state to Active.
          *
          * The difference between ResumeAction and StartAction is that ResumeAction will continue the action from the
          * state where it was paused, while StartAction will start the action from the beginning.
@@ -293,7 +293,7 @@ export declare namespace Actions {
         /**
          * This command is used to enable an action.
          *
-         * This command enables a certain action or automation. Afterwards, the action’s state shall be Active.
+         * This command enables a certain action or automation. Afterwards, the action's state shall be Active.
          *
          * Example: enable a motion sensor to control the lights in an area.
          *
@@ -304,8 +304,8 @@ export declare namespace Actions {
         /**
          * This command is used to enable an action with a duration.
          *
-         * This command enables a certain action or automation, and shall change the action’s state to be Active. After
-         * the specified Duration, the action or automation will stop, and the action’s state shall change to Disabled.
+         * This command enables a certain action or automation, and shall change the action's state to be Active. After
+         * the specified Duration, the action or automation will stop, and the action's state shall change to Disabled.
          *
          * Example: enable a "presence mimicking" behavior for the lights in your home during a vacation; the Duration
          * field is used to indicated the length of your absence from home. After that period, the presence mimicking
@@ -318,7 +318,7 @@ export declare namespace Actions {
         /**
          * This command is used to disable an action.
          *
-         * This command disables a certain action or automation, and shall change the action’s state to Inactive.
+         * This command disables a certain action or automation, and shall change the action's state to Inactive.
          *
          * Example: disable a motion sensor to no longer control the lights in an area.
          *
@@ -329,13 +329,13 @@ export declare namespace Actions {
         /**
          * This command is used to disable an action with a duration.
          *
-         * This command disables a certain action or automation, and shall change the action’s state to Disabled. After
-         * the specified Duration, the action or automation will re-start, and the action’s state shall change to either
-         * Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up routine” and Section
-         * 9.14.8.6, “Example 6: Alarm system”).
+         * This command disables a certain action or automation, and shall change the action's state to Disabled. After
+         * the specified Duration, the action or automation will re-start, and the action's state shall change to either
+         * Inactive or Active, depending on the actions (see Section 9.14.8.4, "Example 4: Wake-up routine" and Section
+         * 9.14.8.6, "Example 6: Alarm system").
          *
          * Example: disable a "wakeup" experience for a period of 1 week when going on holiday (to prevent them from
-         * turning on in the morning while you’re not at home). After this period, the wakeup experience will control
+         * turning on in the morning while you're not at home). After this period, the wakeup experience will control
          * the lights as before.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.6.12
@@ -494,7 +494,7 @@ export declare namespace Actions {
         endpointListId: number;
 
         /**
-         * This field is a bitmap which shall be used to indicate which of the cluster’s commands are supported for this
+         * This field is a bitmap which shall be used to indicate which of the cluster's commands are supported for this
          * particular action, with a bit set to 1 for each supported command according to the table below. Other bits
          * shall be set to 0.
          *
@@ -554,7 +554,7 @@ export declare namespace Actions {
      * This command is used to trigger an instantaneous action.
      *
      * This command triggers an action (state change) on the involved endpoints, in a "fire and forget" manner.
-     * Afterwards, the action’s state shall be Inactive.
+     * Afterwards, the action's state shall be Inactive.
      *
      * Example: recall a scene on a number of lights.
      *
@@ -574,8 +574,8 @@ export declare namespace Actions {
      * transition is manufacturer dependent.
      *
      * This command triggers an action (state change) on the involved endpoints, with a specified time to transition
-     * from the current state to the new state. During the transition, the action’s state shall be Active. Afterwards,
-     * the action’s state shall be Inactive.
+     * from the current state to the new state. During the transition, the action's state shall be Active. Afterwards,
+     * the action's state shall be Inactive.
      *
      * Example: recall a scene on a number of lights, with a specified transition time.
      *
@@ -597,7 +597,7 @@ export declare namespace Actions {
     /**
      * This command is used to trigger the commencement of an action.
      *
-     * This command triggers the commencement of an action on the involved endpoints. Afterwards, the action’s state
+     * This command triggers the commencement of an action on the involved endpoints. Afterwards, the action's state
      * shall be Active.
      *
      * Example: start a dynamic lighting pattern (such as gradually rotating the colors around the setpoints of the
@@ -617,8 +617,8 @@ export declare namespace Actions {
     /**
      * This command is used to trigger the commencement of an action with a duration.
      *
-     * This command triggers the commencement of an action on the involved endpoints, and shall change the action’s
-     * state to Active. After the specified Duration, the action will stop, and the action’s state shall change to
+     * This command triggers the commencement of an action on the involved endpoints, and shall change the action's
+     * state to Active. After the specified Duration, the action will stop, and the action's state shall change to
      * Inactive.
      *
      * Example: start a dynamic lighting pattern (such as gradually rotating the colors around the setpoints of the
@@ -642,7 +642,7 @@ export declare namespace Actions {
     /**
      * This command is used to stop an action.
      *
-     * This command stops the ongoing action on the involved endpoints. Afterwards, the action’s state shall be
+     * This command stops the ongoing action on the involved endpoints. Afterwards, the action's state shall be
      * Inactive.
      *
      * Example: stop a dynamic lighting pattern which was previously started with StartAction.
@@ -658,7 +658,7 @@ export declare namespace Actions {
     /**
      * This command is used to pause an action.
      *
-     * This command pauses an ongoing action, and shall change the action’s state to Paused.
+     * This command pauses an ongoing action, and shall change the action's state to Paused.
      *
      * Example: pause a dynamic lighting effect (the lights stay at their current color) which was previously started
      * with StartAction.
@@ -674,8 +674,8 @@ export declare namespace Actions {
     /**
      * This command is used to pause an action with a duration.
      *
-     * This command pauses an ongoing action, and shall change the action’s state to Paused. After the specified
-     * Duration, the ongoing action will be automatically resumed. which shall change the action’s state to Active.
+     * This command pauses an ongoing action, and shall change the action's state to Paused. After the specified
+     * Duration, the ongoing action will be automatically resumed. which shall change the action's state to Active.
      *
      * Example: pause a dynamic lighting effect (the lights stay at their current color) for 10 minutes (Duration=600).
      *
@@ -702,7 +702,7 @@ export declare namespace Actions {
     /**
      * This command is used to resume an action.
      *
-     * This command resumes a previously paused action, and shall change the action’s state to Active.
+     * This command resumes a previously paused action, and shall change the action's state to Active.
      *
      * The difference between ResumeAction and StartAction is that ResumeAction will continue the action from the state
      * where it was paused, while StartAction will start the action from the beginning.
@@ -721,7 +721,7 @@ export declare namespace Actions {
     /**
      * This command is used to enable an action.
      *
-     * This command enables a certain action or automation. Afterwards, the action’s state shall be Active.
+     * This command enables a certain action or automation. Afterwards, the action's state shall be Active.
      *
      * Example: enable a motion sensor to control the lights in an area.
      *
@@ -736,8 +736,8 @@ export declare namespace Actions {
     /**
      * This command is used to enable an action with a duration.
      *
-     * This command enables a certain action or automation, and shall change the action’s state to be Active. After the
-     * specified Duration, the action or automation will stop, and the action’s state shall change to Disabled.
+     * This command enables a certain action or automation, and shall change the action's state to be Active. After the
+     * specified Duration, the action or automation will stop, and the action's state shall change to Disabled.
      *
      * Example: enable a "presence mimicking" behavior for the lights in your home during a vacation; the Duration field
      * is used to indicated the length of your absence from home. After that period, the presence mimicking behavior
@@ -761,7 +761,7 @@ export declare namespace Actions {
     /**
      * This command is used to disable an action.
      *
-     * This command disables a certain action or automation, and shall change the action’s state to Inactive.
+     * This command disables a certain action or automation, and shall change the action's state to Inactive.
      *
      * Example: disable a motion sensor to no longer control the lights in an area.
      *
@@ -776,13 +776,13 @@ export declare namespace Actions {
     /**
      * This command is used to disable an action with a duration.
      *
-     * This command disables a certain action or automation, and shall change the action’s state to Disabled. After the
-     * specified Duration, the action or automation will re-start, and the action’s state shall change to either
-     * Inactive or Active, depending on the actions (see Section 9.14.8.4, “Example 4: Wake-up routine” and Section
-     * 9.14.8.6, “Example 6: Alarm system”).
+     * This command disables a certain action or automation, and shall change the action's state to Disabled. After the
+     * specified Duration, the action or automation will re-start, and the action's state shall change to either
+     * Inactive or Active, depending on the actions (see Section 9.14.8.4, "Example 4: Wake-up routine" and Section
+     * 9.14.8.6, "Example 6: Alarm system").
      *
      * Example: disable a "wakeup" experience for a period of 1 week when going on holiday (to prevent them from turning
-     * on in the morning while you’re not at home). After this period, the wakeup experience will control the lights as
+     * on in the morning while you're not at home). After this period, the wakeup experience will control the lights as
      * before.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.14.6.12
@@ -902,7 +902,7 @@ export declare namespace Actions {
     };
 
     /**
-     * Note - The bit allocation of this bitmap shall follow the ID’s of the Commands of this cluster.
+     * Note - The bit allocation of this bitmap shall follow the ID's of the Commands of this cluster.
      *
      * @see {@link MatterSpecification.v151.Core} § 9.14.4.1
      */
@@ -986,8 +986,8 @@ export declare namespace Actions {
          * InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using
          * StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing effect. A
          * voice controller could use "set" (to map to InstantAction) or "play" (to map to StartAction) to trigger such
-         * actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set
-         * dynamic light effect”.
+         * actions. Example: see Section 9.14.8.1, "Example 1: Scene recall" and Section 9.14.8.2, "Example 2: Set
+         * dynamic light effect".
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.1
          */
@@ -997,7 +997,7 @@ export declare namespace Actions {
          * A sequence of states with a certain time pattern
          *
          * Indicates an action which involves a sequence of events/states of the associated endpoints, such as a wake-up
-         * experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”.
+         * experience. Example: see Section 9.14.8.4, "Example 4: Wake-up routine".
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.2
          */
@@ -1007,17 +1007,17 @@ export declare namespace Actions {
          * Control an automation (e.g. motion sensor controlling lights)
          *
          * Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be e.g.
-         * started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”.
+         * started, stopped, paused, resumed. Example: see Section 9.14.8.3, "Example 3: Pause sensor automation".
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.3
          */
         Automation = 3,
 
         /**
-         * Sequence that will run when something doesn’t happen
+         * Sequence that will run when something doesn't happen
          *
          * Indicates some action which the server will execute when a certain condition (which normally does not happen)
-         * is not met. Example: lock the doors when the server’s system has detected no one is at home while the doors
+         * is not met. Example: lock the doors when the server's system has detected no one is at home while the doors
          * are in the 'unlocked' state.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.4

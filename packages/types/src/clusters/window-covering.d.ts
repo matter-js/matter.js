@@ -791,7 +791,7 @@ export declare namespace WindowCovering {
         /**
          * Lift operational state.
          *
-         * These bits shall indicate in which direction the covering’s lift is currently moving or if it has stopped.
+         * These bits shall indicate in which direction the covering's lift is currently moving or if it has stopped.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3.2
          */
@@ -800,7 +800,7 @@ export declare namespace WindowCovering {
         /**
          * Tilt operational state.
          *
-         * These bits shall indicate in which direction the covering’s tilt is currently moving or if it has stopped.
+         * These bits shall indicate in which direction the covering's tilt is currently moving or if it has stopped.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.3.5.3.3
          */

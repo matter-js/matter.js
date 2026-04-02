@@ -51,9 +51,9 @@ export declare namespace ClosureControl {
          *
          * > [!NOTE]
          *
-         * > The MainState diagram is provided exclusively for informational purposes only and is an exemplary design of
-         *   the internals of a closure implementation to help illustrate the aspects of function that are considered by
-         *   the cluster’s normative text.
+         * > NOTE: The MainState diagram is provided exclusively for informational purposes only and is an exemplary
+         *   design of the internals of a closure implementation to help illustrate the aspects of function that are
+         *   considered by the cluster's normative text.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.2
          */
@@ -85,7 +85,7 @@ export declare namespace ClosureControl {
          *   - The effects of MoveTo commands.
          *
          *   - The effects of SetTarget and Step commands in a Closure Dimension Cluster associated with this cluster,
-         *     as described in Section 5.4.4, “Association Between Closure Control and Closure Dimension Clusters”.
+         *     as described in Section 5.4.4, "Association Between Closure Control and Closure Dimension Clusters".
          *
          *   - The Stop command.
          *
@@ -127,7 +127,7 @@ export declare namespace ClosureControl {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic.
+         *     insight of the server's control logic.
          *
          * Changes to this attribute merely due to the normal passage of time with no other dynamic change of closure
          * state shall NOT be reported.
@@ -164,9 +164,9 @@ export declare namespace ClosureControl {
          *
          * > [!NOTE]
          *
-         * > The MainState diagram is provided exclusively for informational purposes only and is an exemplary design of
-         *   the internals of a closure implementation to help illustrate the aspects of function that are considered by
-         *   the cluster’s normative text.
+         * > NOTE: The MainState diagram is provided exclusively for informational purposes only and is an exemplary
+         *   design of the internals of a closure implementation to help illustrate the aspects of function that are
+         *   considered by the cluster's normative text.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.4.7.2
          */
@@ -198,7 +198,7 @@ export declare namespace ClosureControl {
          *   - The effects of MoveTo commands.
          *
          *   - The effects of SetTarget and Step commands in a Closure Dimension Cluster associated with this cluster,
-         *     as described in Section 5.4.4, “Association Between Closure Control and Closure Dimension Clusters”.
+         *     as described in Section 5.4.4, "Association Between Closure Control and Closure Dimension Clusters".
          *
          *   - The Stop command.
          *
@@ -235,7 +235,7 @@ export declare namespace ClosureControl {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic.
+         *     insight of the server's control logic.
          *
          * Changes to this attribute merely due to the normal passage of time with no other dynamic change of closure
          * state shall NOT be reported.
@@ -281,7 +281,7 @@ export declare namespace ClosureControl {
         /**
          * On receipt of this command, the closure shall stop its movement as fast as the closure is able too.
          *
-         * If the server’s MainState attribute has one of the following values:
+         * If the server's MainState attribute has one of the following values:
          *
          *   - Moving
          *
@@ -643,7 +643,7 @@ export declare namespace ClosureControl {
          *
          * When the Positioning (PS) feature flag is set, the rules for setting the value of the Position field are:
          *
-         *   - If the closure doesn’t know accurately its current state the value null shall be used.
+         *   - If the closure doesn't know accurately its current state the value null shall be used.
          *
          *   - Otherwise, the most appropriate supported value shall be used.
          *
@@ -660,7 +660,7 @@ export declare namespace ClosureControl {
          *
          * When the MotionLatching (LT) feature flag is set, the rules for setting the value of the Latch field are:
          *
-         *   - If the closure doesn’t know its current state, the value shall be null.
+         *   - If the closure doesn't know its current state, the value shall be null.
          *
          *   - Else, if the closure is partially latched or not latched, the value shall be false.
          *
@@ -668,7 +668,7 @@ export declare namespace ClosureControl {
          *
          *     > [!NOTE]
          *
-         *     > Some products exposing the MotionLatching (LT) feature might not be able to drive an actuator to
+         *     > NOTE: Some products exposing the MotionLatching (LT) feature might not be able to drive an actuator to
          *       achieve a latched state. Such products are built with springs or similar mechanisms to unlatch but
          *       require the user to latch manually.
          *
@@ -681,7 +681,7 @@ export declare namespace ClosureControl {
          *
          * When the Speed (SP) feature flag is set, the rules for setting the value of the Speed field are:
          *
-         * If the closure’s MainState attribute is currently either in WaitingForMotion or Moving state, the closure’s
+         * If the closure's MainState attribute is currently either in WaitingForMotion or Moving state, the closure's
          * most accurate current overall speed shall be used. Otherwise, the value used shall be the most appropriate
          * default supported speed value.
          *
@@ -706,7 +706,7 @@ export declare namespace ClosureControl {
          *
          *   - False if the closure does not meet these conditions and unauthorized or undetectable access is possible.
          *
-         *   - null if the closure’s current secure state is unknown.
+         *   - null if the closure's current secure state is unknown.
          *
          * This field provides no additional details regarding mechanical properties of the closure mechanism. It is
          * intended only as supplementary information and not as a replacement for a comprehensive security system. It
@@ -937,15 +937,15 @@ export declare namespace ClosureControl {
          *
          * This Signature position depends on the closure type. Some examples include:
          *
-         *   - Gate, Garage Door → Pedestrian and pets, or one leaf only.
+         *   - Gate, Garage Door -> Pedestrian and pets, or one leaf only.
          *
-         *   - Venetian Blind → Lowered down with flat slats.
+         *   - Venetian Blind -> Lowered down with flat slats.
          *
-         *   - Door → Position to open for a person or someone in a wheelchair.
+         *   - Door -> Position to open for a person or someone in a wheelchair.
          *
-         *   - Window → Position to 10% for tilt position.
+         *   - Window -> Position to 10% for tilt position.
          *
-         *   - Roller Shutter → Closed with maximum gap between the slats.
+         *   - Roller Shutter -> Closed with maximum gap between the slats.
          *
          *   - By default the Signature position may apply the same outcome as PartiallyOpened.
          *

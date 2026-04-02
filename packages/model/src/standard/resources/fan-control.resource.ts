@@ -29,7 +29,7 @@ Resource.add(
                             "The MultiSpeed feature includes attributes that support a running fan speed value from 0 to " +
                             "SpeedMax." +
                             "\n" +
-                            "See Section 4.4.6.6.1, “Speed Rules” for more details."
+                            "See Section 4.4.6.6.1, \"Speed Rules\" for more details."
                     },
 
                     { tag: "field", name: "AUT", details: "Automatic mode supported for fan speed" },
@@ -63,8 +63,8 @@ Resource.add(
                     "the FanModeSequence attribute, the server shall respond with CONSTRAINT_ERROR." +
                     "\n" +
                     "When this attribute is successfully written to, the PercentSetting and SpeedSetting (if present) " +
-                    "attributes shall be set to appropriate values, as defined by Section 4.4.6.3.1, “Percent Rules” and " +
-                    "Section 4.4.6.6.1, “Speed Rules” respectively, unless otherwise specified below." +
+                    "attributes shall be set to appropriate values, as defined by Section 4.4.6.3.1, \"Percent Rules\" and " +
+                    "Section 4.4.6.6.1, \"Speed Rules\" respectively, unless otherwise specified below." +
                     "\n" +
                     "When this attribute is set to any valid value, the PercentCurrent and SpeedCurrent (if present) " +
                     "attributes shall indicate the actual currently operating fan speed, unless otherwise specified " +
@@ -106,7 +106,7 @@ Resource.add(
                     "When the value of the FanMode attribute is AUTO, the value of this attribute may vary across the " +
                     "range over time." +
                     "\n" +
-                    "See Section 4.4.6.3.1, “Percent Rules” for more details."
+                    "See Section 4.4.6.3.1, \"Percent Rules\" for more details."
             },
 
             {
@@ -146,7 +146,7 @@ Resource.add(
                     "When the value of the FanMode attribute is AUTO, the value of this attribute may vary across the " +
                     "range over time." +
                     "\n" +
-                    "See Section 4.4.6.6.1, “Speed Rules” for more details."
+                    "See Section 4.4.6.6.1, \"Speed Rules\" for more details."
             },
 
             {
@@ -167,7 +167,9 @@ Resource.add(
                     "combination, the lowest supported single bit in the combination shall be set and active, and all " +
                     "other bits shall indicate zero." +
                     "\n" +
-                    "For example: If RockUpDown and RockRound are both set, but this combination is not possible, then " +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> For example: If RockUpDown and RockRound are both set, but this combination is not possible, then " +
                     "only RockUpDown becomes active."
             },
 
@@ -189,8 +191,10 @@ Resource.add(
                     "combination, the lowest supported single bit in the combination shall be set and active, and all " +
                     "other bits shall indicate zero." +
                     "\n" +
-                    "For example: If Sleep Wind and Natural Wind are set, but this combination is not possible, then only " +
-                    "Sleep Wind becomes active."
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> For example: If Sleep Wind and Natural Wind are set, but this combination is not possible, then " +
+                    "only Sleep Wind becomes active."
             },
 
             {
@@ -210,12 +214,14 @@ Resource.add(
                     "speed is reached. How this command is interpreted by the server and how it affects the values of the " +
                     "speed-oriented attributes is implementation specific." +
                     "\n" +
-                    "For example, a fan supports this command, and the value of the FanModeSequence attribute is 0. The " +
-                    "current value of the FanMode attribute is 2, or Medium. This command is received with the Direction " +
-                    "field set to Increase. As per it’s specific implementation, the server reacts to the command by " +
-                    "setting the value of the FanMode attribute to 3, or High, which in turn sets the PercentSetting and " +
-                    "SpeedSetting (if present) attributes to appropriate values, as defined by Section 4.4.6.3.1, " +
-                    "“Percent Rules” and Section 4.4.6.6.1, “Speed Rules” respectively." +
+                    "> [!NOTE]" +
+                    "\n" +
+                    "> For example, a fan supports this command, and the value of the FanModeSequence attribute is 0. The " +
+                    "current value of the FanMode attribute is 2, or Medium. This command is received with the " +
+                    "Direction field set to Increase. As per it's specific implementation, the server reacts to the " +
+                    "command by setting the value of the FanMode attribute to 3, or High, which in turn sets the " +
+                    "PercentSetting and SpeedSetting (if present) attributes to appropriate values, as defined by " +
+                    "Section 4.4.6.3.1, \"Percent Rules\" and Section 4.4.6.6.1, \"Speed Rules\" respectively." +
                     "\n" +
                     "This command supports these fields:",
 

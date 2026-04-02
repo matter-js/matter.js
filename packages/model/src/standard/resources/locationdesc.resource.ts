@@ -28,7 +28,7 @@ Resource.add({
             details: "This field shall indicate the level number. Negative values correspond to basement levels." +
                 "\n" +
                 "Value zero indicates this is the main floor, which typically includes the main entrance to the " +
-                "user’s home. For a building with multiple levels, it is the client’s responsibility to map each " +
+                "user's home. For a building with multiple levels, it is the client's responsibility to map each " +
                 "level to/from a FloorNumber tag value, using the level numbering convention of the region where the " +
                 "client operates. For example, if the client operates in Europe, building level 1, which is one level " +
                 "up from the street level, SHOULD be mapped to FloorNumber tag value 0x1. If the client operates in " +
@@ -50,8 +50,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> Handling complex level situations, such as half levels (side split houses), or the levels from an " +
-                "apartment building, is up to the client and/or user."
+                "> NOTE: Handling complex level situations, such as half levels (side split houses), or the levels " +
+                "from an apartment building, is up to the client and/or user."
         },
 
         {
@@ -64,8 +64,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This field only indicates the type of the area. Multiple areas of the same type, such as bedrooms, " +
-                "may exist in a user’s home."
+                "> NOTE: This field only indicates the type of the area. Multiple areas of the same type, such as " +
+                "bedrooms, may exist in a user's home."
         }
     ]
 });

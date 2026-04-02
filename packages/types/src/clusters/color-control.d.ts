@@ -180,8 +180,8 @@ export declare namespace ColorControl {
         primary1Y?: number;
 
         /**
-         * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, “The Dimming
-         * Light Curve”, normalized such that the primary with the highest maximum intensity contains the value 254.
+         * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, "The Dimming
+         * Light Curve", normalized such that the primary with the highest maximum intensity contains the value 254.
          *
          * A value of null shall indicate that this primary is not available.
          *
@@ -313,8 +313,8 @@ export declare namespace ColorControl {
         colorPointRy?: number;
 
         /**
-         * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3, “The
-         * Dimming Light Curve”, normalized such that the color point with the highest relative intensity contains the
+         * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3, "The
+         * Dimming Light Curve", normalized such that the color point with the highest relative intensity contains the
          * value 254.
          *
          * A value of null shall indicate an invalid value.
@@ -364,8 +364,6 @@ export declare namespace ColorControl {
          *
          * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
          *
-         * Hue = "CurrentHue" * 360 / 254
-         *
          * where CurrentHue is in the range from 0 to 254 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
@@ -384,8 +382,6 @@ export declare namespace ColorControl {
          *
          * The saturation (on a scale from 0.0 to 1.0) shall be related to the CurrentSaturation attribute by the
          * relationship:
-         *
-         * Saturation = "CurrentSaturation" / 254
          *
          * where CurrentSaturation is in the range from 0 to 254 inclusive.
          *
@@ -408,11 +404,8 @@ export declare namespace ColorControl {
          * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color Space. It
          * is updated as fast as practical during commands that change the color.
          *
-         * The value of x shall be related to the CurrentX attribute by the relationship
-         *
-         * x = "CurrentX" / 65536
-         *
-         * where CurrentX is in the range from 0 to 65279 inclusive.
+         * The value of x shall be related to the CurrentX attribute by the relationship where CurrentX is in the range
+         * from 0 to 65279 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
          *
@@ -428,11 +421,8 @@ export declare namespace ColorControl {
          * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color Space. It
          * is updated as fast as practical during commands that change the color.
          *
-         * The value of y shall be related to the CurrentY attribute by the relationship
-         *
-         * y = "CurrentY" / 65536
-         *
-         * where CurrentY is in the range from 0 to 65279 inclusive.
+         * The value of y shall be related to the CurrentY attribute by the relationship where CurrentY is in the range
+         * from 0 to 65279 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
          *
@@ -461,12 +451,8 @@ export declare namespace ColorControl {
          *   - At the end of the movement/transition.
          *
          * The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in mired by
-         * the relationship
-         *
-         * "Color temperature [K]" = "1,000,000" / "ColorTemperatureMireds"
-         *
-         * where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color temperature range from
-         * 1,000,000 K to 15.32 K.
+         * the relationship where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color
+         * temperature range from 1,000,000 K to 15.32 K.
          *
          * If this attribute is implemented then the ColorMode attribute shall also be implemented.
          *
@@ -476,7 +462,7 @@ export declare namespace ColorControl {
 
         /**
          * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to the
-         * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <=
+         * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds $<=$
          * ColorTemperatureMireds.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.7.20
@@ -485,7 +471,7 @@ export declare namespace ColorControl {
 
         /**
          * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to the
-         * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <=
+         * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds $<=$
          * ColorTempPhysicalMaxMireds.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.7.21
@@ -498,8 +484,8 @@ export declare namespace ColorControl {
          * Options attribute of the Level Control cluster is equal to 1. When coupling the ColorTemperatureMireds
          * attribute to the CurrentLevel attribute, this value shall correspond to a CurrentLevel value of 254 (100%).
          *
-         * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds <=
-         * CoupleColorTempToLevelMinMireds <= ColorTemperatureMireds
+         * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds $<=$
+         * CoupleColorTempToLevelMinMireds $<=$ ColorTemperatureMireds
          *
          * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color temperature
          * in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the CoupleColorTempToLevelMinMireds attribute
@@ -723,8 +709,8 @@ export declare namespace ColorControl {
         primary1Y: number;
 
         /**
-         * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, “The Dimming
-         * Light Curve”, normalized such that the primary with the highest maximum intensity contains the value 254.
+         * Indicates a representation of the maximum intensity of this primary as defined in Section 3.1.3, "The Dimming
+         * Light Curve", normalized such that the primary with the highest maximum intensity contains the value 254.
          *
          * A value of null shall indicate that this primary is not available.
          *
@@ -856,8 +842,8 @@ export declare namespace ColorControl {
         colorPointRy: number;
 
         /**
-         * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3, “The
-         * Dimming Light Curve”, normalized such that the color point with the highest relative intensity contains the
+         * Indicates a representation of the relative intensity of the red color point as defined in Section 3.1.3, "The
+         * Dimming Light Curve", normalized such that the color point with the highest relative intensity contains the
          * value 254.
          *
          * A value of null shall indicate an invalid value.
@@ -902,8 +888,6 @@ export declare namespace ColorControl {
          *
          * The hue in degrees shall be related to the CurrentHue attribute by the relationship:
          *
-         * Hue = "CurrentHue" * 360 / 254
-         *
          * where CurrentHue is in the range from 0 to 254 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
@@ -923,8 +907,6 @@ export declare namespace ColorControl {
          * The saturation (on a scale from 0.0 to 1.0) shall be related to the CurrentSaturation attribute by the
          * relationship:
          *
-         * Saturation = "CurrentSaturation" / 254
-         *
          * where CurrentSaturation is in the range from 0 to 254 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
@@ -941,11 +923,8 @@ export declare namespace ColorControl {
          * Indicates the current value of the normalized chromaticity value x, as defined in the CIE xyY Color Space. It
          * is updated as fast as practical during commands that change the color.
          *
-         * The value of x shall be related to the CurrentX attribute by the relationship
-         *
-         * x = "CurrentX" / 65536
-         *
-         * where CurrentX is in the range from 0 to 65279 inclusive.
+         * The value of x shall be related to the CurrentX attribute by the relationship where CurrentX is in the range
+         * from 0 to 65279 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
          *
@@ -961,11 +940,8 @@ export declare namespace ColorControl {
          * Indicates the current value of the normalized chromaticity value y, as defined in the CIE xyY Color Space. It
          * is updated as fast as practical during commands that change the color.
          *
-         * The value of y shall be related to the CurrentY attribute by the relationship
-         *
-         * y = "CurrentY" / 65536
-         *
-         * where CurrentY is in the range from 0 to 65279 inclusive.
+         * The value of y shall be related to the CurrentY attribute by the relationship where CurrentY is in the range
+         * from 0 to 65279 inclusive.
          *
          * Changes to this attribute shall only be marked as reportable in the following cases:
          *
@@ -989,12 +965,8 @@ export declare namespace ColorControl {
          *   - At the end of the movement/transition.
          *
          * The color temperature value in kelvins shall be related to the ColorTemperatureMireds attribute in mired by
-         * the relationship
-         *
-         * "Color temperature [K]" = "1,000,000" / "ColorTemperatureMireds"
-         *
-         * where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color temperature range from
-         * 1,000,000 K to 15.32 K.
+         * the relationship where ColorTemperatureMireds is in the range from 1 to 65279 inclusive, giving a color
+         * temperature range from 1,000,000 K to 15.32 K.
          *
          * If this attribute is implemented then the ColorMode attribute shall also be implemented.
          *
@@ -1004,7 +976,7 @@ export declare namespace ColorControl {
 
         /**
          * Indicates the minimum mired value supported by the hardware. ColorTempPhysicalMinMireds corresponds to the
-         * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds <=
+         * maximum color temperature in kelvins supported by the hardware. ColorTempPhysicalMinMireds $<=$
          * ColorTemperatureMireds.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.7.20
@@ -1013,7 +985,7 @@ export declare namespace ColorControl {
 
         /**
          * Indicates the maximum mired value supported by the hardware. ColorTempPhysicalMaxMireds corresponds to the
-         * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds <=
+         * minimum color temperature in kelvins supported by the hardware. ColorTemperatureMireds $<=$
          * ColorTempPhysicalMaxMireds.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.7.21
@@ -1026,8 +998,8 @@ export declare namespace ColorControl {
          * Options attribute of the Level Control cluster is equal to 1. When coupling the ColorTemperatureMireds
          * attribute to the CurrentLevel attribute, this value shall correspond to a CurrentLevel value of 254 (100%).
          *
-         * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds <=
-         * CoupleColorTempToLevelMinMireds <= ColorTemperatureMireds
+         * This attribute shall be set such that the following relationship exists: ColorTempPhysicalMinMireds $<=$
+         * CoupleColorTempToLevelMinMireds $<=$ ColorTemperatureMireds
          *
          * Note that since this attribute is stored as a micro reciprocal degree (mired) value (i.e. color temperature
          * in kelvins = 1,000,000 / CoupleColorTempToLevelMinMireds), the CoupleColorTempToLevelMinMireds attribute
@@ -1271,11 +1243,11 @@ export declare namespace ColorControl {
          *
          * > [!NOTE]
          *
-         * > This automatically provides symmetry to the Level Control cluster.
+         * > NOTE: This automatically provides symmetry to the Level Control cluster.
          *
          * > [!NOTE]
          *
-         * > The StopMoveStep command has no effect on an active color loop.
+         * > NOTE: The StopMoveStep command has no effect on an active color loop.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.20
          */
@@ -1592,8 +1564,8 @@ export declare namespace ColorControl {
          *
          * > [!NOTE]
          *
-         * > Here the TransitionTime data field is of data type uint8, where uint16 is more common for TransitionTime
-         *   data fields in other clusters / commands.
+         * > NOTE: Here the TransitionTime data field is of data type uint8, where uint16 is more common for
+         *   TransitionTime data fields in other clusters / commands.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.6.3
          */
@@ -1672,8 +1644,8 @@ export declare namespace ColorControl {
          *
          * > [!NOTE]
          *
-         * > Here the TransitionTime data field is of data type uint8, where uint16 is more common for TransitionTime
-         *   data fields in other clusters / commands.
+         * > NOTE: Here the TransitionTime data field is of data type uint8, where uint16 is more common for
+         *   TransitionTime data fields in other clusters / commands.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.9.3
          */
@@ -1800,8 +1772,8 @@ export declare namespace ColorControl {
          * This field shall indicate a lower bound on the ColorTemperatureMireds attribute (≡ an upper bound on the
          * color temperature in kelvins) for the current move operation
          *
-         * ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <= ColorTemperatureMireds As such if the
-         * move operation takes the ColorTemperatureMireds attribute towards the value of the
+         * ColorTempPhysicalMinMireds $<=$ ColorTemperatureMinimumMireds field $<=$ ColorTemperatureMireds As such if
+         * the move operation takes the ColorTemperatureMireds attribute towards the value of the
          * ColorTemperatureMinimumMireds field it shall be clipped so that the above invariant is satisfied. If the
          * ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the lower bound
          * for the ColorTemperatureMireds attribute.
@@ -1814,8 +1786,8 @@ export declare namespace ColorControl {
          * This field shall indicate an upper bound on the ColorTemperatureMireds attribute (≡ a lower bound on the
          * color temperature in kelvins) for the current move operation
          *
-         * ColorTemperatureMireds <= ColorTemperatureMaximumMireds field <= ColorTempPhysicalMaxMireds As such if the
-         * move operation takes the ColorTemperatureMireds attribute towards the value of the
+         * ColorTemperatureMireds $<=$ ColorTemperatureMaximumMireds field $<=$ ColorTempPhysicalMaxMireds As such if
+         * the move operation takes the ColorTemperatureMireds attribute towards the value of the
          * ColorTemperatureMaximumMireds field it shall be clipped so that the above invariant is satisfied. If the
          * ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the upper bound
          * for the ColorTemperatureMireds attribute.
@@ -1863,8 +1835,8 @@ export declare namespace ColorControl {
          * This field shall indicate a lower bound on the ColorTemperatureMireds attribute (≡ an upper bound on the
          * color temperature in kelvins) for the current step operation
          *
-         * ColorTempPhysicalMinMireds <= ColorTemperatureMinimumMireds field <= ColorTemperatureMireds As such if the
-         * step operation takes the ColorTemperatureMireds attribute towards the value of the
+         * ColorTempPhysicalMinMireds $<=$ ColorTemperatureMinimumMireds field $<=$ ColorTemperatureMireds As such if
+         * the step operation takes the ColorTemperatureMireds attribute towards the value of the
          * ColorTemperatureMinimumMireds field it shall be clipped so that the above invariant is satisfied. If the
          * ColorTemperatureMinimumMireds field is set to 0, ColorTempPhysicalMinMireds shall be used as the lower bound
          * for the ColorTemperatureMireds attribute.
@@ -1982,8 +1954,8 @@ export declare namespace ColorControl {
          *
          * > [!NOTE]
          *
-         * > Here TransitionTime data field is of data type uint16, while the TransitionTime data field of the StepHue
-         *   command is of data type uint8.
+         * > NOTE: Here TransitionTime data field is of data type uint16, while the TransitionTime data field of the
+         *   StepHue command is of data type uint8.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.17.3
          */
@@ -2074,11 +2046,11 @@ export declare namespace ColorControl {
      *
      * > [!NOTE]
      *
-     * > This automatically provides symmetry to the Level Control cluster.
+     * > NOTE: This automatically provides symmetry to the Level Control cluster.
      *
      * > [!NOTE]
      *
-     * > The StopMoveStep command has no effect on an active color loop.
+     * > NOTE: The StopMoveStep command has no effect on an active color loop.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 3.2.8.20
      */

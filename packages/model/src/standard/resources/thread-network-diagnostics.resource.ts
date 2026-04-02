@@ -43,8 +43,8 @@ Resource.add({
 
         {
             tag: "attribute", name: "Channel", xref: "core§11.14.6.1",
-            details: "Indicates the 802.15.4 channel number configured on the Node’s Thread interface (that is, the Active " +
-                "Operational Dataset’s current Channel value). A value of null shall indicate that the Thread " +
+            details: "Indicates the 802.15.4 channel number configured on the Node's Thread interface (that is, the Active " +
+                "Operational Dataset's current Channel value). A value of null shall indicate that the Thread " +
                 "interface is not currently configured or operational."
         },
 
@@ -434,7 +434,7 @@ Resource.add({
 
         {
             tag: "event", name: "ConnectionStatus", xref: "core§11.14.8.2",
-            details: "The ConnectionStatus Event shall indicate that a Node’s connection status to a Thread network has " +
+            details: "The ConnectionStatus Event shall indicate that a Node's connection status to a Thread network has " +
                 "changed."
         },
 
@@ -447,12 +447,12 @@ Resource.add({
                 {
                     tag: "field", name: "Current", xref: "core§11.14.8.1.1",
                     details: "This field shall represent the set of faults currently detected, as per Section 11.14.5.1, " +
-                        "“NetworkFaultEnum Type”."
+                        "\"NetworkFaultEnum Type\"."
                 },
                 {
                     tag: "field", name: "Previous", xref: "core§11.14.8.1.2",
                     details: "This field shall represent the set of faults detected prior to this change event, as per Section " +
-                        "11.14.5.1, “NetworkFaultEnum Type”."
+                        "11.14.5.1, \"NetworkFaultEnum Type\"."
                 }
             ]
         },
@@ -559,7 +559,7 @@ Resource.add({
                 {
                     tag: "field", name: "AverageRssi", xref: "core§11.14.5.4.7",
                     details: "This field SHOULD specify the average RSSI across all received frames from the neighboring Node " +
-                        "since the receiving Node’s last reboot. If there is no known received frames this field SHOULD have " +
+                        "since the receiving Node's last reboot. If there is no known received frames this field SHOULD have " +
                         "the value of null. This field shall have the units of dBm, having the range -128 dBm to 0 dBm."
                 },
 
@@ -701,7 +701,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "NetworkNamePresent", xref: "core§11.14.5.7.4",
-                    details: "This field shall be True if the Node has the Thread network’s name, else False."
+                    details: "This field shall be True if the Node has the Thread network's name, else False."
                 },
                 {
                     tag: "field", name: "ExtendedPanIdPresent", xref: "core§11.14.5.7.5",

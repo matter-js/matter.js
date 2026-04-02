@@ -71,9 +71,9 @@ Resource.add(
                     "  - When used without suffix, it shall provide information about the various actions which the " +
                     "cluster provides." +
                     "\n" +
-                    "    - Example: SetupURL could take the value of example://Actions or " +
-                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how " +
-                    "to use actions provided by this cluster)." +
+                    "  - Example: SetupURL could take the value of example://Actions or " +
+                    "https://domain.example/Matter/bridgev1/Actions for this generic case (access generic info how to " +
+                    "use actions provided by this cluster)." +
                     "\n" +
                     "  - When used with a suffix of \"/?a=\" and the decimal value of ActionID for one of the actions, it " +
                     "may provide information about that particular action. This could be a deeplink to " +
@@ -81,9 +81,9 @@ Resource.add(
                     "information/edit-screen for this action so that the user can view and update details of the " +
                     "action, e.g. edit the scene, or change the wake-up experience time period." +
                     "\n" +
-                    "    - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
-                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing " +
-                    "of the action with ActionID 0x3039."
+                    "  - Example of SetupURL with suffix added: example://Actions/?a=12345 or " +
+                    "https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of " +
+                    "the action with ActionID 0x3039."
             },
 
             {
@@ -174,7 +174,7 @@ Resource.add(
                 details: "This command is used to trigger an instantaneous action." +
                     "\n" +
                     "This command triggers an action (state change) on the involved endpoints, in a \"fire and forget\" " +
-                    "manner. Afterwards, the action’s state shall be Inactive." +
+                    "manner. Afterwards, the action's state shall be Inactive." +
                     "\n" +
                     "Example: recall a scene on a number of lights."
             },
@@ -189,8 +189,8 @@ Resource.add(
                     "However, the exact transition is manufacturer dependent." +
                     "\n" +
                     "This command triggers an action (state change) on the involved endpoints, with a specified time to " +
-                    "transition from the current state to the new state. During the transition, the action’s state shall " +
-                    "be Active. Afterwards, the action’s state shall be Inactive." +
+                    "transition from the current state to the new state. During the transition, the action's state shall " +
+                    "be Active. Afterwards, the action's state shall be Inactive." +
                     "\n" +
                     "Example: recall a scene on a number of lights, with a specified transition time.",
 
@@ -206,7 +206,7 @@ Resource.add(
                 details: "This command is used to trigger the commencement of an action." +
                     "\n" +
                     "This command triggers the commencement of an action on the involved endpoints. Afterwards, the " +
-                    "action’s state shall be Active." +
+                    "action's state shall be Active." +
                     "\n" +
                     "Example: start a dynamic lighting pattern (such as gradually rotating the colors around the " +
                     "setpoints of the scene) on a set of lights." +
@@ -221,7 +221,7 @@ Resource.add(
                 details: "This command is used to trigger the commencement of an action with a duration." +
                     "\n" +
                     "This command triggers the commencement of an action on the involved endpoints, and shall change the " +
-                    "action’s state to Active. After the specified Duration, the action will stop, and the action’s state " +
+                    "action's state to Active. After the specified Duration, the action will stop, and the action's state " +
                     "shall change to Inactive." +
                     "\n" +
                     "Example: start a dynamic lighting pattern (such as gradually rotating the colors around the " +
@@ -238,7 +238,7 @@ Resource.add(
 
                 details: "This command is used to stop an action." +
                     "\n" +
-                    "This command stops the ongoing action on the involved endpoints. Afterwards, the action’s state " +
+                    "This command stops the ongoing action on the involved endpoints. Afterwards, the action's state " +
                     "shall be Inactive." +
                     "\n" +
                     "Example: stop a dynamic lighting pattern which was previously started with StartAction."
@@ -249,7 +249,7 @@ Resource.add(
 
                 details: "This command is used to pause an action." +
                     "\n" +
-                    "This command pauses an ongoing action, and shall change the action’s state to Paused." +
+                    "This command pauses an ongoing action, and shall change the action's state to Paused." +
                     "\n" +
                     "Example: pause a dynamic lighting effect (the lights stay at their current color) which was " +
                     "previously started with StartAction."
@@ -260,9 +260,9 @@ Resource.add(
 
                 details: "This command is used to pause an action with a duration." +
                     "\n" +
-                    "This command pauses an ongoing action, and shall change the action’s state to Paused. After the " +
+                    "This command pauses an ongoing action, and shall change the action's state to Paused. After the " +
                     "specified Duration, the ongoing action will be automatically resumed. which shall change the " +
-                    "action’s state to Active." +
+                    "action's state to Active." +
                     "\n" +
                     "Example: pause a dynamic lighting effect (the lights stay at their current color) for 10 minutes " +
                     "(Duration=600)." +
@@ -284,7 +284,7 @@ Resource.add(
 
                 details: "This command is used to resume an action." +
                     "\n" +
-                    "This command resumes a previously paused action, and shall change the action’s state to Active." +
+                    "This command resumes a previously paused action, and shall change the action's state to Active." +
                     "\n" +
                     "The difference between ResumeAction and StartAction is that ResumeAction will continue the action " +
                     "from the state where it was paused, while StartAction will start the action from the beginning." +
@@ -297,7 +297,7 @@ Resource.add(
                 tag: "command", name: "EnableAction", xref: "core§9.14.6.9",
                 details: "This command is used to enable an action." +
                     "\n" +
-                    "This command enables a certain action or automation. Afterwards, the action’s state shall be Active." +
+                    "This command enables a certain action or automation. Afterwards, the action's state shall be Active." +
                     "\n" +
                     "Example: enable a motion sensor to control the lights in an area."
             },
@@ -307,8 +307,8 @@ Resource.add(
 
                 details: "This command is used to enable an action with a duration." +
                     "\n" +
-                    "This command enables a certain action or automation, and shall change the action’s state to be " +
-                    "Active. After the specified Duration, the action or automation will stop, and the action’s state " +
+                    "This command enables a certain action or automation, and shall change the action's state to be " +
+                    "Active. After the specified Duration, the action or automation will stop, and the action's state " +
                     "shall change to Disabled." +
                     "\n" +
                     "Example: enable a \"presence mimicking\" behavior for the lights in your home during a vacation; the " +
@@ -326,7 +326,7 @@ Resource.add(
 
                 details: "This command is used to disable an action." +
                     "\n" +
-                    "This command disables a certain action or automation, and shall change the action’s state to " +
+                    "This command disables a certain action or automation, and shall change the action's state to " +
                     "Inactive." +
                     "\n" +
                     "Example: disable a motion sensor to no longer control the lights in an area."
@@ -337,13 +337,13 @@ Resource.add(
 
                 details: "This command is used to disable an action with a duration." +
                     "\n" +
-                    "This command disables a certain action or automation, and shall change the action’s state to " +
-                    "Disabled. After the specified Duration, the action or automation will re-start, and the action’s " +
+                    "This command disables a certain action or automation, and shall change the action's state to " +
+                    "Disabled. After the specified Duration, the action or automation will re-start, and the action's " +
                     "state shall change to either Inactive or Active, depending on the actions (see Section 9.14.8.4, " +
-                    "“Example 4: Wake-up routine” and Section 9.14.8.6, “Example 6: Alarm system”)." +
+                    "\"Example 4: Wake-up routine\" and Section 9.14.8.6, \"Example 6: Alarm system\")." +
                     "\n" +
                     "Example: disable a \"wakeup\" experience for a period of 1 week when going on holiday (to prevent them " +
-                    "from turning on in the morning while you’re not at home). After this period, the wakeup experience " +
+                    "from turning on in the morning while you're not at home). After this period, the wakeup experience " +
                     "will control the lights as before.",
 
                 children: [{
@@ -354,7 +354,7 @@ Resource.add(
 
             {
                 tag: "datatype", name: "CommandBits", xref: "core§9.14.4.1",
-                details: "Note - The bit allocation of this bitmap shall follow the ID’s of the Commands of this cluster.",
+                details: "Note - The bit allocation of this bitmap shall follow the ID's of the Commands of this cluster.",
 
                 children: [
                     { tag: "field", name: "InstantAction", description: "Indicate support for InstantAction command" },
@@ -401,15 +401,15 @@ Resource.add(
                             "InstantActionWithTransition), or to bring these endpoints into a more dynamic state (typically using " +
                             "StartAction), where the endpoints would e.g. gradually cycle through certain colors for a pleasing " +
                             "effect. A voice controller could use \"set\" (to map to InstantAction) or \"play\" (to map to " +
-                            "StartAction) to trigger such actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and " +
-                            "Section 9.14.8.2, “Example 2: Set dynamic light effect”."
+                            "StartAction) to trigger such actions. Example: see Section 9.14.8.1, \"Example 1: Scene recall\" and " +
+                            "Section 9.14.8.2, \"Example 2: Set dynamic light effect\"."
                     },
 
                     {
                         tag: "field", name: "Sequence", description: "A sequence of states with a certain time pattern",
                         xref: "core§9.14.4.2.2",
                         details: "Indicates an action which involves a sequence of events/states of the associated endpoints, such as " +
-                            "a wake-up experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”."
+                            "a wake-up experience. Example: see Section 9.14.8.4, \"Example 4: Wake-up routine\"."
                     },
 
                     {
@@ -417,15 +417,15 @@ Resource.add(
                         description: "Control an automation (e.g. motion sensor controlling lights)",
                         xref: "core§9.14.4.2.3",
                         details: "Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be " +
-                            "e.g. started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor " +
-                            "automation”."
+                            "e.g. started, stopped, paused, resumed. Example: see Section 9.14.8.3, \"Example 3: Pause sensor " +
+                            "automation\"."
                     },
 
                     {
                         tag: "field", name: "Exception",
-                        description: "Sequence that will run when something doesn’t happen", xref: "core§9.14.4.2.4",
+                        description: "Sequence that will run when something doesn't happen", xref: "core§9.14.4.2.4",
                         details: "Indicates some action which the server will execute when a certain condition (which normally does " +
-                            "not happen) is not met. Example: lock the doors when the server’s system has detected no one is at " +
+                            "not happen) is not met. Example: lock the doors when the server's system has detected no one is at " +
                             "home while the doors are in the 'unlocked' state."
                     },
 
@@ -542,7 +542,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "SupportedCommands", xref: "core§9.14.4.6.5",
-                        details: "This field is a bitmap which shall be used to indicate which of the cluster’s commands are supported " +
+                        details: "This field is a bitmap which shall be used to indicate which of the cluster's commands are supported " +
                             "for this particular action, with a bit set to 1 for each supported command according to the table " +
                             "below. Other bits shall be set to 0."
                     },

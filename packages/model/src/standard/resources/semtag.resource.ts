@@ -21,7 +21,7 @@ Resource.add({
                 "manufacturer identified in the MfgCode field." +
                 "\n" +
                 "If a manufacturer specific Tag field is indicated in a list of SemanticTagStruct entries, the list " +
-                "shall include at least one standard tag which is not from any manufacturer’s namespace. A standard " +
+                "shall include at least one standard tag which is not from any manufacturer's namespace. A standard " +
                 "tag is a tag from a common namespace, a derived cluster namespace, or an applicable device-specific " +
                 "namespace." +
                 "\n" +
@@ -32,7 +32,8 @@ Resource.add({
             tag: "field", name: "NamespaceId", xref: "core§7.19.2.46.2",
             details: "The NamespaceID field shall identify a namespace." +
                 "\n" +
-                "The common and device-specific semantic tag namespaces are listed in [StandardNamespaces]."
+                "The common and device-specific semantic tag namespaces are listed in " +
+                "[[StandardNamespaces]](#ref_StandardNamespaces)."
         },
 
         {
@@ -41,7 +42,7 @@ Resource.add({
                 "NamespaceID." +
                 "\n" +
                 "A device may expose tags from the common or device-specific namespaces and from " +
-                "manufacturer-specific namespaces in a single Section 9.5.6.5, “TagList”."
+                "manufacturer-specific namespaces in a single Section 9.5.6.5, \"TagList\"."
         },
 
         {

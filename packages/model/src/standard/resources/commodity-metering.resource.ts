@@ -37,7 +37,7 @@ Resource.add({
 
         {
             tag: "datatype", name: "MeteredQuantityStruct", xref: "cluster§9.11.4.1",
-            details: "Provides access to the Electric Metering device’s readings.",
+            details: "Provides access to the Electric Metering device's readings.",
 
             children: [
                 {

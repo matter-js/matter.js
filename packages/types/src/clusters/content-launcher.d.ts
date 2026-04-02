@@ -259,7 +259,7 @@ export declare namespace ContentLauncher {
         brandingInformation?: BrandingInformation;
 
         /**
-         * This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition for the
+         * This field, if present, shall indicate the user's preferred Text/AudioTracks and playbackPosition for the
          * media, sent from the client to the server. If the server does not find an available track for the title being
          * played exactly matching a Track requested here, in the list of available tracks, it may default to picking
          * another track that closely matches the requested track. Alternately, it may go with user preferences set on
@@ -332,7 +332,7 @@ export declare namespace ContentLauncher {
         data?: string;
 
         /**
-         * This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition for the
+         * This field, if present, shall indicate the user's preferred Text/AudioTracks and playbackPosition for the
          * media, sent from the client to the server. If the server does not find an available track for the title being
          * played exactly matching a Track requested here, in the list of available tracks, it may default to picking
          * another track that closely matches the requested track. Alternately, it may go with user preferences set on
@@ -651,7 +651,7 @@ export declare namespace ContentLauncher {
     };
 
     /**
-     * This object defines style information which can be used by content providers to change the Media Player’s style
+     * This object defines style information which can be used by content providers to change the Media Player's style
      * related properties.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9
@@ -766,7 +766,7 @@ export declare namespace ContentLauncher {
         playbackPosition?: number | bigint | null;
 
         /**
-         * This field shall indicate the user’s preferred Text Track. A value of null shall indicate that the user did
+         * This field shall indicate the user's preferred Text Track. A value of null shall indicate that the user did
          * not specify a preferred Text Track on the client. In such a case, the decision to display and select a Text
          * Track is up to the server.
          *
@@ -775,7 +775,7 @@ export declare namespace ContentLauncher {
         textTrack?: TrackPreference | null;
 
         /**
-         * This field shall indicate the list of the user’s preferred Audio Tracks. If the list contains multiple
+         * This field shall indicate the list of the user's preferred Audio Tracks. If the list contains multiple
          * values, each AudioTrack must also specify a unique audioOutputIndex to play the track on. A value of null
          * shall indicate that the user did not specify a preferred Audio Track on the client. In such a case, the
          * decision to play and select an Audio Track is up to the server.

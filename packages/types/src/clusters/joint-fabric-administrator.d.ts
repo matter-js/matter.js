@@ -23,7 +23,7 @@ import type { Status } from "../globals/Status.js";
  *
  * > [!NOTE]
  *
- * > Support for Joint Fabric Administrator Cluster is provisional.
+ * > NOTE: Support for Joint Fabric Administrator Cluster is provisional.
  *
  * @see {@link MatterSpecification.v151.Core} § 11.25
  */
@@ -55,7 +55,7 @@ export declare namespace JointFabricAdministrator {
      */
     export interface BaseAttributes {
         /**
-         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
+         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0's Operational
          * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
          * have the value of null if there is no fabric associated with the JointFabric.
          *
@@ -69,7 +69,7 @@ export declare namespace JointFabricAdministrator {
      */
     export interface Attributes {
         /**
-         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0’s Operational
+         * The AdministratorFabricIndex attribute shall indicate the FabricIndex from the Endpoint 0's Operational
          * Cluster Fabrics attribute (i.e. the Fabric Table) which is associated with the JointFabric. This field shall
          * have the value of null if there is no fabric associated with the JointFabric.
          *
@@ -85,20 +85,6 @@ export declare namespace JointFabricAdministrator {
         /**
          * This command shall be generated during Joint Commissioning Method and subsequently be responded in the form
          * of an ICACCSRResponse command.
-         *
-         * ### Effect on Receipt
-         *
-         * This command shall be received over a CASE session otherwise it shall fail with an INVALID_COMMAND status
-         * code.
-         *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
-         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
-         *
-         * If the FabricFabric Table Vendor ID Verification Procedure has not been executed against the initiator of
-         * this command, the command shall fail with a JfVidNotVerified status code shall be sent back to the initiator.
-         *
-         * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
-         * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.25.7.1
          */
@@ -124,8 +110,9 @@ export declare namespace JointFabricAdministrator {
         /**
          * > [!NOTE]
          *
-         * > This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator Cluster.
-         *   Refer to the OpenCommissioningWindow command for a description of the command behavior and parameters.
+         * > NOTE: This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator
+         *   Cluster. Refer to the OpenCommissioningWindow command for a description of the command behavior and
+         *   parameters.
          *
          * This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the initiator if the
          * AdministratorFabricIndex attribute has the value of null.
@@ -210,36 +197,6 @@ export declare namespace JointFabricAdministrator {
         /**
          * This field shall contain an ICAC encoded using Matter Certificate Encoding.
          *
-         * ### Effect on Receipt
-         *
-         * This command shall be received over a CASE session otherwise it shall fail with an INVALID_COMMAND status
-         * code.
-         *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
-         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
-         *
-         * If a prior AddICAC command was successfully executed within the fail-safe timer period, then this command
-         * shall fail with a CONSTRAINT_ERROR status code sent back to the initiator.
-         *
-         * Upon receipt, the ICACValue shall be validated in the following ways:
-         *
-         *   1. Verify the ICAC using Crypto_VerifyChain(certificates = [ICACValue, RootCACertificate]) where
-         *      RootCACertificate is the associated RCAC of the accessing fabric. If this check fails, the error status
-         *      shall be InvalidICAC.
-         *
-         *   2. The public key of the ICAC shall match the public key present in the last ICACCSRResponse provided to
-         *      the Administrator that sent the AddICAC command. If this check fails, the error status shall be
-         *      InvalidPublicKey.
-         *
-         *   3. The DN Encoding Rules shall be validated for the ICAC. If this check fails, the error status shall be
-         *      InvalidICAC.
-         *
-         * If any of the above validation checks fail, the server shall immediately respond to the client with an
-         * ICACResponse. The StatusCode field of the ICACResponse shall be set to the error status value specified in
-         * the above validation checks.
-         *
-         * If all the checks succeed, then the ICACValue shall be used as described in the Joint Commissioning Method.
-         *
          * @see {@link MatterSpecification.v151.Core} § 11.25.7.3.1
          */
         icacValue: Bytes;
@@ -264,8 +221,8 @@ export declare namespace JointFabricAdministrator {
     /**
      * > [!NOTE]
      *
-     * > This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator Cluster. Refer
-     *   to the OpenCommissioningWindow command for a description of the command behavior and parameters.
+     * > NOTE: This is an alias onto the OpenCommissioningWindow command within the Joint Fabric Administrator Cluster.
+     *   Refer to the OpenCommissioningWindow command for a description of the command behavior and parameters.
      *
      * This command shall fail with a InvalidAdministratorFabricIndex status code sent back to the initiator if the
      * AdministratorFabricIndex attribute has the value of null.
@@ -308,7 +265,7 @@ export declare namespace JointFabricAdministrator {
     };
 
     /**
-     * This enumeration is used by the AddICAC command to convey the outcome of this cluster’s operations.
+     * This enumeration is used by the AddICAC command to convey the outcome of this cluster's operations.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.4.1
      */
@@ -330,7 +287,7 @@ export declare namespace JointFabricAdministrator {
     }
 
     /**
-     * This enumeration is used by the TransferAnchorResponse command to convey the detailed outcome of this cluster’s
+     * This enumeration is used by the TransferAnchorResponse command to convey the detailed outcome of this cluster's
      * TransferAnchorRequest command.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.25.4.2
@@ -372,7 +329,7 @@ export declare namespace JointFabricAdministrator {
         WindowNotOpen = 4,
 
         /**
-         * ICACCSRRequest command has been invoked by a peer against which Fabric Table VID Verification hasn’t been
+         * ICACCSRRequest command has been invoked by a peer against which Fabric Table VID Verification hasn't been
          * executed
          */
         VidNotVerified = 5,

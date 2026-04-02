@@ -16,9 +16,10 @@ Resource.add({
         "This cluster server would be supported on Video Player devices or endpoints that allow Channel " +
         "control such as a Content App. This cluster provides a list of available channels and provides " +
         "commands for absolute and relative channel changes. Some of these commands and/or their responses " +
-        "may be large (see Large Message Quality under Data Model section in [MatterCore]), but they do not " +
-        "have the Large quality indicator (L) because they can also be transferred over MRP (see Message " +
-        "Reliability Protocol in [MatterCore]) in pages that fit within the MRP MTU limit. However, an " +
+        "may be large (see Large Message Quality under Data Model section in " +
+        "[[MatterCore]](#ref_MatterCore)), but they do not have the Large quality indicator (L) because they " +
+        "can also be transferred over MRP (see Message Reliability Protocol in " +
+        "[[MatterCore]](#ref_MatterCore)) in pages that fit within the MRP MTU limit. However, an " +
         "implementation may leverage a transport like TCP that allows large payloads, if available, to " +
         "minimize the number of messages required to transfer the corresponding payload." +
         "\n" +

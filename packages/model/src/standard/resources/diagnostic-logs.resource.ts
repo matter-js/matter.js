@@ -41,38 +41,8 @@ Resource.add({
 
                 {
                     tag: "field", name: "TransferFileDesignator", xref: "core§11.11.5.1.3",
-
                     details: "This field shall be present if the RequestedProtocol is BDX. The TransferFileDesignator shall be set " +
-                        "as the File Designator of the BDX transfer if initiated." +
-                        "\n" +
-                        "### Effect on Receipt" +
-                        "\n" +
-                        "On receipt of this command, the Node shall respond with a RetrieveLogsResponse command." +
-                        "\n" +
-                        "If the RequestedProtocol is set to BDX the Node SHOULD immediately realize the RetrieveLogsResponse " +
-                        "command by initiating a BDX Transfer, sending a BDX SendInit message with the File Designator field " +
-                        "of the message set to the value of the TransferFileDesignator field of the RetrieveLogsRequest. On " +
-                        "reception of a BDX SendAccept message the Node shall send a RetrieveLogsResponse command with a " +
-                        "Status field set to Success and proceed with the log transfer over BDX. If a failure StatusReport is " +
-                        "received in response to the SendInit message, the Node shall send a RetrieveLogsResponse command " +
-                        "with a Status of Denied. In the case where the Node is able to fit the entirety of the requested " +
-                        "logs within the LogContent field, the Status field of the RetrieveLogsResponse shall be set to " +
-                        "Exhausted and a BDX session shall NOT be initiated." +
-                        "\n" +
-                        "If the RequestedProtocol is set to BDX and either the Node does not support BDX or it is not " +
-                        "possible for the Node to establish a BDX session, then the Node shall utilize the LogContent field " +
-                        "of the RetrieveLogsResponse command to transfer as much of the current logs as it can fit within the " +
-                        "response, and the Status field of the RetrieveLogsResponse shall be set to Exhausted." +
-                        "\n" +
-                        "If the RequestedProtocol is set to ResponsePayload the Node shall utilize the LogContent field of " +
-                        "the RetrieveLogsResponse command to transfer as much of the current logs as it can fit within the " +
-                        "response, and a BDX session shall NOT be initiated." +
-                        "\n" +
-                        "If the RequestedProtocol is set to BDX and there is no TransferFileDesignator the command shall fail " +
-                        "with a Status Code of INVALID_COMMAND." +
-                        "\n" +
-                        "If the Intent and/or the RequestedProtocol arguments contain invalid (out of range) values the " +
-                        "command shall fail with a Status Code of INVALID_COMMAND."
+                        "as the File Designator of the BDX transfer if initiated."
                 }
             ]
         },

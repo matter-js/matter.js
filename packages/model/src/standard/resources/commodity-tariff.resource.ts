@@ -105,7 +105,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "CurrentDay", xref: "cluster§9.12.6.8",
-            details: "Indicates the current day’s day entries." +
+            details: "Indicates the current day's day entries." +
                 "\n" +
                 "If the tariff is not active or CurrentDay information is not available, this attribute shall be " +
                 "null."
@@ -113,7 +113,7 @@ Resource.add({
 
         {
             tag: "attribute", name: "NextDay", xref: "cluster§9.12.6.9",
-            details: "Indicates the next day’s day entries." +
+            details: "Indicates the next day's day entries." +
                 "\n" +
                 "If the tariff is not active or NextDay information is not available, this attribute shall be null."
         },
@@ -336,8 +336,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> A 'Calendar Period', while normally considered to be a 3 or 6 month period, could be used for " +
-                "other arbitrary periods e.g. monthly or quarterly. The minimum resolution is 1 day, although a " +
+                "> NOTE: A 'Calendar Period', while normally considered to be a 3 or 6 month period, could be used " +
+                "for other arbitrary periods e.g. monthly or quarterly. The minimum resolution is 1 day, although a " +
                 "week would normally be the smallest interval.",
 
             children: [
@@ -390,20 +390,20 @@ Resource.add({
                         "  1. If this identifier is included in the DayEntryIDs associated with a DayPatternStruct, then the " +
                         "identifier shall be unique to the combination of:" +
                         "\n" +
-                        "    a. the StartTime" +
+                        "  1. the StartTime" +
                         "\n" +
-                        "    b. the Duration, if indicated" +
+                        "  2. the Duration, if indicated" +
                         "\n" +
-                        "    c. the DaysOfWeek field in the containing DayPatternStruct" +
+                        "  3. the DaysOfWeek field in the containing DayPatternStruct" +
                         "\n" +
                         "  2. Otherwise, if this identifier is included in the DayEntryIDs associated with a DayStruct, then " +
                         "the identifier shall be unique to the combination of:" +
                         "\n" +
-                        "    a. the StartTime" +
+                        "  1. the StartTime" +
                         "\n" +
-                        "    b. the Duration, if indicated" +
+                        "  2. the Duration, if indicated" +
                         "\n" +
-                        "    c. the Date field in the containing DayStruct" +
+                        "  3. the Date field in the containing DayStruct" +
                         "\n" +
                         "Once an identifier has been used for a given combination above, it shall never be used for any other " +
                         "combination of these values."
@@ -511,7 +511,7 @@ Resource.add({
                         "field." +
                         "\n" +
                         "If the Randomization feature is supported, every DayEntryStruct whose DayEntryID is included in this " +
-                        "field shall have its StartTime field set to a value less than the following DayEntryStruct’s " +
+                        "field shall have its StartTime field set to a value less than the following DayEntryStruct's " +
                         "StartTime field minus the calculated value of its RandomizationOffset field. In other words, it " +
                         "should not be possible for a random offset to cause a day entry to begin before the preceding day " +
                         "entry." +
@@ -665,7 +665,7 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> When a meter enters into a Friendly Credit Period with a usable positive credit balance, the " +
+                        "> NOTE: When a meter enters into a Friendly Credit Period with a usable positive credit balance, the " +
                         "consumer will be allowed to consume energy for the duration of the Friendly Credit Period, " +
                         "regardless of their credit status while in that period. If, however, the consumer had already run " +
                         "out of credit and supply was interrupted before entering into the Friendly Credit Period, they " +
@@ -673,10 +673,10 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> At the end of the Friendly Credit Period, the normal delivery rules connected with the accounting " +
-                        "functions of the meter will be resumed, and if the meter’s credit balance has dropped below the " +
-                        "disablement threshold during the Friendly Credit Period, then the meter will disconnect upon " +
-                        "resuming normal delivery rules"
+                        "> NOTE: At the end of the Friendly Credit Period, the normal delivery rules connected with the " +
+                        "accounting functions of the meter will be resumed, and if the meter’s credit balance has dropped " +
+                        "below the disablement threshold during the Friendly Credit Period, then the meter will disconnect " +
+                        "upon resuming normal delivery rules"
                 },
 
                 {

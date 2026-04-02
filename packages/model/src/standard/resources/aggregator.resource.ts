@@ -13,7 +13,7 @@ Resource.add({
 
     details: "This device type aggregates endpoints as a collection. Clusters on the endpoint indicating this " +
         "device type provide functionality for the collection of descendant endpoints present in the " +
-        "PartsList of the endpoint’s descriptor, for example the Actions cluster." +
+        "PartsList of the endpoint's descriptor, for example the Actions cluster." +
         "\n" +
         "The purpose of this device type is to aggregate functionality for a collection of endpoints. The " +
         "definition of the collection or functionality is not defined here." +

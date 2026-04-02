@@ -18,7 +18,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  * This cluster is used to manage TLS CA Root and Client Certificates on a Node, which are then used by other clusters
  * to provision and manage their usage of TLS.
  *
- * Commands in this cluster uniformly use the Large Message qualifier, even when the command doesn’t require it, to
+ * Commands in this cluster uniformly use the Large Message qualifier, even when the command doesn't require it, to
  * reduce the testing matrix.
  *
  * This cluster shall be present on the root node endpoint when required by a device type, may be present on that
@@ -306,56 +306,6 @@ export declare namespace TlsCertificateManagement {
          * This field shall be a TLSCAID representing the unique Certificate Authority ID. A null requests a new
          * certificate to be added, and a non-null allows for updating / rotating an existing certificate.
          *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the UTCTime attribute of the Time Synchronization cluster is null:
-         *
-         *     - Fail the command with the status code INVALID_IN_STATE, and end processing with no other side effects.
-         *
-         *   - If the passed in Certificate is an invalid TLS Certificate:
-         *
-         *     - Fail the command with the status code DYNAMIC_CONSTRAINT_ERROR, and end processing with no other side
-         *       effects.
-         *
-         *   - If any existing entry for Certificate is found in ProvisionedRootCertificates which has both a matching
-         *     Fingerprint and an associated fabric which matches the accessing fabric:
-         *
-         *     - Fail the command with the status code ALREADY_EXISTS, and end processing with no other side effects.
-         *
-         *   - If the passed in CAID is null:
-         *
-         *     - If the count of entries in the ProvisionedRootCertificates list where the associated fabric matches the
-         *       accessing fabric, is equal to the MaxRootCertificates value:
-         *
-         *       - Fail the command with the status code RESOURCE_EXHAUSTED, and end processing with no other side
-         *         effects.
-         *
-         *     - Generate a new TLSCAID
-         *
-         *     - Create and populate a TLSCertStruct with the generated TLSCAID and the passed in Certificate field,
-         *       associated with the accessing fabric
-         *
-         *     - Add the resulting TLSCertStruct to the ProvisionedRootCertificates list.
-         *
-         *   - Else if the passed in CAID is not null:
-         *
-         *     - If there is no matching entry found for the passed in CAID in the ProvisionedRootCertificates list:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - If the associated fabric of that entry does not equal the accessing fabric:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - Update the Certificate Field field of that entry with the passed in Certificate field.
-         *
-         *   - Return the TLSCAID as the CAID field in the corresponding ProvisionRootCertificateResponse command.
-         *
-         * Note when using this command for certificate rotation, the updated certificate will only be used for new
-         * underlying TLS connections established after this call.
-         *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.1.2
          */
         caid: number | null;
@@ -390,43 +340,6 @@ export declare namespace TlsCertificateManagement {
          * This field shall be a TLSCAID representing the unique Certificate Authority ID to return, or null to return
          * all provisioned root certificates.
          *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedRootCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the passed in CAID is null:
-         *
-         *     - Create an empty list of TLSCertStruct.
-         *
-         *     - For each entry in ProvisionedRootCertificates:
-         *
-         *       - If the associated fabric of the entry matches the accessing fabric:
-         *
-         *         - Add a populated TLSCertStruct entry for the CAID to the resulting list.
-         *
-         *     - If the resulting list has no entries:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - Else if the passed in CAID is not null:
-         *
-         *     - If there is no entry in the ProvisionedRootCertificates list that has a CAID Field matching the passed
-         *       in CAID:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - If the associated fabric of the TLSCertStruct for that entry does not equal the accessing fabric:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - Create a list of one TLSCertStruct and populate with the values from that entry.
-         *
-         *   - Return the resulting list in the corresponding FindRootCertificateResponse command.
-         *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.3.1
          */
         caid: number | null;
@@ -458,21 +371,6 @@ export declare namespace TlsCertificateManagement {
 
         /**
          * This field shall be an octet string that represents the certificate fingerprint.
-         *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedRootCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If there is no entry in the ProvisionedRootCertificates list that has a matching Fingerprint, or the
-         *     associated fabric of that entry does not equal the accessing fabric:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - Return the CAID of that entry, in the corresponding LookupRootCertificateResponse command.
          *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.5.1
          */
@@ -507,30 +405,6 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCAID representing the unique Certificate Authority ID.
          *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedRootCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If there is no entry in the ProvisionedRootCertificates list that has a CAID Field matching the passed in
-         *     CAID:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the associated fabric of the TLSCertStruct for that entry does not equal the accessing fabric:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the passed in CAID equals the CAID of any entry in the ProvisionedEndpoints list in the TLS Client
-         *     Management Cluster:
-         *
-         *     - Fail the command with the status code INVALID_IN_STATE, and end processing with no other side effects.
-         *
-         *   - Remove the entry for the passed in CAID from the ProvisionedRootCertificates list.
-         *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.7.1
          */
         caid: number;
@@ -556,61 +430,6 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate Details ID. If NULL, a new key pair
          * and CCDID will be generated. If non-NULL, the existing key-pair for the CCDID will be used.
-         *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the passed in CCDID is NULL:
-         *
-         *     - If the count of entries in the ProvisionedClientCertificates list where the associated fabric matches
-         *       the accessing fabric, is equal to the MaxClientCertificates value:
-         *
-         *       - Fail the command with the status code RESOURCE_EXHAUSTED, and end processing with no other side
-         *         effects.
-         *
-         *     - Generate a new key pair using Crypto_GenerateKeypair.
-         *
-         *     - If a key collision is detected against any other TLS key pair or Operational credential key pair:
-         *
-         *       - Discard the new key pair.
-         *
-         *       - Fail the command with the status code DYNAMIC_CONSTRAINT_ERROR, and end processing with no other side
-         *         effects.
-         *
-         *     - Generate a new TLSCCDID value.
-         *
-         *     - Create a new TLSClientCertificateDetailStruct associated with the accessing fabric.
-         *
-         *     - Set the CCDID field with the newly created TLSCCDID value, and associate the key pair with it.
-         *
-         *     - Set the ClientCertificate and IntermediateCertificates fields to NULL.
-         *
-         *     - Add the TLSClientCertificateDetailStruct to the ProvisionedClientCertificates list.
-         *
-         *   - Else if the passed in CCDID is not NULL:
-         *
-         *     - If there is no entry in the ProvisionedClientCertificates list that has a matching CCDID to the passed
-         *       in CCDID:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - If the associated fabric of that entry does not equal the accessing fabric:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - Generate a tls_csr using the TLS key pair by following the format and procedure in PKCS #10, which
-         *     includes a signature using the private key (see RFC 2986 section 4.2) associated with the public key
-         *     which is the subjectPublicKey field of the CSR. The CSR subject may be any value and the device SHOULD
-         *     NOT expect the final certificate to contain any of the CSR subject DN attributes.
-         *
-         *   - Compute an ec-signature using Crypto_Sign() of the passed in Nonce, and encode the result as an octet
-         *     string into tls_nonce_signature.
-         *
-         * tls_nonce_signature = Crypto_Sign( message = Nonce, privateKey = TLS Private Key )
-         *
-         *   - Return the CCDID as CCDID, the DER-encoded tls_csr as CSR, and tls_nonce_signature as NonceSignature, in
-         *     the corresponding ClientCSRResponse command.
          *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.8.2
          */
@@ -679,47 +498,6 @@ export declare namespace TlsCertificateManagement {
          * a Certificate Chain up to, but not including, the TLSRCAC. An empty value means no intermediate certificates
          * are needed.
          *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedClientCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If there is an existing entry for the passed in ClientCertificate in the ProvisionedClientCertificates
-         *     list, which has both a matching Fingerprint and an associated fabric that equals the accessing fabric:
-         *
-         *     - Fail the command with the status code ALREADY_EXISTS, and end processing with no other side effects.
-         *
-         *   - If there is no entry in the ProvisionedClientCertificates list that has a CCDID matching the passed in
-         *     CCDID:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the associated fabric for that entry does not equal the accessing fabric:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If there is any invalid TLS Certificate in the passed in ClientCertificate or IntermediateCertificates:
-         *
-         *     - Fail the command with the status code DYNAMIC_CONSTRAINT_ERROR, and end processing with no other side
-         *       effects.
-         *
-         *   - If the public key of the passed in ClientCertificate does not correspond to the private key of the
-         *     matching entry:
-         *
-         *     - Fail the command with the status code DYNAMIC_CONSTRAINT_ERROR, and end processing with no other side
-         *       effects.
-         *
-         *   - Update the ClientCertificate and IntermediateCertificates fields of that entry to the passed in
-         *     ClientCertificate and IntermediateCertificates.
-         *
-         *   - Return SUCCESS.
-         *
-         * Note: When using this command for client certificate rotation, only new underlying TLS connections
-         * (established after this finishes processing), will use the updated Certificate.
-         *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.10.3
          */
         intermediateCertificates: Bytes[];
@@ -736,49 +514,6 @@ export declare namespace TlsCertificateManagement {
 
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate Details ID.
-         *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedClientCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the passed in CCDID is null:
-         *
-         *     - Create a list of TLSClientCertificateDetailStruct
-         *
-         *     - For each entry in ProvisionedClientCertificates:
-         *
-         *       - If the entry’s associated fabric matches the accessing fabric:
-         *
-         *         - Add a populated TLSClientCertificateDetailStruct entry for the passed in CCDID to the resulting
-         *           list.
-         *
-         *     - If the resulting list has no entries:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - Else if the passed in CCDID is not null:
-         *
-         *     - If there is no entry in the ProvisionedClientCertificates list that has a CCDID matching the passed in
-         *       CCDID:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - If the associated fabric of that entry does not equal the accessing fabric:
-         *
-         *       - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *     - Create a list of one TLSClientCertificateDetailStruct and populate with the values from that entry for
-         *       the requested CCDID.
-         *
-         *   - Return the list as the CertificateDetails field, in the corresponding FindClientCertificateResponse
-         *     command.
-         *
-         * Note: If an entry in the returned list has an empty ClientCertificate field, it means the ClientCSR command
-         * was invoked, but the corresponding ProvisionClientCertificate has not been invoked yet.
          *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.11.1
          */
@@ -812,26 +547,6 @@ export declare namespace TlsCertificateManagement {
         /**
          * This field shall be an octet string that represents the certificate fingerprint.
          *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedClientCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If there is no entry in the ProvisionedClientCertificates list that has a Fingerprint matching the passed
-         *     in Fingerprint:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the associated fabric of that entry does not equal the accessing fabric:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - Return the CCDID field of the matching entry, as the CCDID field in the corresponding
-         *     LookupClientCertificateResponse command.
-         *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.13.1
          */
         fingerprint: Bytes;
@@ -863,32 +578,6 @@ export declare namespace TlsCertificateManagement {
 
         /**
          * This field shall be a TLSCCDID representing the unique Client Certificate Details ID.
-         *
-         * ### Effect on Receipt
-         *
-         * The following process shall be followed when the server receives this command:
-         *
-         *   - If the ProvisionedClientCertificates list is empty:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If there is no entry in the ProvisionedClientCertificates list that has a CCDID matching the passed in
-         *     CCDID:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the associated fabric of that entry does not equal the accessing fabric:
-         *
-         *     - Fail the command with the status code NOT_FOUND, and end processing with no other side effects.
-         *
-         *   - If the passed in CCDID equals the CCDID of any entry in the ProvisionedEndpoints list in the TLS Client
-         *     Management Cluster:
-         *
-         *     - Fail the command with the status code INVALID_IN_STATE, and end processing with no other side effects.
-         *
-         *   - Remove the entry for the passed in CCDID from the ProvisionedClientCertificates list.
-         *
-         *   - Remove the TLS Key Pair belonging to the passed in CCDID.
          *
          * @see {@link MatterSpecification.v151.Core} § 14.4.6.15.1
          */

@@ -18,8 +18,8 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  *
  * > [!NOTE]
  *
- * > The Descriptor cluster is meant to replace the support from the Zigbee Device Object (ZDO) for describing a node,
- *   its endpoints and clusters.
+ * > NOTE: The Descriptor cluster is meant to replace the support from the Zigbee Device Object (ZDO) for describing a
+ *   node, its endpoints and clusters.
  *
  * This cluster describes an endpoint instance on the node, independently from other endpoints, but also allows
  * composition of endpoints to conform to complex device type patterns.
@@ -27,14 +27,18 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * This cluster supports a list of one or more device type identifiers that represent conformance to device type
  * specifications.
  *
- * For Example: An Extended Color Light device type may support device type IDs for both a Dimmable Light and On/Off
- * Light, because those are subsets of an Extended Color Light (the superset).
+ * > [!NOTE]
+ *
+ * > For Example: An Extended Color Light device type may support device type IDs for both a Dimmable Light and On/Off
+ *   Light, because those are subsets of an Extended Color Light (the superset).
  *
  * The cluster supports a PartsList attribute that is a list of zero or more endpoints to support compound devices or
  * composed device types.
  *
- * For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of multiple Temperature
- * Sensor endpoints, a Metering endpoint, and two Thermostat endpoints.
+ * > [!NOTE]
+ *
+ * > For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of multiple Temperature
+ *   Sensor endpoints, a Metering endpoint, and two Thermostat endpoints.
  *
  * @see {@link MatterSpecification.v151.Core} § 9.5
  */
@@ -67,7 +71,7 @@ export declare namespace Descriptor {
     export interface BaseAttributes {
         /**
          * This is a list of device types and corresponding revisions declaring endpoint conformance (see Section
-         * 9.5.5.1, “DeviceTypeStruct Type”). At least one device type entry shall be present.
+         * 9.5.5.1, "DeviceTypeStruct Type"). At least one device type entry shall be present.
          *
          * An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that is in
          * common for more than one device type in the DeviceTypeList shall be supported as a shared cluster instance on
@@ -156,7 +160,7 @@ export declare namespace Descriptor {
     export interface Attributes {
         /**
          * This is a list of device types and corresponding revisions declaring endpoint conformance (see Section
-         * 9.5.5.1, “DeviceTypeStruct Type”). At least one device type entry shall be present.
+         * 9.5.5.1, "DeviceTypeStruct Type"). At least one device type entry shall be present.
          *
          * An endpoint shall conform to all device types listed in the DeviceTypeList. A cluster instance that is in
          * common for more than one device type in the DeviceTypeList shall be supported as a shared cluster instance on

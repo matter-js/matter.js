@@ -88,8 +88,8 @@ export declare namespace ClosureDimension {
          *   - The last SetTarget or Step commands.
          *
          *   - The impact of a MoveTo command received on the Closure Control Cluster instance associated with this
-         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
-         *     Closure Control and Closure Dimension Clusters”.
+         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, "Association Between
+         *     Closure Control and Closure Dimension Clusters".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.1
          */
@@ -112,8 +112,8 @@ export declare namespace ClosureDimension {
          *   - The last SetTarget or Step commands.
          *
          *   - The impact of a MoveTo command received on the Closure Control Cluster instance associated with this
-         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
-         *     Closure Control and Closure Dimension Clusters”.
+         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, "Association Between
+         *     Closure Control and Closure Dimension Clusters".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.2
          */
@@ -134,8 +134,8 @@ export declare namespace ClosureDimension {
          *
          * > [!NOTE]
          *
-         * > A resolution of 100% means that the associated dimension cannot be placed in an intermediate position - its
-         *   position is binary.
+         * > NOTE: A resolution of 100% means that the associated dimension cannot be placed in an intermediate position
+         *   - its position is binary.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.3
          */
@@ -148,7 +148,7 @@ export declare namespace ClosureDimension {
          *
          * > [!NOTE]
          *
-         * > The StepValue should be large enough to cause a visible change in the closure’s position when a Step
+         * > NOTE: The StepValue should be large enough to cause a visible change in the closure's position when a Step
          *   command is invoked.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.4
@@ -298,8 +298,8 @@ export declare namespace ClosureDimension {
          *   - The last SetTarget or Step commands.
          *
          *   - The impact of a MoveTo command received on the Closure Control Cluster instance associated with this
-         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
-         *     Closure Control and Closure Dimension Clusters”.
+         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, "Association Between
+         *     Closure Control and Closure Dimension Clusters".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.1
          */
@@ -322,8 +322,8 @@ export declare namespace ClosureDimension {
          *   - The last SetTarget or Step commands.
          *
          *   - The impact of a MoveTo command received on the Closure Control Cluster instance associated with this
-         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, “Association Between
-         *     Closure Control and Closure Dimension Clusters”.
+         *     cluster, if such a Closure Control instance exists, as described in Section 5.5.4, "Association Between
+         *     Closure Control and Closure Dimension Clusters".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.2
          */
@@ -339,8 +339,8 @@ export declare namespace ClosureDimension {
          *
          * > [!NOTE]
          *
-         * > A resolution of 100% means that the associated dimension cannot be placed in an intermediate position - its
-         *   position is binary.
+         * > NOTE: A resolution of 100% means that the associated dimension cannot be placed in an intermediate position
+         *   - its position is binary.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.3
          */
@@ -353,7 +353,7 @@ export declare namespace ClosureDimension {
          *
          * > [!NOTE]
          *
-         * > The StepValue should be large enough to cause a visible change in the closure’s position when a Step
+         * > NOTE: The StepValue should be large enough to cause a visible change in the closure's position when a Step
          *   command is invoked.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.7.4
@@ -502,8 +502,8 @@ export declare namespace ClosureDimension {
          *
          * > [!NOTE]
          *
-         * > In most of the products 0.00% = fully opened and 100.00% = fully closed but this is not always the case.
-         *   For example, if the Modulation feature is supported and the ModulationType is SlatsOrientation or
+         * > NOTE: In most of the products 0.00% = fully opened and 100.00% = fully closed but this is not always the
+         *   case. For example, if the Modulation feature is supported and the ModulationType is SlatsOrientation or
          *   StripesAlignment, the panel can be fully closed at 0.00% and 100.00%, and be fully opened at 50.00%.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.1
@@ -524,7 +524,7 @@ export declare namespace ClosureDimension {
         /**
          * Unit (UT)
          *
-         * This feature shall indicate additional information about the closure dimension’s possible range of movement.
+         * This feature shall indicate additional information about the closure dimension's possible range of movement.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.3
          */
@@ -544,12 +544,12 @@ export declare namespace ClosureDimension {
          * Speed (SP)
          *
          * This feature shall indicate that the closure dimension can be driven at different speed levels: Low, Medium,
-         * and High. Please refer to Section 5.4.5.4, “Speed Feature” for more details.
+         * and High. Please refer to Section 5.4.5.4, "Speed Feature" for more details.
          *
          * > [!NOTE]
          *
-         * > The server might not support three different speed values. The manufacturer shall select speed values
-         *   linked to Low, Medium and High such that Low <= Medium <= High.
+         * > NOTE: The server might not support three different speed values. The manufacturer shall select speed values
+         *   linked to Low, Medium and High such that Low $<=$ Medium $<=$ High.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.5
          */
@@ -582,7 +582,7 @@ export declare namespace ClosureDimension {
          *
          * This feature shall indicate that the panel can modify its aspect to control a particular flow, such as light,
          * air, or privacy. The possible modulation types include slats orientation, slats openwork, stripes alignment,
-         * opacity, and ventilation. The Modulation feature is used to adjust the panel’s properties to achieve the
+         * opacity, and ventilation. The Modulation feature is used to adjust the panel's properties to achieve the
          * desired effect.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.5.5.8
@@ -660,7 +660,7 @@ export declare namespace ClosureDimension {
     };
 
     /**
-     * ### Legend: Open Closed
+     * ### Legend: !legendOpen Open !legendClosed Closed
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.1
      */
@@ -727,7 +727,7 @@ export declare namespace ClosureDimension {
     }
 
     /**
-     * ### Legend: Open Closed
+     * ### Legend: !legendOpen Open !legendClosed Closed
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.2
      */
@@ -993,7 +993,7 @@ export declare namespace ClosureDimension {
          *
          *     > [!NOTE]
          *
-         *     > The internal default speed shall not be affected by this command field. The priorities and cross
+         *     > NOTE: The internal default speed shall not be affected by this command field. The priorities and cross
          *       capabilities to achieve, skip or ignore Position + Latch + Speed combinations are product/manufacturer
          *       specific. If the Limitation feature is supported, the closure will automatically offset the
          *       TargetState.Position value to fit within LimitRange.Min and LimitRange.Max.

@@ -1488,7 +1488,7 @@ export declare namespace CameraAvStreamManagement {
 
         /**
          * This field shall indicate if this entry requires using any resources from the available MaxEncodedPixelRate.
-         * If true, clients need to include this entry’s Resolution and MaxFrameRate in the calculation for determining
+         * If true, clients need to include this entry's Resolution and MaxFrameRate in the calculation for determining
          * overall stream allocation resources.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 11.2.6.9.4
@@ -2147,7 +2147,7 @@ export declare namespace CameraAvStreamManagement {
 
         /**
          * This field shall represent the UTC time that this metadata belongs to. The field is sourced from the Time
-         * Synchronization cluster’s UTCTime attribute.
+         * Synchronization cluster's UTCTime attribute.
          *
          * If null, the device has no current source of wall clock time.
          *

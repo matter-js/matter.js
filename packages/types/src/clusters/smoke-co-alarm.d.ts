@@ -65,7 +65,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates whether the power resource fault detection mechanism is currently triggered at the device. If the
          * detection mechanism is triggered, this attribute shall be set to Warning or Critical, otherwise it shall be
          * set to Normal. The battery state shall also be reflected in the Power Source cluster representing the
-         * device’s battery using the appropriate supported attributes and events.
+         * device's battery using the appropriate supported attributes and events.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.4
          */
@@ -137,7 +137,7 @@ export declare namespace SmokeCoAlarm {
      */
     export interface SmokeAlarmAttributes {
         /**
-         * Indicates whether the device’s smoke sensor is currently triggering a smoke alarm.
+         * Indicates whether the device's smoke sensor is currently triggering a smoke alarm.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.2
          */
@@ -163,7 +163,7 @@ export declare namespace SmokeCoAlarm {
      */
     export interface CoAlarmAttributes {
         /**
-         * Indicates whether the device’s CO sensor is currently triggering a CO alarm.
+         * Indicates whether the device's CO sensor is currently triggering a CO alarm.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.3
          */
@@ -197,7 +197,7 @@ export declare namespace SmokeCoAlarm {
          * Indicates whether the power resource fault detection mechanism is currently triggered at the device. If the
          * detection mechanism is triggered, this attribute shall be set to Warning or Critical, otherwise it shall be
          * set to Normal. The battery state shall also be reflected in the Power Source cluster representing the
-         * device’s battery using the appropriate supported attributes and events.
+         * device's battery using the appropriate supported attributes and events.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.4
          */
@@ -264,7 +264,7 @@ export declare namespace SmokeCoAlarm {
         expiryDate: number;
 
         /**
-         * Indicates whether the device’s smoke sensor is currently triggering a smoke alarm.
+         * Indicates whether the device's smoke sensor is currently triggering a smoke alarm.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.2
          */
@@ -285,7 +285,7 @@ export declare namespace SmokeCoAlarm {
         smokeSensitivityLevel: Sensitivity;
 
         /**
-         * Indicates whether the device’s CO sensor is currently triggering a CO alarm.
+         * Indicates whether the device's CO sensor is currently triggering a CO alarm.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.11.6.3
          */

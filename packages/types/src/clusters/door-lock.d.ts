@@ -22,6 +22,8 @@ import type { StatusResponseError } from "../common/StatusResponseError.js";
  * locking functionality is abstracted from the cluster. The cluster has a small list of mandatory attributes and
  * functions and a list of optional features.
  *
+ * !image2
+ *
  * @see {@link MatterSpecification.v151.Cluster} § 5.2
  */
 export declare namespace DoorLock {
@@ -191,7 +193,7 @@ export declare namespace DoorLock {
 
         /**
          * Indicates the local programming features that will be disabled when EnableLocalProgramming attribute is set
-         * to False. If a door lock doesn’t support disabling one aspect of local programming it shall return
+         * to False. If a door lock doesn't support disabling one aspect of local programming it shall return
          * CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming attribute is set
          * to True then all local programming features shall be enabled regardless of the bits set to 0 in this
          * attribute.
@@ -450,35 +452,36 @@ export declare namespace DoorLock {
      */
     export interface AliroProvisioningAttributes {
         /**
-         * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if not
-         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         * Indicates the verification key component of the Reader's key pair as defined in [[Aliro]](#ref_Aliro). The
+         * value, if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
-         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, “SetAliroReaderConfig
-         * Command”.
+         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
+         * Command".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.37
          */
         aliroReaderVerificationKey: Bytes | null;
 
         /**
-         * Indicates the reader_group_identifier as defined in [Aliro].
+         * Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro).
          *
          * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26,
-         * “SetAliroReaderConfig Command”.
+         * "SetAliroReaderConfig Command".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.38
          */
         aliroReaderGroupIdentifier: Bytes | null;
 
         /**
-         * Indicates the reader_group_sub_identifier as defined in [Aliro].
+         * Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.39
          */
         aliroReaderGroupSubIdentifier: Bytes;
 
         /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
+         * Indicates the list of protocol versions supported for expedited transactions as defined in
+         * [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.40
          */
@@ -498,11 +501,11 @@ export declare namespace DoorLock {
          *
          * > [!NOTE]
          *
-         * > The credential indices used for these two credential types are independent of each other, similar to all
-         *   other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add a
-         *   credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported and
-         *   also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials would
-         *   exist on the server.
+         * > NOTE: The credential indices used for these two credential types are independent of each other, similar to
+         *   all other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add
+         *   a credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported
+         *   and also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials
+         *   would exist on the server.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.45
          */
@@ -514,10 +517,10 @@ export declare namespace DoorLock {
      */
     export interface AliroBleuwbAttributes {
         /**
-         * Indicates the Group Resolving Key as defined in [Aliro].
+         * Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro).
          *
-         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, “SetAliroReaderConfig
-         * Command”.
+         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
+         * Command".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.41
          */
@@ -525,14 +528,14 @@ export declare namespace DoorLock {
 
         /**
          * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [Aliro].
+         * in [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.42
          */
         aliroSupportedBleuwbProtocolVersions: Bytes[];
 
         /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
+         * Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.43
          */
@@ -686,7 +689,7 @@ export declare namespace DoorLock {
 
         /**
          * Indicates the local programming features that will be disabled when EnableLocalProgramming attribute is set
-         * to False. If a door lock doesn’t support disabling one aspect of local programming it shall return
+         * to False. If a door lock doesn't support disabling one aspect of local programming it shall return
          * CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming attribute is set
          * to True then all local programming features shall be enabled regardless of the bits set to 0 in this
          * attribute.
@@ -890,35 +893,36 @@ export declare namespace DoorLock {
         requirePinForRemoteOperation: boolean;
 
         /**
-         * Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, if not
-         * null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
+         * Indicates the verification key component of the Reader's key pair as defined in [[Aliro]](#ref_Aliro). The
+         * value, if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
-         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, “SetAliroReaderConfig
-         * Command”.
+         * Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
+         * Command".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.37
          */
         aliroReaderVerificationKey: Bytes | null;
 
         /**
-         * Indicates the reader_group_identifier as defined in [Aliro].
+         * Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro).
          *
          * Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26,
-         * “SetAliroReaderConfig Command”.
+         * "SetAliroReaderConfig Command".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.38
          */
         aliroReaderGroupIdentifier: Bytes | null;
 
         /**
-         * Indicates the reader_group_sub_identifier as defined in [Aliro].
+         * Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.39
          */
         aliroReaderGroupSubIdentifier: Bytes;
 
         /**
-         * Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro].
+         * Indicates the list of protocol versions supported for expedited transactions as defined in
+         * [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.40
          */
@@ -938,21 +942,21 @@ export declare namespace DoorLock {
          *
          * > [!NOTE]
          *
-         * > The credential indices used for these two credential types are independent of each other, similar to all
-         *   other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add a
-         *   credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported and
-         *   also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials would
-         *   exist on the server.
+         * > NOTE: The credential indices used for these two credential types are independent of each other, similar to
+         *   all other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a client could add
+         *   a credential of type AliroEvictableEndpointKey at any index from 1 to NumberOfAliroEndpointKeysSupported
+         *   and also add a credential of type AliroNonEvictableEndpointKey at the same index, and both credentials
+         *   would exist on the server.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.45
          */
         numberOfAliroEndpointKeysSupported: number;
 
         /**
-         * Indicates the Group Resolving Key as defined in [Aliro].
+         * Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro).
          *
-         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, “SetAliroReaderConfig
-         * Command”.
+         * Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, "SetAliroReaderConfig
+         * Command".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.41
          */
@@ -960,14 +964,14 @@ export declare namespace DoorLock {
 
         /**
          * Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as defined
-         * in [Aliro].
+         * in [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.42
          */
         aliroSupportedBleuwbProtocolVersions: Bytes[];
 
         /**
-         * Indicates the version of the Bluetooth LE advertisement as defined in [Aliro].
+         * Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.9.43
          */
@@ -992,8 +996,8 @@ export declare namespace DoorLock {
          *
          * > [!NOTE]
          *
-         * > If the attribute AutoRelockTime is supported the lock will transition to the locked state when the auto
-         *   relock time has expired.
+         * > NOTE: If the attribute AutoRelockTime is supported the lock will transition to the locked state when the
+         *   auto relock time has expired.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.2
          */
@@ -1019,60 +1023,6 @@ export declare namespace DoorLock {
          * Set user into the lock.
          *
          * Fields used for different use cases:
-         *
-         *   - OperationType shall be set to Add.
-         *
-         *   - UserIndex value shall be set to a user record with UserType set to Available.
-         *
-         *   - UserName may be null causing new user record to use empty string for UserName otherwise UserName shall be
-         *     set to the value provided in the new user record.
-         *
-         *   - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise
-         *     UserUniqueID shall be set to the value provided in the new user record.
-         *
-         *   - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise UserStatus
-         *     shall be set to the value provided in the new user record.
-         *
-         *   - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType
-         *     shall be set to the value provided in the new user record.
-         *
-         *   - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise
-         *     CredentialRule shall be set to the value provided in the new user record.
-         *
-         * CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing fabric
-         * index.
-         *
-         * A LockUserChange event shall be generated after successfully creating a new user.
-         *
-         *   - OperationType shall be set to Modify.
-         *
-         *   - UserIndex value shall be set for a user record with UserType NOT set to Available.
-         *
-         *   - UserName shall be null if modifying a user record that was not created by the accessing fabric.
-         *
-         *   - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t match
-         *     the CreatorFabricIndex in the user record otherwise UserName shall be set to the value provided in the
-         *     user record.
-         *
-         *   - UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
-         *
-         *   - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t
-         *     match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to the value provided
-         *     in the user record.
-         *
-         *   - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be set
-         *     to the value provided in the user record.
-         *
-         *   - UserType may be null causing no change to UserType in user record otherwise UserType shall be set to the
-         *     value provided in the user record.
-         *
-         *   - CredentialRule may be null causing no change to CredentialRule in user record otherwise CredentialRule
-         *     shall be set to the value provided in the user record.
-         *
-         * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user record
-         * shall be set to the accessing fabric index.
-         *
-         * A LockUserChange event shall be generated after successfully modifying a user.
          *
          * Return status is a global status code or a cluster-specific status code from the Status Codes table and shall
          * be one of the following values:
@@ -1119,92 +1069,6 @@ export declare namespace DoorLock {
          *
          * Fields used for different use cases:
          *
-         *   - OperationType shall be set to Add.
-         *
-         *   - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of Available
-         *     and associate its UserIndex with the CredentialIndex in CredentialStruct provided.
-         *
-         *   - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
-         *
-         *   - UserStatus may be null. If it is null, the new user record shall have UserStatus set to OccupiedEnabled.
-         *     Otherwise the new user record shall have UserStatus set to the provided value.
-         *
-         *   - UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
-         *     Otherwise the new user record shall have UserType set to the provided value.
-         *
-         *   - UserType shall NOT be set to ProgrammingUser for this use case.
-         *
-         * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the
-         * accessing fabric index.
-         *
-         * A LockUserChange event shall be generated after successfully creating a new credential and a new user. The
-         * UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The DataIndex
-         * of this LockUserChange event shall be the CredentialIndex that was used to create the credential.
-         *
-         *   - OperationType shall be set to Add.
-         *
-         *   - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in
-         *     CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned.
-         *
-         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
-         *     the user record pointed to by UserIndex.
-         *
-         *   - CredentialIndex in CredentialStruct provided shall be for an available credential slot.
-         *
-         *   - UserStatus shall be null.
-         *
-         *   - UserType shall be null.
-         *
-         * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user record shall
-         * be set to the accessing fabric index.
-         *
-         * CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the accessing
-         * fabric index.
-         *
-         * A LockUserChange event shall be generated after successfully adding a new credential.
-         *
-         *   - OperationType shall be set to Modify.
-         *
-         *   - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided
-         *     otherwise INVALID_COMMAND status response shall be returned.
-         *
-         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
-         *     the user record pointed to by UserIndex.
-         *
-         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
-         *     the credential record pointed to by the CredentialIndex field value of the Credential parameter.
-         *
-         *   - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
-         *
-         *   - UserStatus shall be null.
-         *
-         *   - UserType shall be null.
-         *
-         * CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in user and
-         * credential records shall be set to the accessing fabric index.
-         *
-         * A LockUserChange event shall be generated after successfully modifying a credential.
-         *
-         *   - OperationType shall be set to Modify.
-         *
-         *   - UserIndex shall be null.
-         *
-         *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in
-         *     the credential record pointed to by the CredentialIndex field value of the Credential parameter.
-         *
-         *   - CredentialType in CredentialStruct shall be set to ProgrammingPIN.
-         *
-         *   - CredentialIndex in CredentialStruct shall be 0.
-         *
-         *   - UserStatus shall be null.
-         *
-         *   - UserType shall be set to ProgrammingUser.
-         *
-         * CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the credential
-         * record shall be set to the accessing fabric index.
-         *
-         * A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code.
-         *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.20
          */
         setCredential(request: SetCredentialRequest): MaybePromise<SetCredentialResponse>;
@@ -1224,32 +1088,7 @@ export declare namespace DoorLock {
          *
          * Fields used for different use cases:
          *
-         *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
-         *
-         *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
-         *
-         *   - CredentialIndex in Credential structure shall be set to the credential index to be cleared.
-         *
-         * A LockUserChange event shall be generated after successfully clearing a credential.
-         *
-         *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
-         *
-         *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
-         *
-         *   - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that type
-         *     shall be cleared.
-         *
-         * A single LockUserChange event shall be generated after successfully clearing credentials. This event shall
-         * have DataIndex set to the CredentialIndex in the Credential structure.
-         *
-         *   - Credential field shall be null.
-         *
-         * The ProgrammingPIN credential shall NOT be cleared.
-         *
-         * For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall be
-         * generated. This event shall have DataIndex set to 0xFFFE.
-         *
-         * For each credential cleared whose user doesn’t have another valid credential, the corresponding user record
+         * For each credential cleared whose user doesn't have another valid credential, the corresponding user record
          * shall be reset back to default values and its UserStatus value shall be set to Available and UserType value
          * shall be set to UnrestrictedUser and all schedules shall be cleared. In this case a LockUserChange event
          * shall be generated for the user being cleared.
@@ -1271,8 +1110,6 @@ export declare namespace DoorLock {
          * The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Week Day schedule is set.
          *
          * Return status shall be one of the following values:
-         *
-         * One or more fields violates constraints or is invalid.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.4
          */
@@ -1361,7 +1198,8 @@ export declare namespace DoorLock {
      */
     export interface AliroProvisioningCommands {
         /**
-         * This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.
+         * This command allows communicating an Aliro Reader configuration, as defined in [[Aliro]](#ref_Aliro), to the
+         * lock.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.26
          */
@@ -1374,7 +1212,7 @@ export declare namespace DoorLock {
          *
          * > [!NOTE]
          *
-         * > Using this command will revoke the ability of all existing Aliro user devices that have the old
+         * > NOTE: Using this command will revoke the ability of all existing Aliro user devices that have the old
          *   verification key to interact with the lock. This effect is not restricted to a single fabric or otherwise
          *   scoped in any way.
          *
@@ -1394,8 +1232,8 @@ export declare namespace DoorLock {
          *
          * > [!NOTE]
          *
-         * > If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the auto
-         *   relock time has expired.
+         * > NOTE: If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the
+         *   auto relock time has expired.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.25
          */
@@ -1437,20 +1275,20 @@ export declare namespace DoorLock {
          *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it shall
          *     generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state is reached
          *     and a LockOperation event with LockOperationType set to Unlock when the lock successfully completes the
-         *     unlock → hold latch → release latch and return to unlock state operation.
+         *     unlock -> hold latch -> release latch and return to unlock state operation.
          *
          *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the door
          *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
          *     LockOperation event with LockOperationType set to Unlock.
          *
-         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
-         *       LockOperationError event with LockOperationType set to Unlock.
+         *   - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *     LockOperationError event with LockOperationType set to Unlock.
          *
          *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
          *
-         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
          *
-         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.11.3
          */
@@ -1514,20 +1352,20 @@ export declare namespace DoorLock {
          *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it shall
          *     generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state is reached
          *     and a LockOperation event with LockOperationType set to Unlock when the lock successfully completes the
-         *     unlock → hold latch → release latch and return to unlock state operation.
+         *     unlock -> hold latch -> release latch and return to unlock state operation.
          *
          *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the door
          *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
          *     LockOperation event with LockOperationType set to Unlock.
          *
-         *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
-         *       LockOperationError event with LockOperationType set to Unlock.
+         *   - If it fails before reaching the unlocked state, the door lock server shall generate only a
+         *     LockOperationError event with LockOperationType set to Unlock.
          *
          *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
          *
-         *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+         *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
          *
-         *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+         *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.11.3
          */
@@ -1636,7 +1474,7 @@ export declare namespace DoorLock {
          * FingerCredentials (FGP)
          *
          * Currently the cluster only defines the metadata format for notifications when a fingerprint/ finger vein
-         * credential is used to access the lock and doesn’t describe how to create fingerprint/finger vein credentials.
+         * credential is used to access the lock and doesn't describe how to create fingerprint/finger vein credentials.
          * If the Users feature is also supported then the User that a fingerprint/finger vein is associated with can
          * also have its UserType, UserStatus and Schedule modified.
          *
@@ -1678,7 +1516,7 @@ export declare namespace DoorLock {
          * FaceCredentials (FACE)
          *
          * Currently the cluster only defines the metadata format for notifications when a face recognition, iris, or
-         * retina credential is used to access the lock and doesn’t describe how to create face recognition, iris, or
+         * retina credential is used to access the lock and doesn't describe how to create face recognition, iris, or
          * retina credentials. If the Users feature is also supported then the User that a face recognition, iris, or
          * retina credential is associated with can also have its UserType, UserStatus and Schedule modified.
          *
@@ -1744,7 +1582,7 @@ export declare namespace DoorLock {
          * Locks that support this feature differentiate between unbolting and unlocking. The Unbolt Door command
          * retracts the bolt without pulling the latch. The Unlock Door command fully unlocks the door by retracting the
          * bolt and briefly pulling the latch. While the latch is pulled, the lock state changes to Unlatched. Locks
-         * without unbolting support don’t differentiate between unbolting and unlocking and perform the same operation
+         * without unbolting support don't differentiate between unbolting and unlocking and perform the same operation
          * for both commands.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.4.11
@@ -1754,8 +1592,8 @@ export declare namespace DoorLock {
         /**
          * AliroProvisioning (ALIRO)
          *
-         * Locks that support this feature implement the Aliro specification as defined in [Aliro] and support Matter as
-         * a method for provisioning Aliro credentials.
+         * Locks that support this feature implement the Aliro specification as defined in [[Aliro]](#ref_Aliro) and
+         * support Matter as a method for provisioning Aliro credentials.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.4.12
          */
@@ -1764,7 +1602,8 @@ export declare namespace DoorLock {
         /**
          * AliroBleuwb (ALBU)
          *
-         * Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in [Aliro].
+         * Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in
+         * [[Aliro]](#ref_Aliro).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.4.13
          */
@@ -1866,14 +1705,14 @@ export declare namespace DoorLock {
      *
      * The table below shows the operating mode and which interfaces are enabled, if supported, for each mode.
      *
-     * * Interface Operational: Yes, No or N/A
+     * ^* Interface Operational: Yes, No or N/A
      *
      * > [!NOTE]
      *
-     * > For modes that disable the remote interface, the door lock shall respond to Lock, Unlock, Toggle, and Unlock
-     *   with Timeout commands with a response status Failure and not take the action requested by those commands. The
-     *   door lock shall NOT disable the radio or otherwise unbind or leave the network. It shall still respond to all
-     *   other commands and requests.
+     * > NOTE: For modes that disable the remote interface, the door lock shall respond to Lock, Unlock, Toggle, and
+     *   Unlock with Timeout commands with a response status Failure and not take the action requested by those
+     *   commands. The door lock shall NOT disable the radio or otherwise unbind or leave the network. It shall still
+     *   respond to all other commands and requests.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.6.15
      */
@@ -1923,11 +1762,12 @@ export declare namespace DoorLock {
      * that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is
      * RECOMMENDED that clients carefully take this into consideration.
      *
-     * > [!WARNING]
+     * > [!NOTE]
      *
-     * > For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR
-     *   indicates that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and
-     *   it is recommended that clients carefully take this into consideration. See SupportedOperatingModes.
+     * > WARNING: For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit
+     *   CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this
+     *   specification, and it is recommended that clients carefully take this into consideration. See
+     *   SupportedOperatingModes.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.6.3
      */
@@ -2244,8 +2084,8 @@ export declare namespace DoorLock {
      *
      * > [!NOTE]
      *
-     * > If the attribute AutoRelockTime is supported the lock will transition to the locked state when the auto relock
-     *   time has expired.
+     * > NOTE: If the attribute AutoRelockTime is supported the lock will transition to the locked state when the auto
+     *   relock time has expired.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.2
      */
@@ -2253,7 +2093,7 @@ export declare namespace DoorLock {
         constructor(values?: Partial<UnlockDoorRequest>);
 
         /**
-         * See Section 5.2.10.1.1, “PINCode Field”.
+         * See Section 5.2.10.1.1, "PINCode Field".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.2.1
          */
@@ -2281,7 +2121,7 @@ export declare namespace DoorLock {
         timeout: number;
 
         /**
-         * See Section 5.2.10.1.1, “PINCode Field”.
+         * See Section 5.2.10.1.1, "PINCode Field".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.3.2
          */
@@ -2292,59 +2132,6 @@ export declare namespace DoorLock {
      * Set user into the lock.
      *
      * Fields used for different use cases:
-     *
-     *   - OperationType shall be set to Add.
-     *
-     *   - UserIndex value shall be set to a user record with UserType set to Available.
-     *
-     *   - UserName may be null causing new user record to use empty string for UserName otherwise UserName shall be set
-     *     to the value provided in the new user record.
-     *
-     *   - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise UserUniqueID
-     *     shall be set to the value provided in the new user record.
-     *
-     *   - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise UserStatus
-     *     shall be set to the value provided in the new user record.
-     *
-     *   - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise UserType shall be
-     *     set to the value provided in the new user record.
-     *
-     *   - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise CredentialRule
-     *     shall be set to the value provided in the new user record.
-     *
-     * CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing fabric index.
-     *
-     * A LockUserChange event shall be generated after successfully creating a new user.
-     *
-     *   - OperationType shall be set to Modify.
-     *
-     *   - UserIndex value shall be set for a user record with UserType NOT set to Available.
-     *
-     *   - UserName shall be null if modifying a user record that was not created by the accessing fabric.
-     *
-     *   - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t match the
-     *     CreatorFabricIndex in the user record otherwise UserName shall be set to the value provided in the user
-     *     record.
-     *
-     *   - UserUniqueID shall be null if modifying the user record that was not created by the accessing fabric.
-     *
-     *   - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index doesn’t match
-     *     the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to the value provided in the
-     *     user record.
-     *
-     *   - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall be set to
-     *     the value provided in the user record.
-     *
-     *   - UserType may be null causing no change to UserType in user record otherwise UserType shall be set to the
-     *     value provided in the user record.
-     *
-     *   - CredentialRule may be null causing no change to CredentialRule in user record otherwise CredentialRule shall
-     *     be set to the value provided in the user record.
-     *
-     * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user record shall
-     * be set to the accessing fabric index.
-     *
-     * A LockUserChange event shall be generated after successfully modifying a user.
      *
      * Return status is a global status code or a cluster-specific status code from the Status Codes table and shall be
      * one of the following values:
@@ -2395,7 +2182,7 @@ export declare namespace DoorLock {
 
         /**
          * This field shall indicate the fabric assigned number to use for connecting this user to other users on other
-         * devices from the fabric’s perspective.
+         * devices from the fabric's perspective.
          *
          * If UserUniqueID is null then:
          *
@@ -2541,7 +2328,7 @@ export declare namespace DoorLock {
         credentials: Credential[] | null;
 
         /**
-         * This field shall indicate the user’s creator fabric index. CreatorFabricIndex shall be null if UserStatus is
+         * This field shall indicate the user's creator fabric index. CreatorFabricIndex shall be null if UserStatus is
          * set to Available or when the creator fabric cannot be determined (for example, when user was created outside
          * the Interaction Model) and shall NOT be null otherwise. This value shall be set to 0 if the original creator
          * fabric was deleted.
@@ -2551,7 +2338,7 @@ export declare namespace DoorLock {
         creatorFabricIndex: FabricIndex | null;
 
         /**
-         * This field shall indicate the user’s last modifier fabric index. LastModifiedFabricIndex shall be null if
+         * This field shall indicate the user's last modifier fabric index. LastModifiedFabricIndex shall be null if
          * UserStatus is set to Available or when the modifier fabric cannot be determined (for example, when user was
          * modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be set to 0 if the
          * last modifier fabric was deleted.
@@ -2597,92 +2384,6 @@ export declare namespace DoorLock {
      * ProgrammingUser.
      *
      * Fields used for different use cases:
-     *
-     *   - OperationType shall be set to Add.
-     *
-     *   - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of Available and
-     *     associate its UserIndex with the CredentialIndex in CredentialStruct provided.
-     *
-     *   - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot.
-     *
-     *   - UserStatus may be null. If it is null, the new user record shall have UserStatus set to OccupiedEnabled.
-     *     Otherwise the new user record shall have UserStatus set to the provided value.
-     *
-     *   - UserType may be null. If it is null, the new user record shall have UserType set to UnrestrictedUser.
-     *     Otherwise the new user record shall have UserType set to the provided value.
-     *
-     *   - UserType shall NOT be set to ProgrammingUser for this use case.
-     *
-     * CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to the accessing
-     * fabric index.
-     *
-     * A LockUserChange event shall be generated after successfully creating a new credential and a new user. The
-     * UserIndex of this LockUserChange event shall be the UserIndex that was used to create the user. The DataIndex of
-     * this LockUserChange event shall be the CredentialIndex that was used to create the credential.
-     *
-     *   - OperationType shall be set to Add.
-     *
-     *   - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in CredentialStruct
-     *     provided otherwise INVALID_COMMAND status response shall be returned.
-     *
-     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
-     *     user record pointed to by UserIndex.
-     *
-     *   - CredentialIndex in CredentialStruct provided shall be for an available credential slot.
-     *
-     *   - UserStatus shall be null.
-     *
-     *   - UserType shall be null.
-     *
-     * CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user record shall be
-     * set to the accessing fabric index.
-     *
-     * CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the accessing fabric
-     * index.
-     *
-     * A LockUserChange event shall be generated after successfully adding a new credential.
-     *
-     *   - OperationType shall be set to Modify.
-     *
-     *   - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct provided otherwise
-     *     INVALID_COMMAND status response shall be returned.
-     *
-     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
-     *     user record pointed to by UserIndex.
-     *
-     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
-     *     credential record pointed to by the CredentialIndex field value of the Credential parameter.
-     *
-     *   - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot
-     *
-     *   - UserStatus shall be null.
-     *
-     *   - UserType shall be null.
-     *
-     * CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in user and
-     * credential records shall be set to the accessing fabric index.
-     *
-     * A LockUserChange event shall be generated after successfully modifying a credential.
-     *
-     *   - OperationType shall be set to Modify.
-     *
-     *   - UserIndex shall be null.
-     *
-     *   - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the CreatorFabricIndex in the
-     *     credential record pointed to by the CredentialIndex field value of the Credential parameter.
-     *
-     *   - CredentialType in CredentialStruct shall be set to ProgrammingPIN.
-     *
-     *   - CredentialIndex in CredentialStruct shall be 0.
-     *
-     *   - UserStatus shall be null.
-     *
-     *   - UserType shall be set to ProgrammingUser.
-     *
-     * CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the credential
-     * record shall be set to the accessing fabric index.
-     *
-     * A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.20
      */
@@ -2765,12 +2466,10 @@ export declare namespace DoorLock {
          *   - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to resource
          *     constraints such as:
          *
-         *     - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials
-         *       associated.
+         *   - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials associated.
          *
-         *     - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it
-         *       would cause the total number of credentials of those two types to exceed
-         *       NumberOfAliroEndpointKeysSupported.
+         *   - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding it would
+         *     cause the total number of credentials of those two types to exceed NumberOfAliroEndpointKeysSupported.
          *
          *   - INVALID_COMMAND, if one or more fields violate constraints or are invalid.
          *
@@ -2843,7 +2542,7 @@ export declare namespace DoorLock {
         credentialExists: boolean;
 
         /**
-         * This field shall indicate the credential’s corresponding user index value if the credential exists. If
+         * This field shall indicate the credential's corresponding user index value if the credential exists. If
          * CredentialType requested was ProgrammingPIN then UserIndex shall be null; otherwise, UserIndex shall be null
          * if CredentialExists is set to False and shall NOT be null if CredentialExists is set to True.
          *
@@ -2852,7 +2551,7 @@ export declare namespace DoorLock {
         userIndex: number | null;
 
         /**
-         * This field shall indicate the credential’s creator fabric index. CreatorFabricIndex shall be null if
+         * This field shall indicate the credential's creator fabric index. CreatorFabricIndex shall be null if
          * CredentialExists is set to False or when the creator fabric cannot be determined (for example, when
          * credential was created outside the Interaction Model) and shall NOT be null otherwise. This value shall be
          * set to 0 if the original creator fabric was deleted.
@@ -2862,7 +2561,7 @@ export declare namespace DoorLock {
         creatorFabricIndex: FabricIndex | null;
 
         /**
-         * This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall be null
+         * This field shall indicate the credential's last modifier fabric index. LastModifiedFabricIndex shall be null
          * if CredentialExists is set to False or when the modifier fabric cannot be determined (for example, when
          * credential was modified outside the Interaction Model) and shall NOT be null otherwise. This value shall be
          * set to 0 if the last modifier fabric was deleted.
@@ -2895,7 +2594,7 @@ export declare namespace DoorLock {
          *
          * > [!NOTE]
          *
-         * > Since the Aliro credentials are public keys, there is no security risk in allowing them to be read.
+         * > NOTE: Since the Aliro credentials are public keys, there is no security risk in allowing them to be read.
          *   Possession of the credential octet string does not allow operating the lock.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.23.6
@@ -2908,32 +2607,7 @@ export declare namespace DoorLock {
      *
      * Fields used for different use cases:
      *
-     *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
-     *
-     *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
-     *
-     *   - CredentialIndex in Credential structure shall be set to the credential index to be cleared.
-     *
-     * A LockUserChange event shall be generated after successfully clearing a credential.
-     *
-     *   - CredentialType in Credential structure shall be set to the credential type to be cleared.
-     *
-     *   - CredentialType in Credential structure shall NOT be set to ProgrammingPIN.
-     *
-     *   - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of that type shall
-     *     be cleared.
-     *
-     * A single LockUserChange event shall be generated after successfully clearing credentials. This event shall have
-     * DataIndex set to the CredentialIndex in the Credential structure.
-     *
-     *   - Credential field shall be null.
-     *
-     * The ProgrammingPIN credential shall NOT be cleared.
-     *
-     * For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall be generated.
-     * This event shall have DataIndex set to 0xFFFE.
-     *
-     * For each credential cleared whose user doesn’t have another valid credential, the corresponding user record shall
+     * For each credential cleared whose user doesn't have another valid credential, the corresponding user record shall
      * be reset back to default values and its UserStatus value shall be set to Available and UserType value shall be
      * set to UnrestrictedUser and all schedules shall be cleared. In this case a LockUserChange event shall be
      * generated for the user being cleared.
@@ -2961,8 +2635,6 @@ export declare namespace DoorLock {
      * The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Week Day schedule is set.
      *
      * Return status shall be one of the following values:
-     *
-     * One or more fields violates constraints or is invalid.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.4
      */
@@ -3406,7 +3078,8 @@ export declare namespace DoorLock {
     };
 
     /**
-     * This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.
+     * This command allows communicating an Aliro Reader configuration, as defined in [[Aliro]](#ref_Aliro), to the
+     * lock.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.26
      */
@@ -3414,14 +3087,14 @@ export declare namespace DoorLock {
         constructor(values?: Partial<SetAliroReaderConfigRequest>);
 
         /**
-         * This field shall indicate the signing key component of the Reader’s key pair.
+         * This field shall indicate the signing key component of the Reader's key pair.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.26.1
          */
         signingKey: Bytes;
 
         /**
-         * This field shall indicate the verification key component of the Reader’s key pair. This shall be an
+         * This field shall indicate the verification key component of the Reader's key pair. This shall be an
          * uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.26.2
@@ -3450,8 +3123,8 @@ export declare namespace DoorLock {
      *
      * > [!NOTE]
      *
-     * > If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the auto relock
-     *   time has expired.
+     * > NOTE: If the attribute AutoRelockTime is supported, the lock will transition to the locked state when the auto
+     *   relock time has expired.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.25
      */
@@ -3459,7 +3132,7 @@ export declare namespace DoorLock {
         constructor(values?: Partial<UnboltDoorRequest>);
 
         /**
-         * See Section 5.2.10.1.1, “PINCode Field”.
+         * See Section 5.2.10.1.1, "PINCode Field".
          *
          * @see {@link MatterSpecification.v151.Cluster} § 5.2.10.25.1
          */
@@ -3492,21 +3165,21 @@ export declare namespace DoorLock {
      *
      *   - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, it shall
      *     generate a LockOperation event with LockOperationType set to Unlatch when the unlatched state is reached and
-     *     a LockOperation event with LockOperationType set to Unlock when the lock successfully completes the unlock →
-     *     hold latch → release latch and return to unlock state operation.
+     *     a LockOperation event with LockOperationType set to Unlock when the lock successfully completes the unlock ->
+     *     hold latch -> release latch and return to unlock state operation.
      *
      *   - If the command fails during holding or releasing the latch but after passing the unlocked state, the door
      *     lock server shall generate a LockOperationError event with LockOperationType set to Unlatch and a
      *     LockOperation event with LockOperationType set to Unlock.
      *
-     *     - If it fails before reaching the unlocked state, the door lock server shall generate only a
-     *       LockOperationError event with LockOperationType set to Unlock.
+     *   - If it fails before reaching the unlocked state, the door lock server shall generate only a LockOperationError
+     *     event with LockOperationType set to Unlock.
      *
      *   - Upon manual actuation, a door lock server that supports the Unbolting feature:
      *
-     *     - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
+     *   - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the outside.
      *
-     *     - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
+     *   - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the inside.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.2.11.3
      */
@@ -3904,7 +3577,7 @@ export declare namespace DoorLock {
          * of SEC 1.
          *
          * Credentials of this type shall NOT be used to allow operating the lock. They shall be used, as defined in
-         * [Aliro], to create new credentials of type AliroEvictableEndpointKey via a step-up transaction.
+         * [[Aliro]](#ref_Aliro), to create new credentials of type AliroEvictableEndpointKey via a step-up transaction.
          *
          * When performing the step-up transaction, the lock shall request the data element with identifier "matter1",
          * and shall attempt to create a new credential of type AliroEvictableEndpointKey if and only if the data

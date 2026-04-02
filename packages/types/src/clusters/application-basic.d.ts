@@ -193,9 +193,9 @@ export declare namespace ApplicationBasic {
          * This field shall indicate the Connectivity Standards Alliance issued vendor ID for the catalog. The DIAL
          * registry shall use value 0x0000.
          *
-         * It is assumed that Content App Platform providers (see Video Player Architecture section in [MatterDevLib])
-         * will have their own catalog vendor ID (set to their own Vendor ID) and will assign an ApplicationID to each
-         * Content App.
+         * It is assumed that Content App Platform providers (see Video Player Architecture section in
+         * [[MatterDevLib]](#ref_MatterDevLib)) will have their own catalog vendor ID (set to their own Vendor ID) and
+         * will assign an ApplicationID to each Content App.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 6.3.4.2.1
          */
