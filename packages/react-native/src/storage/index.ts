@@ -11,6 +11,10 @@ import { ReactNativeWebStorageDriverV2 } from "./ReactNativeWebStorageDriverV2.j
 
 /** @deprecated Use {@link ReactNativeWebStorageDriver} */
 export const StorageBackendAsyncStorage = ReactNativeWebStorageDriver;
+/** @deprecated Use {@link ReactNativeWebStorageDriver} */
+export type StorageBackendAsyncStorage = ReactNativeWebStorageDriver;
 
 /** @deprecated Use {@link ReactNativeWebStorageDriverV2} */
 export const StorageBackendAsyncStorageV2 = ReactNativeWebStorageDriverV2;
+/** @deprecated Use {@link ReactNativeWebStorageDriverV2} */
+export type StorageBackendAsyncStorageV2 = ReactNativeWebStorageDriverV2;

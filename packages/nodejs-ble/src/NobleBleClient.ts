@@ -159,7 +159,11 @@ export class NobleBleClient {
             logger.info("Error starting scan during close, proceeding to stop:", error);
         }
 
-        noble.stop();
+        try {
+            noble.stop();
+        } catch (error) {
+            logger.info("Error stopping Noble:", error);
+        }
     }
 
     [Diagnostic.name] = "BLE client";

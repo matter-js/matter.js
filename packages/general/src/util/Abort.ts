@@ -337,21 +337,19 @@ export namespace Abort {
                 signal = signal.signal;
             }
 
-            if (signal.aborted) {
-                return undefined;
-            }
-
-            let off: () => void;
-            const aborted = new Promise<void>(resolve => {
-                const onabort = () => resolve();
-                (signal as AbortSignal).addEventListener("abort", onabort);
-                off = () => (signal as AbortSignal).removeEventListener("abort", onabort);
-            });
+            let off: (() => void) | undefined;
+            const aborted = signal.aborted
+                ? Promise.resolve()
+                : new Promise<void>(resolve => {
+                      const onabort = () => resolve();
+                      (signal as AbortSignal).addEventListener("abort", onabort);
+                      off = () => (signal as AbortSignal).removeEventListener("abort", onabort);
+                  });
 
             try {
                 return await SafePromise.race([aborted, ...promises]);
             } finally {
-                off!();
+                off?.();
             }
         }
 

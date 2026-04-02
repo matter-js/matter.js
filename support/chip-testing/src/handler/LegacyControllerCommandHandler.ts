@@ -541,6 +541,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                           : vendorId !== undefined
                             ? { vendorId, productId }
                             : {},
+                timeout: Seconds(15),
             },
             passcode,
         };
