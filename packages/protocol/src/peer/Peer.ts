@@ -516,8 +516,8 @@ export namespace Peer {
          * Constrain the transport type for this connection.
          */
         transport?: ChannelType;
-      
-         /** 
+
+        /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.
          *
          * Note: if a connection process is already in progress for this peer, this handler is not applied to the

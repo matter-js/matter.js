@@ -551,7 +551,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                             error => logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
                         );
                     })
-                    .catch(() => {});
+                    .catch(error =>
+                        logger.debug(`Peripheral ${peripheralAddress}: Error during disconnect cleanup`, error),
+                    );
             },
 
             // callback to forward decoded and de-assembled Matter messages
@@ -570,7 +572,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             );
 
             btpSession.handleIncomingBleData(new Uint8Array(data)).catch(error => {
-                logger.error(`Peripheral ${peripheralAddress}: Error handling incoming BLE data`, error);
+                logger.info(`Peripheral ${peripheralAddress}: Error handling incoming BLE data`, error);
             });
         };
         characteristicC2ForSubscribe.on("data", c2DataHandler);

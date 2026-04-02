@@ -164,6 +164,10 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
             this.#iteratorWaiter = undefined;
         }
 
+        for (const listener of this.#closeListeners) {
+            listener();
+        }
+
         await this.#socket.close();
     }
 
@@ -212,6 +216,7 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     }
 
     #handleClose(): void {
+        if (this.#closed) return;
         this.#closed = true;
 
         // Terminate the async iterator

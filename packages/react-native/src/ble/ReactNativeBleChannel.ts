@@ -238,7 +238,9 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
 
             // 2. then handle Incoming Data - btpSession is guaranteed to be set after handshake
             if (btpSession) {
-                btpSession.handleIncomingBleData(data).catch(() => {});
+                btpSession.handleIncomingBleData(data).catch(error => {
+                    logger.info("Error handling incoming BLE data", error);
+                });
             }
         });
 

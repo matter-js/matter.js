@@ -259,7 +259,9 @@ export class BlenoBleServer extends BleChannel<Bytes> {
         } else {
             if (this.btpSession !== undefined) {
                 logger.debug(`Received Matter data for BTP Session: ${data.toString("hex")}`);
-                void this.btpSession.handleIncomingBleData(new Uint8Array(data));
+                this.btpSession.handleIncomingBleData(new Uint8Array(data)).catch(error => {
+                    logger.info("Error handling incoming BLE data", error);
+                });
             } else {
                 throw new BtpFlowError(
                     `Received Matter data but no BTP session was initialized: ${data.toString("hex")}`,
