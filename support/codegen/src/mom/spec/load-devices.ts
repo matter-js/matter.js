@@ -6,11 +6,11 @@
 
 import { Logger } from "#general";
 import { scanSpec } from "./scan-spec.js";
-import { DeviceReference, HtmlReference } from "./spec-types.js";
+import { DeviceReference, SpecReference } from "./spec-types.js";
 
 const logger = Logger.get("load-devices");
 
-function augmentDevice(device: DeviceReference, content: HtmlReference) {
+function augmentDevice(device: DeviceReference, content: SpecReference) {
     let name = content.name.toLowerCase();
     if (name.endsWith(" conditions")) {
         name = "conditions";
@@ -92,7 +92,7 @@ function augmentDevice(device: DeviceReference, content: HtmlReference) {
     }
 }
 
-export function* loadDevices(devices: HtmlReference) {
+export function* loadDevices(devices: SpecReference) {
     let category: string | undefined;
     let device: DeviceReference | undefined;
 

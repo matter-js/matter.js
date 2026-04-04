@@ -5,36 +5,8 @@
  */
 
 import { JSDOM } from "jsdom";
-
-// Shared lightweight DOM for element creation
-const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
-const document = dom.window.document;
-
-/**
- * Strip lightweight markdown formatting from a pipe table cell, producing plain text.
- */
-function stripMarkdown(text: string): string {
-    return (
-        text
-            // HTML anchor tags: <a id="..."></a> or <a id="...">text</a>
-            .replace(/<a\s+[^>]*>\s*<\/a>/gi, "")
-            .replace(/<a\s+[^>]*>([^<]*)<\/a>/gi, "$1")
-            // Markdown links: [text](url)
-            .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-            // Bold markers: **text** and __text__
-            .replace(/\*\*([^*]*)\*\*/g, "$1")
-            .replace(/__([^_]*)__/g, "$1")
-            // Italic markers: *text* and _text_
-            .replace(/\*([^*]+)\*/g, "$1")
-            .replace(/(?<!\w)_([^_]+)_(?!\w)/g, "$1")
-            // Inline code backticks
-            .replace(/`([^`]*)`/g, "$1")
-            // HTML superscripts: <sup>N</sup> → ^N
-            .replace(/<sup>([^<]*)<\/sup>/gi, "^$1")
-            // HTML subscripts: <sub>N</sub> → just N (rare, but handle)
-            .replace(/<sub>([^<]*)<\/sub>/gi, "$1")
-    );
-}
+import { Table } from "../spec-types.js";
+import { stripMarkdown } from "./md-utils.js";
 
 /**
  * Split a pipe table line into cell values, trimming whitespace.
@@ -54,15 +26,16 @@ function isSeparatorRow(cells: string[]): boolean {
 }
 
 /**
- * Build an `HTMLTableElement` from parsed pipe table lines.
+ * Build a {@link Table} from parsed pipe table lines.
  *
- * The first row becomes `<th>` cells in a `<thead>`, remaining data rows become `<td>` cells in a `<tbody>`.
- * Cell text has markdown formatting stripped.
+ * The first row becomes the field names, remaining data rows become string cell values.
  */
-export function parsePipeTable(lines: string[]): HTMLTableElement {
-    const table = document.createElement("table");
-    const thead = document.createElement("thead");
-    const tbody = document.createElement("tbody");
+export function parsePipeTable(lines: string[]): Table {
+    const table: Table = {
+        fields: [],
+        rows: [],
+        notes: [],
+    };
 
     let headerDone = false;
     let numColumns = 0;
@@ -75,8 +48,7 @@ export function parsePipeTable(lines: string[]): HTMLTableElement {
             // First row is the header
             numColumns = cells.length;
 
-            // Identify columns that can contain unescaped `|` in content.
-            // Conformance columns use `|` for OR expressions; constraint columns rarely do but can.
+            // Identify columns that can contain unescaped `|` in content
             for (let i = 0; i < cells.length; i++) {
                 const name = cells[i].trim().toLowerCase().replace(/\W/g, "");
                 if (name === "conformance" || name === "constraint") {
@@ -84,13 +56,13 @@ export function parsePipeTable(lines: string[]): HTMLTableElement {
                 }
             }
 
-            const tr = document.createElement("tr");
             for (const cell of cells) {
-                const th = document.createElement("th");
-                th.textContent = stripMarkdown(cell);
-                tr.appendChild(th);
+                let key = stripMarkdown(cell);
+                key = key.replace(/\W/g, "").toLowerCase();
+                table.fields.push(key);
             }
-            thead.appendChild(tr);
+
+            table.firstRowIdentity = cells.map(c => stripMarkdown(c).trim()).join("␜");
             headerDone = true;
             continue;
         }
@@ -100,49 +72,128 @@ export function parsePipeTable(lines: string[]): HTMLTableElement {
             continue;
         }
 
-        // When a data row has more cells than the header, the extra cells are caused by unescaped `|` in
-        // cell content (typically the Conformance column using OR expressions like `VIS | AUD`).
-        // Merge overflow cells into the identified overflow column (conformance or constraint).
+        // Handle overflow from unescaped `|` in content (e.g. conformance `VIS | AUD`)
         let normalizedCells = cells;
         if (cells.length > numColumns && overflowColumn >= 0) {
-            const excess = cells.length - numColumns;
             const start = overflowColumn;
-            const end = start + excess + 1;
+            const end = start + (cells.length - numColumns) + 1;
             normalizedCells = [...cells.slice(0, start), cells.slice(start, end).join(" | "), ...cells.slice(end)];
         } else if (cells.length > numColumns) {
-            // No known overflow column — join excess into last column as fallback
             normalizedCells = [...cells.slice(0, numColumns - 1), cells.slice(numColumns - 1).join(" | ")];
         }
 
-        const tr = document.createElement("tr");
-        for (const cell of normalizedCells) {
-            const td = document.createElement("td");
-            td.textContent = stripMarkdown(cell);
-            tr.appendChild(td);
+        // Single-cell rows are notes
+        if (normalizedCells.length === 1 && table.fields.length > 1) {
+            table.notes.push({ note: stripMarkdown(normalizedCells[0]), beforeRowIndex: table.rows.length });
+            continue;
         }
-        tbody.appendChild(tr);
-    }
 
-    table.appendChild(thead);
-    if (tbody.childNodes.length) {
-        table.appendChild(tbody);
+        const row: Table["rows"][number] = {};
+        for (let i = 0; i < table.fields.length; i++) {
+            row[table.fields[i]] = i < normalizedCells.length ? stripMarkdown(normalizedCells[i]) : undefined;
+        }
+        table.rows.push(row);
     }
 
     return table;
 }
 
 /**
- * Parse an inline HTML `<table>...</table>` block into an `HTMLTableElement` using JSDOM.
+ * Parse an inline HTML `<table>...</table>` block into a {@link Table}.
+ *
+ * Uses JSDOM to parse the HTML, then extracts text from cells.  Preserves rowspan handling.
  */
-export function parseHtmlTableBlock(html: string): HTMLTableElement {
+export function parseHtmlTableBlock(html: string, previous?: Table): Table {
     const fragment = new JSDOM(html);
-    const table = fragment.window.document.querySelector("table");
-    if (!table) {
+    const el = fragment.window.document.querySelector("table");
+    if (!el) {
         throw new Error("No <table> element found in HTML block");
     }
 
-    // Import the node into our shared DOM so all elements share the same document
-    return document.importNode(table, true) as HTMLTableElement;
+    return convertHtmlTable(el, previous);
+}
+
+/**
+ * Convert an HTML table element into a {@link Table} with string cell values.
+ *
+ * Handles rowspan, split-table identity matching, and single-cell note rows.
+ */
+function convertHtmlTable(el: HTMLTableElement, previous: Table | undefined): Table {
+    let table: Table | undefined;
+    const rowspans = Array<{ remaining: number; text: string }>();
+
+    for (const tr of el.querySelectorAll("tr")) {
+        const cells = tr.querySelectorAll("td, th");
+
+        if (table === undefined) {
+            // textContent on DOM nodes already strips HTML tags, so this is equivalent to
+            // stripMarkdown for pipe table identity — the two paths never need to cross-match
+            const firstRowIdentity = Array.from(cells)
+                .map(cell => cell.textContent?.trim())
+                .join("␜");
+
+            if (previous?.firstRowIdentity === firstRowIdentity) {
+                table = previous;
+                continue;
+            }
+
+            table = {
+                firstRowIdentity,
+                fields: [],
+                rows: [],
+                notes: [],
+            };
+        }
+
+        if (cells.length === 1) {
+            table.notes.push({ note: cells[0].textContent?.trim() ?? "", beforeRowIndex: table.rows.length });
+            for (const span of rowspans) {
+                if (span.remaining) {
+                    span.remaining--;
+                }
+            }
+            continue;
+        }
+
+        if (!table.fields.length) {
+            cells.forEach(cell => {
+                let key = cell.textContent || "";
+                key = key.replace(/\W/g, "").toLowerCase();
+                table?.fields.push(key);
+            });
+            continue;
+        }
+
+        const row: Table["rows"][number] = {};
+        let sourceIndex = 0;
+        for (let i = 0; i < table.fields.length; i++) {
+            if (rowspans[i]?.remaining) {
+                rowspans[i].remaining--;
+                row[table.fields[i]] = rowspans[i].text;
+                continue;
+            }
+
+            const cell = cells.item(sourceIndex++) as HTMLTableCellElement | null;
+            if (cell === null) {
+                continue;
+            }
+
+            const text = cell.textContent?.trim() ?? "";
+            row[table.fields[i]] = text;
+
+            const rowspan = cell.rowSpan;
+            if (typeof rowspan === "number" && rowspan > 1) {
+                rowspans[i] = {
+                    remaining: rowspan - 1,
+                    text,
+                };
+            }
+        }
+
+        table.rows.push(row);
+    }
+
+    return table ?? { fields: [], rows: [], notes: [] };
 }
 
 /**
@@ -154,13 +205,13 @@ function isPipeTableLine(line: string): boolean {
 }
 
 /**
- * Extract tables and prose from a block of markdown lines (content between two headings).
+ * Extract tables and prose from a block of markdown lines.
  *
- * Pipe tables are converted to real `HTMLTableElement`s. HTML `<table>` blocks are parsed with JSDOM.
+ * Pipe tables are converted to {@link Table} objects directly.  HTML `<table>` blocks are parsed with JSDOM.
  * Everything else is returned as prose lines.
  */
-export function extractTables(lines: string[]): { tables: HTMLTableElement[]; proseLines: string[] } {
-    const tables: HTMLTableElement[] = [];
+export function extractTables(lines: string[]): { tables: Table[]; proseLines: string[] } {
+    const tables: Table[] = [];
     const proseLines: string[] = [];
 
     let i = 0;
@@ -179,7 +230,11 @@ export function extractTables(lines: string[]): { tables: HTMLTableElement[]; pr
                 }
                 i++;
             }
-            tables.push(parseHtmlTableBlock(htmlLines.join("\n")));
+            const previous = tables.length > 0 ? tables[tables.length - 1] : undefined;
+            const parsed = parseHtmlTableBlock(htmlLines.join("\n"), previous);
+            if (parsed !== previous) {
+                tables.push(parsed);
+            }
             continue;
         }
 

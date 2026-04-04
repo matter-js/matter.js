@@ -6,7 +6,6 @@
 
 import { camelize, InternalError } from "#general";
 import { AttributeElement, DatatypeElement, FieldElement, Metatype, ValueElement } from "#model";
-import { ByteSize, Integer, Str, StrWithSuperscripts } from "./html-translators.js";
 import { repairTypeIdentifier } from "./repairs/type-repairs.js";
 import { GlobalReference } from "./spec-types.js";
 import {
@@ -17,6 +16,7 @@ import {
     translateValueChildren,
 } from "./translate-datatype.js";
 import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+import { ByteSize, Integer, Str, StrWithSuperscripts } from "./translators.js";
 
 let statusType: DatatypeElement | undefined;
 
@@ -203,18 +203,12 @@ function installstatusCodes(ref: GlobalReference) {
         throw new InternalError("Status codes encountered but status type was not");
     }
 
-    // Remove obsolete names from the "value" column.  In HTML specs the name cell has <p> wrappers;
-    // in markdown HTML tables the primary name may be in a <strong> with the obsolete name as a
-    // following text node
+    // Remove obsolete names from the "value" column — strip everything after the first line/sentence
     const table = ref.tables?.[0];
     if (table) {
         for (const record of table.rows) {
-            const name = record.value;
-            if (name) {
-                const anchor = name.querySelector("p") ?? name.querySelector("strong");
-                while (anchor?.nextSibling) {
-                    anchor.nextSibling.remove();
-                }
+            if (record.value) {
+                record.value = record.value.replace(/\n.*$/, "").trim();
             }
         }
     }

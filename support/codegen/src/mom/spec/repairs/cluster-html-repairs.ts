@@ -5,7 +5,7 @@
  */
 
 import { InternalError } from "@matter/general";
-import { ClusterReference, GlobalReference, HtmlReference } from "../spec-types.js";
+import { ClusterReference, GlobalReference, SpecReference } from "../spec-types.js";
 
 export enum ScanDirective {
     // Ignore section in stream
@@ -28,7 +28,7 @@ const NAMESPACE = () => ScanDirective.NAMESPACE;
 
 type HtmlRepairs = Record<
     string,
-    (ref: HtmlReference, ownerRef: ClusterReference | GlobalReference) => ScanDirective | void
+    (ref: SpecReference, ownerRef: ClusterReference | GlobalReference) => ScanDirective | void
 >;
 
 export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
@@ -93,7 +93,7 @@ export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
             if (tables?.length !== 2) {
                 return;
             }
-            if (tables[0].rows[0]?.value?.textContent?.match(/ to /)) {
+            if (tables[0].rows[0]?.value?.match(/ to /)) {
                 tables.splice(0, 1);
             }
         },
@@ -140,7 +140,7 @@ export const ClusterHtmlRepairs: Record<string, HtmlRepairs> = {
 };
 
 // Modify incoming stream to workaround specific spec issues
-export function repairIncomingHtml(subref: HtmlReference, ownerRef: ClusterReference | GlobalReference) {
+export function repairIncomingHtml(subref: SpecReference, ownerRef: ClusterReference | GlobalReference) {
     const repairs = ClusterHtmlRepairs[ownerRef.name];
     if (!repairs) {
         return;

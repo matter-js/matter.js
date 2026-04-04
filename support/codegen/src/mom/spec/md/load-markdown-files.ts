@@ -8,8 +8,18 @@ import { Diagnostic, Logger } from "#general";
 import { Specification } from "#model";
 import { existsSync, lstatSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { IndexDetail } from "../doc-utils.js";
+import { SpecReference } from "../spec-types.js";
 import { parseFrontmatter } from "./md-utils.js";
+
+export const DEFAULT_MATTER_VERSION = Specification.REVISION;
+
+export type IndexDetail = {
+    ref: SpecReference;
+    version: string;
+    hasClusters: boolean;
+    hasDevices: boolean;
+    hasNamespaces: boolean;
+};
 
 const logger = Logger.get("load-markdown");
 

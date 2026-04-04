@@ -5,7 +5,6 @@
  */
 
 import { Specification } from "#model";
-import { JSDOM } from "jsdom";
 
 /**
  * Parsed YAML frontmatter from a markdown spec file.
@@ -24,9 +23,6 @@ const SPEC_MAP: Record<string, `${Specification}`> = {
     device_library: Specification.Device,
     standard_namespaces: Specification.Namespace,
 };
-
-// Shared lightweight DOM for element creation
-const dom = new JSDOM("<!DOCTYPE html><html><body></body></html>");
 
 /**
  * Parse YAML frontmatter delimited by `---` lines.  Returns the parsed frontmatter and the remaining body text.
@@ -86,14 +82,14 @@ export function parseFrontmatter(content: string): { frontmatter: MarkdownFrontm
 }
 
 /**
- * Strip lightweight markdown formatting from text, producing plain text content that the HTML translators expect.
+ * Strip lightweight markdown formatting from text, producing plain text.
  *
  * - `[text](url)` links become just `text`
  * - `**bold**` markers are removed
  * - `` `code` `` backticks are removed
  * - `^` characters are preserved (exponent operator in constraint cells)
  */
-function stripMarkdown(text: string): string {
+export function stripMarkdown(text: string): string {
     return (
         text
             // HTML anchor tags: <a id="..."></a> or <a id="...">text</a>
@@ -114,28 +110,6 @@ function stripMarkdown(text: string): string {
             // HTML subscripts: <sub>N</sub> → just N
             .replace(/<sub>([^<]*)<\/sub>/gi, "$1")
     );
-}
-
-/**
- * Create an HTMLElement whose `.textContent` matches what the HTML translators expect for table cell content.
- */
-export function textToElement(text: string): HTMLElement {
-    const el = dom.window.document.createElement("span");
-    el.textContent = stripMarkdown(text);
-    return el;
-}
-
-/**
- * Create a `<p>` element for prose paragraphs, matching what `addDocumentation` expects from the HTML scanner.
- * List markers are preserved in text content.
- */
-export function proseToElement(text: string, admonition?: "NOTE" | "WARNING"): HTMLElement {
-    const el = dom.window.document.createElement("p");
-    el.textContent = stripMarkdown(text);
-    if (admonition) {
-        el.setAttribute("data-admonition", admonition);
-    }
-    return el;
 }
 
 /**

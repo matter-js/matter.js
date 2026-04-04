@@ -5,10 +5,10 @@
  */
 
 import { scanSpec } from "./scan-spec.js";
-import { HtmlReference } from "./spec-types.js";
+import { SpecReference } from "./spec-types.js";
 
-export function* loadNamespaces(namespaces: HtmlReference) {
-    let ns: HtmlReference | undefined;
+export function* loadNamespaces(namespaces: SpecReference) {
+    let ns: SpecReference | undefined;
 
     function* emit() {
         if (ns) {

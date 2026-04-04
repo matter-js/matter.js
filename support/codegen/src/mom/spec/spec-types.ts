@@ -7,7 +7,7 @@
 import { Specification } from "#model";
 
 /**
- * An HTML table
+ * A parsed spec table with string cell values.
  */
 export type Table = {
     /** Used to identify split tables */
@@ -16,66 +16,66 @@ export type Table = {
     /** Field names */
     fields: string[];
 
-    /** Column name -> defining HTML element */
-    rows: { [name: string]: HTMLElement | undefined }[];
+    /** Column name -> cell text */
+    rows: { [name: string]: string | undefined }[];
 
     /** Single-cell rows, tend to be informational; beforeRowIndex indicates which row index they precede */
-    notes: Array<{ note: HTMLElement; beforeRowIndex: number }>;
+    notes: Array<{ note: string; beforeRowIndex: number }>;
 };
 
 /**
- * A reference to a specific portion of the specification.  Captures details as raw HTML DOM nodes from the Matter
- * specification
+ * A reference to a specific portion of the specification.
  */
-export interface HtmlReference {
+export interface SpecReference {
     xref: Specification.CrossReference;
     name: string;
     path: string;
     tables?: Table[];
-    prose?: HTMLElement[];
+    prose?: string[];
     detailSection?: string;
-    details?: HtmlReference[];
+    details?: SpecReference[];
+    /** Markdown content for top-level document references passed through to the scanner */
     markdownContent?: string;
 }
 
 /**
  * Intermediate representation of a global element not defined in a cluster.
  */
-export interface GlobalReference extends HtmlReference {
+export interface GlobalReference extends SpecReference {
     type: "global";
     format: "datatypes" | "elements" | "standalone" | "statusCodes";
 }
 
 /**
- * Intermediate representation of a cluster.  Has all the bits we think we'll need but still encoded as ugly HTML
+ * Intermediate representation of a cluster.
  */
-export interface ClusterReference extends HtmlReference {
+export interface ClusterReference extends SpecReference {
     type: "cluster";
-    ids?: HtmlReference;
-    revisions?: HtmlReference;
-    classifications?: HtmlReference;
-    features?: HtmlReference;
-    attributes?: HtmlReference;
-    attributeSets?: HtmlReference[];
-    commands?: HtmlReference;
-    events?: HtmlReference;
-    statusCodes?: HtmlReference;
-    datatypes?: HtmlReference[];
-    namespace?: HtmlReference[];
+    ids?: SpecReference;
+    revisions?: SpecReference;
+    classifications?: SpecReference;
+    features?: SpecReference;
+    attributes?: SpecReference;
+    attributeSets?: SpecReference[];
+    commands?: SpecReference;
+    events?: SpecReference;
+    statusCodes?: SpecReference;
+    datatypes?: SpecReference[];
+    namespace?: SpecReference[];
 }
 
 /**
  * Intermediate representation of a device type.
  */
-export interface DeviceReference extends HtmlReference {
+export interface DeviceReference extends SpecReference {
     category?: string;
-    classification?: HtmlReference;
-    revisions?: HtmlReference;
-    conditionSets?: HtmlReference[];
-    conditionRequirements?: HtmlReference;
-    clusters?: HtmlReference;
-    elements?: HtmlReference;
-    composingTypes?: HtmlReference;
-    composingClusters?: HtmlReference;
-    composingElements?: HtmlReference;
+    classification?: SpecReference;
+    revisions?: SpecReference;
+    conditionSets?: SpecReference[];
+    conditionRequirements?: SpecReference;
+    clusters?: SpecReference;
+    elements?: SpecReference;
+    composingTypes?: SpecReference;
+    composingClusters?: SpecReference;
+    composingElements?: SpecReference;
 }

@@ -4,20 +4,18 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { scanTables } from "../scan-tables.js";
-import { HtmlReference, Table } from "../spec-types.js";
-import { parseHeadingLine, proseToElement } from "./md-utils.js";
+import { SpecReference, Table } from "../spec-types.js";
+import { parseHeadingLine, stripMarkdown } from "./md-utils.js";
 import { parseHtmlTableBlock, parsePipeTable } from "./parse-tables.js";
 
 /**
- * Scan a markdown document and yield {@link HtmlReference} objects for each numbered section.
+ * Scan a markdown document and yield {@link SpecReference} objects for each numbered section.
  *
  * @param docRef - base reference providing document identity and path
  * @param content - markdown body text (frontmatter already stripped)
  */
-export function* scanMarkdownDocument(docRef: HtmlReference, content: string): Generator<HtmlReference> {
-    let currentRef: HtmlReference | undefined;
-    let tables: HTMLTableElement[] | undefined;
+export function* scanMarkdownDocument(docRef: SpecReference, content: string): Generator<SpecReference> {
+    let currentRef: SpecReference | undefined;
 
     const lines = content.split("\n");
     let i = 0;
@@ -36,7 +34,6 @@ export function* scanMarkdownDocument(docRef: HtmlReference, content: string): G
                     name: heading.name,
                     path: docRef.path,
                 };
-                tables = undefined;
                 i++;
                 continue;
             }
@@ -84,10 +81,12 @@ export function* scanMarkdownDocument(docRef: HtmlReference, content: string): G
                 }
                 i++;
             }
-            if (!tables) {
-                tables = initTables(currentRef);
+            const tables = ensureTables(currentRef);
+            const previous = tables.length > 0 ? tables[tables.length - 1] : undefined;
+            const parsed = parseHtmlTableBlock(htmlLines.join("\n"), previous);
+            if (parsed !== previous) {
+                tables.push(parsed);
             }
-            tables.push(parseHtmlTableBlock(htmlLines.join("\n")));
             continue;
         }
 
@@ -99,13 +98,23 @@ export function* scanMarkdownDocument(docRef: HtmlReference, content: string): G
                 i++;
             }
             if (pipeLines.length >= 2) {
-                if (!tables) {
-                    tables = initTables(currentRef);
+                const tables = ensureTables(currentRef);
+                const parsed = parsePipeTable(pipeLines);
+                const previous = tables.length > 0 ? tables[tables.length - 1] : undefined;
+
+                // Merge tables with identical column structure (spec splits tables across pages/sections)
+                if (previous && previous.firstRowIdentity === parsed.firstRowIdentity) {
+                    const rowOffset = previous.rows.length;
+                    previous.rows.push(...parsed.rows);
+                    previous.notes.push(
+                        ...parsed.notes.map(n => ({ ...n, beforeRowIndex: n.beforeRowIndex + rowOffset })),
+                    );
+                } else {
+                    tables.push(parsed);
                 }
-                tables.push(parsePipeTable(pipeLines));
             } else {
                 // Single pipe line — treat as prose
-                addProse(currentRef, proseToElement(pipeLines[0]));
+                addProse(currentRef, stripMarkdown(pipeLines[0]));
             }
             continue;
         }
@@ -120,7 +129,8 @@ export function* scanMarkdownDocument(docRef: HtmlReference, content: string): G
             const text = quoteLines.join(" ").trim();
             if (text) {
                 const admonition = detectAdmonition(text);
-                addProse(currentRef, proseToElement(text, admonition));
+                const cleanText = stripMarkdown(text);
+                addProse(currentRef, `> [!${admonition}]\n> ${cleanText}`);
             }
             continue;
         }
@@ -132,7 +142,7 @@ export function* scanMarkdownDocument(docRef: HtmlReference, content: string): G
         }
 
         // Regular prose (paragraphs, list items, nested lists)
-        addProse(currentRef, proseToElement(trimmed));
+        addProse(currentRef, stripMarkdown(trimmed));
         i++;
     }
 
@@ -143,7 +153,6 @@ export function* scanMarkdownDocument(docRef: HtmlReference, content: string): G
         if (currentRef) {
             yield currentRef;
             currentRef = undefined;
-            tables = undefined;
         }
     }
 }
@@ -155,50 +164,27 @@ function isPipeTableLine(line: string): boolean {
 /**
  * Detect whether blockquote text is a NOTE or WARNING admonition.
  */
-function detectAdmonition(text: string): "NOTE" | "WARNING" | undefined {
-    if (/^\s*(NOTE|Note)\s*[:\-]?\s/i.test(text)) {
-        return "NOTE";
-    }
-    if (/^\s*(WARNING|Warning)\s*[:\-]?\s/i.test(text)) {
+function detectAdmonition(text: string): "NOTE" | "WARNING" {
+    if (/^\s*(WARNING|Warning)\s*[:-]?\s/i.test(text)) {
         return "WARNING";
     }
-    // Default blockquotes to NOTE (common pattern in spec markdown)
+    // Default blockquotes to NOTE
     return "NOTE";
 }
 
-function addProse(ref: HtmlReference, element: HTMLElement) {
+function addProse(ref: SpecReference, text: string) {
     if (!ref.prose) {
         ref.prose = [];
     }
-    ref.prose.push(element);
+    ref.prose.push(text);
 }
 
 /**
- * Add table support to an {@link HtmlReference}.
- *
- * Creates storage for HTML tables and installs a lazy getter on the ref to implement deferred table scanning.
+ * Ensure a tables array exists on the ref and return it.
  */
-function initTables(ref: HtmlReference) {
-    const htmlTables = [] as HTMLTableElement[];
-
-    let logicalTables: Table[] | undefined;
-    let tablesLoaded = false;
-
-    Object.defineProperty(ref, "tables", {
-        get() {
-            if (!tablesLoaded) {
-                tablesLoaded = true;
-                logicalTables = [...scanTables(htmlTables)];
-                if (!logicalTables.length) {
-                    logicalTables = undefined;
-                }
-            }
-
-            return logicalTables;
-        },
-
-        enumerable: true,
-    });
-
-    return htmlTables;
+function ensureTables(ref: SpecReference): Table[] {
+    if (!ref.tables) {
+        ref.tables = [];
+    }
+    return ref.tables;
 }

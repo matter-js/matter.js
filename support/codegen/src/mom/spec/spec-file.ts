@@ -5,15 +5,19 @@
  */
 
 import { Logger } from "#general";
-import { lstatSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { IntermediateModel } from "../common/intermediate-model.js";
-import { DEFAULT_MATTER_VERSION, IndexDetail, identifyDocument } from "./doc-utils.js";
 import { loadClusters } from "./load-clusters.js";
 import { loadDevices } from "./load-devices.js";
 import { loadNamespaces } from "./load-namespaces.js";
-import { discoverMarkdownFiles, identifyMarkdownDocument, isMarkdownSpecPath } from "./md/load-markdown-files.js";
+import {
+    DEFAULT_MATTER_VERSION,
+    IndexDetail,
+    discoverMarkdownFiles,
+    identifyMarkdownDocument,
+    isMarkdownSpecPath,
+} from "./md/load-markdown-files.js";
 import { translateCluster } from "./translate-cluster.js";
 import { translateDevice } from "./translate-device.js";
 import { translateGlobal } from "./translate-global.js";
@@ -26,19 +30,14 @@ export interface LoadOptions {
     version?: string;
     path?: string;
 }
+
 export class SpecFile {
     #index: IndexDetail;
-    #markdownContent?: string;
+    #markdownContent: string;
 
-    constructor(path: string);
-    constructor(index: IndexDetail, markdownContent: string);
-    constructor(pathOrIndex: string | IndexDetail, markdownContent?: string) {
-        if (typeof pathOrIndex === "string") {
-            this.#index = identifyDocument(pathOrIndex);
-        } else {
-            this.#index = pathOrIndex;
-            this.#markdownContent = markdownContent;
-        }
+    constructor(index: IndexDetail, markdownContent: string) {
+        this.#index = index;
+        this.#markdownContent = markdownContent;
     }
 
     get path() {
@@ -50,11 +49,7 @@ export class SpecFile {
     }
 
     get #ref() {
-        const ref = this.#index.ref;
-        if (this.#markdownContent !== undefined) {
-            return { ...ref, markdownContent: this.#markdownContent };
-        }
-        return ref;
+        return { ...this.#index.ref, markdownContent: this.#markdownContent };
     }
 
     ingestClusters(target: IntermediateModel) {
@@ -102,63 +97,14 @@ export class SpecFile {
             process.env.MATTER_SPECIFICATION_PATH ??
             resolve(homedir(), "Dropbox", "matter", options.version ?? DEFAULT_MATTER_VERSION);
 
-        // Check for markdown spec directory first
-        if (isMarkdownSpecPath(path)) {
-            yield* SpecFile.loadMarkdown(path, options);
-            return;
+        if (!isMarkdownSpecPath(path)) {
+            throw new Error(`Path ${path} is not a markdown spec directory. HTML spec input is no longer supported.`);
         }
 
-        let indices: string[];
-
-        if (lstatSync(path).isFile()) {
-            indices = [path];
-        } else {
-            try {
-                indices = readdirSync(path).filter(filename => filename.endsWith(".html"));
-            } catch (e) {
-                if ((e as { code?: string }).code === "ENOENT") {
-                    throw new Error(`Path ${path} does not exist, do you need to set MATTER_SPECIFICATION_PATH?`);
-                } else {
-                    throw e;
-                }
-            }
-        }
-
-        if (!indices.length) {
-            throw new Error(`No HTML files in ${path}`);
-        }
-
-        // Sort to ensure stable processing order: cluster, core, device, namespace.  This matters because
-        // global elements from core must appear before device types in the output
         const docOrder: Record<string, number> = { cluster: 0, core: 1, device: 2, namespace: 3 };
         const loaded: SpecFile[] = [];
 
-        for (const index of indices) {
-            let file;
-            try {
-                file = new SpecFile(resolve(path, index));
-            } catch (e) {
-                // Skip HTML files that aren't recognized spec documents (e.g. master_lists.html)
-                logger.info(`skipping ${index}: ${(e as Error).message}`);
-                continue;
-            }
-            if (options.document === undefined || file.#index.ref.xref.document === options.document) {
-                loaded.push(file);
-            }
-        }
-
-        loaded.sort(
-            (a, b) => (docOrder[a.#index.ref.xref.document] ?? 99) - (docOrder[b.#index.ref.xref.document] ?? 99),
-        );
-
-        yield* loaded;
-    }
-
-    private static *loadMarkdown(basePath: string, options: LoadOptions) {
-        const docOrder: Record<string, number> = { cluster: 0, core: 1, device: 2, namespace: 3 };
-        const loaded: SpecFile[] = [];
-
-        for (const mdDoc of discoverMarkdownFiles(basePath, options.document)) {
+        for (const mdDoc of discoverMarkdownFiles(path, options.document)) {
             const index = identifyMarkdownDocument(mdDoc.indexPath);
             const file = new SpecFile(index, mdDoc.content);
 
@@ -168,7 +114,7 @@ export class SpecFile {
         }
 
         if (!loaded.length) {
-            throw new Error(`No markdown spec documents found in ${basePath}`);
+            throw new Error(`No markdown spec documents found in ${path}`);
         }
 
         loaded.sort(
