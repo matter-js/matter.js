@@ -170,13 +170,11 @@ Resource.add({
 
                 {
                     tag: "field", name: "LocationDescriptor", xref: "core§9.17.4.3.2",
-
                     details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is " +
                         "provided externally if the user consents. (For example, provided by the user in an ecosystem " +
-                        "specific interface.)" +
-                        "\n" +
-                        "\"Location\" in this context is typically used by the user's grouping into rooms, areas or other " +
-                        "logical groupings of how devices are used. So a device might be part of multiple such \"Locations\"s."
+                        "specific interface.) \"Location\" in this context is typically used by the user's grouping into rooms, " +
+                        "areas or other logical groupings of how devices are used. So a device might be part of multiple such " +
+                        "\"Locations\"s."
                 },
 
                 {

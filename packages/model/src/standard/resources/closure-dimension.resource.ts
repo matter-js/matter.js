@@ -373,7 +373,7 @@ Resource.add(
 
             {
                 tag: "datatype", name: "TranslationDirectionEnum", xref: "cluster§5.5.6.1",
-                details: "### Legend: !legendOpen Open !legendClosed Closed",
+                details: "Legend: !legendOpen Open !legendClosed Closed",
 
                 children: [
                     { tag: "field", name: "Downward", description: "Downward translation" },
@@ -393,7 +393,7 @@ Resource.add(
 
             {
                 tag: "datatype", name: "RotationAxisEnum", xref: "cluster§5.5.6.2",
-                details: "### Legend: !legendOpen Open !legendClosed Closed",
+                details: "Legend: !legendOpen Open !legendClosed Closed",
 
                 children: [
                     {

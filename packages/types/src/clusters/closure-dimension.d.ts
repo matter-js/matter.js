@@ -660,7 +660,7 @@ export declare namespace ClosureDimension {
     };
 
     /**
-     * ### Legend: !legendOpen Open !legendClosed Closed
+     * Legend: !legendOpen Open !legendClosed Closed
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.1
      */
@@ -727,7 +727,7 @@ export declare namespace ClosureDimension {
     }
 
     /**
-     * ### Legend: !legendOpen Open !legendClosed Closed
+     * Legend: !legendOpen Open !legendClosed Closed
      *
      * @see {@link MatterSpecification.v151.Cluster} § 5.5.6.2
      */

@@ -15,6 +15,14 @@ import {
 
 export const BaseDt = DeviceType(
     { name: "Base", classification: "base" },
+    Condition({ name: "Ethernet" }),
+    Condition({ name: "WiFi" }),
+    Condition({ name: "Thread" }),
+    Condition({ name: "Tcp" }),
+    Condition({ name: "Udp" }),
+    Condition({ name: "Ip" }),
+    Condition({ name: "IPv4" }),
+    Condition({ name: "IPv6" }),
     Condition({ name: "LanguageLocale" }),
     Condition({ name: "TimeLocale" }),
     Condition({ name: "UnitLocale" }),
