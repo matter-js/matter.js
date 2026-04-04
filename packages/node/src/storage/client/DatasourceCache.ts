@@ -26,9 +26,11 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
     #buffer?: ClientCacheBuffer;
     #version: number;
     #dirtyKeys = new Set<string>();
+    #erased = false;
+    #reclaimed = false;
+    #consumer?: Datasource.ExternallyMutableStore.Consumer;
 
     initialValues?: Val.Struct;
-    consumer?: Datasource.ExternallyMutableStore.Consumer;
 
     constructor(options: DatasourceCache.Options) {
         this.#writer = options.writer;
@@ -42,6 +44,17 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
         this.#version = typeof version === "number" ? version : Datasource.UNKNOWN_VERSION;
     }
 
+    get consumer() {
+        return this.#consumer;
+    }
+
+    set consumer(consumer: Datasource.ExternallyMutableStore.Consumer | undefined) {
+        this.#consumer = consumer;
+        if (consumer !== undefined) {
+            this.#reclaimed = false;
+        }
+    }
+
     async set(transaction: Transaction, values: Val.Struct) {
         let participant = transaction.getParticipant(this.#writer);
         if (participant === undefined) {
@@ -52,6 +65,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
     }
 
     async externalSet(values: Val.StructMap) {
+        if (this.#erased || this.#reclaimed) {
+            return;
+        }
+
         const versionVal = values.get(DatasourceCache.VERSION_KEY);
         if (typeof versionVal === "number") {
             this.#version = versionVal;
@@ -79,12 +96,15 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
     }
 
     /**
-     * Reset the cache to "uninitialized" state by reclaiming {@link initialValues} from an active datasource.
+     * Reclaim {@link initialValues} from the active datasource so the cache can be detached.  Blocks
+     * {@link externalSet} until a new {@link consumer} is assigned, preventing writes to the released datasource.
      */
     reclaimValues() {
         if (this.consumer) {
             this.initialValues = this.consumer.releaseValues();
         }
+
+        this.#reclaimed = true;
 
         // Don't clear dirty state here — the buffer will flush remaining dirty data during shutdown.  After
         // reclaimValues the data lives in initialValues, and flush() reads from there as a fallback.
@@ -98,19 +118,40 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
         throw new InternalError("Datasource version must be set via externalSet");
     }
 
+    get erased() {
+        return this.#erased;
+    }
+
     /**
-     * Erase values just for this datasource.
+     * Erase values just for this datasource.  After this call, {@link externalSet} is permanently disabled.
      */
     async erase() {
+        this.#erased = true;
         this.#dirtyKeys.clear();
         this.#buffer?.removeDirty(this);
         await this.#localWriter?.erase(this.#endpointNumber, this.#behaviorId);
     }
 
     /**
-     * Flush dirty values to storage.  When {@link tx} is provided, writes go through the shared transaction.
+     * Re-add keys that were cleared during a successful {@link flush} but whose transaction subsequently failed to
+     * commit.  Without this, a commit failure would silently lose buffered writes.
      */
-    async flush(tx?: StorageDriver.Transaction) {
+    restoreDirtyKeys(keys: Set<string>) {
+        if (this.#erased) {
+            return;
+        }
+        for (const key of keys) {
+            this.#dirtyKeys.add(key);
+        }
+    }
+
+    /**
+     * Flush dirty values to storage.  When {@link tx} is provided, writes go through the shared transaction.
+     *
+     * Returns the set of keys that were flushed, so the caller can restore them via {@link restoreDirtyKeys} if
+     * the enclosing transaction fails to commit.
+     */
+    async flush(tx?: StorageDriver.Transaction): Promise<Set<string> | undefined> {
         if (!this.#dirtyKeys.size) {
             return;
         }
@@ -137,6 +178,10 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
         }
 
         if (values === undefined || !Object.keys(values).length) {
+            // Values vanished between marking dirty and flushing; restore keys so they are not silently lost
+            for (const key of flushing) {
+                this.#dirtyKeys.add(key);
+            }
             return;
         }
 
@@ -155,6 +200,8 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
             }
             throw e;
         }
+
+        return flushing;
     }
 }
 
