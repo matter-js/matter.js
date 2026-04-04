@@ -99,21 +99,6 @@ export class NodeJsTcpConnection implements TcpConnection {
         };
     }
 
-    /** @deprecated Prefer async iteration. */
-    onData(listener: (data: Bytes) => void): Transport.Listener {
-        const handler = (data: Buffer) => {
-            listener(new Uint8Array(data));
-        };
-        this.#socket.on("data", handler);
-        // Resume socket since the caller wants callback-based flow
-        this.#socket.resume();
-        return {
-            close: async () => {
-                this.#socket.removeListener("data", handler);
-            },
-        };
-    }
-
     send(data: Bytes): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             this.#socket.write(Bytes.of(data), error => {

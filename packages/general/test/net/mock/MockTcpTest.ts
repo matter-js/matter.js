@@ -14,13 +14,12 @@ describe("MockTcpConnection", () => {
     it("sends data between paired sockets", async () => {
         const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
-        const received: Bytes[] = [];
-        server.onData(data => received.push(data));
-
         await client.send(Bytes.fromHex("deadbeef"));
 
-        expect(received).length(1);
-        expect(Bytes.toHex(received[0])).equals("deadbeef");
+        const iter = server[Symbol.asyncIterator]();
+        const result = await iter.next();
+        expect(result.done).false;
+        expect(Bytes.toHex(result.value)).equals("deadbeef");
 
         await client.close();
     });
@@ -28,18 +27,18 @@ describe("MockTcpConnection", () => {
     it("sends data in both directions", async () => {
         const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
 
-        const clientReceived: Bytes[] = [];
-        const serverReceived: Bytes[] = [];
-        client.onData(data => clientReceived.push(data));
-        server.onData(data => serverReceived.push(data));
-
         await client.send(Bytes.fromHex("aa"));
         await server.send(Bytes.fromHex("bb"));
 
-        expect(serverReceived).length(1);
-        expect(Bytes.toHex(serverReceived[0])).equals("aa");
-        expect(clientReceived).length(1);
-        expect(Bytes.toHex(clientReceived[0])).equals("bb");
+        const serverIter = server[Symbol.asyncIterator]();
+        const serverResult = await serverIter.next();
+        expect(serverResult.done).false;
+        expect(Bytes.toHex(serverResult.value)).equals("aa");
+
+        const clientIter = client[Symbol.asyncIterator]();
+        const clientResult = await clientIter.next();
+        expect(clientResult.done).false;
+        expect(Bytes.toHex(clientResult.value)).equals("bb");
 
         await client.close();
         await server.close();
@@ -127,19 +126,19 @@ describe("MockTcpListener", () => {
 
         const clientSocket = await hostA.connectTcp("10.10.10.2", 5540);
 
-        // Client -> Server
-        const serverReceived: Bytes[] = [];
-        serverSocket!.onData!(data => serverReceived.push(data));
+        // Client -> Server (via async iteration)
         await clientSocket.send(Bytes.fromHex("cafe"));
-        expect(serverReceived).length(1);
-        expect(Bytes.toHex(serverReceived[0])).equals("cafe");
+        const serverIter = serverSocket![Symbol.asyncIterator]();
+        const serverResult = await serverIter.next();
+        expect(serverResult.done).false;
+        expect(Bytes.toHex(serverResult.value)).equals("cafe");
 
-        // Server -> Client
-        const clientReceived: Bytes[] = [];
-        clientSocket.onData!(data => clientReceived.push(data));
+        // Server -> Client (via async iteration)
         await serverSocket!.send(Bytes.fromHex("babe"));
-        expect(clientReceived).length(1);
-        expect(Bytes.toHex(clientReceived[0])).equals("babe");
+        const clientIter = clientSocket[Symbol.asyncIterator]();
+        const clientResult = await clientIter.next();
+        expect(clientResult.done).false;
+        expect(Bytes.toHex(clientResult.value)).equals("babe");
 
         await clientSocket.close();
         await serverSocket!.close();

@@ -81,20 +81,6 @@ export class TcpConnectionReactNative implements TcpConnection {
         };
     }
 
-    /** @deprecated Prefer async iteration. */
-    onData(listener: (data: Bytes) => void): Transport.Listener {
-        const handler = (data: Buffer | string) => {
-            const bytes = typeof data === "string" ? Buffer.from(data) : new Uint8Array(data);
-            listener(bytes);
-        };
-        this.#socket.on("data", handler);
-        return {
-            close: async () => {
-                this.#socket.off("data", handler);
-            },
-        };
-    }
-
     send(data: Bytes): Promise<void> {
         return new Promise<void>((resolve, reject) => {
             this.#socket.write(Buffer.from(Bytes.of(data)), (error?: Error) => {

@@ -36,11 +36,12 @@ describe("NodeJsTcpListener", () => {
         const server = await NodeJsTcpListener.create({ listeningAddress: "127.0.0.1" });
         try {
             const received = new Promise<string>(resolve => {
-                server.onConnection(socket => {
-                    socket.onData!(data => {
+                server.onConnection(async socket => {
+                    for await (const data of socket) {
                         resolve(Bytes.toString(data));
                         void socket.close();
-                    });
+                        break;
+                    }
                 });
             });
 

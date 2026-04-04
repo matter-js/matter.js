@@ -49,14 +49,13 @@ describe("TcpChannel", () => {
             const { client, server } = createPair();
             const conn = new TcpChannel(client);
 
-            const received: Bytes[] = [];
-            server.onData(data => received.push(data));
-
             const payload = Bytes.fromHex("deadbeef");
             await conn.send(payload);
 
-            expect(received).length(1);
-            const sent = Bytes.of(received[0]);
+            const iter = server[Symbol.asyncIterator]();
+            const result = await iter.next();
+            expect(result.done).false;
+            const sent = Bytes.of(result.value);
             // First 4 bytes = LE uint32 of payload length (4 bytes = 0x04000000 LE)
             const view = new DataView(sent.buffer, sent.byteOffset, sent.byteLength);
             expect(view.getUint32(0, true)).equals(4);

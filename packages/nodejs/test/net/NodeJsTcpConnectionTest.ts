@@ -81,35 +81,29 @@ describe("NodeJsTcpConnection", () => {
         }
     });
 
-    it("receives data via onData", async () => {
+    it("receives data via async iteration", async () => {
         const { clientSocket, rawServer } = await connectClient();
         try {
-            const received = new Promise<Bytes>(resolve => {
-                clientSocket.onData(data => resolve(data));
-            });
-
             rawServer.write("world");
-            const data = await received;
-            assert.equal(Bytes.toString(data), "world");
+
+            const iter = clientSocket[Symbol.asyncIterator]();
+            const result = await iter.next();
+            assert.equal(result.done, false);
+            assert.equal(Bytes.toString(result.value), "world");
         } finally {
             await clientSocket.close();
             rawServer.destroy();
         }
     });
 
-    it("onData listener can be removed", async () => {
+    it("terminates iteration on close", async () => {
         const { clientSocket, rawServer } = await connectClient();
         try {
-            let callCount = 0;
-            const listener = clientSocket.onData(() => {
-                callCount++;
-            });
-            await listener.close();
+            const iter = clientSocket[Symbol.asyncIterator]();
+            await clientSocket.close();
 
-            rawServer.write("test");
-            // Give time for potential delivery
-            await new Promise(resolve => setTimeout(resolve, 50));
-            assert.equal(callCount, 0);
+            const result = await iter.next();
+            assert.equal(result.done, true);
         } finally {
             await clientSocket.close();
             rawServer.destroy();

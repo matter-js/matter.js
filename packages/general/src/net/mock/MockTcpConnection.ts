@@ -19,7 +19,6 @@ export class MockTcpConnection implements TcpConnection {
     readonly localPort: number;
 
     #peer?: MockTcpConnection;
-    readonly #dataListeners = new Set<(data: Bytes) => void>();
     readonly #closeListeners = new Set<() => void>();
     readonly #errorListeners = new Set<(error: Error) => void>();
     #closed = false;
@@ -63,11 +62,6 @@ export class MockTcpConnection implements TcpConnection {
         // Deliver asynchronously
         await Time.macrotask;
 
-        // Push to peer's data callback listeners (deprecated path)
-        for (const listener of peer.#dataListeners) {
-            listener(data);
-        }
-
         // Push to peer's iterator queue
         if (peer.#waiter) {
             const resolve = peer.#waiter;
@@ -76,16 +70,6 @@ export class MockTcpConnection implements TcpConnection {
         } else {
             peer.#chunks.push(data);
         }
-    }
-
-    /** @deprecated Prefer async iteration. */
-    onData(listener: (data: Bytes) => void): Transport.Listener {
-        this.#dataListeners.add(listener);
-        return {
-            close: async () => {
-                this.#dataListeners.delete(listener);
-            },
-        };
     }
 
     [Symbol.asyncIterator](): AsyncIterator<Bytes> {

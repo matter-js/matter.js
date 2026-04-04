@@ -44,12 +44,6 @@ export interface TcpConnection extends AsyncIterable<Bytes> {
     /** Send data over the TCP connection. */
     send(data: Bytes): Promise<void>;
 
-    /**
-     * Register a listener for incoming data chunks.
-     * @deprecated Prefer async iteration (`for await (const chunk of connection) { ... }`) for backpressure.
-     */
-    onData?(listener: (data: Bytes) => void): Transport.Listener;
-
     /** Register a listener for connection close. */
     onClose(listener: () => void): Transport.Listener;
 
