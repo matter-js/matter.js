@@ -45,9 +45,6 @@ export class NodeJsTcpConnection implements TcpConnection {
         this.remotePort = socket.remotePort ?? 0;
         this.localPort = socket.localPort ?? 0;
 
-        // Start paused — data only flows when the async iterator pulls
-        socket.pause();
-
         socket.on("data", (data: Buffer) => {
             const chunk = new Uint8Array(data);
             if (this.#waiter) {
@@ -56,8 +53,10 @@ export class NodeJsTcpConnection implements TcpConnection {
                 resolve({ value: chunk, done: false });
             } else {
                 this.#chunks.push(chunk);
-                // Pause until consumer drains the queue
-                socket.pause();
+                // Pause when queue grows to apply backpressure
+                if (this.#chunks.length > 1) {
+                    socket.pause();
+                }
             }
         });
 
