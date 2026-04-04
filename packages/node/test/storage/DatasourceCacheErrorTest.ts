@@ -6,7 +6,7 @@
 
 import { ClientCacheBuffer } from "#storage/client/ClientCacheBuffer.js";
 import { DatasourceCache } from "#storage/client/DatasourceCache.js";
-import { MemoryStorageDriver, StorageDriver } from "@matter/general";
+import { MemoryStorageDriver, Seconds, StorageDriver } from "@matter/general";
 import { Val } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
 
@@ -121,7 +121,7 @@ describe("DatasourceCache error handling", () => {
 describe("ClientCacheBuffer error handling", () => {
     it("drops erased cache without crashing the batch", async () => {
         const driver = MemoryStorageDriver.create();
-        const buffer = new ClientCacheBuffer(driver, 60_000 as any);
+        const buffer = new ClientCacheBuffer(driver, Seconds(60));
 
         const healthy = trackingWriter();
         const healthyCache = createCache({ buffer, localWriter: healthy });
@@ -162,7 +162,7 @@ describe("ClientCacheBuffer error handling", () => {
         };
 
         const writer = trackingWriter();
-        const buffer = new ClientCacheBuffer(driver, 60_000 as any);
+        const buffer = new ClientCacheBuffer(driver, Seconds(60));
         const cache = createCache({ buffer, localWriter: writer });
 
         cache.initialValues = { onOff: false };
@@ -206,7 +206,7 @@ describe("ClientCacheBuffer error handling", () => {
         };
 
         const writer = trackingWriter();
-        const buffer = new ClientCacheBuffer(driver, 60_000 as any);
+        const buffer = new ClientCacheBuffer(driver, Seconds(60));
         const cache = createCache({ buffer, localWriter: writer });
 
         cache.initialValues = { onOff: false };

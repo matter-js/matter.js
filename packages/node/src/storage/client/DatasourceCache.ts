@@ -178,10 +178,12 @@ export class DatasourceCache implements Datasource.ExternallyMutableStore {
         }
 
         if (values === undefined || !Object.keys(values).length) {
-            // Values vanished between marking dirty and flushing; restore keys so they are not silently lost
+            // Values vanished between marking dirty and flushing; restore keys and re-mark so the buffer
+            // retries on the next cycle
             for (const key of flushing) {
                 this.#dirtyKeys.add(key);
             }
+            this.#buffer?.markDirty(this);
             return;
         }
 
