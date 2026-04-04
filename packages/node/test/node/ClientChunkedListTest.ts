@@ -109,9 +109,7 @@ describe("ClientChunkedList", () => {
         expect(channelListReport).not.undefined;
         expect(channelListReport!.kind).equals("attr-value");
 
-        const channelList = (channelListReport as ReadResult.AttributeValue).value as
-            | Channel.ChannelInfo[]
-            | undefined;
+        const channelList = (channelListReport as ReadResult.AttributeValue).value as Channel.ChannelInfo[] | undefined;
         verifyChannelList(channelList, CHANNEL_COUNT);
     });
 });
