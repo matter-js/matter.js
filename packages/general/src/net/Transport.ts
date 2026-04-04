@@ -51,6 +51,11 @@ export interface ConnectionOrientedTransport extends Transport {
     onDisconnect?(listener: (channel: Channel<Bytes>) => void): Transport.Listener;
 }
 
+/** Type guard for connection-oriented transports. */
+export function isConnectionOrientedTransport(transport: Transport): transport is ConnectionOrientedTransport {
+    return typeof (transport as ConnectionOrientedTransport).onDisconnect === "function";
+}
+
 /**
  * A collection of {@link Transport}s managed as a unit.
  */

@@ -19,13 +19,13 @@ import {
     causedBy,
     Channel,
     ChannelType,
-    ConnectionOrientedTransport,
     Diagnostic,
     Entropy,
     Environment,
     Environmental,
     hex,
     ImplementationError,
+    isConnectionOrientedTransport,
     Lifetime,
     Logger,
     MatterFlowError,
@@ -33,7 +33,7 @@ import {
     Time,
     Transport,
     TransportSet,
-    UdpInterface,
+    UdpTransport,
     UnexpectedDataError,
 } from "@matter/general";
 import { FabricIndex, NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureMessageType } from "@matter/types";
@@ -502,7 +502,7 @@ export class ExchangeManager implements Transport.Provider {
     }
 
     #addTransport(netInterface: Transport) {
-        const udpInterface = netInterface instanceof UdpInterface;
+        const udpInterface = netInterface instanceof UdpTransport;
         this.#listeners.set(
             netInterface,
             netInterface.onData((socket, data) => {
@@ -518,12 +518,10 @@ export class ExchangeManager implements Transport.Provider {
 
         // For connection-oriented transports (TCP), subscribe to disconnect events so we can
         // evict all sessions bound to a dropped connection.
-        // Mimics CHIP SDK behavior: evict all sessions when TCP connection drops
-        const connectionOriented = netInterface as ConnectionOrientedTransport;
-        if (typeof connectionOriented.onDisconnect === "function") {
+        if (isConnectionOrientedTransport(netInterface)) {
             this.#disconnectListeners.set(
                 netInterface,
-                connectionOriented.onDisconnect(channel => {
+                netInterface.onDisconnect!(channel => {
                     this.#workers.add(this.#onConnectionDisconnect(channel));
                 }),
             );
@@ -557,7 +555,7 @@ export class ExchangeManager implements Transport.Provider {
 
         const check = (session: Session) => {
             if (session.isClosed) return;
-            if (session.channel.channel === channel) {
+            if (session.channel.transportChannel === channel) {
                 result.push(session);
             }
         };
@@ -589,7 +587,7 @@ export class ExchangeManager implements Transport.Provider {
      *
      * Mimics CHIP SDK behavior: close TCP connection when last session is removed.
      */
-    async #closeTcpConnectionIfLastSession(tcpChannel: Channel<Bytes>) {
+    async #closeTcpChannelIfLastSession(tcpChannel: Channel<Bytes>) {
         if (this.#sessionsOnChannel(tcpChannel).length > 0) {
             return;
         }
@@ -622,9 +620,9 @@ export class ExchangeManager implements Transport.Provider {
 
         // When a session over TCP is removed, check if the TCP connection should be closed
         try {
-            const underlyingChannel = session.channel.channel;
+            const underlyingChannel = session.channel.transportChannel;
             if (underlyingChannel.type === ChannelType.TCP) {
-                this.#workers.add(this.#closeTcpConnectionIfLastSession(underlyingChannel));
+                this.#workers.add(this.#closeTcpChannelIfLastSession(underlyingChannel));
             }
         } catch {
             // Session channel may already be detached/closed, ignore

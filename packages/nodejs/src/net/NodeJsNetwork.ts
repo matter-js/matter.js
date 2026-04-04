@@ -16,17 +16,17 @@ import {
     NetworkInterfaceDetails,
     onSameNetwork,
     TCP_CONNECTION_TIMEOUT_MS,
-    TcpServer,
-    TcpServerOptions,
-    TcpSocket,
-    UdpChannel,
-    UdpChannelOptions,
+    TcpConnection,
+    TcpListener,
+    TcpListenerOptions,
+    UdpSocket,
+    UdpSocketOptions,
 } from "@matter/general";
 import { createConnection } from "node:net";
 import { NetworkInterfaceInfo, networkInterfaces } from "node:os";
-import { NodeJsTcpServer } from "./NodeJsTcpServer.js";
-import { NodeJsTcpSocket } from "./NodeJsTcpSocket.js";
-import { NodeJsUdpChannel } from "./NodeJsUdpChannel.js";
+import { NodeJsTcpConnection } from "./NodeJsTcpConnection.js";
+import { NodeJsTcpListener } from "./NodeJsTcpListener.js";
+import { NodeJsUdpSocket } from "./NodeJsUdpSocket.js";
 
 const logger = Logger.get("NetworkNode");
 
@@ -184,15 +184,15 @@ export class NodeJsNetwork extends Network {
         return { mac: netInterfaceInfo[0].mac, ipV4, ipV6 };
     }
 
-    override createUdpChannel(options: UdpChannelOptions): Promise<UdpChannel> {
-        return NodeJsUdpChannel.create(options);
+    override createUdpSocket(options: UdpSocketOptions): Promise<UdpSocket> {
+        return NodeJsUdpSocket.create(options);
     }
 
-    override createTcpServer(options: TcpServerOptions): Promise<TcpServer> {
-        return NodeJsTcpServer.create(options);
+    override createTcpListener(options: TcpListenerOptions): Promise<TcpListener> {
+        return NodeJsTcpListener.create(options);
     }
 
-    override async connectTcp(host: string, port: number, options?: { timeout?: number }): Promise<TcpSocket> {
+    override async connectTcp(host: string, port: number, options?: { timeout?: number }): Promise<TcpConnection> {
         return new Promise((resolve, reject) => {
             let settled = false;
 
@@ -206,7 +206,7 @@ export class NodeJsNetwork extends Network {
             const socket = createConnection({ host, port, noDelay: true }, () => {
                 socket.setTimeout(0);
                 socket.off("error", rejectOnce);
-                settle(() => resolve(new NodeJsTcpSocket(socket)));
+                settle(() => resolve(new NodeJsTcpConnection(socket)));
             });
 
             const rejectOnce = (error: Error) =>

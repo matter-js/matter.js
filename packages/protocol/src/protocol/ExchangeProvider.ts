@@ -88,7 +88,7 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
     }
 
     get channelType() {
-        return this.#session.channel.channel.type;
+        return this.#session.channel.transportChannel.type;
     }
 
     get session() {

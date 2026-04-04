@@ -6,8 +6,8 @@
 
 import { MatterError } from "../MatterError.js";
 import type { MaybePromise } from "../util/Promises.js";
-import type { TcpServer, TcpServerOptions, TcpSocket } from "./tcp/TcpSocket.js";
-import type { UdpChannel, UdpChannelOptions } from "./udp/UdpChannel.js";
+import type { TcpConnection, TcpListener, TcpListenerOptions } from "./tcp/TcpConnection.js";
+import type { UdpSocket, UdpSocketOptions } from "./udp/UdpSocket.js";
 
 export class NetworkError extends MatterError {}
 
@@ -69,15 +69,15 @@ export type NetworkInterfaceDetailed = NetworkInterface & NetworkInterfaceDetail
 export abstract class Network {
     abstract getNetInterfaces(configuration?: NetworkInterface[]): MaybePromise<NetworkInterface[]>;
     abstract getIpMac(netInterface: string): MaybePromise<NetworkInterfaceDetails | undefined>;
-    abstract createUdpChannel(options: UdpChannelOptions): Promise<UdpChannel>;
+    abstract createUdpSocket(options: UdpSocketOptions): Promise<UdpSocket>;
 
     /** Create a TCP server socket. Override in platform implementations that support TCP. */
-    createTcpServer(_options: TcpServerOptions): Promise<TcpServer> {
+    createTcpListener(_options: TcpListenerOptions): Promise<TcpListener> {
         throw new NetworkError("TCP server not supported on this platform");
     }
 
     /** Connect to a remote TCP endpoint. Override in platform implementations that support TCP. */
-    connectTcp(_host: string, _port: number, _options?: { timeout?: number }): Promise<TcpSocket> {
+    connectTcp(_host: string, _port: number, _options?: { timeout?: number }): Promise<TcpConnection> {
         throw new NetworkError("TCP client not supported on this platform");
     }
 

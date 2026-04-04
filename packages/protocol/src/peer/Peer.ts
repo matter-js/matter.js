@@ -127,7 +127,7 @@ export class Peer {
             });
 
             if (!session.isClosed) {
-                const { channel } = session.channel;
+                const channel = session.channel.transportChannel;
                 if (isIpNetworkChannel(channel)) {
                     if (channel.type === ChannelType.TCP) {
                         // For incoming TCP the remote port is ephemeral — use the mDNS port
@@ -394,7 +394,7 @@ export class Peer {
                 continue;
             }
 
-            if (type !== undefined && session.channel.channel.type !== type) {
+            if (type !== undefined && session.channel.transportChannel.type !== type) {
                 continue;
             }
 
@@ -516,8 +516,8 @@ export namespace Peer {
          * Constrain the transport type for this connection.
          */
         transport?: ChannelType;
-      
-         /** 
+
+        /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.
          *
          * Note: if a connection process is already in progress for this peer, this handler is not applied to the

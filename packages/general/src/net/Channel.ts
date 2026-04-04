@@ -4,8 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 import { ServerAddressIp, ServerAddressUdp } from "#net/ServerAddress.js";
-import { isObject } from "#util/Type.js";
+import type { Transport } from "#net/Transport.js";
+import { Bytes } from "#util/Bytes.js";
 import { Observable } from "#util/index.js";
+import { isObject } from "#util/Type.js";
 
 export enum ChannelType {
     UDP = "udp",
@@ -50,6 +52,34 @@ export interface UdpNetworkChannel<T> extends IpNetworkChannel<T> {
 
     /** Send data, optionally overriding the destination address for this single send. */
     send(data: T, addressOverride?: ServerAddressUdp): Promise<void>;
+}
+
+/**
+ * Stream-oriented channel with a fixed peer (TCP, BLE/BTP).
+ *
+ * Both TCP and BLE channels are inherently reliable and have a connection lifecycle.
+ * Incoming messages are delivered as an async iterable; outgoing messages via send().
+ */
+export interface ConnectedChannel extends Channel<Bytes>, AsyncIterable<Bytes> {
+    readonly isReliable: true;
+    readonly supportsLargeMessages: boolean;
+    readonly type: ChannelType;
+
+    /** Send a complete Matter message to the peer. */
+    send(data: Bytes): Promise<void>;
+
+    /** Close the connection. */
+    close(): Promise<void>;
+
+    /** Register a listener for connection close/disconnect. */
+    onClose(listener: () => void): Transport.Listener;
+}
+
+/**
+ * Type guard for connected (stream-oriented) channels.
+ */
+export function isConnectedChannel(channel?: Channel<unknown>): channel is ConnectedChannel {
+    return channel !== undefined && channel.isReliable && typeof (channel as ConnectedChannel).onClose === "function";
 }
 
 /**

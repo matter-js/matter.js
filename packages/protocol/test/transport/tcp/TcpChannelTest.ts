@@ -4,11 +4,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ChannelType } from "#net/Channel.js";
-import { MockTcpSocket } from "#net/mock/MockTcpSocket.js";
-import { TcpConnection } from "#net/tcp/TcpConnection.js";
-import { DEFAULT_MAX_TCP_MESSAGE_SIZE } from "#net/tcp/TcpSocket.js";
-import { Bytes } from "#util/Bytes.js";
+import { TcpChannel } from "#transport/tcp/TcpChannel.js";
+import {
+    Bytes,
+    ChannelType,
+    DEFAULT_MAX_TCP_MESSAGE_SIZE,
+    isConnectedChannel,
+    MockTcpConnection,
+} from "@matter/general";
 
 /** Build a 4-byte LE length header for the given payload length. */
 function lengthHeader(len: number): Uint8Array {
@@ -35,25 +38,24 @@ function frame(payload: Uint8Array): Uint8Array {
     return concat(lengthHeader(payload.length), payload);
 }
 
-describe("TcpConnection", () => {
+describe("TcpChannel", () => {
     function createPair() {
-        const [client, server] = MockTcpSocket.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
+        const [client, server] = MockTcpConnection.createPair("1.2.3.4", 5000, "5.6.7.8", 6000);
         return { client, server };
     }
 
     describe("send framing", () => {
         it("prepends 4-byte LE length header when sending", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(client);
-
-            const received: Bytes[] = [];
-            server.onData(data => received.push(data));
+            const conn = new TcpChannel(client);
 
             const payload = Bytes.fromHex("deadbeef");
             await conn.send(payload);
 
-            expect(received).length(1);
-            const sent = Bytes.of(received[0]);
+            const iter = server[Symbol.asyncIterator]();
+            const result = await iter.next();
+            expect(result.done).false;
+            const sent = Bytes.of(result.value);
             // First 4 bytes = LE uint32 of payload length (4 bytes = 0x04000000 LE)
             const view = new DataView(sent.buffer, sent.byteOffset, sent.byteLength);
             expect(view.getUint32(0, true)).equals(4);
@@ -66,7 +68,7 @@ describe("TcpConnection", () => {
     describe("receive single complete message", () => {
         it("emits a complete message received in one chunk", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             const messages: Bytes[] = [];
             conn.onMessage(data => messages.push(data));
@@ -84,7 +86,7 @@ describe("TcpConnection", () => {
     describe("receive partial length header", () => {
         it("reassembles when length header is split across chunks", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             const messages: Bytes[] = [];
             conn.onMessage(data => messages.push(data));
@@ -108,7 +110,7 @@ describe("TcpConnection", () => {
     describe("receive multiple messages in one chunk", () => {
         it("emits multiple messages when concatenated in a single chunk", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             const messages: Bytes[] = [];
             conn.onMessage(data => messages.push(data));
@@ -130,7 +132,7 @@ describe("TcpConnection", () => {
     describe("receive split payload", () => {
         it("reassembles when payload is split across chunks", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             const messages: Bytes[] = [];
             conn.onMessage(data => messages.push(data));
@@ -155,11 +157,20 @@ describe("TcpConnection", () => {
     describe("channel properties", () => {
         it("reports correct channel type properties", async () => {
             const { server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             expect(conn.isReliable).equals(true);
             expect(conn.supportsLargeMessages).equals(true);
             expect(conn.type).equals(ChannelType.TCP);
+
+            await conn.close();
+        });
+
+        it("is recognized as ConnectedChannel", async () => {
+            const { server } = createPair();
+            const conn = new TcpChannel(server);
+
+            expect(isConnectedChannel(conn)).true;
 
             await conn.close();
         });
@@ -168,7 +179,7 @@ describe("TcpConnection", () => {
     describe("networkAddress", () => {
         it("returns a ServerAddressTcp with correct values", async () => {
             const { server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             const addr = conn.networkAddress;
             expect(addr.type).equals("tcp");
@@ -183,15 +194,15 @@ describe("TcpConnection", () => {
     describe("name", () => {
         it("returns tcp:// formatted name", async () => {
             const { server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
             expect(conn.name).equals("tcp://1.2.3.4:5000");
 
             await conn.close();
         });
 
         it("wraps IPv6 addresses in brackets", async () => {
-            const [, server] = MockTcpSocket.createPair("::1", 5000, "::2", 6000);
-            const conn = new TcpConnection(server);
+            const [, server] = MockTcpConnection.createPair("::1", 5000, "::2", 6000);
+            const conn = new TcpChannel(server);
             expect(conn.name).equals("tcp://[::1]:5000");
 
             await conn.close();
@@ -201,7 +212,7 @@ describe("TcpConnection", () => {
     describe("oversized message handling", () => {
         it("rejects message at the size limit", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             let closed = false;
             conn.onClose(() => {
@@ -220,7 +231,7 @@ describe("TcpConnection", () => {
 
         it("accepts message just under the size limit", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             let closed = false;
             conn.onClose(() => {
@@ -249,7 +260,7 @@ describe("TcpConnection", () => {
 
         it("rejects way-oversized message", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             let closed = false;
             conn.onClose(() => {
@@ -270,7 +281,7 @@ describe("TcpConnection", () => {
     describe("send-side size check", () => {
         it("rejects messages above the size limit", async () => {
             const { server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             // maxMessageSize = DEFAULT_MAX_TCP_MESSAGE_SIZE - 4 = 63996
             const oversized = new Uint8Array(conn.maxMessageSize + 1);
@@ -289,7 +300,7 @@ describe("TcpConnection", () => {
 
         it("accepts messages exactly at the size limit", async () => {
             const { server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             const atLimit = new Uint8Array(conn.maxMessageSize);
 
@@ -303,7 +314,7 @@ describe("TcpConnection", () => {
     describe("close", () => {
         it("closes the underlying socket", async () => {
             const { client, server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             let clientClosed = false;
             client.onClose(() => {
@@ -316,7 +327,7 @@ describe("TcpConnection", () => {
 
         it("fires close listeners", async () => {
             const { server } = createPair();
-            const conn = new TcpConnection(server);
+            const conn = new TcpChannel(server);
 
             let closed = false;
             conn.onClose(() => {
@@ -325,6 +336,101 @@ describe("TcpConnection", () => {
 
             await conn.close();
             expect(closed).true;
+        });
+    });
+
+    describe("async iteration", () => {
+        it("yields messages via for-await", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const payload1 = Bytes.fromHex("aabb");
+            const payload2 = Bytes.fromHex("ccdd");
+            await client.send(frame(Bytes.of(payload1)));
+            await client.send(frame(Bytes.of(payload2)));
+
+            const messages: Bytes[] = [];
+            const iterator = conn[Symbol.asyncIterator]();
+
+            const result1 = await iterator.next();
+            expect(result1.done).false;
+            messages.push(result1.value);
+
+            const result2 = await iterator.next();
+            expect(result2.done).false;
+            messages.push(result2.value);
+
+            expect(messages).length(2);
+            expect(Bytes.toHex(messages[0])).equals("aabb");
+            expect(Bytes.toHex(messages[1])).equals("ccdd");
+
+            await conn.close();
+        });
+
+        it("terminates iterator on close", async () => {
+            const { server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const iterator = conn[Symbol.asyncIterator]();
+
+            // Close before any messages — next() should return done
+            await conn.close();
+
+            const result = await iterator.next();
+            expect(result.done).true;
+        });
+
+        it("terminates iterator on remote disconnect", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const iterator = conn[Symbol.asyncIterator]();
+
+            // Simulate remote disconnect
+            await client.close();
+
+            const result = await iterator.next();
+            expect(result.done).true;
+        });
+
+        it("delivers queued messages then terminates on close", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            // Send a message before iterating
+            await client.send(frame(Bytes.of(Bytes.fromHex("1234"))));
+
+            // Close after message is queued
+            await client.close();
+
+            const messages: Bytes[] = [];
+            for await (const msg of conn) {
+                messages.push(msg);
+            }
+
+            expect(messages).length(1);
+            expect(Bytes.toHex(messages[0])).equals("1234");
+        });
+
+        it("works alongside callback listeners", async () => {
+            const { client, server } = createPair();
+            const conn = new TcpChannel(server);
+
+            const callbackMessages: Bytes[] = [];
+            conn.onMessage(data => callbackMessages.push(data));
+
+            await client.send(frame(Bytes.of(Bytes.fromHex("5678"))));
+
+            // Both callback and iterator should receive the message
+            const iterator = conn[Symbol.asyncIterator]();
+            const result = await iterator.next();
+
+            expect(callbackMessages).length(1);
+            expect(result.done).false;
+            expect(Bytes.toHex(callbackMessages[0])).equals("5678");
+            expect(Bytes.toHex(result.value)).equals("5678");
+
+            await conn.close();
         });
     });
 });

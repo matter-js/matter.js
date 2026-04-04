@@ -4,4 +4,4 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./TcpConnection.js";
+export * from "./tcp/index.js";

@@ -551,14 +551,17 @@ export class NobleBleChannel extends BleChannel<Bytes> {
                             error => logger.debug(`Peripheral ${peripheralAddress}: Error while disconnecting`, error),
                         );
                     })
-                    .catch(() => {});
+                    .catch(error =>
+                        logger.debug(`Peripheral ${peripheralAddress}: Error during disconnect cleanup`, error),
+                    );
             },
 
-            // callback to forward decoded and de-assembled Matter messages to ExchangeManager
+            // callback to forward decoded and de-assembled Matter messages
             async (data: Bytes) => {
                 if (onMatterMessageListener === undefined) {
                     throw new InternalError(`No listener registered for Matter messages`);
                 }
+                nobleChannel.pushMessage(data);
                 onMatterMessageListener(nobleChannel, data);
             },
         );
@@ -569,7 +572,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             );
 
             btpSession.handleIncomingBleData(new Uint8Array(data)).catch(error => {
-                logger.error(`Peripheral ${peripheralAddress}: Error handling incoming BLE data`, error);
+                logger.info(`Peripheral ${peripheralAddress}: Error handling incoming BLE data`, error);
             });
         };
         characteristicC2ForSubscribe.on("data", c2DataHandler);
@@ -581,6 +584,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
     }
 
     #connected = true;
+    readonly #closeListeners = new Set<() => void>();
+    #iteratorQueue = new Array<Bytes>();
+    #iteratorWaiter?: (value: IteratorResult<Bytes>) => void;
+    #iteratorDone = false;
 
     readonly #cleanupDataListener: () => void;
 
@@ -595,6 +602,10 @@ export class NobleBleChannel extends BleChannel<Bytes> {
             logger.debug(`Disconnected from peripheral ${peripheral.address}. Closing BTP session`);
             this.#connected = false;
             this.#cleanupDataListener();
+            this.#terminateIterator();
+            for (const listener of this.#closeListeners) {
+                listener();
+            }
             this.btpSession.close().catch(error => {
                 logger.debug(`Peripheral ${peripheral.address}: Error closing BTP session on disconnect`, error);
             });
@@ -630,8 +641,53 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         return `${this.type}://${this.peripheral.address}`;
     }
 
+    onClose(listener: () => void): Transport.Listener {
+        this.#closeListeners.add(listener);
+        return {
+            close: async () => {
+                this.#closeListeners.delete(listener);
+            },
+        };
+    }
+
+    /** Called by the BTP session when a complete Matter message is assembled. */
+    pushMessage(message: Bytes): void {
+        if (this.#iteratorWaiter) {
+            const resolve = this.#iteratorWaiter;
+            this.#iteratorWaiter = undefined;
+            resolve({ value: message, done: false });
+        } else if (!this.#iteratorDone) {
+            this.#iteratorQueue.push(message);
+        }
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#iteratorQueue.length > 0) {
+                    return Promise.resolve({ value: this.#iteratorQueue.shift()!, done: false });
+                }
+                if (this.#iteratorDone || !this.#connected) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#iteratorWaiter = resolve;
+                });
+            },
+        };
+    }
+
+    #terminateIterator(): void {
+        if (!this.#iteratorDone) {
+            this.#iteratorDone = true;
+            this.#iteratorWaiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#iteratorWaiter = undefined;
+        }
+    }
+
     async close() {
         this.#cleanupDataListener();
+        this.#terminateIterator();
         await this.btpSession.close();
         if (this.connected) {
             this.peripheral

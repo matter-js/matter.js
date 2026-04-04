@@ -7,11 +7,11 @@
 import { Bytes } from "@matter/general";
 import * as assert from "node:assert";
 import * as net from "node:net";
-import { NodeJsTcpServer } from "../../src/net/NodeJsTcpServer.js";
+import { NodeJsTcpListener } from "../../src/net/NodeJsTcpListener.js";
 
-describe("NodeJsTcpServer", () => {
+describe("NodeJsTcpListener", () => {
     it("accepts connections and reports correct port", async () => {
-        const server = await NodeJsTcpServer.create({ listeningAddress: "127.0.0.1" });
+        const server = await NodeJsTcpListener.create({ listeningAddress: "127.0.0.1" });
         try {
             assert.ok(server.port > 0);
 
@@ -32,15 +32,16 @@ describe("NodeJsTcpServer", () => {
         }
     });
 
-    it("wraps accepted sockets as NodeJsTcpSocket with data flow", async () => {
-        const server = await NodeJsTcpServer.create({ listeningAddress: "127.0.0.1" });
+    it("wraps accepted sockets as NodeJsTcpConnection with data flow", async () => {
+        const server = await NodeJsTcpListener.create({ listeningAddress: "127.0.0.1" });
         try {
             const received = new Promise<string>(resolve => {
-                server.onConnection(socket => {
-                    socket.onData(data => {
+                server.onConnection(async socket => {
+                    for await (const data of socket) {
                         resolve(Bytes.toString(data));
                         void socket.close();
-                    });
+                        break;
+                    }
                 });
             });
 
@@ -57,7 +58,7 @@ describe("NodeJsTcpServer", () => {
     });
 
     it("stops accepting after close", async () => {
-        const server = await NodeJsTcpServer.create({ listeningAddress: "127.0.0.1" });
+        const server = await NodeJsTcpListener.create({ listeningAddress: "127.0.0.1" });
         const port = server.port;
 
         let connectionSeen = false;
@@ -84,7 +85,7 @@ describe("NodeJsTcpServer", () => {
     });
 
     it("onConnection listener can be removed", async () => {
-        const server = await NodeJsTcpServer.create({ listeningAddress: "127.0.0.1" });
+        const server = await NodeJsTcpListener.create({ listeningAddress: "127.0.0.1" });
         try {
             let connectionCount = 0;
             const listener = server.onConnection(() => {
@@ -104,7 +105,7 @@ describe("NodeJsTcpServer", () => {
     });
 
     it("uses OS-assigned port when listeningPort is 0", async () => {
-        const server = await NodeJsTcpServer.create({ listeningPort: 0, listeningAddress: "127.0.0.1" });
+        const server = await NodeJsTcpListener.create({ listeningPort: 0, listeningAddress: "127.0.0.1" });
         try {
             assert.ok(server.port > 0);
         } finally {

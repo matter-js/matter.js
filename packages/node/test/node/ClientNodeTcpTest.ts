@@ -21,7 +21,7 @@ import { subscribedPeer } from "./node-helpers.js";
  *
  * Note: Full end-to-end TCP session tests (invoke/subscribe over TCP) are not included here
  * because mock TCP connections currently don't survive past CASE session establishment.
- * The TCP connection management behavior is tested separately in TcpConnectionTest and
+ * The TCP connection management behavior is tested separately in TcpChannelTest and
  * TcpSessionBindingTest.
  */
 describe("ClientNodeTcp", () => {
@@ -154,7 +154,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
 
         it("stores UDP addresses after commissioning with TCP enabled", async () => {
@@ -187,7 +187,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
 
         it("invokes over UDP when TCP is enabled but not preferred", async () => {
@@ -205,7 +205,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
 
         it("subscribes and receives updates over UDP when TCP is enabled but not preferred", async () => {
@@ -226,7 +226,7 @@ describe("ClientNodeTcp", () => {
             const peer = protocolPeer(controller);
             const session = peer.newestSession();
             expect(session).not.undefined;
-            expect(session!.channel.channel.type).equals(ChannelType.UDP);
+            expect(session!.channel.transportChannel.type).equals(ChannelType.UDP);
         });
     });
 });

@@ -4,16 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Logger } from "#log/Logger.js";
-import { Channel, ChannelType } from "#net/Channel.js";
-import { Network, NetworkError } from "#net/Network.js";
-import { ServerAddress } from "#net/ServerAddress.js";
-import { ConnectionOrientedTransport, Transport } from "#net/Transport.js";
-import { Time } from "#time/Time.js";
-import { Seconds } from "#time/TimeUnit.js";
-import { Bytes } from "#util/Bytes.js";
-import { TcpConnection } from "./TcpConnection.js";
-import { DEFAULT_MAX_TCP_MESSAGE_SIZE, TcpServer } from "./TcpSocket.js";
+import {
+    Bytes,
+    Channel,
+    ChannelType,
+    ConnectionOrientedTransport,
+    DEFAULT_MAX_TCP_MESSAGE_SIZE,
+    Logger,
+    Network,
+    NetworkError,
+    Seconds,
+    ServerAddress,
+    TcpListener,
+    Time,
+    Transport,
+} from "@matter/general";
+import { TcpChannel } from "./TcpChannel.js";
 
 const logger = Logger.get("TcpTransport");
 
@@ -35,15 +41,14 @@ export interface TcpTransportOptions {
 }
 
 /**
- * TCP transport layer combining server and client roles with a connection pool.
+ * TCP transport combining server and client roles with a connection registry.
  *
- * Connections are kept alive as long as sessions reference them. Connection lifecycle is managed
- * by the session layer — when the last session on a connection is closed, the connection should
- * be closed by that layer.
+ * Each connection is 1:1 with a session. Connection lifecycle is managed by the session layer —
+ * when the session on a connection is closed, the connection is closed by that layer.
  */
 export class TcpTransport implements ConnectionOrientedTransport {
-    readonly #connections = new Map<string, TcpConnection>();
-    #server?: TcpServer;
+    readonly #channels = new Map<string, TcpChannel>();
+    #listener?: TcpListener;
     readonly #network: Network;
     readonly #maxMessageSize: number;
 
@@ -63,44 +68,44 @@ export class TcpTransport implements ConnectionOrientedTransport {
         const transport = new TcpTransport(options);
 
         if (options.listeningPort !== undefined) {
-            transport.#server = await options.network.createTcpServer({
+            transport.#listener = await options.network.createTcpListener({
                 listeningPort: options.listeningPort,
                 listeningAddress: options.listeningAddress,
             });
 
-            transport.#server.onConnection(socket => {
-                const connection = new TcpConnection(socket, transport.#maxMessageSize, true);
+            transport.#listener.onConnection(socket => {
+                const channel = new TcpChannel(socket, transport.#maxMessageSize, true);
 
-                if (transport.#countConnectionsFromIp(connection.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
-                    logger.warn(`Rejecting TCP connection from ${connection.name}: too many connections from this IP`);
-                    void connection.close();
+                if (transport.#countConnectionsFromIp(channel.networkAddress.ip) >= MAX_CONNECTIONS_PER_PEER_IP) {
+                    logger.warn(`Rejecting TCP connection from ${channel.name}: too many connections from this IP`);
+                    void channel.close();
                     return;
                 }
 
-                transport.#registerConnection(connection);
+                transport.#registerChannel(channel);
 
-                // Detect and close zombie connections
+                // Detect and close zombie channels
                 const idleTimer = Time.getTimer("tcp-new-connection-idle", NEW_CONNECTION_IDLE_TIMEOUT, () => {
                     if (!receivedData) {
-                        logger.debug(`Closing idle TCP connection ${connection.name}: no data received`);
-                        void connection.close();
+                        logger.debug(`Closing idle TCP channel ${channel.name}: no data received`);
+                        void channel.close();
                     }
                 });
                 idleTimer.start();
 
                 let receivedData = false;
-                const dataWatcher = connection.onMessage(() => {
+                const dataWatcher = channel.onMessage(() => {
                     receivedData = true;
                     idleTimer.stop();
                     void dataWatcher.close();
                 });
 
-                connection.onClose(() => {
+                channel.onClose(() => {
                     idleTimer.stop();
                 });
 
                 for (const listener of transport.#connectListeners) {
-                    listener(connection);
+                    listener(channel);
                 }
             });
         }
@@ -145,65 +150,65 @@ export class TcpTransport implements ConnectionOrientedTransport {
         }
 
         const key = `${address.ip}:${address.port}`;
-        const existing = this.#connections.get(key);
+        const existing = this.#channels.get(key);
         if (existing) {
             return existing;
         }
 
         const socket = await this.#network.connectTcp(address.ip, address.port);
-        const connection = new TcpConnection(socket, this.#maxMessageSize);
-        this.#registerConnection(connection);
-        return connection;
+        const channel = new TcpChannel(socket, this.#maxMessageSize);
+        this.#registerChannel(channel);
+        return channel;
     }
 
     async close(): Promise<void> {
-        if (this.#server) {
-            await this.#server.close();
-            this.#server = undefined;
+        if (this.#listener) {
+            await this.#listener.close();
+            this.#listener = undefined;
         }
 
-        const connections = [...this.#connections.values()];
-        this.#connections.clear();
-        for (const connection of connections) {
-            await connection.close();
+        const channels = [...this.#channels.values()];
+        this.#channels.clear();
+        for (const channel of channels) {
+            await channel.close();
         }
     }
 
-    #registerConnection(connection: TcpConnection): void {
-        const { ip, port } = connection.networkAddress;
+    #registerChannel(channel: TcpChannel): void {
+        const { ip, port } = channel.networkAddress;
         const key = `${ip}:${port}`;
 
-        // Close any existing connection with the same key to prevent orphaning (M-1 fix)
-        const existing = this.#connections.get(key);
+        // Close any existing channel with the same key to prevent orphaning
+        const existing = this.#channels.get(key);
         if (existing) {
-            logger.debug("Replacing existing connection for", key);
+            logger.debug("Replacing existing channel for", key);
             void existing.close();
         }
 
-        this.#connections.set(key, connection);
+        this.#channels.set(key, channel);
 
-        connection.onMessage(data => {
+        channel.onMessage(data => {
             for (const listener of this.#dataListeners) {
-                listener(connection, data);
+                listener(channel, data);
             }
         });
 
-        connection.onClose(() => {
-            if (this.#connections.get(key) === connection) {
-                this.#connections.delete(key);
+        channel.onClose(() => {
+            if (this.#channels.get(key) === channel) {
+                this.#channels.delete(key);
             }
             for (const listener of this.#disconnectListeners) {
-                listener(connection);
+                listener(channel);
             }
         });
 
-        logger.debug("Registered TCP connection", key);
+        logger.debug("Registered TCP channel", key);
     }
 
     /** Count active connections from the given IP address (any port). */
     #countConnectionsFromIp(ip: string): number {
         let count = 0;
-        for (const conn of this.#connections.values()) {
+        for (const conn of this.#channels.values()) {
             if (conn.networkAddress.ip === ip) {
                 count++;
             }

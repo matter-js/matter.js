@@ -238,7 +238,9 @@ export class NodeSession extends SecureSession {
 
     get via() {
         const transport =
-            !this.isClosed && this.channel.channel.type !== ChannelType.UDP ? `(${this.channel.channel.type})` : "";
+            !this.isClosed && this.channel.transportChannel.type !== ChannelType.UDP
+                ? `(${this.channel.transportChannel.type})`
+                : "";
         return Diagnostic.via(`${this.peerAddress.toString()}${Mark.SESSION}${hex.word(this.id)}${transport}`);
     }
 

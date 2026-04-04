@@ -12,7 +12,7 @@ import {
     TCP_KEEP_ALIVE_INITIAL_DELAY_MS,
     Transport,
     withTimeout,
-    type TcpSocket,
+    type TcpConnection,
 } from "@matter/general";
 import { createConnection, type Socket as RnSocket } from "react-native-tcp-socket";
 
@@ -20,14 +20,17 @@ import { createConnection, type Socket as RnSocket } from "react-native-tcp-sock
 const TCP_CONNECT_TIMEOUT = Seconds(TCP_CONNECTION_TIMEOUT_MS / 1000);
 
 /**
- * React Native implementation of {@link TcpSocket}.
+ * React Native implementation of {@link TcpConnection}.
  * Wraps a `react-native-tcp-socket` Socket.
  */
-export class TcpSocketReactNative implements TcpSocket {
+export class TcpConnectionReactNative implements TcpConnection {
     readonly remoteAddress: string;
     readonly remotePort: number;
     readonly localPort: number;
     readonly #socket: RnSocket;
+    #ended = false;
+    #chunks = new Array<Bytes>();
+    #waiter?: (value: IteratorResult<Bytes>) => void;
 
     constructor(socket: RnSocket) {
         this.#socket = socket;
@@ -37,6 +40,45 @@ export class TcpSocketReactNative implements TcpSocket {
 
         socket.setNoDelay(true);
         socket.setKeepAlive(true, TCP_KEEP_ALIVE_INITIAL_DELAY_MS);
+
+        socket.on("data", (data: Buffer | string) => {
+            const bytes = typeof data === "string" ? Buffer.from(data) : new Uint8Array(data);
+            if (this.#waiter) {
+                const resolve = this.#waiter;
+                this.#waiter = undefined;
+                resolve({ value: bytes, done: false });
+            } else {
+                this.#chunks.push(bytes);
+            }
+        });
+
+        socket.on("close", () => {
+            this.#ended = true;
+            this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#waiter = undefined;
+        });
+
+        socket.on("error", () => {
+            this.#ended = true;
+            this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#waiter = undefined;
+        });
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#chunks.length > 0) {
+                    return Promise.resolve({ value: this.#chunks.shift()!, done: false });
+                }
+                if (this.#ended) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#waiter = resolve;
+                });
+            },
+        };
     }
 
     send(data: Bytes): Promise<void> {
@@ -49,19 +91,6 @@ export class TcpSocketReactNative implements TcpSocket {
                 }
             });
         });
-    }
-
-    onData(listener: (data: Bytes) => void): Transport.Listener {
-        const handler = (data: Buffer | string) => {
-            const bytes = typeof data === "string" ? Buffer.from(data) : data;
-            listener(new Uint8Array(bytes));
-        };
-        this.#socket.on("data", handler);
-        return {
-            close: async () => {
-                this.#socket.off("data", handler);
-            },
-        };
     }
 
     onClose(listener: () => void): Transport.Listener {
@@ -84,15 +113,18 @@ export class TcpSocketReactNative implements TcpSocket {
     }
 
     async close(): Promise<void> {
+        this.#ended = true;
+        this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
+        this.#waiter = undefined;
         this.#socket.end();
     }
 }
 
 /** Create a client TCP connection using react-native-tcp-socket. */
-export function connectReactNativeTcp(host: string, port: number): Promise<TcpSocketReactNative> {
+export function connectReactNativeTcp(host: string, port: number): Promise<TcpConnectionReactNative> {
     let socket: RnSocket | undefined;
 
-    const connected = new Promise<TcpSocketReactNative>((resolve, reject) => {
+    const connected = new Promise<TcpConnectionReactNative>((resolve, reject) => {
         let settled = false;
         const settle = (fn: () => void) => {
             if (!settled) {
@@ -102,7 +134,7 @@ export function connectReactNativeTcp(host: string, port: number): Promise<TcpSo
         };
 
         socket = createConnection({ host, port }, () => {
-            settle(() => resolve(new TcpSocketReactNative(socket!)));
+            settle(() => resolve(new TcpConnectionReactNative(socket!)));
         });
 
         socket.on("error", (err: Error) => {

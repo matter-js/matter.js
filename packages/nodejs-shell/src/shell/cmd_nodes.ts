@@ -185,7 +185,7 @@ export default function commands(theNode: MatterNode) {
                         if (sessions.length) {
                             console.log(`  Active Sessions: ${sessions.length}`);
                             for (const session of sessions) {
-                                console.log(`    ${session.via} (${session.channel.channel.type})`);
+                                console.log(`    ${session.via} (${session.channel.transportChannel.type})`);
                             }
                         } else {
                             console.log(`  Active Sessions: none`);

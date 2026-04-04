@@ -111,7 +111,7 @@ describe("TCP Session-Connection Binding", () => {
             const session = createSessionOnTcpChannel(tcpChannel);
 
             // Verify the session's underlying channel matches by identity
-            expect(session.channel.channel).to.equal(tcpChannel);
+            expect(session.channel.transportChannel).to.equal(tcpChannel);
         });
 
         it("sessions on different connections are distinguishable", () => {
@@ -120,9 +120,9 @@ describe("TCP Session-Connection Binding", () => {
             const session1 = createSessionOnTcpChannel(tcpChannel1, 1);
             const session2 = createSessionOnTcpChannel(tcpChannel2, 2);
 
-            expect(session1.channel.channel).to.equal(tcpChannel1);
-            expect(session2.channel.channel).to.equal(tcpChannel2);
-            expect(session1.channel.channel).to.not.equal(session2.channel.channel);
+            expect(session1.channel.transportChannel).to.equal(tcpChannel1);
+            expect(session2.channel.transportChannel).to.equal(tcpChannel2);
+            expect(session1.channel.transportChannel).to.not.equal(session2.channel.transportChannel);
         });
 
         it("session force-close marks session as closing", async () => {
@@ -207,8 +207,8 @@ describe("TCP Session-Connection Binding", () => {
             const session1 = createSessionOnTcpChannel(tcpChannel, 1);
             const session2 = createSessionOnTcpChannel(tcpChannel, 2);
 
-            expect(session1.channel.channel).to.equal(tcpChannel);
-            expect(session2.channel.channel).to.equal(tcpChannel);
+            expect(session1.channel.transportChannel).to.equal(tcpChannel);
+            expect(session2.channel.transportChannel).to.equal(tcpChannel);
             expect(tcpChannel.closed).to.be.false;
         });
 
@@ -255,13 +255,13 @@ describe("TCP Session-Connection Binding", () => {
             const sessions = [udpSession, tcpSession];
 
             // This mirrors PeerExchangeProvider's TCP session selection:
-            //   sessions.find(s => !s.isClosing && !s.isPeerLost && !s.isClosed && s.channel.channel.type === ChannelType.TCP)
+            //   sessions.find(s => !s.isClosing && !s.isPeerLost && !s.isClosed && s.channel.transportChannel.type === ChannelType.TCP)
             const selected = sessions.find(
-                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+                s => !s.isClosing && !s.isClosed && s.channel.transportChannel.type === ChannelType.TCP,
             );
 
             expect(selected).to.equal(tcpSession);
-            expect(selected!.channel.channel.type).to.equal(ChannelType.TCP);
+            expect(selected!.channel.transportChannel.type).to.equal(ChannelType.TCP);
         });
 
         it("returns undefined when no TCP session exists", () => {
@@ -271,7 +271,7 @@ describe("TCP Session-Connection Binding", () => {
             const sessions = [udpSession];
 
             const selected = sessions.find(
-                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+                s => !s.isClosing && !s.isClosed && s.channel.transportChannel.type === ChannelType.TCP,
             );
 
             expect(selected).to.be.undefined;
@@ -288,7 +288,7 @@ describe("TCP Session-Connection Binding", () => {
             const sessions = [closingSession, activeSession];
 
             const selected = sessions.find(
-                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+                s => !s.isClosing && !s.isClosed && s.channel.transportChannel.type === ChannelType.TCP,
             );
 
             expect(selected).to.equal(activeSession);
@@ -303,7 +303,7 @@ describe("TCP Session-Connection Binding", () => {
             const sessions = [session];
 
             const selected = sessions.find(
-                s => !s.isClosing && !s.isClosed && s.channel.channel.type === ChannelType.TCP,
+                s => !s.isClosing && !s.isClosed && s.channel.transportChannel.type === ChannelType.TCP,
             );
 
             expect(selected).to.be.undefined;

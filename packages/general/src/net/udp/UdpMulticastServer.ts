@@ -13,7 +13,7 @@ import { Cache } from "../../util/Cache.js";
 import { asError } from "../../util/Error.js";
 import { isIPv4 } from "../../util/Ip.js";
 import { Network, NoAddressAvailableError } from "../Network.js";
-import { UdpChannel } from "./UdpChannel.js";
+import { UdpSocket } from "./UdpSocket.js";
 
 const logger = Logger.get("UdpMulticastServer");
 
@@ -33,8 +33,8 @@ export class UdpMulticastServer {
     readonly #broadcastAddressIpv4: string | undefined;
     readonly #broadcastAddressIpv6: string;
     readonly #broadcastPort: number;
-    readonly #serverIpv4: UdpChannel | undefined;
-    readonly #serverIpv6: UdpChannel;
+    readonly #serverIpv4: UdpSocket | undefined;
+    readonly #serverIpv6: UdpSocket;
 
     static async create({
         netInterface,
@@ -47,17 +47,17 @@ export class UdpMulticastServer {
         const lifetime = (lifetimeOwner || Lifetime.process)?.join("multicast server");
 
         try {
-            let ipv4UdpChannel: UdpChannel | undefined = undefined;
+            let ipv4UdpSocket: UdpSocket | undefined = undefined;
             if (broadcastAddressIpv4 !== undefined) {
                 try {
-                    ipv4UdpChannel = await network.createUdpChannel({
+                    ipv4UdpSocket = await network.createUdpSocket({
                         lifetime,
                         type: "udp4",
                         netInterface,
                         listeningPort,
                         reuseAddress: true,
                     });
-                    await ipv4UdpChannel.addMembership(broadcastAddressIpv4);
+                    await ipv4UdpSocket.addMembership(broadcastAddressIpv4);
                 } catch (error) {
                     NoAddressAvailableError.accept(error);
                     logger.info(
@@ -66,16 +66,16 @@ export class UdpMulticastServer {
                 }
             }
 
-            let ipv6UdpChannel;
+            let ipv6UdpSocket;
             try {
-                ipv6UdpChannel = await network.createUdpChannel({
+                ipv6UdpSocket = await network.createUdpSocket({
                     lifetime,
                     type: "udp6",
                     netInterface,
                     listeningPort,
                     reuseAddress: true,
                 });
-                await ipv6UdpChannel.addMembership(broadcastAddressIpv6);
+                await ipv6UdpSocket.addMembership(broadcastAddressIpv6);
             } catch (error) {
                 NoAddressAvailableError.accept(error);
                 logger.info(`IPv6 UDP interface not created because IPv6 is not available, but required my Matter`);
@@ -88,8 +88,8 @@ export class UdpMulticastServer {
                 broadcastAddressIpv4,
                 broadcastAddressIpv6,
                 listeningPort,
-                ipv4UdpChannel,
-                ipv6UdpChannel,
+                ipv4UdpSocket,
+                ipv6UdpSocket,
                 netInterface,
             );
         } catch (error) {
@@ -98,7 +98,7 @@ export class UdpMulticastServer {
         }
     }
 
-    private readonly broadcastChannels = new Cache<Promise<UdpChannel>>(
+    private readonly broadcastChannels = new Cache<Promise<UdpSocket>>(
         "UDP broadcast channel",
         (netInterface, iPv4) => this.createBroadcastChannel(netInterface, iPv4),
         Minutes(5),
@@ -111,8 +111,8 @@ export class UdpMulticastServer {
         broadcastAddressIpv4: string | undefined,
         broadcastAddressIpv6: string,
         broadcastPort: number,
-        serverIpv4: UdpChannel | undefined,
-        serverIpv6: UdpChannel,
+        serverIpv4: UdpSocket | undefined,
+        serverIpv6: UdpSocket,
         netInterface: string | undefined,
     ) {
         this.#lifetime = lifetime;
@@ -193,8 +193,8 @@ export class UdpMulticastServer {
         }
     }
 
-    private async createBroadcastChannel(netInterface: string, iPv4: string): Promise<UdpChannel> {
-        return await this.network.createUdpChannel({
+    private async createBroadcastChannel(netInterface: string, iPv4: string): Promise<UdpSocket> {
+        return await this.network.createUdpSocket({
             lifetime: this.#lifetime,
             type: iPv4 ? "udp4" : "udp6",
             listeningPort: this.#broadcastPort,

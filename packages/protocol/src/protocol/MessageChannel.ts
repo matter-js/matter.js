@@ -126,7 +126,8 @@ export class MessageChannel implements Channel<Message> {
         return this.#networkAddressChanged;
     }
 
-    get channel() {
+    /** The underlying transport channel, for identity comparison and type inspection. */
+    get transportChannel(): Channel<Bytes> {
         return this.#channel;
     }
 
@@ -180,7 +181,7 @@ export class MessageChannel implements Channel<Message> {
         // Only close the underlying TCP channel if no other sessions reference it. For non-TCP
         // channels (UDP, BLE) always close since they are ephemeral per-session.
         if (this.#channel.type === ChannelType.TCP) {
-            // TCP channel lifecycle is managed by ExchangeManager.#closeTcpConnectionIfLastSession
+            // TCP channel lifecycle is managed by ExchangeManager.#closeTcpChannelIfLastSession
             // which checks after session removal whether any sessions still reference the connection.
         } else {
             await this.#channel.close();

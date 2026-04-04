@@ -18,7 +18,7 @@ export const MAX_UDP_MESSAGE_SIZE = 1280 - 48; // 48 bytes IP and UDP header siz
  */
 export type UdpSocketType = "udp" | "udp4" | "udp6";
 
-export interface UdpChannelOptions {
+export interface UdpSocketOptions {
     /**
      * UDP channel type.  "udp4" and "udp6" mean IPv4 and IPv6 respectively.  "udp" is dual-mode IPv4/IPv6.
      */
@@ -58,18 +58,18 @@ export interface UdpChannelOptions {
     reuseAddress?: boolean;
 }
 
-export interface UdpChannel {
+export interface UdpSocket {
     maxPayloadSize: number;
     addMembership(address: string): MaybePromise<void>;
     dropMembership(address: string): MaybePromise<void>;
-    onData(listener: UdpChannel.Callback): Transport.Listener;
+    onData(listener: UdpSocket.Callback): Transport.Listener;
     send(host: string, port: number, data: Bytes): Promise<void>;
     close(): Promise<void>;
     get port(): number;
     supports(type: ChannelType, address?: string): boolean;
 }
 
-export namespace UdpChannel {
+export namespace UdpSocket {
     export interface Callback {
         (netInterface: string | undefined, peerAddress: string, peerPort: number, data: Bytes): void;
     }

@@ -4,11 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Channel, ChannelType } from "#net/Channel.js";
-import { NetworkSimulator } from "#net/mock/NetworkSimulator.js";
-import { TcpConnection } from "#net/tcp/TcpConnection.js";
-import { TcpTransport } from "#net/tcp/TcpTransport.js";
-import { Bytes } from "#util/Bytes.js";
+import { TcpChannel } from "#transport/tcp/TcpChannel.js";
+import { TcpTransport } from "#transport/tcp/TcpTransport.js";
+import { Bytes, Channel, ChannelType, NetworkSimulator } from "@matter/general";
 
 const SERVER_PORT = 5540;
 
@@ -84,7 +82,7 @@ describe("TcpTransport", () => {
                     port: SERVER_PORT,
                 });
 
-                expect(channel).instanceof(TcpConnection);
+                expect(channel).instanceof(TcpChannel);
                 expect(channel.type).equals(ChannelType.TCP);
             } finally {
                 await clientTransport.close();
@@ -172,7 +170,7 @@ describe("TcpTransport", () => {
                 await clientTransport.openChannel({ ip: "abcd::1", port: SERVER_PORT });
 
                 expect(connected).length(1);
-                expect(connected[0]).instanceof(TcpConnection);
+                expect(connected[0]).instanceof(TcpChannel);
             } finally {
                 await clientTransport.close();
                 await serverTransport.close();
