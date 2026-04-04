@@ -56,7 +56,7 @@ Resource.add({
                 "\n" +
                 "  - All entries except the last one shall have a non-null PeriodEnd." +
                 "\n" +
-                "  - For all entries except the first one, PeriodStart shall be greater than the previous entry’s " +
+                "  - For all entries except the first one, PeriodStart shall be greater than the previous entry's " +
                 "PeriodEnd."
         },
 

@@ -19,6 +19,8 @@ import type { MaybePromise } from "@matter/general";
  *
  * In most deployments the EMS will be the client, and the ESA will host the Device Energy Management Cluster server.
  *
+ * !ESA EMS Cluster
+ *
  * This cluster is intended to be generic in nature and could apply to any electrical load or generator (e.g. a Battery
  * Electric Storage System - BESS, solar PV inverter, EVSE, HVAC, heat pump, hot water heater, white goods appliances
  * etc).
@@ -45,15 +47,17 @@ import type { MaybePromise } from "@matter/general";
  * intensity', 'time of use' or 'type of use' tariffs to schedule its operation to run at the cheapest and greenest
  * times.
  *
- * > [!NOTE]
- *
- * > Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to communicate grid
- *   events to the EMS. These are outside the scope of Matter.
+ * !HVAC ESA Example with EMS
  *
  * > [!NOTE]
  *
- * > Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give examples of how
- *   ESAs may be mandated to support these features in the future.
+ * > NOTE: Grid Services are market dependent and will use other protocols ([OpenADR] / [IEEE2030.5]) to communicate
+ *   grid events to the EMS. These are outside the scope of Matter.
+ *
+ * > [!NOTE]
+ *
+ * > NOTE: Different markets may follow different approaches, but the UK [PAS1878] and [EUCodeOfConduct] give examples
+ *   of how ESAs may be mandated to support these features in the future.
  *
  * @see {@link MatterSpecification.v151.Cluster} § 9.2
  */
@@ -116,8 +120,6 @@ export declare namespace DeviceEnergyManagement {
          * generating its forecast or advertising its PowerAdjustmentCapability, the power values shall be negative to
          * indicate discharging to the loads in the home, and positive to indicate when it is charging its battery.
          *
-         * GRID meter = Σ LoadPowers + Σ GeneratorPowers
-         *
          * Example:
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.2
@@ -144,9 +146,9 @@ export declare namespace DeviceEnergyManagement {
          *
          * > [!NOTE]
          *
-         * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads in
-         *   the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
-         *   discharge its internal battery.
+         * > NOTE: For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to
+         *   loads in the home, the AbsMinPower will be a negative number representing the maximum power that the ESA
+         *   can discharge its internal battery.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.4
          */
@@ -301,8 +303,6 @@ export declare namespace DeviceEnergyManagement {
          * generating its forecast or advertising its PowerAdjustmentCapability, the power values shall be negative to
          * indicate discharging to the loads in the home, and positive to indicate when it is charging its battery.
          *
-         * GRID meter = Σ LoadPowers + Σ GeneratorPowers
-         *
          * Example:
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.2
@@ -329,9 +329,9 @@ export declare namespace DeviceEnergyManagement {
          *
          * > [!NOTE]
          *
-         * > For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to loads in
-         *   the home, the AbsMinPower will be a negative number representing the maximum power that the ESA can
-         *   discharge its internal battery.
+         * > NOTE: For Generator ESAs that can discharge an internal battery (such as a battery storage inverter) to
+         *   loads in the home, the AbsMinPower will be a negative number representing the maximum power that the ESA
+         *   can discharge its internal battery.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.2.8.4
          */
@@ -711,7 +711,7 @@ export declare namespace DeviceEnergyManagement {
          * the duration of that stage.
          *
          * In some circumstances the ESA may allow the stage to be delayed or paused (subject to safety and
-         * manufacturer’s discretion and user preferences).
+         * manufacturer's discretion and user preferences).
          *
          * Typically, appliances with a heating element cannot have their power consumption adjusted and can only be
          * paused or delayed.
@@ -1008,7 +1008,7 @@ export declare namespace DeviceEnergyManagement {
     };
 
     /**
-     * This indicates a list of 'slots' describing the overall timing of the ESA’s planned energy and power use, with
+     * This indicates a list of 'slots' describing the overall timing of the ESA's planned energy and power use, with
      * different power and energy demands per slot. For example, slots might be used to describe the distinct stages of
      * a washing machine cycle.
      *
@@ -1402,7 +1402,7 @@ export declare namespace DeviceEnergyManagement {
         Fault = 2,
 
         /**
-         * The user has disabled the ESA’s flexibility capability
+         * The user has disabled the ESA's flexibility capability
          */
         UserOptOut = 3,
 
@@ -1568,7 +1568,7 @@ export declare namespace DeviceEnergyManagement {
     };
 
     /**
-     * This indicates a specific stage of an ESA’s operation.
+     * This indicates a specific stage of an ESA's operation.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.2.7.14
      */
@@ -1665,7 +1665,7 @@ export declare namespace DeviceEnergyManagement {
          *
          * > [!NOTE]
          *
-         * > An ESA shall always use the same value to represent the same operating state.
+         * > NOTE: An ESA shall always use the same value to represent the same operating state.
          *
          * By providing this information a smart EMS may be able to learn the observed power draw when the ESA is put
          * into a specific state. It can potentially then use the ManufacturerESAState field in the Forecast attribute

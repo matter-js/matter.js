@@ -128,7 +128,7 @@ Resource.add({
             tag: "event", name: "ZoneStopped", xref: "cluster§2.14.8.2",
             details: "This event shall be generated when either the TriggerDetectedDuration value is exceeded by the " +
                 "TimeSinceInitialTrigger value or the MaxDuration value is exceeded by the TimeSinceInitialTrigger " +
-                "value, as described in Section 2.14.5.9, “ZoneTriggerControlStruct”.",
+                "value, as described in Section 2.14.5.9, \"ZoneTriggerControlStruct\".",
 
             children: [
                 {
@@ -246,7 +246,7 @@ Resource.add({
                     tag: "field", name: "Mfg", description: "Indicates a Manufacturer defined Zone.",
                     xref: "cluster§2.14.5.3.1",
                     details: "This value indicates the Zone is built-in and provided by the manufacturer of the device. Zones of " +
-                        "this type can’t be created or modified using commands in this cluster."
+                        "this type can't be created or modified using commands in this cluster."
                 },
 
                 {
@@ -377,9 +377,13 @@ Resource.add({
                 "This places the Node in a triggered state, at which point the Node shall internally track two " +
                 "values." +
                 "\n" +
-                "The time in seconds since the initial triggering activity." +
+                "### TimeSinceInitialTrigger" +
                 "\n" +
-                "Initially set to the InitialDuration value." +
+                ": The time in seconds since the initial triggering activity." +
+                "\n" +
+                "### TriggerDetectedDuration" +
+                "\n" +
+                ": Initially set to the InitialDuration value." +
                 "\n" +
                 "If the TriggerDetectedDuration value is exceeded by the TimeSinceInitialTrigger, the Node shall " +
                 "generate a ZoneStopped event with the reason parameter set to ActionStopped." +

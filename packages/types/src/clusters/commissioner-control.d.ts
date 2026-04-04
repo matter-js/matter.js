@@ -24,6 +24,8 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  *
  * The generalized flow supported by the Commissioner Control Cluster can be seen in the following diagram.
  *
+ * !commissioner control cluster general flow
+ *
  * @see {@link MatterSpecification.v151.Core} § 11.26
  */
 export declare namespace CommissionerControl {
@@ -96,7 +98,7 @@ export declare namespace CommissionerControl {
          * The server may request approval from the user, but it is not required.
          *
          * The server shall always return SUCCESS to a correctly formatted RequestCommissioningApproval command, and
-         * then generate a CommissioningRequestResult event associated with the command’s accessing fabric once the
+         * then generate a CommissioningRequestResult event associated with the command's accessing fabric once the
          * result is ready.
          *
          * Clients SHOULD avoid using the same RequestID. If the RequestID and client NodeID of a
@@ -151,7 +153,7 @@ export declare namespace CommissionerControl {
          *
          * > [!NOTE]
          *
-         * > The approval is valid for a period determined by the manufacturer and characteristics of the node
+         * > NOTE: The approval is valid for a period determined by the manufacturer and characteristics of the node
          *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately
          *   upon receiving a CommissioningRequestResult event.
          *
@@ -170,7 +172,7 @@ export declare namespace CommissionerControl {
          *
          * > [!NOTE]
          *
-         * > The approval is valid for a period determined by the manufacturer and characteristics of the node
+         * > NOTE: The approval is valid for a period determined by the manufacturer and characteristics of the node
          *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately
          *   upon receiving a CommissioningRequestResult event.
          *
@@ -209,7 +211,7 @@ export declare namespace CommissionerControl {
      * The server may request approval from the user, but it is not required.
      *
      * The server shall always return SUCCESS to a correctly formatted RequestCommissioningApproval command, and then
-     * generate a CommissioningRequestResult event associated with the command’s accessing fabric once the result is
+     * generate a CommissioningRequestResult event associated with the command's accessing fabric once the result is
      * ready.
      *
      * Clients SHOULD avoid using the same RequestID. If the RequestID and client NodeID of a
@@ -268,8 +270,8 @@ export declare namespace CommissionerControl {
      *
      * > [!NOTE]
      *
-     * > This is an alias onto the OpenCommissioningWindow command within the Administrator Commissioning Cluster. Refer
-     *   to the OpenCommissioningWindow command for a description of the command behavior and parameters.
+     * > NOTE: This is an alias onto the OpenCommissioningWindow command within the Administrator Commissioning Cluster.
+     *   Refer to the OpenCommissioningWindow command for a description of the command behavior and parameters.
      *
      * The parameters for ReverseOpenCommissioningWindow command are as follows:
      *
@@ -290,9 +292,9 @@ export declare namespace CommissionerControl {
      *
      * > [!NOTE]
      *
-     * > The approval is valid for a period determined by the manufacturer and characteristics of the node presenting
-     *   the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately upon receiving a
-     *   CommissioningRequestResult event.
+     * > NOTE: The approval is valid for a period determined by the manufacturer and characteristics of the node
+     *   presenting the Commissioner Control Cluster. Clients SHOULD send the CommissionNode command immediately upon
+     *   receiving a CommissioningRequestResult event.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.26.7.1
      */

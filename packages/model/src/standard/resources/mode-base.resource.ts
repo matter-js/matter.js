@@ -16,7 +16,7 @@ Resource.add({
         "massage chair, or the wash cycle of a laundry machine." +
         "\n" +
         "The server allows the client to set a mode on the server. A mode is one of a list of options that " +
-        "may be presented by a client for a user choice, or understood by the client, via the mode’s tags." +
+        "may be presented by a client for a user choice, or understood by the client, via the mode's tags." +
         "\n" +
         "A mode tag is either a standard tag within a standard category namespace, or a manufacturer specific " +
         "tag, within the namespace of the vendor ID of the manufacturer." +
@@ -86,7 +86,7 @@ Resource.add({
                 "\n" +
                 "If this attribute is not null, the CurrentMode attribute shall be set to the StartUpMode value, when " +
                 "the server is powered up, except in the case when the OnMode attribute overrides the StartUpMode " +
-                "attribute (see Section 1.10.6.4.1, “OnMode with Power Up”)." +
+                "attribute (see Section 1.10.6.4.1, \"OnMode with Power Up\")." +
                 "\n" +
                 "This behavior does not apply to reboots associated with OTA. After an OTA restart, the CurrentMode " +
                 "attribute shall return to its value prior to the restart." +
@@ -117,8 +117,8 @@ Resource.add({
             children: [{
                 tag: "field", name: "NewMode", xref: "cluster§1.10.7.1.1",
 
-                details: "If the NewMode field doesn’t match the Mode field of any entry of the SupportedModes list, the " +
-                    "ChangeToModeResponse command’s Status field shall indicate UnsupportedMode and the StatusText field " +
+                details: "If the NewMode field doesn't match the Mode field of any entry of the SupportedModes list, the " +
+                    "ChangeToModeResponse command's Status field shall indicate UnsupportedMode and the StatusText field " +
                     "shall be included and may be used to indicate the issue, with a human readable string, or include an " +
                     "empty string." +
                     "\n" +
@@ -157,9 +157,9 @@ Resource.add({
                     tag: "field", name: "MfgCode", xref: "cluster§1.10.5.1.1",
 
                     details: "If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see " +
-                        "Section 1.10.8, “Mode Namespace”)." +
+                        "Section 1.10.8, \"Mode Namespace\")." +
                         "\n" +
-                        "This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the " +
+                        "This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the " +
                         "Value field." +
                         "\n" +
                         "The same manufacturer code and mode tag value in separate cluster instances are part of the same " +
@@ -225,7 +225,7 @@ Resource.add({
                         "shows a green leaf." +
                         "\n" +
                         "  - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower " +
-                        "level of audible sound, less likely to disturb the household’s activities." +
+                        "level of audible sound, less likely to disturb the household's activities." +
                         "\n" +
                         "  - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also " +
                         "a Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster)." +
@@ -247,7 +247,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "UnsupportedMode",
-                    description: "The value of the NewMode field doesn’t match any entries in the SupportedModes attribute.",
+                    description: "The value of the NewMode field doesn't match any entries in the SupportedModes attribute.",
                     xref: "cluster§1.10.7.2.1.2"
                 },
                 {

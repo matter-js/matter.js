@@ -172,7 +172,7 @@ export declare namespace OvenMode {
          *     green leaf.
          *
          *   - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower level of
-         *     audible sound, less likely to disturb the household’s activities.
+         *     audible sound, less likely to disturb the household's activities.
          *
          *   - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also a
          *     Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster).
@@ -271,11 +271,11 @@ export declare namespace OvenMode {
          *
          * > [!NOTE]
          *
-         * > Depending on regulatory or other requirements, the following restrictions could apply to the use of this
-         *   mode: - It may NOT be possible to start this mode from a client. It may need to be started at the device
-         *   due to the temperatures used during this mode. - The setting of the oven temperature or other features may
-         *   be limited or not available while this mode is running. - Oven temperature measurement may NOT be available
-         *   while this mode is running.
+         * > NOTE: Depending on regulatory or other requirements, the following restrictions could apply to the use of
+         *   this mode: - It may NOT be possible to start this mode from a client. It may need to be started at the
+         *   device due to the temperatures used during this mode. - The setting of the oven temperature or other
+         *   features may be limited or not available while this mode is running. - Oven temperature measurement may NOT
+         *   be available while this mode is running.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.5
          */
@@ -336,9 +336,9 @@ export declare namespace OvenMode {
 
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
-         * 1.10.8, “Mode Namespace”).
+         * 1.10.8, "Mode Namespace").
          *
-         * This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the Value field.
+         * This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the Value field.
          *
          * The same manufacturer code and mode tag value in separate cluster instances are part of the same namespace
          * and have the same meaning. For example: a manufacturer tag meaning "pinch" can be used both in a cluster

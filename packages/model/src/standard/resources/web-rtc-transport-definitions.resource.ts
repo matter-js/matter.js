@@ -37,7 +37,7 @@ Resource.add({
                 { tag: "field", name: "Replaced", description: "The call was replaced by another call" },
                 {
                     tag: "field", name: "NoUserMedia",
-                    description: "An error code when there is no local mic/camera to use. This may be because the hardware isn’t plugged in, or the user has explicitly denied access"
+                    description: "An error code when there is no local mic/camera to use. This may be because the hardware isn't plugged in, or the user has explicitly denied access"
                 },
                 {
                     tag: "field", name: "InviteTimeout",
@@ -73,7 +73,7 @@ Resource.add({
                 "relay media traffic when direct peer-to-peer communication is not possible:" +
                 "\n" +
                 "  - STUN Servers, which help to discover the public IP address and NAT/Firewall type if any, of a " +
-                "    device. When a WebRTC session starts, it contacts the STUN server, which returns the device’s " +
+                "    device. When a WebRTC session starts, it contacts the STUN server, which returns the device's " +
                 "public IP and port number. This information is used to generate ICE candidates for the " +
                 "peer-to-peer connection setup." +
                 "\n" +
@@ -106,10 +106,10 @@ Resource.add({
                 {
                     tag: "field", name: "Caid", xref: "cluster§11.4.6.3.4",
                     details: "This field represents the TLSRCAC via its assigned TLSCAID (see Chapter 14, Certificate Authority ID " +
-                        "(CAID) Mapping and TLS Certificate Management Commands sections in [MatterCore]) that will validate " +
-                        "the certificate chain presented by the entries in the urls field. It shall be set to a valid value " +
-                        "if a turns: or stuns: url is present in the urls field and shall be used to validate those servers' " +
-                        "presented TLS root certificates."
+                        "(CAID) Mapping and TLS Certificate Management Commands sections in [[MatterCore]](#ref_MatterCore)) " +
+                        "that will validate the certificate chain presented by the entries in the urls field. It shall be set " +
+                        "to a valid value if a turns: or stuns: url is present in the urls field and shall be used to " +
+                        "validate those servers' presented TLS root certificates."
                 }
             ]
         },
@@ -137,7 +137,7 @@ Resource.add({
 
                 {
                     tag: "field", name: "SdpMid", xref: "cluster§11.4.6.4.2",
-                    details: "This field shall specify the Candidate’s media stream identification tag which uniquely identifies " +
+                    details: "This field shall specify the Candidate's media stream identification tag which uniquely identifies " +
                         "the media stream within the component with which the candidate is associated, or null if no such " +
                         "association exists. This is the same value as the W3C WebRTC API RTCIceCandidate sdpMid value. The " +
                         "RFCs define no max length on this value."

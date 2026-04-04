@@ -23,7 +23,7 @@ Resource.add({
                 {
                     tag: "field", name: "DIRECTMODECH", xref: "cluster§7.3.4.1",
                     details: "This feature indicates whether the cluster implementation supports changing the clean modes while " +
-                        "the RVC Run Mode cluster’s CurrentMode attribute is set to a mode without the Idle mode tag. If the " +
+                        "the RVC Run Mode cluster's CurrentMode attribute is set to a mode without the Idle mode tag. If the " +
                         "implementation does not support such a change, the ChangeToModeResponse command shall have the " +
                         "StatusCode field set to the InvalidInMode value."
                 }
@@ -65,11 +65,11 @@ Resource.add({
                 { tag: "field", name: "DeepClean", xref: "cluster§7.3.7.2" },
                 {
                     tag: "field", name: "Vacuum", xref: "cluster§7.3.7.2.2",
-                    details: "The device’s vacuuming feature is enabled in this mode."
+                    details: "The device's vacuuming feature is enabled in this mode."
                 },
                 {
                     tag: "field", name: "Mop", xref: "cluster§7.3.7.2.3",
-                    details: "The device’s mopping feature is enabled in this mode."
+                    details: "The device's mopping feature is enabled in this mode."
                 },
                 { tag: "field", name: "VacuumThenMop", xref: "cluster§7.3.7.2" }
             ]

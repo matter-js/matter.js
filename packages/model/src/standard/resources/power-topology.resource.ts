@@ -65,7 +65,7 @@ Resource.add({
                 {
                     tag: "field", name: "Label", xref: "core§11.8.5.1.3",
                     details: "This field shall indicate a friendly name for the node, to be used when the client does not have " +
-                        "access to the node’s fabric."
+                        "access to the node's fabric."
                 }
             ]
         }

@@ -25,7 +25,7 @@ Resource.add({
                 {
                     tag: "field", name: "RESP", xref: "cluster§1.16.4.2",
                     details: "This feature shall indicate that the device is capable of presenting a list of responses to the user " +
-                        "and recording the user’s choice of response."
+                        "and recording the user's choice of response."
                 },
                 {
                     tag: "field", name: "RPLY", xref: "cluster§1.16.4.3",
@@ -120,9 +120,9 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> It is currently not specified where the friendly name label can be found on the node, meaning that " +
-                "clients SHOULD NOT rely on a certain method they happen to observe in a particular server " +
-                "instance, since other instances could employ a different method." +
+                "> NOTE: It is currently not specified where the friendly name label can be found on the node, " +
+                "meaning that clients SHOULD NOT rely on a certain method they happen to observe in a particular " +
+                "server instance, since other instances could employ a different method." +
                 "\n" +
                 "The device SHOULD make it possible for the user to view which nodes have access to this cluster and " +
                 "to individually remove privileges for each node.",
@@ -254,7 +254,7 @@ Resource.add({
         {
             tag: "datatype", name: "MessagePriorityEnum", xref: "cluster§1.16.5.4",
             details: "Priority SHOULD be used to decide which messages to show when the number of eligible messages is " +
-                "larger than the device’s capacity to present them.",
+                "larger than the device's capacity to present them.",
 
             children: [
                 { tag: "field", name: "Low", description: "Message to be transferred with a low level of importance" },

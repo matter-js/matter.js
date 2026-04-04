@@ -26,7 +26,7 @@ import type { MaybePromise } from "@matter/general";
  *
  * > [!NOTE]
  *
- * > We have considered a “DisableLowPowerMode” command but have not added it due to suspected issues with energy
+ * > NOTE: We have considered a “DisableLowPowerMode” command but have not added it due to suspected issues with energy
  *   consumption regulations. This can be added in the future.
  *
  * @see {@link MatterSpecification.v151.Cluster} § 1.11

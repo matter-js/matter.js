@@ -119,7 +119,7 @@ export declare namespace CommodityMetering {
     export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
-     * Provides access to the Electric Metering device’s readings.
+     * Provides access to the Electric Metering device's readings.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.11.4.1
      */

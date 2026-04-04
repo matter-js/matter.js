@@ -53,7 +53,7 @@ export declare namespace RvcOperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
@@ -96,7 +96,7 @@ export declare namespace RvcOperationalState {
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
@@ -124,7 +124,7 @@ export declare namespace RvcOperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -151,7 +151,7 @@ export declare namespace RvcOperationalState {
          * as "pre-soak", "rinse", and "spin". These phases are manufacturer specific and may change when a different
          * function or mode is selected.
          *
-         * A null value indicates that the device does not present phases during its operation. When this attribute’s
+         * A null value indicates that the device does not present phases during its operation. When this attribute's
          * value is null, the CurrentPhase attribute shall also be set to null.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.14.5.1
@@ -194,7 +194,7 @@ export declare namespace RvcOperationalState {
 
         /**
          * This attribute shall specify the details of any current error condition being experienced on the device when
-         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, “ErrorStateStruct Type” for
+         * the OperationalState attribute is populated with Error. See Section 1.14.4.4, "ErrorStateStruct Type" for
          * general requirements on the population of this attribute.
          *
          * When there is no error detected, this shall have an ErrorStateID of NoError.
@@ -222,7 +222,7 @@ export declare namespace RvcOperationalState {
          *   - When it increases, or
          *
          *   - When there is any increase or decrease in the estimated time remaining that was due to progressing
-         *     insight of the server’s control logic, or
+         *     insight of the server's control logic, or
          *
          *   - When it changes at a rate significantly different from one unit per second.
          *
@@ -269,7 +269,7 @@ export declare namespace RvcOperationalState {
          *
          *   - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of NoError.
          *
-         *   - After the device reaches the dock and completes its docking activities, the RVC Run Mode cluster’s
+         *   - After the device reaches the dock and completes its docking activities, the RVC Run Mode cluster's
          *     CurrentMode attribute shall be set to an Idle mode.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 7.4.5.1
@@ -380,7 +380,7 @@ export declare namespace RvcOperationalState {
      *
      * While in the Charging or Docked states, the device shall NOT attempt to resume unless it transitioned to those
      * states while operating and can resume, such as, for example, if it is recharging while in a cleaning cycle. Else,
-     * if the operational state is Charging or Docked but there’s no operation to resume or the operation can’t be
+     * if the operational state is Charging or Docked but there's no operation to resume or the operation can't be
      * resumed, the device shall respond with an OperationalCommandResponse command with an ErrorStateID of
      * CommandInvalidInState but take no further action.
      *
@@ -577,7 +577,7 @@ export declare namespace RvcOperationalState {
 
         /**
          * The device is unable to move to an area where it was asked to operate, such as by setting the ServiceArea
-         * cluster’s SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door
+         * cluster's SelectedAreas attribute, due to an obstruction. For example, the obstruction might be a closed door
          * or objects blocking the mapped path.
          */
         CannotReachTargetArea = 73,

@@ -17,7 +17,7 @@ import type { ClusterModel } from "@matter/model";
  *
  * > [!NOTE]
  *
- * > Support for Energy Preference cluster is provisional.
+ * > NOTE: Support for Energy Preference cluster is provisional.
  *
  * @see {@link MatterSpecification.v151.Cluster} § 9.7
  */

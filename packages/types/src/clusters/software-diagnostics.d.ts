@@ -136,16 +136,6 @@ export declare namespace SoftwareDiagnostics {
          *
          *   - The CurrentHeapHighWatermark attribute
          *
-         * ### Effect on Receipt
-         *
-         * On receipt of this command, the Node shall make the following modifications to attributes it supports:
-         *
-         * If implemented, the server shall set the value of the CurrentHeapHighWatermark attribute to the value of the
-         * CurrentHeapUsed attribute.
-         *
-         * If implemented, the server shall set the value of the StackFreeMinimum field for every thread to the value of
-         * the corresponding thread’s StackFreeCurrent field.
-         *
          * @see {@link MatterSpecification.v151.Core} § 11.13.7.1
          */
         resetWatermarks(): MaybePromise;

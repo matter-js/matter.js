@@ -98,7 +98,7 @@ export declare namespace WebRtcTransportProvider {
          * remote peer. It shall have the following data fields:
          *
          * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry
-         * in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing
+         * in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing
          * fabric and the Peer Node ID entry stored in the Secure Session Context of the session this command was
          * received on.
          *
@@ -113,7 +113,7 @@ export declare namespace WebRtcTransportProvider {
          * discovered candidates, or to indicate the end of gathering state.
          *
          * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry
-         * in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing
+         * in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing
          * fabric and the Peer Node ID entry stored in the Secure Session Context of the session this command was
          * received on.
          *
@@ -277,7 +277,7 @@ export declare namespace WebRtcTransportProvider {
      *
      * Upon receipt, the client shall create a new WebRTCSessionStruct populated with the values from this command,
      * along with the accessing Peer Node ID and Local Fabric Index entries stored in the Secure Session Context as the
-     * PeerNodeID and FabricIndex values, and store it in the WebRTC Transport Requestor cluster’s CurrentSessions
+     * PeerNodeID and FabricIndex values, and store it in the WebRTC Transport Requestor cluster's CurrentSessions
      * attribute.
      *
      * The session establishment shall be considered failed unless a Offer command is received by the Requestor from the
@@ -450,11 +450,11 @@ export declare namespace WebRtcTransportProvider {
     };
 
     /**
-     * This command contains information about the session and streams created as a response to the requestor’s offer.
+     * This command contains information about the session and streams created as a response to the requestor's offer.
      *
      * Upon receipt, the client shall create a new WebRTCSessionStruct populated with the values from this command,
      * along with the accessing Peer Node ID and Local Fabric Index entries stored in the Secure Session Context as the
-     * PeerNodeID and FabricIndex values, and store it in the WebRTC Transport Requestor cluster’s CurrentSessions
+     * PeerNodeID and FabricIndex values, and store it in the WebRTC Transport Requestor cluster's CurrentSessions
      * attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.4
@@ -493,7 +493,7 @@ export declare namespace WebRtcTransportProvider {
      * peer. It shall have the following data fields:
      *
      * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry in
-     * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric
+     * CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context of the session this command was received on.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.5
@@ -524,7 +524,7 @@ export declare namespace WebRtcTransportProvider {
      * or to indicate the end of gathering state.
      *
      * This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match an entry in
-     * CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not match the accessing fabric
+     * CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not match the accessing fabric
      * and the Peer Node ID entry stored in the Secure Session Context of the session this command was received on.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 11.5.7.6
@@ -589,7 +589,7 @@ export declare namespace WebRtcTransportProvider {
 
         /**
          * This field shall specify the SFrame base_key value to use for a session. The length of this key depends on
-         * the selected cipher suite’s Nk value as defined in Section 4.5 Cipher Suites.
+         * the selected cipher suite's Nk value as defined in Section 4.5 Cipher Suites.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 11.5.5.1.2
          */

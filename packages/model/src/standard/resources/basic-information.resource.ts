@@ -19,7 +19,7 @@ Resource.add({
             tag: "attribute", name: "DataModelRevision", xref: "core§11.1.5.1",
             details: "This attribute shall be set to the revision number of the Data Model against which the Node is " +
                 "certified. The value of this attribute shall be one of the valid values listed in Section 7.1.1, " +
-                "“Revision History”."
+                "\"Revision History\"."
         },
 
         {
@@ -52,9 +52,9 @@ Resource.add({
             details: "This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or " +
                 "special area of geographic interest in which the Node is located at the time of the attribute being " +
                 "set. This attribute shall be set during initial commissioning (unless already set) and may be " +
-                "updated by further reconfigurations. This attribute may affect some regulatory aspects of the Node’s " +
+                "updated by further reconfigurations. This attribute may affect some regulatory aspects of the Node's " +
                 "operation, such as radio transmission power levels in given spectrum allocation bands if " +
-                "technologies where this is applicable are used. The Location’s region code shall be interpreted in a " +
+                "technologies where this is applicable are used. The Location's region code shall be interpreted in a " +
                 "case-insensitive manner. If the Node cannot understand the location code with which it was " +
                 "configured, or the location code has not yet been configured, it shall configure itself in a " +
                 "region-agnostic manner as determined by the vendor, avoiding region-specific assumptions as much as " +
@@ -78,7 +78,7 @@ Resource.add({
             tag: "attribute", name: "SoftwareVersion", xref: "core§11.1.5.10",
             details: "This attribute shall contain the current version number for the software running on this Node. A " +
                 "larger value of SoftwareVersion is newer than a lower value, from the perspective of software " +
-                "updates (see Section 11.20.3.3, “Availability of Software Images”). Nodes may query this field to " +
+                "updates (see Section 11.20.3.3, \"Availability of Software Images\"). Nodes may query this field to " +
                 "determine the currently running version of software on another given Node."
         },
 
@@ -138,7 +138,7 @@ Resource.add({
             details: "This attribute shall allow a local Node configuration to be disabled. When this attribute is set to " +
                 "True the Node shall disable the ability to configure the Node through an on-Node user interface. The " +
                 "value of the LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect " +
-                "the user’s ability to trigger a factory reset on the Node."
+                "the user's ability to trigger a factory reset on the Node."
         },
 
         {
@@ -169,12 +169,13 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4." +
+                "> NOTE: The conformance of the UniqueID attribute was optional in cluster revisions prior to " +
+                "revision 4." +
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the " +
-                "Rotating Device Identifier mechanism."
+                "> NOTE: This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in " +
+                "the Rotating Device Identifier mechanism."
         },
 
         {
@@ -240,8 +241,8 @@ Resource.add({
         {
             tag: "attribute", name: "MaxPathsPerInvoke", xref: "core§11.1.5.23",
 
-            details: "Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, “Invoke " +
-                "Request Action”) that the Node is able to process. Note that since this attribute may change over " +
+            details: "Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, \"Invoke " +
+                "Request Action\") that the Node is able to process. Note that since this attribute may change over " +
                 "time, both increasing and decreasing, as software versions change for a given Node, clients SHOULD " +
                 "take care not to assume forever unchanging values and SHOULD NOT cache this value permanently at " +
                 "Commissioning time." +
@@ -350,7 +351,7 @@ Resource.add({
 
         {
             tag: "datatype", name: "ProductAppearanceStruct", xref: "core§11.1.4.3",
-            details: "This structure provides a description of the product’s appearance.",
+            details: "This structure provides a description of the product's appearance.",
 
             children: [
                 {
@@ -376,8 +377,8 @@ Resource.add({
                     details: "This field shall indicate the actual minimum number of concurrent CASE sessions that are supported " +
                         "per fabric." +
                         "\n" +
-                        "This value shall NOT be smaller than the required minimum indicated in Section 4.14.2.8, “Minimal " +
-                        "Number of CASE Sessions”."
+                        "This value shall NOT be smaller than the required minimum indicated in Section 4.14.2.8, \"Minimal " +
+                        "Number of CASE Sessions\"."
                 },
 
                 {
@@ -385,8 +386,8 @@ Resource.add({
                     details: "This field shall indicate the actual minimum number of concurrent subscriptions supported per " +
                         "fabric." +
                         "\n" +
-                        "This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, “Subscribe " +
-                        "Transaction”."
+                        "This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, \"Subscribe " +
+                        "Transaction\"."
                 }
             ]
         }

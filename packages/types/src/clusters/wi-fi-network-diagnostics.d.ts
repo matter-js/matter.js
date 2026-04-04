@@ -76,7 +76,7 @@ export declare namespace WiFiNetworkDiagnostics {
         channelNumber: number | null;
 
         /**
-         * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
+         * Indicates the current RSSI of the Node's Wi-Fi radio in dBm.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.15.6.5
          */
@@ -190,7 +190,7 @@ export declare namespace WiFiNetworkDiagnostics {
         channelNumber: number | null;
 
         /**
-         * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
+         * Indicates the current RSSI of the Node's Wi-Fi radio in dBm.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.15.6.5
          */
@@ -294,7 +294,7 @@ export declare namespace WiFiNetworkDiagnostics {
      */
     export interface BaseEvents {
         /**
-         * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+         * The Disconnection Event shall indicate that a Node's Wi-Fi connection has been disconnected as a result of
          * de-authenticated or dis-association and indicates the reason.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
@@ -311,7 +311,7 @@ export declare namespace WiFiNetworkDiagnostics {
         associationFailure?: AssociationFailureEvent;
 
         /**
-         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+         * The ConnectionStatus Event shall indicate that a Node's connection status to a Wi-Fi network has changed.
          * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
          * Wi-Fi Access Point.
          *
@@ -328,7 +328,7 @@ export declare namespace WiFiNetworkDiagnostics {
      */
     export interface Events {
         /**
-         * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+         * The Disconnection Event shall indicate that a Node's Wi-Fi connection has been disconnected as a result of
          * de-authenticated or dis-association and indicates the reason.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
@@ -345,7 +345,7 @@ export declare namespace WiFiNetworkDiagnostics {
         associationFailure: AssociationFailureEvent;
 
         /**
-         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+         * The ConnectionStatus Event shall indicate that a Node's connection status to a Wi-Fi network has changed.
          * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
          * Wi-Fi Access Point.
          *
@@ -444,7 +444,7 @@ export declare namespace WiFiNetworkDiagnostics {
     }
 
     /**
-     * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
+     * The Disconnection Event shall indicate that a Node's Wi-Fi connection has been disconnected as a result of
      * de-authenticated or dis-association and indicates the reason.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
@@ -497,7 +497,7 @@ export declare namespace WiFiNetworkDiagnostics {
     };
 
     /**
-     * The ConnectionStatus Event shall indicate that a Node’s connection status to a Wi-Fi network has changed.
+     * The ConnectionStatus Event shall indicate that a Node's connection status to a Wi-Fi network has changed.
      * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
      * Wi-Fi Access Point.
      *

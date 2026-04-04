@@ -58,7 +58,7 @@ export declare namespace ThreadBorderRouterManagement {
 
         /**
          * Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is manufacturer-specific,
-         * and it is created and managed by the border router’s implementation.
+         * and it is created and managed by the border router's implementation.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 10.3.5.2
          */
@@ -120,7 +120,7 @@ export declare namespace ThreadBorderRouterManagement {
 
         /**
          * Indicates a 16-byte globally unique ID for a Thread Border Router device. This ID is manufacturer-specific,
-         * and it is created and managed by the border router’s implementation.
+         * and it is created and managed by the border router's implementation.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 10.3.5.2
          */
@@ -264,7 +264,7 @@ export declare namespace ThreadBorderRouterManagement {
          *
          * > [!NOTE]
          *
-         * > This feature flag can be used to protect an already-configured network from accidental configuration
+         * > NOTE: This feature flag can be used to protect an already-configured network from accidental configuration
          *   change, e.g. when the Thread Border Router serves non-Matter devices that do not support PAN change for an
          *   implementation-specific reason.
          *
@@ -311,7 +311,8 @@ export declare namespace ThreadBorderRouterManagement {
         activeDataset: Bytes;
 
         /**
-         * See Breadcrumb Attribute section of General Commissioning Cluster in [MatterCore] for usage.
+         * See Breadcrumb Attribute section of General Commissioning Cluster in [[MatterCore]](#ref_MatterCore) for
+         * usage.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 10.3.6.4.2
          */

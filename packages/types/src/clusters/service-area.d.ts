@@ -60,7 +60,7 @@ export declare namespace ServiceArea {
      */
     export interface BaseAttributes {
         /**
-         * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’s list.
+         * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's list.
          * Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
          *
          * Each entry in this list shall have a unique value for the AreaID field.
@@ -75,7 +75,7 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > due to the maximum size of this list and to the fact that the entries may include strings (see
+         * > NOTE: due to the maximum size of this list and to the fact that the entries may include strings (see
          *   LocationName), care must be taken by implementers to avoid creating a data structure that is overly large,
          *   which can result in significant latency in accessing this attribute.
          *
@@ -122,7 +122,7 @@ export declare namespace ServiceArea {
          *
          * If this attribute is not empty:
          *
-         *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s list
+         *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute's list
          *
          *   - each entry in this list shall have a unique value
          *
@@ -141,10 +141,10 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > A device may traverse an area regardless of the status of the area (pending, skipped, or completed).
+         * > NOTE: A device may traverse an area regardless of the status of the area (pending, skipped, or completed).
          *
          * If a device can simultaneously operate at multiple areas, such as in the case of a sensor that can monitor
-         * multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since it doesn’t apply.
+         * multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since it doesn't apply.
          * Else this attribute shall be optionally implemented.
          *
          * A null value indicates that the device is currently unable to provide this information. For example, the
@@ -152,7 +152,7 @@ export declare namespace ServiceArea {
          * device is located was removed from that list.
          *
          * If not null, the value of this attribute shall match the AreaID field of an entry on the SupportedAreas
-         * attribute’s list.
+         * attribute's list.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.6.4
          */
@@ -183,8 +183,8 @@ export declare namespace ServiceArea {
          *
          *     > [!NOTE]
          *
-         *     > If the device is capable of pausing its operation, this attribute may be set to null, to indicate that
-         *       completion time is unknown, or increment the value while being in the paused state.
+         *     > NOTE: If the device is capable of pausing its operation, this attribute may be set to null, to indicate
+         *       that completion time is unknown, or increment the value while being in the paused state.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.6.5
          */
@@ -225,9 +225,9 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > due to the maximum size of this list and to the fact that the entries may include strings (see the Name
-         *   field of the MapStruct data type), care must be taken by implementers to avoid creating a data structure
-         *   that is overly large, which can result in significant latency in accessing this attribute.
+         * > NOTE: due to the maximum size of this list and to the fact that the entries may include strings (see the
+         *   Name field of the MapStruct data type), care must be taken by implementers to avoid creating a data
+         *   structure that is overly large, which can result in significant latency in accessing this attribute.
          *
          * The value of this attribute may change at any time via an out-of-band interaction outside of the server, such
          * as interactions with a user interface.
@@ -255,7 +255,7 @@ export declare namespace ServiceArea {
          *
          * Each entry in this list shall have a unique value for the AreaID field.
          *
-         * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s list.
+         * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute's list.
          *
          * When this attribute is empty, that represents that no progress information is currently available.
          *
@@ -282,9 +282,9 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > if the device implements the Operational Status cluster, or a derivation of it, in case the device fails to
-         *   service any locations in the SelectedAreas list before ending the operation, it SHOULD use the Operational
-         *   Status cluster to indicate that the device was unable to complete the operation (see the
+         * > NOTE: if the device implements the Operational Status cluster, or a derivation of it, in case the device
+         *   fails to service any locations in the SelectedAreas list before ending the operation, it SHOULD use the
+         *   Operational Status cluster to indicate that the device was unable to complete the operation (see the
          *   UnableToCompleteOperation error from that cluster specification). The clients SHOULD then read the Progress
          *   attribute, and indicate which areas have been successfully serviced (marked as completed).
          *
@@ -301,7 +301,7 @@ export declare namespace ServiceArea {
      */
     export interface Attributes {
         /**
-         * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’s list.
+         * This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's list.
          * Each item in this list represents a unique area, as indicated by the AreaID field of AreaStruct.
          *
          * Each entry in this list shall have a unique value for the AreaID field.
@@ -316,7 +316,7 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > due to the maximum size of this list and to the fact that the entries may include strings (see
+         * > NOTE: due to the maximum size of this list and to the fact that the entries may include strings (see
          *   LocationName), care must be taken by implementers to avoid creating a data structure that is overly large,
          *   which can result in significant latency in accessing this attribute.
          *
@@ -363,7 +363,7 @@ export declare namespace ServiceArea {
          *
          * If this attribute is not empty:
          *
-         *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute’s list
+         *   - each item in this list shall match the AreaID field of an entry in the SupportedAreas attribute's list
          *
          *   - each entry in this list shall have a unique value
          *
@@ -382,10 +382,10 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > A device may traverse an area regardless of the status of the area (pending, skipped, or completed).
+         * > NOTE: A device may traverse an area regardless of the status of the area (pending, skipped, or completed).
          *
          * If a device can simultaneously operate at multiple areas, such as in the case of a sensor that can monitor
-         * multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since it doesn’t apply.
+         * multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since it doesn't apply.
          * Else this attribute shall be optionally implemented.
          *
          * A null value indicates that the device is currently unable to provide this information. For example, the
@@ -393,7 +393,7 @@ export declare namespace ServiceArea {
          * device is located was removed from that list.
          *
          * If not null, the value of this attribute shall match the AreaID field of an entry on the SupportedAreas
-         * attribute’s list.
+         * attribute's list.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.6.4
          */
@@ -424,8 +424,8 @@ export declare namespace ServiceArea {
          *
          *     > [!NOTE]
          *
-         *     > If the device is capable of pausing its operation, this attribute may be set to null, to indicate that
-         *       completion time is unknown, or increment the value while being in the paused state.
+         *     > NOTE: If the device is capable of pausing its operation, this attribute may be set to null, to indicate
+         *       that completion time is unknown, or increment the value while being in the paused state.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.6.5
          */
@@ -461,9 +461,9 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > due to the maximum size of this list and to the fact that the entries may include strings (see the Name
-         *   field of the MapStruct data type), care must be taken by implementers to avoid creating a data structure
-         *   that is overly large, which can result in significant latency in accessing this attribute.
+         * > NOTE: due to the maximum size of this list and to the fact that the entries may include strings (see the
+         *   Name field of the MapStruct data type), care must be taken by implementers to avoid creating a data
+         *   structure that is overly large, which can result in significant latency in accessing this attribute.
          *
          * The value of this attribute may change at any time via an out-of-band interaction outside of the server, such
          * as interactions with a user interface.
@@ -486,7 +486,7 @@ export declare namespace ServiceArea {
          *
          * Each entry in this list shall have a unique value for the AreaID field.
          *
-         * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s list.
+         * For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute's list.
          *
          * When this attribute is empty, that represents that no progress information is currently available.
          *
@@ -513,9 +513,9 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > if the device implements the Operational Status cluster, or a derivation of it, in case the device fails to
-         *   service any locations in the SelectedAreas list before ending the operation, it SHOULD use the Operational
-         *   Status cluster to indicate that the device was unable to complete the operation (see the
+         * > NOTE: if the device implements the Operational Status cluster, or a derivation of it, in case the device
+         *   fails to service any locations in the SelectedAreas list before ending the operation, it SHOULD use the
+         *   Operational Status cluster to indicate that the device was unable to complete the operation (see the
          *   UnableToCompleteOperation error from that cluster specification). The clients SHOULD then read the Progress
          *   attribute, and indicate which areas have been successfully serviced (marked as completed).
          *
@@ -611,7 +611,7 @@ export declare namespace ServiceArea {
          * that the area is not associated with a map.
          *
          * If the SupportedMaps attribute is not empty, this field shall match the MapID field of an entry from the
-         * SupportedMaps attribute’s list. If the SupportedMaps attribute is empty, this field shall be null.
+         * SupportedMaps attribute's list. If the SupportedMaps attribute is empty, this field shall be null.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.4.2
          */
@@ -625,8 +625,8 @@ export declare namespace ServiceArea {
          *
          * > [!NOTE]
          *
-         * > If any entries on the SupportedAreas attribute’s list have the AreaInfo field missing the semantic data,
-         *   the client may remind the user to assign the respective data.
+         * > NOTE: If any entries on the SupportedAreas attribute's list have the AreaInfo field missing the semantic
+         *   data, the client may remind the user to assign the respective data.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.4.3
          */
@@ -642,7 +642,7 @@ export declare namespace ServiceArea {
         constructor(values?: Partial<Map>);
 
         /**
-         * This field shall represent the map’s identifier.
+         * This field shall represent the map's identifier.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.3.1
          */
@@ -668,7 +668,7 @@ export declare namespace ServiceArea {
 
         /**
          * This field shall indicate the identifier of the area, and the identifier shall be an entry in the
-         * SupportedAreas attribute’s list.
+         * SupportedAreas attribute's list.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.17.5.5.1
          */
@@ -827,7 +827,7 @@ export declare namespace ServiceArea {
 
         /**
          * This field shall identify the position of the area relative to a landmark. This is a static description of a
-         * zone known to the server, and this field never reflects the device’s own proximity or position relative to
+         * zone known to the server, and this field never reflects the device's own proximity or position relative to
          * the landmark, but that of the zone.
          *
          * This field shall be the ID of a relative position semantic tag, located within the Common Relative Position
@@ -851,7 +851,7 @@ export declare namespace ServiceArea {
      *
      * For an area description to be meaningful, it shall have at least one of the following:
      *
-     *   - a non-empty name (LocationInfo’s LocationName field)
+     *   - a non-empty name (LocationInfo's LocationName field)
      *
      * OR
      *
@@ -865,17 +865,17 @@ export declare namespace ServiceArea {
      * If LocationInfo is not null, and its LocationName field is an empty string, at least one of the following shall
      * NOT be null:
      *
-     *   - LocationInfo’s FloorNumber field
+     *   - LocationInfo's FloorNumber field
      *
-     *   - LocationInfo’s AreaType field
+     *   - LocationInfo's AreaType field
      *
      *   - LandmarkInfo field
      *
-     * If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty string:
+     * If all three of the following are null, LocationInfo's LocationName field shall NOT be an empty string:
      *
-     *   - LocationInfo’s FloorNumber field
+     *   - LocationInfo's FloorNumber field
      *
-     *   - LocationInfo’s AreaType field
+     *   - LocationInfo's AreaType field
      *
      *   - LandmarkInfo field
      *
@@ -889,11 +889,11 @@ export declare namespace ServiceArea {
          *
          * A few examples are provided below.
          *
-         *   - An area can have LocationInfo’s LocationName field set to "blue room", and the AreaType field set to the
+         *   - An area can have LocationInfo's LocationName field set to "blue room", and the AreaType field set to the
          *     ID of a "Living Room" semantic tag. Clients wishing to direct the device to operate in (or service) the
          *     living room can use this area.
          *
-         *   - An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of the
+         *   - An area can have LocationInfo set to null, the LandmarkInfo's LandmarkTag field set to the ID of the
          *     "Table" landmark semantic tag, and the RelativePositionTag field set to the ID of the "Under" position
          *     semantic tag. With such an area indication, the client can request the device to operate in (or service)
          *     the area located under the table.
@@ -932,7 +932,7 @@ export declare namespace ServiceArea {
 
         /**
          * The device has skipped the given area, before or during operating at it, due to a SkipArea command, due an
-         * out of band command (e.g. from the vendor’s application), due to a vendor specific reason, such as a time
+         * out of band command (e.g. from the vendor's application), due to a vendor specific reason, such as a time
          * limit used by the device, or due the device ending operating unsuccessfully
          */
         Skipped = 2,
@@ -954,7 +954,7 @@ export declare namespace ServiceArea {
         Success = 0,
 
         /**
-         * The value of at least one of the entries of the NewAreas field doesn’t match any entries in the
+         * The value of at least one of the entries of the NewAreas field doesn't match any entries in the
          * SupportedAreas attribute.
          */
         UnsupportedArea = 1,
@@ -965,7 +965,7 @@ export declare namespace ServiceArea {
         InvalidInMode = 2,
 
         /**
-         * The set of values is invalid. For example, areas on different floors, that a robot knows it can’t reach on
+         * The set of values is invalid. For example, areas on different floors, that a robot knows it can't reach on
          * its own.
          */
         InvalidSet = 3
@@ -993,7 +993,7 @@ export declare namespace ServiceArea {
         InvalidInMode = 2,
 
         /**
-         * The SkippedArea field doesn’t match an entry in the SupportedAreas list.
+         * The SkippedArea field doesn't match an entry in the SupportedAreas list.
          */
         InvalidSkippedArea = 3
     }

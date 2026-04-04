@@ -168,7 +168,7 @@ export declare namespace KeypadInput {
         UnsupportedKey = 1,
 
         /**
-         * Requested key code is invalid in the context of the responder’s current state.
+         * Requested key code is invalid in the context of the responder's current state.
          */
         InvalidKeyInCurrentState = 2
     }

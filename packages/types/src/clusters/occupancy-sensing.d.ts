@@ -85,12 +85,14 @@ export declare namespace OccupancySensing {
          * Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds the
          * threshold until HoldTime after the last moment where the PIR exceeded the threshold.
          *
+         * !HoldTime
+         *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.3
          */
         holdTime?: number;
 
         /**
-         * Indicates the server’s limits, and default value, for the HoldTime attribute.
+         * Indicates the server's limits, and default value, for the HoldTime attribute.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.4
          */
@@ -231,12 +233,14 @@ export declare namespace OccupancySensing {
          * Occupancy attribute will be set to 1 from the start of the first period where the PIR signal exceeds the
          * threshold until HoldTime after the last moment where the PIR exceeded the threshold.
          *
+         * !HoldTime
+         *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.3
          */
         holdTime: number;
 
         /**
-         * Indicates the server’s limits, and default value, for the HoldTime attribute.
+         * Indicates the server's limits, and default value, for the HoldTime attribute.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.6.4
          */
@@ -435,7 +439,7 @@ export declare namespace OccupancySensing {
     /**
      * > [!NOTE]
      *
-     * > This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
+     * > NOTE: This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
      *   provide the sensor modality (or modalities) for later cluster revisions. See Backward Compatibility section.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.3
@@ -465,7 +469,7 @@ export declare namespace OccupancySensing {
     /**
      * > [!NOTE]
      *
-     * > This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
+     * > NOTE: This enum is as defined in ClusterRevision 4 and its definition shall NOT be extended; the feature flags
      *   provide the sensor modality (or modalities) for later cluster revisions. See Backward Compatibility section.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.2
@@ -490,7 +494,7 @@ export declare namespace OccupancySensing {
     };
 
     /**
-     * This structure provides information on the server’s supported values for the HoldTime attribute.
+     * This structure provides information on the server's supported values for the HoldTime attribute.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4
      */
@@ -498,7 +502,7 @@ export declare namespace OccupancySensing {
         constructor(values?: Partial<HoldTimeLimits>);
 
         /**
-         * This field shall specify the minimum value of the server’s supported value for the HoldTime attribute, in
+         * This field shall specify the minimum value of the server's supported value for the HoldTime attribute, in
          * seconds.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.1
@@ -506,7 +510,7 @@ export declare namespace OccupancySensing {
         holdTimeMin: number;
 
         /**
-         * This field shall specify the maximum value of the server’s supported value for the HoldTime attribute, in
+         * This field shall specify the maximum value of the server's supported value for the HoldTime attribute, in
          * seconds.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.2
@@ -514,7 +518,7 @@ export declare namespace OccupancySensing {
         holdTimeMax: number;
 
         /**
-         * This field shall specify the (manufacturer-determined) default value of the server’s HoldTime attribute, in
+         * This field shall specify the (manufacturer-determined) default value of the server's HoldTime attribute, in
          * seconds. This is the value that a client who wants to reset the settings to a valid default SHOULD use.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 2.7.5.4.3

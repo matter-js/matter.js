@@ -15,7 +15,7 @@ import type { MaybePromise } from "@matter/general";
  * Definitions for the LevelControl cluster.
  *
  * This cluster provides an interface for controlling a characteristic of a device that can be set to a level, for
- * example the brightness of a light or lamp, a pump’s flow rate setpoint, etc.
+ * example the brightness of a light or lamp, a pump's flow rate setpoint, etc.
  *
  * @see {@link MatterSpecification.v151.Cluster} § 1.6
  */
@@ -103,8 +103,8 @@ export declare namespace LevelControl {
          *
          * > [!NOTE]
          *
-         * > This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As such,
-         *   when the Lighting feature is supported this value shall be 1.
+         * > NOTE: This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As
+         *   such, when the Lighting feature is supported this value shall be 1.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.4
          */
@@ -115,8 +115,8 @@ export declare namespace LevelControl {
          *
          * > [!NOTE]
          *
-         * > This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As such,
-         *   when the Lighting feature is supported this value shall be 254.
+         * > NOTE: This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As
+         *   such, when the Lighting feature is supported this value shall be 254.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.5
          */
@@ -298,8 +298,8 @@ export declare namespace LevelControl {
          *
          * > [!NOTE]
          *
-         * > This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As such,
-         *   when the Lighting feature is supported this value shall be 1.
+         * > NOTE: This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As
+         *   such, when the Lighting feature is supported this value shall be 1.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.4
          */
@@ -310,8 +310,8 @@ export declare namespace LevelControl {
          *
          * > [!NOTE]
          *
-         * > This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As such,
-         *   when the Lighting feature is supported this value shall be 254.
+         * > NOTE: This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. As
+         *   such, when the Lighting feature is supported this value shall be 254.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.6.6.5
          */
@@ -519,15 +519,15 @@ export declare namespace LevelControl {
          *
          * For the CurrentLevel attribute:
          *
-         * A value of 0x00 shall NOT be used.
+         *   - A value of 0x00 shall NOT be used.
          *
-         * A value of 0x01 shall indicate the minimum level that can be attained on a device.
+         *   - A value of 0x01 shall indicate the minimum level that can be attained on a device.
          *
-         * A value of 0xFE shall indicate the maximum level that can be attained on a device.
+         *   - A value of 0xFE shall indicate the maximum level that can be attained on a device.
          *
-         * A value of null shall represent an undefined value.
+         *   - A value of null shall represent an undefined value.
          *
-         * All other values are application specific gradations from the minimum to the maximum level.
+         *   - All other values are application specific gradations from the minimum to the maximum level.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.6.4.2
          */
@@ -538,7 +538,7 @@ export declare namespace LevelControl {
          *
          * > [!NOTE]
          *
-         * > The Frequency feature is provisional.
+         * > NOTE: The Frequency feature is provisional.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 1.6.4.3
          */

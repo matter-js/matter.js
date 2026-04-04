@@ -28,10 +28,10 @@ Resource.add({
                 "receipt of a SolicitOffer command or a re-offer initiated by the Provider." +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
-                "an entry in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not " +
+                "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
                 "match the accessing fabric and the Peer Node ID entry stored in the Secure Session Context (see " +
-                "Chapter 4 Secure Channel, Secure Session Context section, in [MatterCore]) of the session this " +
-                "command was received on.",
+                "Chapter 4 Secure Channel, Secure Session Context section, in [[MatterCore]](#ref_MatterCore)) of the " +
+                "session this command was received on.",
 
             children: [
                 {
@@ -63,7 +63,7 @@ Resource.add({
                 "answer), It is the next command in the Offer/Answer flow to the ProvideOffer command." +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
-                "an entry in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not " +
+                "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
                 "match the accessing fabric and the Peer Node ID entry stored in the Secure Session Context of the " +
                 "session this command was received on.",
 
@@ -89,7 +89,7 @@ Resource.add({
                 "used for STUN or TURN discovered candidates, or to indicate the end of gathering state." +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
-                "an entry in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not " +
+                "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
                 "match the accessing fabric and the Peer Node ID entry stored in the Secure Session Context of the " +
                 "session this command was received on.",
 

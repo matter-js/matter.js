@@ -37,8 +37,8 @@ Resource.add({
         "All push transport ingest methods shall use TLS as specified by the core specification. TLS Client " +
         "Certificates shall be used for Authorization and Identification of a Node on the underlying TLS " +
         "connection (see Chapter 14, TLS Certificate Management and TLS Client Management sections in " +
-        "[MatterCore]). Nodes supporting this cluster shall also support the TLS Client Management Cluster " +
-        "and its dependencies.",
+        "[[MatterCore]](#ref_MatterCore)). Nodes supporting this cluster shall also support the TLS Client " +
+        "Management Cluster and its dependencies.",
 
     children: [
         {
@@ -70,11 +70,11 @@ Resource.add({
 
             details: "This attribute shall be a list of TransportConfigurationStruct which represents all the allocated " +
                 "connections added via AllocatePushTransport. When this attribute is read over a non Large Message " +
-                "(See Large Message Quality in the Data Model section of [MatterCore]) capable transport, the " +
-                "TransportOptions field shall NOT be included. To get the full details of the connections use the " +
-                "FindTransport command. The maximum size of this list is run-time dependent upon the resource " +
-                "constraints of the system as described in Resource Management and Stream Priorities and the " +
-                "currently used bandwidth of the total available specified by MaxNetworkBandwidth."
+                "(See Large Message Quality in the Data Model section of [[MatterCore]](#ref_MatterCore)) capable " +
+                "transport, the TransportOptions field shall NOT be included. To get the full details of the " +
+                "connections use the FindTransport command. The maximum size of this list is run-time dependent upon " +
+                "the resource constraints of the system as described in Resource Management and Stream Priorities and " +
+                "the currently used bandwidth of the total available specified by MaxNetworkBandwidth."
         },
 
         {
@@ -534,7 +534,7 @@ Resource.add({
         {
             tag: "datatype", name: "TransportTriggerOptionsStruct", xref: "cluster§11.7.7.13",
             details: "This struct encodes the conditions and options that configures the trigger for the push transport. " +
-                "The transport shall only start transmitting AV Streams when it’s associated trigger is activated.",
+                "The transport shall only start transmitting AV Streams when it's associated trigger is activated.",
 
             children: [
                 {
@@ -577,13 +577,13 @@ Resource.add({
                         "A value of 0 shall indicate that no extra segments beyond the one containing the trigger point will " +
                         "be sent." +
                         "\n" +
-                        "When using a non 0 value, the value shall be greater than or equal to the value of the stream’s " +
+                        "When using a non 0 value, the value shall be greater than or equal to the value of the stream's " +
                         "KeyFrameInterval and it SHOULD be a multiple of that value if larger." +
                         "\n" +
                         "The actual amount transmitted will always be less than or equal to the per stream storage amount " +
                         "found in the MaxContentBufferSize." +
                         "\n" +
-                        "Since a transmission caused by a trigger activation always begins on the Container Format’s segment " +
+                        "Since a transmission caused by a trigger activation always begins on the Container Format's segment " +
                         "(or key-frame) boundary, if the trigger occurs mid segment, the entire segment still needs to be " +
                         "sent. This time delta between the actual trigger point and the start of the segment is counted as " +
                         "part of the pre-roll length. Thus, for more than the current segment to be sent as pre-roll, the " +
@@ -607,9 +607,13 @@ Resource.add({
                 "This places the Node in a Motion Detected state, at which point the Node shall internally track two " +
                 "values." +
                 "\n" +
-                "The time in seconds since the trigger was activated." +
+                "### TimeSinceActivation" +
                 "\n" +
-                "Initially set to the InitialDuration value." +
+                ": The time in seconds since the trigger was activated." +
+                "\n" +
+                "### MotionDetectedDuration" +
+                "\n" +
+                ": Initially set to the InitialDuration value." +
                 "\n" +
                 "The transport shall remain active minimally for InitialDuration period before a PushTransportEnd " +
                 "event can occur." +
@@ -671,7 +675,7 @@ Resource.add({
                         "If this field is encountered from clients implementing cluster revision 1, then the following shall " +
                         "be done:" +
                         "\n" +
-                        "  - If not present, video isn’t requested." +
+                        "  - If not present, video isn't requested." +
                         "\n" +
                         "  - If present and null, automatic video stream assignment is requested." +
                         "\n" +
@@ -687,7 +691,7 @@ Resource.add({
                         "If this field is encountered from clients implementing cluster revision 1, then the following shall " +
                         "be done:" +
                         "\n" +
-                        "  - If not present, audio isn’t requested." +
+                        "  - If not present, audio isn't requested." +
                         "\n" +
                         "  - If present and null, automatic audio stream assignment is requested." +
                         "\n" +
@@ -699,7 +703,8 @@ Resource.add({
                     tag: "field", name: "TlsEndpointId", xref: "cluster§11.7.7.15.4",
                     details: "This field shall be a TLSEndpointID representing a provisioned TLS Endpoint, which shall have valid " +
                         "TLSCAID and TLSCCDID values (see Chapter 14, Certificate Authority ID (CAID) Mapping and the " +
-                        "ProvisionEndpoint command in the TLS Client Management Cluster sections in [MatterCore])."
+                        "ProvisionEndpoint command in the TLS Client Management Cluster sections in " +
+                        "[[MatterCore]](#ref_MatterCore))."
                 },
 
                 {
@@ -711,7 +716,7 @@ Resource.add({
                         "When the IngestMethod is CMAFIngest, this shall be the CMAF publishing_point_URL to transport the AV " +
                         "Stream to. The URL length does not need to include space for the full CMAF POST_URL fields which " +
                         "specify the session, track, and segment names as these will be internally appended. See Section " +
-                        "11.7.1.2, “Operation” for further restrictions on the characters allowed in the URL."
+                        "11.7.1.2, \"Operation\" for further restrictions on the characters allowed in the URL."
                 },
 
                 {
