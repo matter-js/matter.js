@@ -93,17 +93,10 @@ cd matter.js/support/codegen
 npm run generate-spec
 ```
 
-The generator supports two input formats:
-
-- **HTML** — the original format, generated from the same Asciidoctor sources as the published PDFs
-- **Markdown** — a newer machine-generated markdown version of the specification
-
-The format is detected automatically from the `--path` argument. A directory containing subdirectories
-with `_index.md` files (`main/`, `appclusters/`, `device_library/`, `standard_namespaces/`) is treated
-as a markdown spec tree. A directory containing `.html` files is treated as the HTML spec. Examples:
+The generator expects a markdown spec tree as input — a directory containing subdirectories
+(`main/`, `appclusters/`, `device_library/`, `standard_namespaces/`) with `_index.md` files:
 
 ```sh
-npm run generate-spec -- --path ~/matter-spec/1.5.1/html
 npm run generate-spec -- --path ~/matter-spec/1.5.1/markdown
 ```
 
