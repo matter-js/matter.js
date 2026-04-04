@@ -62,6 +62,9 @@ export class MockTcpConnection implements TcpConnection {
         // Deliver asynchronously
         await Time.macrotask;
 
+        // Re-check after yield — peer may have closed during the macrotask
+        if (peer.#closed) return;
+
         // Push to peer's iterator queue
         if (peer.#waiter) {
             const resolve = peer.#waiter;

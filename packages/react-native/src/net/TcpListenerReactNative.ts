@@ -33,6 +33,7 @@ const TCP_CLOSE_TIMEOUT = Seconds(5);
 export class TcpListenerReactNative implements TcpListener {
     readonly #server: RnServer;
     readonly #port: number;
+    readonly #activeSockets = new Set<RnSocket>();
 
     static async create(options: TcpListenerOptions = {}): Promise<TcpListenerReactNative> {
         const server = createServer({
@@ -68,6 +69,11 @@ export class TcpListenerReactNative implements TcpListener {
     private constructor(server: RnServer, port: number) {
         this.#server = server;
         this.#port = port;
+
+        server.on("connection", (socket: RnSocket) => {
+            this.#activeSockets.add(socket);
+            socket.on("close", () => this.#activeSockets.delete(socket));
+        });
     }
 
     get port(): number {
@@ -87,6 +93,11 @@ export class TcpListenerReactNative implements TcpListener {
     }
 
     async close(): Promise<void> {
+        for (const socket of this.#activeSockets) {
+            socket.destroy();
+        }
+        this.#activeSockets.clear();
+
         const closed = new Promise<void>(resolve => {
             this.#server.close(() => resolve());
         });

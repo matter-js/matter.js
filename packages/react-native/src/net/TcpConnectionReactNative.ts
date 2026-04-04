@@ -113,10 +113,18 @@ export class TcpConnectionReactNative implements TcpConnection {
     }
 
     async close(): Promise<void> {
+        if (this.#ended) return;
         this.#ended = true;
         this.#waiter?.({ value: undefined as unknown as Bytes, done: true });
         this.#waiter = undefined;
-        this.#socket.end();
+
+        const closed = new Promise<void>(resolve => {
+            this.#socket.on("close", () => resolve());
+            this.#socket.end();
+        });
+        await withTimeout(Seconds(5), closed, () => {
+            this.#socket.destroy();
+        });
     }
 }
 

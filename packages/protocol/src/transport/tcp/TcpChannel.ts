@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Mark } from "#common/Mark.js";
 import {
     BasicMultiplex,
     Bytes,
@@ -98,8 +99,10 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
     get name() {
         const ip = this.#socket.remoteAddress;
         const host = ip.includes(":") ? `[${ip}]` : ip;
-        // For incoming connections the remote port is the client's ephemeral port, not meaningful
-        return this.#isIncoming ? `tcp://${host}` : `tcp://${host}:${this.#socket.remotePort}`;
+        // For incoming connections show the client's ephemeral port with « to distinguish from our listening port
+        return this.#isIncoming
+            ? `tcp://${host}${Mark.INBOUND}${this.#socket.remotePort}`
+            : `tcp://${host}:${this.#socket.remotePort}`;
     }
 
     get networkAddress(): ServerAddressTcp {
@@ -271,13 +274,16 @@ export class TcpChannel implements IpNetworkChannel<Bytes>, ConnectedChannel {
                 listener(message);
             }
 
-            // Deliver to async iterator
-            if (this.#iteratorWaiter) {
-                const resolve = this.#iteratorWaiter;
-                this.#iteratorWaiter = undefined;
-                resolve({ value: message, done: false });
-            } else if (!this.#iteratorDone) {
-                this.#iteratorQueue.push(message);
+            // Deliver to async iterator (only when no callback listeners are active — the two
+            // delivery paths are mutually exclusive to prevent unbounded queue growth)
+            if (this.#messageListeners.size === 0) {
+                if (this.#iteratorWaiter) {
+                    const resolve = this.#iteratorWaiter;
+                    this.#iteratorWaiter = undefined;
+                    resolve({ value: message, done: false });
+                } else if (!this.#iteratorDone) {
+                    this.#iteratorQueue.push(message);
+                }
             }
         }
     }

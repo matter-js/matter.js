@@ -623,10 +623,9 @@ export class NobleBleChannel extends BleChannel<Bytes> {
      */
     async send(data: Bytes) {
         if (!this.connected) {
-            logger.debug(
+            throw new BleDisconnectedError(
                 `Peripheral ${this.peripheral.address}: Cannot send data because not connected to peripheral.`,
             );
-            return;
         }
         if (this.btpSession === undefined) {
             throw new BtpFlowError(

@@ -412,7 +412,7 @@ describe("TcpChannel", () => {
             expect(Bytes.toHex(messages[0])).equals("1234");
         });
 
-        it("works alongside callback listeners", async () => {
+        it("callback listeners take priority over iterator queue", async () => {
             const { client, server } = createPair();
             const conn = new TcpChannel(server);
 
@@ -421,16 +421,17 @@ describe("TcpChannel", () => {
 
             await client.send(frame(Bytes.of(Bytes.fromHex("5678"))));
 
-            // Both callback and iterator should receive the message
-            const iterator = conn[Symbol.asyncIterator]();
-            const result = await iterator.next();
-
+            // Callback receives the message, iterator queue stays empty
             expect(callbackMessages).length(1);
-            expect(result.done).false;
             expect(Bytes.toHex(callbackMessages[0])).equals("5678");
-            expect(Bytes.toHex(result.value)).equals("5678");
 
+            // Iterator should not have the message (mutually exclusive delivery)
+            const iterator = conn[Symbol.asyncIterator]();
+
+            // Close to terminate the iterator
             await conn.close();
+            const result = await iterator.next();
+            expect(result.done).true;
         });
     });
 });

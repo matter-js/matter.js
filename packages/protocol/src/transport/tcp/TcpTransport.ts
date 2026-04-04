@@ -15,6 +15,7 @@ import {
     NetworkError,
     Seconds,
     ServerAddress,
+    ServerAddressIp,
     TcpListener,
     Time,
     Transport,
@@ -48,6 +49,7 @@ export interface TcpTransportOptions {
  */
 export class TcpTransport implements ConnectionOrientedTransport {
     readonly #channels = new Map<string, TcpChannel>();
+    readonly #connecting = new Map<string, Promise<Channel<Bytes>>>();
     #listener?: TcpListener;
     readonly #network: Network;
     readonly #maxMessageSize: number;
@@ -150,11 +152,20 @@ export class TcpTransport implements ConnectionOrientedTransport {
         }
 
         const key = `${address.ip}:${address.port}`;
-        const existing = this.#channels.get(key);
+
+        // Return existing channel or in-flight connection for this address
+        const existing = this.#channels.get(key) ?? this.#connecting.get(key);
         if (existing) {
             return existing;
         }
 
+        // Deduplicate concurrent connect attempts for the same address
+        const promise = this.#connect(address);
+        this.#connecting.set(key, promise);
+        return promise.finally(() => this.#connecting.delete(key));
+    }
+
+    async #connect(address: ServerAddressIp): Promise<Channel<Bytes>> {
         const socket = await this.#network.connectTcp(address.ip, address.port);
         const channel = new TcpChannel(socket, this.#maxMessageSize);
         this.#registerChannel(channel);
