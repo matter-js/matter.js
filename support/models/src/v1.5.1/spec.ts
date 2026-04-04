@@ -15518,7 +15518,7 @@ export const SpecMatter = Matter(
         Datatype(
             {
                 name: "TranslationDirectionEnum", type: "enum8", xref: "cluster§5.5.6.1",
-                details: "### Legend: !legendOpen Open !legendClosed Closed"
+                details: "Legend: !legendOpen Open !legendClosed Closed"
             },
             Field({ name: "Downward", id: 0x0, conformance: "M", description: "Downward translation" }),
             Field({ name: "Upward", id: 0x1, conformance: "M", description: "Upward translation" }),
@@ -15537,7 +15537,7 @@ export const SpecMatter = Matter(
         Datatype(
             {
                 name: "RotationAxisEnum", type: "enum8", xref: "cluster§5.5.6.2",
-                details: "### Legend: !legendOpen Open !legendClosed Closed"
+                details: "Legend: !legendOpen Open !legendClosed Closed"
             },
             Field({
                 name: "Left", id: 0x0, conformance: "M",
@@ -32846,13 +32846,11 @@ export const SpecMatter = Matter(
             Field({
                 name: "LocationDescriptor", id: 0x1, type: "locationdesc", access: "S", conformance: "M",
                 xref: "core§9.17.4.3.2",
-
                 details: "This field shall indicate the location (e.g. living room, driveway) and associated metadata that is " +
                     "provided externally if the user consents. (For example, provided by the user in an ecosystem " +
-                    "specific interface.)" +
-                    "\n" +
-                    "\"Location\" in this context is typically used by the user's grouping into rooms, areas or other " +
-                    "logical groupings of how devices are used. So a device might be part of multiple such \"Locations\"s."
+                    "specific interface.) \"Location\" in this context is typically used by the user's grouping into rooms, " +
+                    "areas or other logical groupings of how devices are used. So a device might be part of multiple such " +
+                    "\"Locations\"s."
             }),
 
             Field({
@@ -43141,6 +43139,14 @@ export const SpecMatter = Matter(
 
     DeviceType(
         { name: "Base", classification: "base", xref: "device§1.1" },
+        Condition({ name: "Ethernet", xref: "device§1.1.3.1" }),
+        Condition({ name: "WiFi", xref: "device§1.1.3.1" }),
+        Condition({ name: "Thread", xref: "device§1.1.3.1" }),
+        Condition({ name: "Tcp", xref: "device§1.1.3.1" }),
+        Condition({ name: "Udp", xref: "device§1.1.3.1" }),
+        Condition({ name: "Ip", xref: "device§1.1.3.1" }),
+        Condition({ name: "IPv4", xref: "device§1.1.3.1" }),
+        Condition({ name: "IPv6", xref: "device§1.1.3.1" }),
         Condition({
             name: "LanguageLocale",
             description: "The node supports localization for conveying text to the user",
