@@ -19,7 +19,7 @@ import { ClientStructureEvents } from "#node/client/ClientStructureEvents.js";
 import { ServerNode } from "#node/ServerNode.js";
 import { b$, Bytes, Crypto, deepCopy, Entropy, MockCrypto, Observable, Seconds } from "@matter/general";
 import { Specification } from "@matter/model";
-import { ClientSubscription, DeviceAttestationFailure, FabricManager, PeerSet, Val } from "@matter/protocol";
+import { DeviceAttestationFailure, FabricManager, PeerSet, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -649,10 +649,9 @@ describe("ClientNode", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
             const { passcode, discriminator } = device.state.commissioning;
-            await MockTime.resolve(
-                controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }),
-                { macrotasks: true },
-            );
+            await MockTime.resolve(controller.peers.commission({ passcode, discriminator, timeout: Seconds(90) }), {
+                macrotasks: true,
+            });
 
             controllerCrypto.entropic = deviceCrypto.entropic = false;
 

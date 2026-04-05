@@ -6,11 +6,8 @@
 
 import { AttestationCertificateManager } from "#certificate/AttestationCertificateManager.js";
 import { TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
-import {
-    DeviceAttestationError,
-    DeviceAttestationValidator,
-} from "#certificate/DeviceAttestationValidator.js";
-import { Dac, Pai, Paa } from "#certificate/kinds/AttestationCertificates.js";
+import { DeviceAttestationError, DeviceAttestationValidator } from "#certificate/DeviceAttestationValidator.js";
+import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificationDeclaration, testCdSignerInfo } from "#certificate/kinds/CertificationDeclaration.js";
 import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
@@ -24,8 +21,8 @@ import {
     StorageBackendMemory,
     StorageManager,
     StorageService,
-} from "#general";
-import { VendorId } from "#types";
+} from "@matter/general";
+import { VendorId } from "@matter/types";
 import { buildTestCrl, pemEncode } from "./TestHelpers.js";
 
 describe("DeviceAttestationValidator", () => {
@@ -124,7 +121,10 @@ describe("DeviceAttestationValidator", () => {
     ) {
         const paa = Paa.fromAsn1(paaCert);
         const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
-        const skidWithColons = skid.match(/.{1,2}/g)!.join(":").toUpperCase();
+        const skidWithColons = skid
+            .match(/.{1,2}/g)!
+            .join(":")
+            .toUpperCase();
         const vid = paa.cert.subject.vendorId ?? 0;
         const subject = Bytes.toBase64(Bytes.fromString("test-subject"));
 
@@ -134,31 +134,37 @@ describe("DeviceAttestationValidator", () => {
                 certs: [{ subject, subjectKeyId: skidWithColons }],
             },
         });
-        fetchMock.addResponse(`/dcl/pki/certificates/${encodeURIComponent(subject)}/${encodeURIComponent(skidWithColons)}`, {
-            approvedCertificates: {
-                subject,
-                subjectKeyId: skidWithColons,
-                schemaVersion: 0,
-                certs: [
-                    {
-                        pemCert: pemEncode(paaCert),
-                        serialNumber: Bytes.toHex(paa.cert.serialNumber),
-                        subject,
-                        subjectAsText: `CN=${paa.cert.subject.commonName}`,
-                        subjectKeyId: skidWithColons,
-                        isRoot: true,
-                        owner: "cosmos1...",
-                        approvals: {} as any,
-                        rejects: {} as any,
-                        vid,
-                        schemaVersion: 0,
-                    },
-                ],
+        fetchMock.addResponse(
+            `/dcl/pki/certificates/${encodeURIComponent(subject)}/${encodeURIComponent(skidWithColons)}`,
+            {
+                approvedCertificates: {
+                    subject,
+                    subjectKeyId: skidWithColons,
+                    schemaVersion: 0,
+                    certs: [
+                        {
+                            pemCert: pemEncode(paaCert),
+                            serialNumber: Bytes.toHex(paa.cert.serialNumber),
+                            subject,
+                            subjectAsText: `CN=${paa.cert.subject.commonName}`,
+                            subjectKeyId: skidWithColons,
+                            isRoot: true,
+                            owner: "cosmos1...",
+                            approvals: {} as any,
+                            rejects: {} as any,
+                            vid,
+                            schemaVersion: 0,
+                        },
+                    ],
+                },
             },
-        });
+        );
 
         if (revocation) {
-            const issuerSkidWithColons = revocation.issuerSkid.match(/.{1,2}/g)!.join(":").toUpperCase();
+            const issuerSkidWithColons = revocation.issuerSkid
+                .match(/.{1,2}/g)!
+                .join(":")
+                .toUpperCase();
             const testCrl = buildTestCrl(revocation.revokedSerials);
 
             fetchMock.addResponse("/dcl/pki/revocation-points", {
@@ -210,7 +216,9 @@ describe("DeviceAttestationValidator", () => {
     }
 
     /** Build a DeviceAttestationData object with valid attestation data by default. */
-    function buildData(overrides?: Partial<DeviceAttestationValidator.DeviceAttestationData>): DeviceAttestationValidator.DeviceAttestationData {
+    function buildData(
+        overrides?: Partial<DeviceAttestationValidator.DeviceAttestationData>,
+    ): DeviceAttestationValidator.DeviceAttestationData {
         return {
             dac: dacDer,
             pai: paiDer,
@@ -224,7 +232,10 @@ describe("DeviceAttestationValidator", () => {
     }
 
     /** Build a Context object with valid attestation challenge and CD signer keys by default. */
-    function buildContext(dclService: DclCertificateService, overrides?: Partial<DeviceAttestationValidator.Context>): DeviceAttestationValidator.Context {
+    function buildContext(
+        dclService: DclCertificateService,
+        overrides?: Partial<DeviceAttestationValidator.Context>,
+    ): DeviceAttestationValidator.Context {
         return {
             crypto,
             dclCertificateService: dclService,
@@ -362,10 +373,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationNonce: wrongNonce }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /AttestationNonce in response does not match/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /AttestationNonce in response does not match/);
         });
     });
 
@@ -389,10 +397,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationSignature: tamperedSignature }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /Attestation signature verification failed/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /Attestation signature verification failed/);
         });
 
         it("throws AttestationSignatureInvalid when signed with wrong attestation challenge", async () => {
@@ -408,10 +413,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationSignature: sig.bytes }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /Attestation signature verification failed/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /Attestation signature verification failed/);
         });
 
         it("throws AttestationSignatureInvalid when signed with wrong key", async () => {
@@ -426,10 +428,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationSignature: sig.bytes }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /Attestation signature verification failed/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /Attestation signature verification failed/);
         });
     });
 
@@ -480,10 +479,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationElements, attestationSignature }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /Certification Declaration signature verification failed/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /Certification Declaration signature verification failed/);
         });
     });
 
@@ -507,10 +503,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationElements, attestationSignature }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /CD vendor_id.*does not match BasicInformation VendorID/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /CD vendor_id.*does not match BasicInformation VendorID/);
         });
 
         it("throws CertificationDeclarationFieldMismatch when productId not in CD product_id_array", async () => {
@@ -548,10 +541,7 @@ describe("DeviceAttestationValidator", () => {
                     buildContext(dclService),
                     buildData({ attestationElements, attestationSignature, vendorId: altVendorId }),
                 ),
-            ).to.be.rejectedWith(
-                DeviceAttestationError,
-                /DAC vendorId does not match CD vendor_id/,
-            );
+            ).to.be.rejectedWith(DeviceAttestationError, /DAC vendorId does not match CD vendor_id/);
         });
     });
 
@@ -568,9 +558,7 @@ describe("DeviceAttestationValidator", () => {
                 revokedSerials: [dacSerial],
             });
 
-            await expect(
-                DeviceAttestationValidator.validate(buildContext(dclService), buildData()),
-            ).to.be.rejectedWith(
+            await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
                 DeviceAttestationError,
                 /Device Attestation Certificate has been revoked/,
             );
@@ -588,9 +576,7 @@ describe("DeviceAttestationValidator", () => {
                 revokedSerials: [paiSerial],
             });
 
-            await expect(
-                DeviceAttestationValidator.validate(buildContext(dclService), buildData()),
-            ).to.be.rejectedWith(
+            await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
                 DeviceAttestationError,
                 /Product Attestation Intermediate certificate has been revoked/,
             );

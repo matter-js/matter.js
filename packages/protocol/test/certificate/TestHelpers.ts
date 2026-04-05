@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, DerCodec, DerType, ObjectId } from "#general";
+import { Bytes, DerCodec, DerType, ObjectId } from "@matter/general";
 
 /**
  * Encode DER bytes as a PEM string.

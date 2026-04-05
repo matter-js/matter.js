@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import {
     Bytes,
     Construction,
@@ -24,7 +25,6 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "#types";
 import { Paa } from "../certificate/kinds/AttestationCertificates.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
@@ -638,7 +638,10 @@ export class DclCertificateService {
             const environment = isProduction ? "production" : "test";
             logger.debug(`Fetching revocation distribution points from DCL (${environment})`);
 
-            const dclClient = new DclClient(isProduction);
+            const config = isProduction
+                ? (this.#options.dclConfig ?? DclConfig.production)
+                : (this.#options.testDclConfig ?? DclConfig.test);
+            const dclClient = new DclClient(config);
             const points = await dclClient.fetchRevocationDistributionPoints(this.#options);
 
             let updatedCount = 0;
@@ -652,10 +655,7 @@ export class DclCertificateService {
                     await this.#processRevocationPoint(point, force);
                     updatedCount++;
                 } catch (error) {
-                    logger.info(
-                        `Failed to process revocation point for ${point.issuerSubjectKeyId}:`,
-                        error,
-                    );
+                    logger.info(`Failed to process revocation point for ${point.issuerSubjectKeyId}:`, error);
                 }
             }
 
@@ -684,9 +684,7 @@ export class DclCertificateService {
             signal: AbortSignal.timeout(this.#options.timeout ?? Seconds(5)),
         });
         if (!response.ok) {
-            throw new MatterDclError(
-                `Failed to fetch CRL from ${point.dataUrl}: ${response.status}`,
-            );
+            throw new MatterDclError(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
         }
         const crlBytes = new Uint8Array(await response.arrayBuffer());
 

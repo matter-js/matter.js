@@ -4,13 +4,13 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, EcdsaSignature, Logger, MaybePromise, PublicKey } from "#general";
-import { VendorId } from "#types";
+import { Bytes, Crypto, EcdsaSignature, Logger, MaybePromise, PublicKey } from "@matter/general";
+import { VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
+import { CommissioningError } from "../peer/CommissioningError.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
-import { CommissioningError } from "../peer/CommissioningError.js";
 
 const logger = Logger.get("DeviceAttestationValidator");
 
@@ -70,7 +70,10 @@ export namespace DeviceAttestationValidator {
         | boolean
         | ((failure: DeviceAttestationFailure, reason: string) => MaybePromise<boolean>);
 
-    export async function validate(context: Context, data: DeviceAttestationData): Promise<{ dacPublicKey: ReturnType<typeof PublicKey> }> {
+    export async function validate(
+        context: Context,
+        data: DeviceAttestationData,
+    ): Promise<{ dacPublicKey: ReturnType<typeof PublicKey> }> {
         const { crypto, dclCertificateService } = context;
 
         // Step 1: Parse DAC and PAI from DER
@@ -94,11 +97,7 @@ export namespace DeviceAttestationValidator {
 
         // Verify PAI is signed by PAA
         try {
-            await crypto.verifyEcdsa(
-                PublicKey(paa.cert.ellipticCurvePublicKey),
-                pai.asUnsignedDer(),
-                pai.signature,
-            );
+            await crypto.verifyEcdsa(PublicKey(paa.cert.ellipticCurvePublicKey), pai.asUnsignedDer(), pai.signature);
         } catch (error) {
             throw new DeviceAttestationError(
                 DeviceAttestationFailure.CertificateChainInvalid,
@@ -108,11 +107,7 @@ export namespace DeviceAttestationValidator {
 
         // Verify DAC is signed by PAI
         try {
-            await crypto.verifyEcdsa(
-                PublicKey(pai.cert.ellipticCurvePublicKey),
-                dac.asUnsignedDer(),
-                dac.signature,
-            );
+            await crypto.verifyEcdsa(PublicKey(pai.cert.ellipticCurvePublicKey), dac.asUnsignedDer(), dac.signature);
         } catch (error) {
             throw new DeviceAttestationError(
                 DeviceAttestationFailure.CertificateChainInvalid,
@@ -173,9 +168,7 @@ export namespace DeviceAttestationValidator {
 
         // Step 5: Revocation check
         if (!dclCertificateService.hasRevocationData) {
-            logger.warn(
-                "No revocation data available; skipping revocation check (per spec Section 6.2.4.2)",
-            );
+            logger.warn("No revocation data available; skipping revocation check (per spec Section 6.2.4.2)");
         } else {
             // Check DAC revocation
             const dacSerialNumber = dac.cert.serialNumber;

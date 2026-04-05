@@ -60,10 +60,10 @@ import {
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
 import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
-import type { NodeSession } from "../session/NodeSession.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
+import type { NodeSession } from "../session/NodeSession.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -129,6 +129,13 @@ export type ControllerCommissioningFlowOptions = {
      * This is typically injected by the ControllerCommissioner from the environment.
      */
     dclCertificateService?: DclCertificateService;
+
+    /**
+     * The PASE session used for commissioning.
+     * Provides the attestation challenge key needed to verify attestation and CSR signatures.
+     * Injected by ControllerCommissioner.
+     */
+    paseSession?: NodeSession;
 };
 
 /** Types representation of a general commissioning response. */
@@ -1087,7 +1094,7 @@ export class ControllerCommissioningFlow {
                     {
                         crypto: this.fabric.crypto,
                         dclCertificateService,
-                        attestationChallenge: (this.interaction.session as NodeSession).attestationChallengeKey,
+                        attestationChallenge: this.commissioningOptions.paseSession!.attestationChallengeKey,
                     },
                     {
                         dac: deviceAttestation,
@@ -1159,16 +1166,11 @@ export class ControllerCommissioningFlow {
             try {
                 await this.fabric.crypto.verifyEcdsa(
                     this.#dacPublicKey,
-                    Bytes.concat(
-                        nocsrElements,
-                        (this.interaction.session as NodeSession).attestationChallengeKey,
-                    ),
+                    Bytes.concat(nocsrElements, this.commissioningOptions.paseSession!.attestationChallengeKey),
                     new EcdsaSignature(csrSignature),
                 );
             } catch {
-                throw new CommissioningError(
-                    "CSR signature verification failed against DAC public key",
-                );
+                throw new CommissioningError("CSR signature verification failed against DAC public key");
             }
         }
 

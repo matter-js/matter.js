@@ -5,7 +5,8 @@
  */
 
 import { DclClient } from "#dcl/DclClient.js";
-import { MockFetch } from "#general";
+import { DclConfig } from "#dcl/DclConfig.js";
+import { MockFetch } from "@matter/general";
 
 // Mock DCL revocation distribution point responses using raw DCL API field names
 const mockRevocationPointsPage1 = {
@@ -102,8 +103,7 @@ const mockRevocationPointsByIssuer = {
                 isPAA: false,
                 label: "label1",
                 crlSignerDelegator: "",
-                crlSignerCertificate:
-                    "-----BEGIN CERTIFICATE-----\nMIIBvTCCAWOgA\n-----END CERTIFICATE-----",
+                crlSignerCertificate: "-----BEGIN CERTIFICATE-----\nMIIBvTCCAWOgA\n-----END CERTIFICATE-----",
                 issuerSubjectKeyID: "A303136D54A84BE24C4887B341066DC270962F99",
                 dataURL: "https://example.com/crl1.der",
                 dataFileSize: "0",
@@ -117,10 +117,8 @@ const mockRevocationPointsByIssuer = {
                 pid: 0x8001,
                 isPAA: false,
                 label: "label2",
-                crlSignerDelegator:
-                    "-----BEGIN CERTIFICATE-----\ndelegator\n-----END CERTIFICATE-----",
-                crlSignerCertificate:
-                    "-----BEGIN CERTIFICATE-----\nMIIBxTCCAW2gA\n-----END CERTIFICATE-----",
+                crlSignerDelegator: "-----BEGIN CERTIFICATE-----\ndelegator\n-----END CERTIFICATE-----",
+                crlSignerCertificate: "-----BEGIN CERTIFICATE-----\nMIIBxTCCAW2gA\n-----END CERTIFICATE-----",
                 issuerSubjectKeyID: "A303136D54A84BE24C4887B341066DC270962F99",
                 dataURL: "https://example.com/crl2.der",
                 dataFileSize: "1234",
@@ -150,13 +148,11 @@ describe("DclClient revocation distribution points", () => {
             fetchMock.addResponse("/dcl/pki/revocation-points", mockRevocationPointsPage1);
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPoints();
 
             expect(points).to.have.length(2);
-            expect(points[0].issuerSubjectKeyId).to.equal(
-                "A303136D54A84BE24C4887B341066DC270962F99",
-            );
+            expect(points[0].issuerSubjectKeyId).to.equal("A303136D54A84BE24C4887B341066DC270962F99");
             expect(points[0].dataUrl).to.equal("https://example.com/crl1.der");
             expect(points[0].vid).to.equal(0xfff1);
             expect(points[0].pid).to.equal(0x8000);
@@ -165,9 +161,7 @@ describe("DclClient revocation distribution points", () => {
             expect(points[0].revocationType).to.equal(1);
             expect(points[0].schemaVersion).to.equal(0);
 
-            expect(points[1].issuerSubjectKeyId).to.equal(
-                "E43183AE7B375D84EAB325F45F9E6D037D43DD00",
-            );
+            expect(points[1].issuerSubjectKeyId).to.equal("E43183AE7B375D84EAB325F45F9E6D037D43DD00");
             expect(points[1].vid).to.equal(4701);
         });
 
@@ -175,7 +169,7 @@ describe("DclClient revocation distribution points", () => {
             fetchMock.addResponse("/dcl/pki/revocation-points", mockRevocationPointsPage1);
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPoints();
 
             // Verify the field name mapping from DCL API to our TypeScript types
@@ -192,13 +186,10 @@ describe("DclClient revocation distribution points", () => {
             // (most recently added first), so page2 is checked first. The page2 pattern
             // "pagination.key=page2key" is specific enough to only match the second request.
             fetchMock.addResponse("/dcl/pki/revocation-points", mockRevocationPointsPaginated1);
-            fetchMock.addResponse(
-                "pagination.key=page2key",
-                mockRevocationPointsPaginated2,
-            );
+            fetchMock.addResponse("pagination.key=page2key", mockRevocationPointsPaginated2);
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPoints();
 
             expect(points).to.have.length(2);
@@ -213,7 +204,7 @@ describe("DclClient revocation distribution points", () => {
             });
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPoints();
 
             expect(points).to.have.length(0);
@@ -242,7 +233,7 @@ describe("DclClient revocation distribution points", () => {
             });
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPoints();
 
             expect(points).to.have.length(1);
@@ -264,15 +255,13 @@ describe("DclClient revocation distribution points", () => {
             );
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPointsByIssuer(
                 "A303136D54A84BE24C4887B341066DC270962F99",
             );
 
             expect(points).to.have.length(2);
-            expect(points[0].issuerSubjectKeyId).to.equal(
-                "A303136D54A84BE24C4887B341066DC270962F99",
-            );
+            expect(points[0].issuerSubjectKeyId).to.equal("A303136D54A84BE24C4887B341066DC270962F99");
             expect(points[0].vid).to.equal(0xfff1);
             expect(points[0].pid).to.equal(0x8000);
             expect(points[1].pid).to.equal(0x8001);
@@ -285,7 +274,7 @@ describe("DclClient revocation distribution points", () => {
             );
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
+            const dclClient = new DclClient(DclConfig.production);
             const points = await dclClient.fetchRevocationDistributionPointsByIssuer(
                 "A303136D54A84BE24C4887B341066DC270962F99",
             );
@@ -310,9 +299,8 @@ describe("DclClient revocation distribution points", () => {
             });
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
-            const points =
-                await dclClient.fetchRevocationDistributionPointsByIssuer("NONEXISTENT");
+            const dclClient = new DclClient(DclConfig.production);
+            const points = await dclClient.fetchRevocationDistributionPointsByIssuer("NONEXISTENT");
 
             expect(points).to.have.length(0);
         });
@@ -327,9 +315,8 @@ describe("DclClient revocation distribution points", () => {
             });
             fetchMock.install();
 
-            const dclClient = new DclClient(true);
-            const points =
-                await dclClient.fetchRevocationDistributionPointsByIssuer("AA:BB:CC");
+            const dclClient = new DclClient(DclConfig.production);
+            const points = await dclClient.fetchRevocationDistributionPointsByIssuer("AA:BB:CC");
 
             expect(points).to.have.length(0);
 
@@ -349,9 +336,8 @@ describe("DclClient revocation distribution points", () => {
             });
             fetchMock.install();
 
-            const dclClient = new DclClient(false);
-            const points =
-                await dclClient.fetchRevocationDistributionPointsByIssuer("AABB");
+            const dclClient = new DclClient(DclConfig.test);
+            const points = await dclClient.fetchRevocationDistributionPointsByIssuer("AABB");
 
             expect(points).to.have.length(0);
 

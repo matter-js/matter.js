@@ -15,7 +15,6 @@ import {
     ControllerCommissioningFlowOptions,
     NodeIdConflictError,
 } from "#peer/ControllerCommissioningFlow.js";
-import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { ControllerDiscovery, PairRetransmissionLimitReachedError } from "#peer/ControllerDiscovery.js";
 import { ExchangeManager } from "#protocol/ExchangeManager.js";
 import { DedicatedChannelExchangeProvider } from "#protocol/ExchangeProvider.js";
@@ -52,6 +51,7 @@ import {
     TypeFromPartialBitSchema,
 } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
+import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { PeerAddress } from "./PeerAddress.js";
 import {
     CommissioningTransitionError,
@@ -443,7 +443,8 @@ export class ControllerCommissioner {
         } = options;
 
         // Inject DclCertificateService from the environment if available and not already provided
-        const dclCertificateService = options.dclCertificateService ??
+        const dclCertificateService =
+            options.dclCertificateService ??
             (this.#context.environment.has(DclCertificateService)
                 ? this.#context.environment.get(DclCertificateService)
                 : undefined);
@@ -501,7 +502,7 @@ export class ControllerCommissioner {
             }),
             this.#context.ca,
             fabric,
-            commissioningOptions,
+            { ...commissioningOptions, paseSession: ephemeralSession },
             async (address, supportsConcurrentConnections) => {
                 if (!supportsConcurrentConnections) {
                     /*

@@ -16,8 +16,8 @@ import {
     DclPkiRootCertificateSubjectReference,
     DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
+import { DeviceAttestationPkiRevocationDclSchema, VendorId } from "@matter/types";
 import { Duration, Logger, MatterError, Seconds } from "@matter/general";
-import { DeviceAttestationPkiRevocationDclSchema, VendorId } from "#types";
 
 const logger = new Logger("DclClient");
 
@@ -216,8 +216,7 @@ export class DclClient {
     ): Promise<DeviceAttestationPkiRevocationDclSchema[]> {
         const path = `/dcl/pki/revocation-points/${encodeURIComponent(issuerSubjectKeyId)}`;
         const response = await this.#fetchJson<DclPkiRevocationPointsByIssuerResponse>(path, options);
-        const rawPoints =
-            response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID?.points ?? [];
+        const rawPoints = response?.pkiRevocationDistributionPointsByIssuerSubjectKeyID?.points ?? [];
         return rawPoints.map(mapRawRevocationPoint);
     }
 }
@@ -227,9 +226,7 @@ export class DclClient {
  * The DCL API uses "issuerSubjectKeyID" (capital ID) and "dataURL" (capital URL), while the
  * DeviceAttestationPkiRevocationDclSchema uses "issuerSubjectKeyId" and "dataUrl".
  */
-function mapRawRevocationPoint(
-    raw: DclPkiRevocationDistributionPointRaw,
-): DeviceAttestationPkiRevocationDclSchema {
+function mapRawRevocationPoint(raw: DclPkiRevocationDistributionPointRaw): DeviceAttestationPkiRevocationDclSchema {
     return {
         vid: VendorId(raw.vid, false),
         pid: raw.pid || undefined,

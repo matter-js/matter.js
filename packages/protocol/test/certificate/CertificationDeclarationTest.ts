@@ -6,19 +6,15 @@
 
 import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { CertificationDeclaration as CertificationDeclarationDef } from "#certificate/kinds/definitions/certification-declaration.js";
-import { Bytes, PrivateKey, StandardCrypto } from "#general";
-import { VendorId } from "#types";
+import { Bytes, PrivateKey, StandardCrypto } from "@matter/general";
+import { VendorId } from "@matter/types";
 
 describe("CertificationDeclaration", () => {
     const crypto = new StandardCrypto();
 
     // These are the well-known test values from Appendix F of the Matter 1.1 Core Specification.
-    const TestCMS_SignerPrivateKey = Bytes.fromHex(
-        "AEF3484116E9481EC57BE0472DF41BF499064E5024AD869ECA5E889802D48075",
-    );
-    const TestCMS_SignerSubjectKeyIdentifier = Bytes.fromHex(
-        "62FA823359ACFAA9963E1CFA140ADDF504F37160",
-    );
+    const TestCMS_SignerPrivateKey = Bytes.fromHex("AEF3484116E9481EC57BE0472DF41BF499064E5024AD869ECA5E889802D48075");
+    const TestCMS_SignerSubjectKeyIdentifier = Bytes.fromHex("62FA823359ACFAA9963E1CFA140ADDF504F37160");
 
     describe("parse", () => {
         it("round-trips: generate then parse recovers all fields", async () => {
