@@ -1,7 +1,7 @@
 name: Auto approve release PRs
 
 on:
-  pull_request:
+  pull_request_target:
     types: [labeled]
 
 # Cancel previous action runs
@@ -16,6 +16,8 @@ jobs:
       (github.event.label.name == 'automated-npm-release' || github.event.label.name == 'automated-chip-image-release')
 
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     steps:
       - uses: hmarr/auto-approve-action@v4
         with:
