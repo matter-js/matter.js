@@ -5,16 +5,7 @@
  */
 
 import { Buffer } from "@craftzdog/react-native-buffer";
-import type { Bytes, EcdsaSignature } from "@matter/general";
-import {
-    Crypto,
-    Entropy,
-    Environment,
-    NodeJsCryptoApiLike,
-    NodeJsStyleCrypto,
-    StandardCrypto,
-    WebCrypto,
-} from "@matter/general";
+import { Crypto, Entropy, Environment, StandardCrypto, WebCrypto } from "@matter/general";
 import QuickCrypto from "react-native-quick-crypto";
 
 // The default export from QuickCrypto should be compatible with the standard `crypto` object but the type system
@@ -27,26 +18,11 @@ if (!("Buffer" in globalThis)) {
     (globalThis as unknown as { Buffer: typeof Buffer }).Buffer = Buffer;
 }
 
-// This is probably the crypto implementation we should be building on because QuickCrypto's node.js emulation is more
-// mature than their web crypto support.  However, for now we just use for API portions where web crypto does not work.
-const nodeJsCrypto = new NodeJsStyleCrypto(QuickCrypto as unknown as NodeJsCryptoApiLike);
-
 /**
- * Crypto implementation for React Native should work with a WebCrypto basis with 1.x
+ * Crypto implementation for React Native using WebCrypto via QuickCrypto.
  */
 export class ReactNativeCrypto extends StandardCrypto {
     override implementationName = "ReactNativeCrypto";
-
-    // As of QuickCrypto 1.0.15, subtle.sign() returns DER-encoded ECDSA signatures rather than IEEE P1363 as required
-    // by the WebCrypto spec.  Use Node.js-style crypto instead which handles the encoding correctly.
-    override async signEcdsa(key: JsonWebKey, data: Bytes | Bytes[]) {
-        return nodeJsCrypto.signEcdsa(key, data);
-    }
-
-    // See comment for signEcdsa; same thing here
-    override async verifyEcdsa(key: JsonWebKey, data: Bytes, signature: EcdsaSignature) {
-        return nodeJsCrypto.verifyEcdsa(key, data, signature);
-    }
 
     static override provider() {
         return new ReactNativeCrypto(crypto as unknown as WebCrypto);
