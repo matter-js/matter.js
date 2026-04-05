@@ -8,7 +8,6 @@
 
 import { EnergyPreference } from "@matter/types/clusters/energy-preference";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,7 +17,7 @@ import { Identity } from "@matter/general";
  * EnergyPreference.Cluster requires you to enable one or more optional features. You can do so using
  * {@link EnergyPreferenceBehavior.with}.
  */
-export const EnergyPreferenceBehaviorConstructor = ClusterBehavior.for(ClusterType(EnergyPreference.Base));
+export const EnergyPreferenceBehaviorConstructor = ClusterBehavior.for(EnergyPreference);
 
 export interface EnergyPreferenceBehaviorConstructor extends Identity<typeof EnergyPreferenceBehaviorConstructor> {}
 export const EnergyPreferenceBehavior: EnergyPreferenceBehaviorConstructor = EnergyPreferenceBehaviorConstructor;

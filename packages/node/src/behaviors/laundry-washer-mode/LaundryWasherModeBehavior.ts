@@ -8,16 +8,13 @@
 
 import { LaundryWasherMode } from "@matter/types/clusters/laundry-washer-mode";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { LaundryWasherModeInterface } from "./LaundryWasherModeInterface.js";
 import { Identity } from "@matter/general";
 
 /**
  * LaundryWasherModeBehavior is the base class for objects that support interaction with
  * {@link LaundryWasherMode.Cluster}.
  */
-export const LaundryWasherModeBehaviorConstructor = ClusterBehavior
-    .withInterface<LaundryWasherModeInterface>()
-    .for(LaundryWasherMode.Cluster);
+export const LaundryWasherModeBehaviorConstructor = ClusterBehavior.for(LaundryWasherMode);
 
 export interface LaundryWasherModeBehaviorConstructor extends Identity<typeof LaundryWasherModeBehaviorConstructor> {}
 export const LaundryWasherModeBehavior: LaundryWasherModeBehaviorConstructor = LaundryWasherModeBehaviorConstructor;

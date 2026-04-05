@@ -10,7 +10,7 @@ import { MediaPlayback } from "@matter/types/clusters/media-playback";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const MediaPlaybackClientConstructor = ClientBehavior(MediaPlayback.Complete);
+export const MediaPlaybackClientConstructor = ClientBehavior(MediaPlayback);
 export interface MediaPlaybackClient extends InstanceType<typeof MediaPlaybackClientConstructor> {}
 export interface MediaPlaybackClientConstructor extends Identity<typeof MediaPlaybackClientConstructor> {}
 export const MediaPlaybackClient: MediaPlaybackClientConstructor = MediaPlaybackClientConstructor;

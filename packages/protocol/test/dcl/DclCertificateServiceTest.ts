@@ -6,16 +6,7 @@
 
 import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
-import {
-    Bytes,
-    Days,
-    Environment,
-    Minutes,
-    MockFetch,
-    StorageBackendMemory,
-    StorageManager,
-    StorageService,
-} from "@matter/general";
+import { Bytes, Days, Environment, Minutes, MockFetch, MockStorageService, StorageService } from "@matter/general";
 import { buildTestCrl, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
@@ -92,20 +83,12 @@ const mockGitHubFileList = [
 describe("DclCertificateService", () => {
     let fetchMock: MockFetch;
     let environment: Environment;
-    let storage: StorageBackendMemory;
-    let storageManager: StorageManager;
 
     beforeEach(async () => {
         fetchMock = new MockFetch();
         environment = new Environment("test");
 
-        // Set up storage
-        storage = new StorageBackendMemory();
-        storageManager = new StorageManager(storage);
-        await storageManager.initialize();
-
-        // Create StorageService with a factory that returns the storage backend
-        new StorageService(environment, (_namespace: string) => storage);
+        new MockStorageService(environment);
 
         // Default empty revocation response for all tests
         fetchMock.addResponse("/dcl/pki/revocation-points", {
@@ -117,7 +100,6 @@ describe("DclCertificateService", () => {
 
     afterEach(async () => {
         fetchMock.uninstall();
-        await storageManager.close();
     });
 
     describe("initialization", () => {
@@ -730,7 +712,7 @@ describe("DclCertificateService", () => {
             // Clear the index to simulate the certificate not being present
             const storage = await environment.get(StorageService).open("certificates");
             const approvedStorage = storage.createContext("approved");
-            await approvedStorage.clear();
+            await approvedStorage.clearAll();
 
             // Reset mocks and install again for the fetch
             fetchMock.uninstall();

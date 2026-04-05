@@ -11,48 +11,39 @@ import { Diagnostic } from "@matter/general";
  *
  * The path consists of a sequence of IDs, optionally with type information.
  */
-export interface DataModelPath extends Diagnostic {
+export class DataModelPath implements Diagnostic {
     parent?: DataModelPath;
-
     id: string | number;
-
     type?: string;
 
-    at(name: string | number, type?: string): DataModelPath;
+    constructor(id: string | number, type?: string, parent?: DataModelPath) {
+        this.id = id;
+        this.type = type;
+        this.parent = parent;
+    }
 
-    toString(includeType?: boolean): string;
-
-    toArray(): (string | number)[];
-
-    [Diagnostic.value]: Diagnostic;
-}
-
-/**
- * Create a {@link DataModelPath} rooted at {@link id}.
- */
-export function DataModelPath(id: string | number, type?: string): DataModelPath {
-    function identity(this: DataModelPath, includeType?: boolean) {
+    #identity(includeType?: boolean) {
         if (this.type && includeType) {
             return `${this.type}#${this.id}`;
         }
         return this.id;
     }
 
-    function toString(this: DataModelPath, includeType?: boolean) {
+    toString(includeType?: boolean) {
         if (this.parent) {
-            return `${this.parent}.${identity.call(this, includeType)}`;
+            return `${this.parent}.${this.#identity(includeType)}`;
         }
-        return identity.call(this, includeType).toString();
+        return this.#identity(includeType).toString();
     }
 
-    function toArray(this: DataModelPath): (string | number)[] {
+    toArray(): (string | number)[] {
         if (this.parent) {
             return [...this.parent.toArray(), this.id];
         }
         return [this.id];
     }
 
-    function asDiagnostic(this: DataModelPath) {
+    get [Diagnostic.value](): Diagnostic {
         const result = Array<unknown>();
         for (const segment of this.toArray()) {
             if (result.length) {
@@ -63,32 +54,9 @@ export function DataModelPath(id: string | number, type?: string): DataModelPath
         return Diagnostic.squash(result);
     }
 
-    function at(this: DataModelPath, id: string | number, type?: string): DataModelPath {
-        return {
-            parent: this,
-            id,
-            type,
-            at,
-            toString,
-            toArray,
-            get [Diagnostic.value]() {
-                return asDiagnostic.apply(this);
-            },
-        };
+    at(id: string | number, type?: string): DataModelPath {
+        return new DataModelPath(id, type, this);
     }
 
-    return {
-        id,
-        type,
-        at,
-        toString,
-        toArray,
-        get [Diagnostic.value]() {
-            return asDiagnostic.apply(this);
-        },
-    };
-}
-
-export namespace DataModelPath {
-    export const none = DataModelPath("none");
+    static readonly none = new DataModelPath("none");
 }

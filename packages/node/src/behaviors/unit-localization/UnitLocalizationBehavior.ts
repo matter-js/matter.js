@@ -17,7 +17,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of UnitLocalization.Cluster enabled. You can enable additional features
  * using UnitLocalizationBehavior.with.
  */
-export const UnitLocalizationBehaviorConstructor = ClusterBehavior.for(UnitLocalization.Cluster);
+export const UnitLocalizationBehaviorConstructor = ClusterBehavior.for(UnitLocalization);
 
 export interface UnitLocalizationBehaviorConstructor extends Identity<typeof UnitLocalizationBehaviorConstructor> {}
 export const UnitLocalizationBehavior: UnitLocalizationBehaviorConstructor = UnitLocalizationBehaviorConstructor;

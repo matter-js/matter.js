@@ -10,11 +10,15 @@ import { ActionContext } from "#behavior/context/ActionContext.js";
 import { LocalActorContext } from "#behavior/context/server/LocalActorContext.js";
 import type { BehaviorBacking } from "#behavior/internal/BehaviorBacking.js";
 import { Datasource } from "#behavior/state/managed/Datasource.js";
+import { RootSupervisor } from "#behavior/supervision/RootSupervisor.js";
+import type { Supervision } from "#behavior/supervision/Supervision.js";
+import { maybeConfigOfConstructor } from "#behavior/supervision/SupervisionConfig.js";
 import { ValueSupervisor } from "#behavior/supervision/ValueSupervisor.js";
 import type { DescriptorBehavior } from "#behaviors/descriptor";
 import type { Endpoint } from "#endpoint/Endpoint.js";
 import type { Node } from "#node/Node.js";
 import {
+    asError,
     camelize,
     Diagnostic,
     ImplementationError,
@@ -24,7 +28,16 @@ import {
     Observable,
     Transaction,
 } from "@matter/general";
-import { AcceptedCommandList, AttributeList, ElementTag, GeneratedCommandList, Matter } from "@matter/model";
+import {
+    AcceptedCommandList,
+    AttributeList,
+    ClusterModel,
+    CommandModel,
+    DataModelPath,
+    ElementTag,
+    GeneratedCommandList,
+    Matter,
+} from "@matter/model";
 import type {
     AttributeTypeProtocol,
     ClusterProtocol,
@@ -49,7 +62,6 @@ import {
     AttributeId,
     AttributePath,
     ClusterId,
-    ClusterType,
     CommandId,
     CommandPath,
     DeviceTypeId,
@@ -57,6 +69,9 @@ import {
     EventId,
     EventPath,
     FabricIndex,
+    StatusResponse,
+    TlvOfModel,
+    TlvVoid,
     WildcardPathFlags as WildcardPathFlagsType,
 } from "@matter/types";
 
@@ -297,6 +312,7 @@ class ClusterState implements ClusterProtocol {
     readonly #datasource: Datasource;
     readonly #endpointId: EndpointNumber;
     readonly commands: Record<CommandId, CommandInvokeHandler> = {};
+    readonly skipCommandValidation?: boolean;
 
     constructor(type: ClusterTypeProtocol, backing: BehaviorBacking) {
         this.type = type;
@@ -304,8 +320,35 @@ class ClusterState implements ClusterProtocol {
         this.#endpointId = backing.endpoint.number;
 
         for (const cmd of type.commands) {
-            this.commands[cmd.id] = (args, session) => invokeCommand(backing, cmd, args, session);
+            const commandModels = this.#commandModels(backing, cmd);
+            this.commands[cmd.id] = (args, session) => invokeCommand(backing, cmd, args, session, commandModels);
         }
+
+        for (const cmd of type.commands) {
+            if (maybeConfigOfConstructor(backing.type.prototype, camelize(cmd.name))) {
+                this.skipCommandValidation = true;
+                break;
+            }
+        }
+    }
+
+    #commandModels(backing: BehaviorBacking, cmd: CommandTypeProtocol): CommandModels | undefined {
+        const { schema } = backing.type;
+        if (!(schema instanceof ClusterModel)) {
+            return;
+        }
+
+        const requestModel = schema.commands.find(c => c.id === cmd.id && c.isRequest);
+        if (!requestModel) {
+            logger.warn(`No schema for command ${cmd.name} (${cmd.id})`);
+            return;
+        }
+
+        return {
+            supervisor: backing.type.supervisor,
+            requestModel,
+            responseModel: requestModel.responseModel,
+        };
     }
 
     get version() {
@@ -357,11 +400,6 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
     const nonMandatorySupportedEvents = new Set<EventId>();
     const nonMandatorySupportedCommands = new Set<CommandId>();
 
-    // Collect Attribute Metadata
-    const attrDef = {} as Record<number, ClusterType.Attribute>;
-    for (const attr of Object.values(cluster.attributes)) {
-        attrDef[attr.id] = attr;
-    }
     let wildcardPathFlags = schema.effectiveQuality.diagnostics ? WildcardPathFlags.skipDiagnosticsClusters : 0;
     if (schema.id & 0xffff0000) {
         wildcardPathFlags |= WildcardPathFlags.skipCustomElements;
@@ -371,21 +409,11 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
         [Symbol.iterator]: attrList[Symbol.iterator].bind(attrList),
     };
 
-    // Collect Event Metadata
-    const eventDef = {} as Record<number, ClusterType.Event>;
-    for (const ev of Object.values(cluster.events)) {
-        eventDef[ev.id] = ev;
-    }
     const eventList = Array<EventTypeProtocol>();
     const events: CollectionProtocol<EventTypeProtocol> = {
         [Symbol.iterator]: eventList[Symbol.iterator].bind(eventList),
     };
 
-    // Collect Command Metadata
-    const cmdDef = {} as Record<number, ClusterType.Command>;
-    for (const cmd of Object.values(cluster.commands)) {
-        cmdDef[cmd.requestId] = cmd;
-    }
     const commandList = Array<CommandTypeProtocol>();
     const commands: CollectionProtocol<CommandTypeProtocol> = {
         [Symbol.iterator]: commandList[Symbol.iterator].bind(commandList),
@@ -402,17 +430,21 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             continue;
         }
 
-        const name = camelize(member.name);
+        // Deprecated and disallowed elements are excluded from the protocol layer and treated like unknown
+        // elements — invisible on both server and client side.  Some deprecated/disallowed members in the
+        // standard model also lack type information; including those would cause TLV generation to fail.
+        if (member.isDeprecated || member.isDisallowed) {
+            continue;
+        }
+
+        const name = member.propertyName;
         switch (tag) {
             case "attribute": {
                 if (!member.effectiveConformance.isMandatory && !supportedElements.attributes.has(name)) {
                     continue;
                 }
 
-                const tlv = attrDef[id]?.schema;
-                if (tlv === undefined) {
-                    continue;
-                }
+                const tlv = TlvOfModel(member);
 
                 let wildcardPathFlags;
                 switch (id) {
@@ -474,10 +506,7 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
                     continue;
                 }
 
-                const tlv = eventDef[id]?.schema;
-                if (tlv === undefined) {
-                    continue;
-                }
+                const tlv = TlvOfModel(member);
 
                 const {
                     access: { limits },
@@ -493,17 +522,17 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
             }
             case "command": {
                 if (
+                    id === CommandId.NONE ||
                     (!member.effectiveConformance.isMandatory && !supportedElements.commands.has(name)) ||
                     !member.isRequest
                 ) {
                     continue;
                 }
 
-                const def = cmdDef[id];
-                if (def === undefined) {
-                    continue;
-                }
-                const { requestSchema: requestTlv, responseSchema: responseTlv, responseId } = def;
+                const requestTlv = TlvOfModel(member);
+                const responseModel = (member as CommandModel).responseModel;
+                const responseTlv = responseModel ? TlvOfModel(responseModel) : TlvVoid;
+                const responseId = (responseModel?.id ?? id) as CommandId;
 
                 const {
                     access: { limits },
@@ -542,6 +571,36 @@ function clusterTypeProtocolOf(backing: BehaviorBacking): ClusterTypeProtocol | 
     return descriptor;
 }
 
+interface CommandModels {
+    supervisor: RootSupervisor;
+    requestModel: CommandModel;
+    responseModel?: CommandModel;
+}
+
+function validateCommandPayload(
+    data: Val.Struct | undefined,
+    model: CommandModel,
+    supervisor: RootSupervisor,
+    session: InteractionSession,
+    outerResolve?: (name: string) => Val,
+    config?: Supervision.Config,
+) {
+    if (data === undefined) {
+        return;
+    }
+
+    const validate = supervisor.get(model).validate;
+    if (!validate) {
+        return;
+    }
+
+    validate(data, session as ValueSupervisor.Session, {
+        path: new DataModelPath(model.path),
+        outerResolve,
+        config,
+    });
+}
+
 /**
  * Invokes a command on a backing behavior
  */
@@ -550,6 +609,7 @@ function invokeCommand(
     command: CommandTypeProtocol,
     request: Val.Struct | undefined,
     session: InteractionSession,
+    commandModels?: CommandModels,
 ): MaybePromise<Val.Struct | undefined> {
     if (session.transaction === undefined) {
         throw new ImplementationError("Cluster protocol must be opened with a supervisor session");
@@ -574,6 +634,33 @@ function invokeCommand(
         session.transaction.via,
         requestDiagnostic,
     );
+
+    const commandInputConfig = maybeConfigOfConstructor(backing.type.prototype, camelize(command.name));
+    const onValidationError = commandInputConfig?.supervision?.onValidationError;
+
+    if (commandModels) {
+        try {
+            validateCommandPayload(
+                request,
+                commandModels.requestModel,
+                commandModels.supervisor,
+                session,
+                undefined,
+                commandInputConfig,
+            );
+        } catch (e) {
+            if (onValidationError) {
+                onValidationError(asError(e));
+            } else {
+                logger.warn("Request validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+            }
+        }
+    }
+
+    const outerResolve =
+        commandModels && request
+            ? (name: string) => (name === camelize(commandModels.requestModel.name) ? request : undefined)
+            : undefined;
 
     const agent = endpoint.agentFor(context);
     const behavior = agent.get(backing.type);
@@ -614,6 +701,24 @@ function invokeCommand(
             isAsync = true;
             result = Promise.resolve(result)
                 .then(result => {
+                    if (commandModels?.responseModel) {
+                        try {
+                            validateCommandPayload(
+                                result as Val.Struct | undefined,
+                                commandModels.responseModel,
+                                commandModels.supervisor,
+                                session,
+                                outerResolve,
+                            );
+                        } catch (e) {
+                            logger.error(
+                                "Response validation error for",
+                                command.name,
+                                Diagnostic.errorMessage(asError(e)),
+                            );
+                            throw new StatusResponse.FailureError(`Response validation failed for ${command.name}`);
+                        }
+                    }
                     if (isObject(result)) {
                         logger.info(
                             "Invoke",
@@ -627,6 +732,20 @@ function invokeCommand(
                 })
                 .finally(() => activity?.[Symbol.dispose]());
         } else {
+            if (commandModels?.responseModel) {
+                try {
+                    validateCommandPayload(
+                        result as Val.Struct | undefined,
+                        commandModels.responseModel,
+                        commandModels.supervisor,
+                        session,
+                        outerResolve,
+                    );
+                } catch (e) {
+                    logger.error("Response validation error for", command.name, Diagnostic.errorMessage(asError(e)));
+                    throw new StatusResponse.FailureError(`Response validation failed for ${command.name}`);
+                }
+            }
             if (isObject(result)) {
                 logger.info(
                     "Invoke",

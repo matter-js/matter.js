@@ -7,9 +7,9 @@
 import { OnOffClient, OnOffServer } from "#behaviors/on-off";
 import { ServerNode } from "#node/ServerNode.js";
 import { Minutes } from "@matter/general";
-import { ClientInteraction, Invoke } from "@matter/protocol";
+import { ClientInteraction, Invoke, NetworkProfiles } from "@matter/protocol";
 import { EndpointNumber } from "@matter/types";
-import { OnOffCluster } from "@matter/types/clusters/on-off";
+import { OnOff } from "@matter/types/clusters/on-off";
 import { MockSite } from "./mock-site.js";
 
 describe("ClientInvoke", () => {
@@ -214,7 +214,7 @@ describe("ClientInvoke", () => {
             commands: [
                 Invoke.ConcreteCommandRequest({
                     endpoint: EndpointNumber(1),
-                    cluster: OnOffCluster,
+                    cluster: OnOff,
                     command: "toggle",
                 }),
             ],
@@ -267,6 +267,178 @@ describe("ClientInvoke", () => {
 
         // Final state should be true (on → toggle off → on again)
         expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(true);
+    });
+
+    describe("network propagation", () => {
+        /**
+         * Spy on NetworkProfiles.select for the given controller and capture each network id argument.
+         * Returns the captured ids and a restore function.
+         */
+        function spyNetworkSelect(controller: ServerNode) {
+            const profiles = controller.env.get(NetworkProfiles);
+            const captured: Array<string | undefined> = [];
+            const original = profiles.select.bind(profiles);
+            (profiles as any).select = (peer: any, id?: string) => {
+                captured.push(id);
+                return original(peer, id);
+            };
+            return {
+                captured,
+                restore: () => {
+                    (profiles as any).select = original;
+                },
+            };
+        }
+
+        it("direct invoke (#invokeSingle) propagates network to exchange", async () => {
+            // batchDuration: false bypasses the batching path so ClientInteraction.invoke() calls #invokeSingle directly
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    basicInformation: { maxPathsPerInvoke: 10 },
+                },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const { captured, restore } = spyNetworkSelect(controller);
+
+            try {
+                // batchDuration is not in Invoke.Definition so set it on the result
+                const request = Invoke({
+                    commands: [
+                        Invoke.ConcreteCommandRequest({
+                            endpoint: EndpointNumber(1),
+                            cluster: OnOff,
+                            command: "toggle",
+                        }),
+                    ],
+                });
+                request.batchDuration = false;
+
+                await MockTime.resolve(
+                    (async () => {
+                        for await (const _chunk of peer1.interaction.invoke(request));
+                    })(),
+                );
+            } finally {
+                restore();
+            }
+
+            expect(captured).to.include("unlimited");
+            expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(true);
+        });
+
+        it("batched invoke (#invokeWithBatching) propagates network to exchange", async () => {
+            // maxPathsPerInvoke=10 + single non-root non-timed command → goes through #invokeWithBatching
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    basicInformation: { maxPathsPerInvoke: 10 },
+                },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const ep1 = peer1.endpoints.for(1);
+            const cmds = ep1.commandsOf(OnOffClient);
+            const { captured, restore } = spyNetworkSelect(controller);
+
+            try {
+                await MockTime.resolve(cmds.toggle());
+            } finally {
+                restore();
+            }
+
+            expect(captured).to.include("unlimited");
+            expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(true);
+        });
+
+        it("split invoke (#invokeWithSplitting) propagates network to each exchange", async () => {
+            // 2 commands + maxPathsPerInvoke=1 → goes through #invokeWithSplitting (2 exchanges)
+            await using site = new MockSite();
+            const { controller, device } = await site.addCommissionedPair({
+                device: {
+                    type: ServerNode.RootEndpoint,
+                    basicInformation: { maxPathsPerInvoke: 1 },
+                },
+            });
+
+            const peer1 = controller.peers.get("peer1")!;
+            const { captured, restore } = spyNetworkSelect(controller);
+
+            try {
+                // Two distinct commands in a single invoke request; maxPathsPerInvoke=1 forces splitting.
+                // commandRef is required when invoking multiple commands in one request.
+                const request = Invoke({
+                    commands: [
+                        Invoke.ConcreteCommandRequest({
+                            endpoint: EndpointNumber(1),
+                            cluster: OnOff,
+                            command: "on",
+                            commandRef: 1,
+                        }),
+                        Invoke.ConcreteCommandRequest({
+                            endpoint: EndpointNumber(1),
+                            cluster: OnOff,
+                            command: "off",
+                            commandRef: 2,
+                        }),
+                    ],
+                });
+
+                await MockTime.resolve(
+                    (async () => {
+                        for await (const _chunk of peer1.interaction.invoke(request));
+                    })(),
+                );
+            } finally {
+                restore();
+            }
+
+            // Both split exchanges must use the unlimited network
+            expect(captured.length).to.be.at.least(2);
+            expect(captured.every(id => id === "unlimited")).to.be.true;
+            expect(device.parts.get(1)!.stateOf(OnOffServer).onOff).equals(false);
+        });
+    });
+
+    it("correctly splits different-path commands when maxPathsPerInvoke is 1", async () => {
+        await using site = new MockSite();
+        // Device advertises maxPathsPerInvoke=1 — the server enforces this limit
+        const { controller, device } = await site.addCommissionedPair({
+            device: {
+                type: ServerNode.RootEndpoint,
+                basicInformation: { maxPathsPerInvoke: 1 },
+            },
+        });
+
+        const peer1 = controller.peers.get("peer1")!;
+        expect(peer1).not.undefined;
+
+        const ep1 = peer1.endpoints.for(1);
+        const cmds = ep1.commandsOf(OnOffClient);
+
+        // Get initial state, normally off, thats why rest relies on that
+        const initialState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(initialState).equals(false);
+
+        // Issue two different commands in the same tick — they have different path keys so
+        // #partitionBatch puts them in the same sub-batch.
+        // maxPathsPerInvoke=1 causes #invokeWithSplitting to be called with maxPaths=1.
+        //
+        // Before the fix: each split's batchRequest kept all original invokeRequests →
+        // the server received 2 paths → rejected with InvalidAction(128).
+        // After the fix: each split's invokeRequests is filtered to only its own command →
+        // the server receives 1 path per exchange → both succeed.
+        const p1 = cmds.on();
+        const p2 = cmds.toggle();
+
+        await MockTime.resolve(Promise.all([p1, p2]));
+
+        // on() (false→true) then toggle() (true→false) — final state is back to initial
+        const finalState = device.parts.get(1)!.stateOf(OnOffServer).onOff;
+        expect(finalState).equals(initialState);
     });
 
     it("splits duplicate command paths into separate batches", async () => {

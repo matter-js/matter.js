@@ -186,6 +186,10 @@ function addFeatureNode(
                     break;
                 }
 
+                case Conformance.Special.Revision:
+                    // Revision-gated optional feature — no feature variance implications
+                    break;
+
                 default:
                     unsupported();
             }
@@ -211,6 +215,10 @@ function addFeatureNode(
             add(Object.fromEntries(Object.entries(features).map((k, v) => [k, !v])));
             break;
         }
+
+        case Conformance.Special.Revision:
+            // Revision-gated feature — no feature variance implications
+            break;
 
         default:
             unsupported();

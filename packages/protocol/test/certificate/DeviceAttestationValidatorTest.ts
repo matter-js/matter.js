@@ -15,12 +15,10 @@ import {
     Bytes,
     Environment,
     MockFetch,
+    MockStorageService,
     PrivateKey,
     PublicKey,
     StandardCrypto,
-    StorageBackendMemory,
-    StorageManager,
-    StorageService,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { buildTestCrl, pemEncode } from "./TestHelpers.js";
@@ -42,8 +40,6 @@ describe("DeviceAttestationValidator", () => {
 
     let fetchMock: MockFetch;
     let environment: Environment;
-    let storage: StorageBackendMemory;
-    let storageManager: StorageManager;
     let service: DclCertificateService | undefined;
     let certManager: AttestationCertificateManager;
     let paiDer: Bytes;
@@ -92,11 +88,7 @@ describe("DeviceAttestationValidator", () => {
         fetchMock = new MockFetch();
         environment = new Environment("test");
 
-        // Set up storage
-        storage = new StorageBackendMemory();
-        storageManager = new StorageManager(storage);
-        await storageManager.initialize();
-        new StorageService(environment, (_namespace: string) => storage);
+        new MockStorageService(environment);
 
         MockTime.reset();
         service = undefined;
@@ -107,7 +99,6 @@ describe("DeviceAttestationValidator", () => {
         if (service) {
             await service.close();
         }
-        await storageManager.close();
     });
 
     /**

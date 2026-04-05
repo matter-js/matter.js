@@ -7,22 +7,26 @@
 import { config } from "#config.js";
 import { NodeJsCrypto } from "#crypto/NodeJsCrypto.js";
 import { NodeJsHttpEndpoint } from "#net/NodeJsHttpEndpoint.js";
-import { StorageFactory } from "#storage/index.js";
+import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
 import {
     asError,
     Boot,
     Crypto,
     Entropy,
     Environment,
+    Filesystem,
     HttpEndpointFactory,
     ImplementationError,
     LogFormat,
     Logger,
+    MemoryStorageDriver,
     Network,
     ServiceBundle,
     StandardCrypto,
     StorageService,
     VariableService,
+    WalStorageDriver,
+    type DataNamespace,
 } from "@matter/general";
 
 import { isBunjs } from "#util/runtimeChecks.js";
@@ -31,6 +35,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import { NodeJsFilesystem } from "../fs/NodeJsFilesystem.js";
 import { NodeJsNetwork } from "../net/NodeJsNetwork.js";
 import { ProcessManager } from "./ProcessManager.js";
 
@@ -69,6 +74,7 @@ import { ProcessManager } from "./ProcessManager.js";
  * * `storage.clear` - Clear storage on start? Default: false
  * * `storage.driver` - Storage driver to use: "file" (default) or "sqlite" (requires Node.js v22+). Automatically migrates data when switching drivers.
  * * `nodejs.crypto` - Enables crypto implementation in this package.  Default: true
+ * * `nodejs.filesystem` - Enables filesystem implementation in this package.  Default: true
  * * `nodejs.network` - Enables network implementation in this package.  Default: true
  * * `nodejs.storage` - Enables storage implementation in this package.  Default: true
  * * `runtime.signals` - By default register SIGINT and SIGUSR2 (diag) handlers, set to false if not wanted
@@ -85,6 +91,7 @@ export function NodeJsEnvironment() {
     configureRuntime(env);
     configureStorage(env);
     configureNetwork(env);
+    configureFilesystem(env);
 
     // When no logger format is set, we still use the default, and the process is running in a TTY, use ANSI formatting
     // If a user wants to change the log format he still can do after the environment was initialized (which should be
@@ -171,9 +178,8 @@ function configureCrypto(env: Environment) {
 function configureNetwork(env: Environment) {
     Boot.init(() => {
         if (env.vars.boolean("nodejs.network")) {
-            const basePathForUnixSockets = rootDirOf(env);
             env.set(Network, new NodeJsNetwork());
-            env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory(basePathForUnixSockets));
+            env.set(HttpEndpointFactory, new NodeJsHttpEndpoint.Factory());
             return;
         }
         // Extends default Network
@@ -196,33 +202,49 @@ function configureStorage(env: Environment) {
         if (env.vars.boolean("nodejs.storage")) {
             const service = env.get(StorageService);
 
-            env.vars.use(() => {
-                service.location = env.vars.get("storage.path", rootDirOf(env));
+            // Register general-package drivers
+            service.registerDriver(MemoryStorageDriver);
+            service.registerDriver(WalStorageDriver);
+
+            // Register nodejs-specific drivers
+            service.registerDriver(FileStorageDriver);
+
+            service.registerDriver({
+                id: "sqlite",
+
+                async create(namespace: DataNamespace) {
+                    const { SqliteStorageDriver } = await import("#storage/sqlite/index.js");
+                    return SqliteStorageDriver.create(namespace);
+                },
             });
 
-            const shouldClear = env.vars.boolean("storage.clear") ?? false;
-            let storageDriver = env.vars.string("storage.driver") ?? "file";
+            // Default to "file" in nodejs (temporary until WAL is proven)
+            service.defaultDriver = "file";
 
-            // fallback 'file' when storageDriver is blank
-            if (storageDriver.length === 0) {
-                storageDriver = "file";
+            // Apply user-configured driver
+            let storageDriver = env.vars.string("storage.driver");
+            if (storageDriver && storageDriver.length > 0) {
+                service.configuredDriver = storageDriver;
             }
 
-            service.factory = async namespace => {
-                return await StorageFactory.create({
-                    driver: storageDriver as "file" | "sqlite",
-                    rootDir: service.location ?? ".",
-                    namespace,
-                    clear: shouldClear,
-                });
-            };
-
-            service.resolve = (...paths) => resolve(rootDirOf(env), ...paths);
             return;
         }
         // Extends default Storage
         if (Environment.default.has(StorageService)) {
             env.set(StorageService, Environment.default.get(StorageService));
+        }
+    });
+}
+
+function configureFilesystem(env: Environment) {
+    Boot.init(() => {
+        if (env.vars.boolean("nodejs.filesystem")) {
+            env.set(Filesystem, new NodeJsFilesystem(() => env.vars.get("storage.path", rootDirOf(env))));
+            return;
+        }
+        // Extends default Filesystem
+        if (Environment.default.has(Filesystem)) {
+            env.set(Filesystem, Environment.default.get(Filesystem));
         }
     });
 }
@@ -287,6 +309,7 @@ export function getDefaults(vars: VariableService) {
         },
         nodejs: {
             crypto: config.installCrypto,
+            filesystem: config.installFilesystem,
             network: config.installNetwork,
             storage: config.initializeStorage,
         },

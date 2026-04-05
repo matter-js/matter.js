@@ -22,6 +22,7 @@ import { DeviceInformationData } from "#device/DeviceInformation.js";
 import {
     BasicMultiplex,
     Bytes,
+    causedBy,
     ChannelType,
     ClassExtends,
     ConnectionlessTransportSet,
@@ -36,19 +37,19 @@ import {
     Logger,
     MatterError,
     Minutes,
+    MockStorageService,
     ObserverGroup,
     ServerAddress,
     ServerAddressUdp,
-    StorageBackendMemory,
     StorageManager,
     StorageService,
     SupportedStorageTypes,
     Time,
+    UnexpectedDataError,
 } from "@matter/general";
 import {
     ClientNode,
     ClientNodePhysicalProperties,
-    ClusterState,
     CommissioningClient,
     ControllerBehavior,
     Endpoint,
@@ -66,11 +67,11 @@ import {
     CommissioningError,
     ControllerCommissioner,
     ControllerCommissioningFlow,
-    DiscoveryAndCommissioningOptions,
     DiscoveryData,
     Fabric,
     FabricAuthority,
     FabricManager,
+    PeerAddress,
     PeerDescriptor,
     PeerSet,
     PhysicalDeviceProperties,
@@ -90,7 +91,8 @@ import {
     TypeFromPartialBitSchema,
     VendorId,
 } from "@matter/types";
-import { BasicInformation, GeneralCommissioning } from "@matter/types/clusters";
+import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
 
 export type CommissionedNodeDetails = {
     operationalServerAddress?: ServerAddressUdp;
@@ -137,7 +139,7 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
-        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+        basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
     }): Promise<MatterController> {
         const {
             rootFabric,
@@ -157,48 +159,54 @@ export class MatterController {
 
         const baseStorage: StorageManager = await options.environment.get(StorageService).open(options.id);
 
-        // Storage data migration from legacy Controller to ServerNode based controller
-        const oldStorage = baseStorage.createContext("credentials");
-        const newStorage = baseStorage.createContext("certificates");
-        const newFabricStorage = baseStorage.createContext("fabrics");
+        try {
+            // Storage data migration from legacy Controller to ServerNode based controller
+            const oldStorage = baseStorage.createContext("credentials");
+            const newStorage = baseStorage.createContext("certificates");
+            const newFabricStorage = baseStorage.createContext("fabrics");
 
-        const keys = await oldStorage.keys();
+            const keys = await oldStorage.keys();
 
-        const newFabrics = await newFabricStorage.get<Fabric.Config[]>("fabrics", []);
-        if (keys.length !== 0) {
-            for (const key of await oldStorage.keys()) {
-                if (key === "fabric") {
-                    if (rootFabric !== undefined) {
-                        logger.debug("Skipping fabric migration because a rootFabric was provided.");
-                        continue;
-                    }
-                    const oldFabric = await oldStorage.get<Fabric.Config>("fabric");
-                    if (
-                        newFabrics.length &&
-                        newFabrics.some(
-                            fab =>
-                                fab.fabricIndex === oldFabric.fabricIndex &&
-                                Bytes.areEqual(fab.rootCert, oldFabric.rootCert),
-                        )
-                    ) {
-                        logger.debug("Skipping fabric migration because a new storage already has matching fabric");
-                        continue;
-                    }
-                    fabric = await Fabric.create(Environment.default.get(Crypto), oldFabric);
-                } else {
-                    // Migrates Certificate Authority data to a new location
-                    if (!(await newStorage.has(key))) {
-                        await newStorage.set(key, await oldStorage.get(key));
+            const newFabrics = await newFabricStorage.get<Fabric.Config[]>("fabrics", []);
+            if (keys.length !== 0) {
+                for (const key of await oldStorage.keys()) {
+                    if (key === "fabric") {
+                        if (rootFabric !== undefined) {
+                            logger.debug("Skipping fabric migration because a rootFabric was provided.");
+                            continue;
+                        }
+                        const oldFabric = await oldStorage.get<Fabric.Config>("fabric");
+                        if (
+                            newFabrics.length &&
+                            newFabrics.some(
+                                fab =>
+                                    fab.fabricIndex === oldFabric.fabricIndex &&
+                                    Bytes.areEqual(fab.rootCert, oldFabric.rootCert),
+                            )
+                        ) {
+                            logger.debug("Skipping fabric migration because a new storage already has matching fabric");
+                            continue;
+                        }
+                        fabric = await Fabric.create(Environment.default.get(Crypto), oldFabric);
+                    } else {
+                        // Migrates Certificate Authority data to a new location
+                        if (!(await newStorage.has(key))) {
+                            await newStorage.set(key, await oldStorage.get(key));
+                        }
                     }
                 }
             }
-        }
 
-        if (rootCertificateAuthority !== undefined) {
-            environment.set(CertificateAuthority, rootCertificateAuthority);
+            if (rootCertificateAuthority !== undefined) {
+                environment.set(CertificateAuthority, rootCertificateAuthority);
+            }
+        } finally {
+            try {
+                await baseStorage.close();
+            } catch (closeError) {
+                logger.warn("Error closing base storage:", closeError);
+            }
         }
-
-        await baseStorage.close();
 
         controller = new MatterController({
             ...options,
@@ -233,7 +241,7 @@ export class MatterController {
         environment.set(CertificateAuthority, ca);
 
         // Stored data are temporary anyway and no node will be connected, so just use an in-memory storage
-        environment.set(StorageService, new StorageService(environment, () => new StorageBackendMemory()));
+        new MockStorageService(environment);
 
         const fabric = await Fabric.create(crypto, fabricConfig);
         if (!Bytes.areEqual(fabric.rootCert, ca.rootCert)) {
@@ -291,7 +299,7 @@ export class MatterController {
         localPort?: number;
         environment: Environment;
         enableOtaProvider?: boolean;
-        basicInformation?: Partial<Omit<ClusterState.PropertiesOf<typeof BasicInformation.Complete>, "vendorId">>;
+        basicInformation?: Partial<Omit<BasicInformation.Attributes, "vendorId">>;
     }) {
         const crypto = options.environment.get(Crypto);
         const {
@@ -487,30 +495,67 @@ export class MatterController {
             commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
         },
     ): Promise<NodeId> {
-        const commissioningOptions: DiscoveryAndCommissioningOptions = {
-            ...options.commissioning,
-            fabric: this.fabric,
-            discovery: options.discovery,
-            passcode: options.passcode,
-        };
-
         const { completeCommissioningCallback, commissioningFlowImpl } = customizations ?? {};
 
-        if (completeCommissioningCallback) {
-            commissioningOptions.finalizeCommissioning = async (peerAddress, discoveryData) => {
-                const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
-                if (!result) {
-                    throw new RetransmissionLimitReachedError("Device could not be discovered");
-                }
-            };
-        }
-        commissioningOptions.commissioningFlowImpl = commissioningFlowImpl;
+        // Wrap the optional PASE-only callback into the finalizeCommissioning hook understood by CommissioningClient
+        const finalizeCommissioning = completeCommissioningCallback
+            ? async (peerAddress: PeerAddress, discoveryData?: DiscoveryData) => {
+                  const result = await completeCommissioningCallback(peerAddress.nodeId, discoveryData);
+                  if (!result) {
+                      throw new RetransmissionLimitReachedError("Device could not be discovered");
+                  }
+              }
+            : undefined;
 
-        const address = await this.node.env.get(ControllerCommissioner).commissionWithDiscovery(commissioningOptions);
+        const caseAuthenticatedTags = options.caseAuthenticatedTags;
+        const { knownAddress, timeout, discoveryCapabilities } = options.discovery;
+        const commissionableDevice =
+            "commissionableDevice" in options.discovery ? options.discovery.commissionableDevice : undefined;
+
+        let clientNode: ClientNode;
+
+        const addresses = commissionableDevice?.addresses ?? (knownAddress !== undefined ? [knownAddress] : undefined);
+        if (addresses !== undefined) {
+            // Pre-discovered device or known address — find/create the ClientNode and commission via CommissioningClient
+            const descriptor: RemoteDescriptor = commissionableDevice ?? { addresses };
+            clientNode = await this.node.peers.forDescriptor(descriptor);
+            await clientNode.commission({
+                fabric: this.fabric,
+                passcode: options.passcode,
+                commissioningFlowImpl,
+                caseAuthenticatedTags,
+                autoSubscribe: false,
+                wifiNetwork: options.commissioning.wifiNetwork,
+                threadNetwork: options.commissioning.threadNetwork,
+                regulatoryLocation: options.commissioning.regulatoryLocation,
+                regulatoryCountryCode: options.commissioning.regulatoryCountryCode,
+                nodeId: options.commissioning.nodeId,
+                finalizeCommissioning,
+            });
+        } else {
+            // Pure discovery by identifier — use CommissioningDiscovery for full parallel PASE support
+            const identifierData = "identifierData" in options.discovery ? options.discovery.identifierData : {};
+            clientNode = await this.node.peers.commission({
+                ...identifierData,
+                ...options.commissioning,
+                fabric: this.fabric,
+                passcode: options.passcode,
+                commissioningFlowImpl,
+                caseAuthenticatedTags,
+                autoSubscribe: false,
+                timeout,
+                discoveryCapabilities,
+                finalizeCommissioning,
+            });
+        }
+
+        const peerAddress = clientNode.peerAddress;
+        if (peerAddress === undefined) {
+            throw new ImplementationError("Commissioned node has no peer address");
+        }
 
         await this.fabric.persist();
-
-        return address.nodeId;
+        return peerAddress.nodeId;
     }
 
     async disconnect(nodeId: NodeId) {
@@ -519,13 +564,51 @@ export class MatterController {
     }
 
     async connectPaseChannel(options: NodeCommissioningOptions) {
-        const { paseSession } = await this.node.env.get(ControllerCommissioner).discoverAndEstablishPase({
-            ...options.commissioning,
-            fabric: this.fabric,
-            discovery: options.discovery,
-            passcode: options.passcode,
-        });
-        logger.warn("PASE channel established", paseSession.via, paseSession.isSecure);
+        const { discovery, passcode } = options;
+        const timeout = discovery.timeout;
+
+        if ("commissionableDevice" in discovery) {
+            // Pre-discovered device: addresses already known, skip discovery.
+            let { addresses } = discovery.commissionableDevice;
+            if (discovery.discoveryCapabilities?.ble !== true) {
+                addresses = addresses.filter(a => a.type !== "ble");
+            }
+            const commissioner = this.node.env.get(ControllerCommissioner);
+            const { paseSession } = await commissioner.establishPase({
+                addresses,
+                discoveryData: discovery.commissionableDevice,
+                passcode,
+                timeout,
+            });
+            logger.warn("PASE channel established", paseSession.via, paseSession.isSecure);
+            return paseSession;
+        }
+
+        const identifierData = "identifierData" in discovery ? discovery.identifierData : {};
+
+        // If we have a known address, try it first before falling back to full discovery.
+        if (discovery.knownAddress !== undefined) {
+            const commissioner = this.node.env.get(ControllerCommissioner);
+            try {
+                const { paseSession } = await commissioner.establishPase({
+                    addresses: [discovery.knownAddress],
+                    passcode,
+                    timeout,
+                });
+                logger.warn("PASE channel established via known address", paseSession.via, paseSession.isSecure);
+                return paseSession;
+            } catch (error) {
+                // Intentional: fall back to full discovery when the known address is stale, unreachable, or
+                // points to a different device.  Re-throw on unexpected errors (e.g. config problems).
+                if (!causedBy(error, UnexpectedDataError, RetransmissionLimitReachedError)) {
+                    throw error;
+                }
+            }
+        }
+
+        // Pure discovery: use PaseDiscovery which manages scanner lifecycle automatically.
+        const paseSession = await this.node.peers.pase({ ...identifierData, timeout, passcode });
+        logger.warn("PASE channel established via discovery", paseSession.via, paseSession.isSecure);
         return paseSession;
     }
 
@@ -552,11 +635,11 @@ export class MatterController {
             allowUnknownPeer: true,
         }); // Wait maximum 120s to find the operational device for a commissioning process
         const generalCommissioningClusterClient = ClusterClient(
-            GeneralCommissioning.Cluster,
+            GeneralCommissioning,
             EndpointNumber(0),
             interactionClient,
         );
-        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete(undefined, {
+        const { errorCode, debugText } = await generalCommissioningClusterClient.commissioningComplete({
             useExtendedFailSafeMessageResponseTimeout: true,
         });
         if (errorCode !== GeneralCommissioning.CommissioningError.Ok) {
@@ -747,6 +830,8 @@ export class MatterController {
             }
 
             const commissioning = RemoteDescriptor.toLongForm({
+                // Fallback discoveredAt in case discoveryData doesn't have one
+                discoveredAt: Time.nowMs,
                 ...(discoveryData ? deviceData : {}),
                 addresses: operationalAddress ? [operationalAddress] : [],
             });

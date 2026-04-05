@@ -7,7 +7,7 @@
 export * from "./CommissioningError.js";
 export * from "./ControllerCommissioner.js";
 export * from "./ControllerCommissioningFlow.js";
-export * from "./ControllerDiscovery.js";
+export * from "./NetworkProfile.js";
 export * from "./Peer.js";
 export * from "./PeerAddress.js";
 export * from "./PeerCommunicationError.js";
@@ -15,4 +15,5 @@ export * from "./PeerDescriptor.js";
 export * from "./PeerExchangeProvider.js";
 export * from "./PeerLossContext.js";
 export * from "./PeerSet.js";
+export * from "./PeerTimingParameters.js";
 export * from "./PhysicalDeviceProperties.js";

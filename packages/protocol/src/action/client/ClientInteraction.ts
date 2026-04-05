@@ -43,10 +43,12 @@ import {
     Mutex,
     RetrySchedule,
     Seconds,
+    ServerAddressUdp,
     Time,
     Timer,
 } from "@matter/general";
-import { Status, TlvAttributeReport, TlvNoResponse, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
+import { Status, TlvAttributeReport, TlvOfModel, TlvSchema, TlvSubscribeResponse, TypeFromSchema } from "@matter/types";
+import { TlvVoid } from "@matter/types/tlv";
 import { ClientWrite } from "./ClientWrite.js";
 import { InputChunk } from "./InputChunk.js";
 import { ClientSubscribe } from "./subscription/ClientSubscribe.js";
@@ -60,9 +62,13 @@ const logger = Logger.get("ClientInteraction");
 /** Maximum value for commandRef (uint16) */
 const MAX_COMMAND_REF = 0xffff;
 
+/** Higher processing time to give devices a bit more time to send updates. */
+const SUBSCRIPTION_PROCESSING_TIME = Seconds(10);
+
 interface PendingCommand {
     request: Invoke.ConcreteCommandRequest<any>;
     pathKey: string;
+    network?: string;
     resolve: (entry: InvokeResult.DecodedData | undefined) => void;
     reject: (error: Error) => void;
     aborted?: boolean;
@@ -181,7 +187,7 @@ export class ClientInteraction<
     /**
      * Read attributes and events.
      */
-    async *read(request: ClientRead, session?: SessionT): ReadResult {
+    async *read(request: ClientRead, session?: SessionT, extraAbort?: AbortSignal): ReadResult {
         const readPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (readPathsCount > 9) {
             logger.info(
@@ -189,7 +195,7 @@ export class ClientInteraction<
             );
         }
 
-        await using context = await this.#begin("reading", request, session);
+        await using context = await this.#begin("reading", request, session, extraAbort);
         const { abort, messenger } = context;
 
         logger.info("Read", Mark.OUTBOUND, messenger.exchange.via, session?.logContext ?? "", request);
@@ -217,6 +223,46 @@ export class ClientInteraction<
                     : Diagnostic.dict({ attributes: attributeReportCount, events: eventReportCount }),
             ),
         );
+    }
+
+    /**
+     * Probe the peer with an empty read to verify session liveness.
+     *
+     * Optionally sends to a different address than the session's current one via {@link addressOverride},
+     * without affecting other exchanges on the session.
+     *
+     * @returns true if the probe succeeded, false otherwise
+     */
+    async probe(options?: ClientProbeOptions): Promise<boolean> {
+        if (this.#abort.aborted) {
+            return false;
+        }
+
+        const abort = new Abort({ abort: [options?.abort, this.#abort] });
+
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: options?.network ?? this.#network,
+                abort,
+                addressOverride: options?.addressOverride,
+                requireExistingSession: true,
+            });
+        } catch {
+            abort[Symbol.dispose]();
+            return false;
+        }
+
+        try {
+            await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
+            for await (const _report of messenger.readDataReports({ abort }));
+            return true;
+        } catch {
+            return false;
+        } finally {
+            await messenger.close();
+            abort[Symbol.dispose]();
+        }
     }
 
     /**
@@ -326,22 +372,29 @@ export class ClientInteraction<
                                     `No response schema found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
-                            const responseSchema = Invoke.commandOf(cmd).responseSchema;
-                            if (commandFields === undefined && responseSchema !== TlvNoResponse) {
+                            let responseSchema: TlvSchema<any>;
+                            if (Invoke.isLegacy(cmd)) {
+                                responseSchema = cmd.command.responseSchema ?? TlvVoid;
+                            } else {
+                                const command = Invoke.commandOf(cmd);
+                                const responseModel = command.schema.responseModel;
+                                responseSchema = responseModel ? (TlvOfModel(responseModel) ?? TlvVoid) : TlvVoid;
+                            }
+                            if (commandFields === undefined && responseSchema !== TlvVoid) {
                                 throw new ImplementationError(
                                     `No command fields found for commandRef ${commandRef} (endpoint ${endpointId}, cluster ${clusterId}, command ${commandId})`,
                                 );
                             }
 
                             const data =
-                                commandFields === undefined ? undefined : responseSchema.decodeTlv(commandFields);
+                                commandFields === undefined ? undefined : responseSchema?.decodeTlv(commandFields);
 
                             logger.info(
                                 "Invoke",
                                 Mark.INBOUND,
                                 messenger.exchange.via,
                                 messenger.exchange.diagnostics,
-                                Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                 isObject(data) ? Diagnostic.dict(data) : Diagnostic.weak("(no payload)"),
                             );
 
@@ -381,7 +434,7 @@ export class ClientInteraction<
                                     Mark.INBOUND,
                                     messenger.exchange.via,
                                     messenger.exchange.diagnostics,
-                                    Diagnostic.strong(resolvePathForSpecifier(cmd)),
+                                    Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
                                     Diagnostic.dict({ status: `${Status[status]} (${status})`, clusterStatus }),
                                 );
                             }
@@ -421,9 +474,24 @@ export class ClientInteraction<
 
         // Create async iterators for each batch and merge results as they arrive
         const iterators = batches.map(batchCommands => {
+            const batchInvokeRequests = request.invokeRequests.filter(ir => batchCommands.has(ir.commandRef));
             const batchRequest: ClientInvoke = {
                 ...request,
                 commands: batchCommands,
+                invokeRequests: batchInvokeRequests,
+                [Diagnostic.value]: () =>
+                    Diagnostic.list(
+                        [...batchCommands.values()].map(cmd => {
+                            const { commandRef } = cmd;
+                            const fields = "fields" in cmd ? cmd.fields : undefined;
+                            return [
+                                Diagnostic.strong(Invoke.isLegacy(cmd) ? "(legacy)" : resolvePathForSpecifier(cmd)),
+                                "with",
+                                isObject(fields) ? Diagnostic.dict(fields) : "(no payload)",
+                                commandRef !== undefined ? `(ref ${commandRef})` : "",
+                            ];
+                        }),
+                    ),
             };
             return this.#invokeSingle(batchRequest, session);
         });
@@ -485,6 +553,7 @@ export class ClientInteraction<
         const pending: PendingCommand = {
             request: { ...cmd, commandRef } as Invoke.ConcreteCommandRequest<any>,
             pathKey,
+            network: request.network,
             resolve: resolver,
             reject: rejecter,
         };
@@ -634,8 +703,16 @@ export class ClientInteraction<
 
             logger.debug(`Executing ${invokeRequests.length} command(s)${isSingleCommand ? "" : " (batched)"}`);
 
+            // Preserve the network profile from the queued commands (all commands in a batch share the same
+            // ClientInteraction so they will normally have the same network; pick the first defined value)
+            const batchNetwork = commandList.find(c => c.network !== undefined)?.network;
+
             // Use #invokeSingle directly to avoid re-entering the batching path in invoke()
-            const batchRequest = Invoke({ commands: invokeRequests }) as ClientInvoke;
+            // Always skip validation here — commands were already validated when originally submitted
+            const batchRequest = {
+                ...Invoke({ commands: invokeRequests, skipValidation: true }),
+                network: batchNetwork,
+            } as ClientInvoke;
             const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
             const chunks =
                 invokeRequests.length > maxPathsPerInvoke
@@ -690,7 +767,7 @@ export class ClientInteraction<
      * Subscribe to attribute values and events.
      */
     async subscribe<T extends ClientSubscribe>(request: T, session?: SessionT): SubscriptionResult<T> {
-        let interactionSession: InteractionSession | undefined = session;
+        let interactionSession = session;
 
         const subscriptionPathsCount = (request.attributeRequests?.length ?? 0) + (request.eventRequests?.length ?? 0);
         if (subscriptionPathsCount === 0) {
@@ -770,7 +847,7 @@ export class ClientInteraction<
                 closed: () => this.subscriptions.delete(subscription),
                 response,
                 abort,
-                maxPeerResponseTime: this.maximumPeerResponseTime(),
+                maxPeerResponseTime: this.maximumPeerResponseTime(SUBSCRIPTION_PROCESSING_TIME),
             });
             this.subscriptions.addPeer(subscription);
 
@@ -790,19 +867,22 @@ export class ClientInteraction<
         };
 
         const read = (request: Read, extraAbort?: AbortSignal, logContext?: ExchangeLogContext) => {
-            const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
-
+            let readSession = interactionSession;
             if (logContext !== undefined) {
-                session = {
-                    ...session,
-                    logContext: session?.logContext ? { ...session.logContext, ...logContext } : logContext,
-                } as unknown as SessionT;
+                readSession = {
+                    ...readSession,
+                    logContext: readSession?.logContext ? { ...readSession.logContext, ...logContext } : logContext,
+                } as SessionT;
             }
-            return this.read(request, { ...session, abort } as unknown as SessionT);
+            return this.read(request, readSession, extraAbort);
         };
 
         let subscription: ClientSubscription;
         if (request.sustain) {
+            // For sustained subscriptions, the connection process should not time out; it should only stop on abort.
+            // Update interactionSession BEFORE constructing SustainedSubscription so closures see the correct value
+            interactionSession = { ...interactionSession, connectionTimeout: Forever } as SessionT;
+
             subscription = new SustainedSubscription({
                 lifetime: this.subscriptions,
                 subscribe,
@@ -812,14 +892,8 @@ export class ClientInteraction<
                 abort: session?.abort,
                 retries: this.#sustainRetries,
                 read,
+                probe: abort => this.probe({ abort }),
             });
-
-            // For sustained subscriptions, the connection process should not time out; it should only stop on abort
-            if (interactionSession === undefined) {
-                interactionSession = { connectionTimeout: Forever };
-            } else {
-                interactionSession = { ...interactionSession, connectionTimeout: Forever };
-            }
         } else {
             subscription = await subscribe(request);
         }
@@ -858,6 +932,7 @@ export class ClientInteraction<
             [Symbol.asyncDispose]: async () => {
                 await messenger.close();
                 this.#interactions.delete(request);
+                abort[Symbol.dispose]();
             },
         };
 
@@ -887,11 +962,18 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
-        const messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-            network: request.network ?? this.#network,
-            abort: session?.abort,
-            connectionTimeout: session?.connectionTimeout,
-        });
+        let messenger: InteractionClientMessenger;
+        try {
+            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                network: request.network ?? this.#network,
+                abort,
+                connectionTimeout: session?.connectionTimeout,
+                addressOverride: request.addressOverride,
+            });
+        } catch (e) {
+            abort[Symbol.dispose]();
+            throw e;
+        }
 
         this.#interactions.add(request);
 
@@ -947,9 +1029,24 @@ export interface RequestContext<M extends InteractionClientMessenger | BdxMessen
     [Symbol.asyncDispose](): Promise<void>;
 }
 
+/**
+ * Options for {@link ClientInteraction.probe}.
+ */
+export interface ClientProbeOptions {
+    /** Network profile to use for the probe exchange. */
+    network?: string;
+
+    /** Override the destination address for the probe without changing the session's channel. */
+    addressOverride?: ServerAddressUdp;
+
+    /** Abort signal for the probe. */
+    abort?: AbortSignal;
+}
+
 async function* readChunks(messenger: InteractionClientMessenger, abort: Abort) {
     const leftOverData = new Array<TypeFromSchema<typeof TlvAttributeReport>>();
     for await (const report of messenger.readDataReports({ abort })) {
         yield InputChunk(report, leftOverData);
+        abort.throwIfAborted();
     }
 }

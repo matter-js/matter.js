@@ -19,8 +19,10 @@ import {
     ImplementationError,
     Logger,
     MatterError,
+    Minutes,
     NotImplementedError,
     Observable,
+    Seconds,
     ServerAddress,
     Time,
     Timestamp,
@@ -48,6 +50,7 @@ import {
     CommissioningMode,
     ControllerCommissioner,
     ControllerCommissioningFlow,
+    ControllerCommissioningFlowOptions,
     DeviceAttestationValidator,
     DiscoveryData,
     Fabric,
@@ -57,6 +60,7 @@ import {
     Peer,
     PeerAddress,
     PeerSet,
+    PeerTimingParameters,
     PeerAddress as ProtocolPeerAddress,
     SessionParameters as ProtocolSessionParameters,
     Subscribe,
@@ -85,8 +89,8 @@ const logger = Logger.get("CommissioningClient");
  */
 export class CommissioningClient extends Behavior {
     declare internal: CommissioningClient.Internal;
-    declare state: CommissioningClient.State;
-    declare events: CommissioningClient.Events;
+    declare readonly state: CommissioningClient.State;
+    declare readonly events: CommissioningClient.Events;
 
     static override readonly early = true;
 
@@ -199,10 +203,14 @@ export class CommissioningClient extends Behavior {
             discoveryData: this.descriptor,
             commissioningFlowImpl: options.commissioningFlowImpl,
             onAttestationFailure: options.onAttestationFailure,
-            // TODO Allow to configure all relevant commissioning options like
-            //  * wifi/thread credentials
-            //  * regulatory config
-            //  * custom otaUpdateProviderLocation
+            abort: options.abort,
+            continueCommissioningAfterPase: options.continueCommissioningAfterPase,
+            wifiNetwork: options.wifiNetwork,
+            threadNetwork: options.threadNetwork,
+            regulatoryLocation: options.regulatoryLocation,
+            regulatoryCountryCode: options.regulatoryCountryCode,
+            timeout: options.timeout,
+            caseConnectionTiming: options.caseConnectionTiming ?? defaultCaseConnectionTiming,
         };
 
         // Check if our server has an OTA Provider (later: and no custom one is provided) and register the location
@@ -217,7 +225,9 @@ export class CommissioningClient extends Behavior {
             };
         }
 
-        if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
+        if (options.finalizeCommissioning !== undefined) {
+            commissioningOptions.finalizeCommissioning = options.finalizeCommissioning;
+        } else if (this.finalizeCommissioning !== CommissioningClient.prototype.finalizeCommissioning) {
             commissioningOptions.finalizeCommissioning = this.finalizeCommissioning.bind(this);
         }
 
@@ -333,7 +343,10 @@ export class CommissioningClient extends Behavior {
             return;
         }
 
-        const newAddressesStr = newAddresses?.map(a => ServerAddress.urlFor(a)).join(", ");
+        const newAddressesStr = newAddresses
+            ?.filter(a => a.type !== "ble")
+            .map(a => ServerAddress.urlFor(a))
+            .join(", ");
         if (oldAddresses === undefined) {
             logger.info(
                 "Operational address for",
@@ -344,7 +357,10 @@ export class CommissioningClient extends Behavior {
             return;
         }
 
-        const oldAddressesStr = oldAddresses.map(a => ServerAddress.urlFor(a)).join(", ");
+        const oldAddressesStr = oldAddresses
+            .filter(a => a.type !== "ble")
+            .map(a => ServerAddress.urlFor(a))
+            .join(", ");
         if (oldAddressesStr !== newAddressesStr) {
             logger.info(
                 "Operational address changed for",
@@ -393,7 +409,7 @@ export class CommissioningClient extends Behavior {
         const node = this.endpoint as ClientNode;
         let peer = node.env.maybeGet(Peer);
         if (peer) {
-            if (peer.address === addr && node.env.get(PeerSet).has(peer)) {
+            if (PeerAddress.is(peer.address, addr) && node.env.get(PeerSet).has(peer)) {
                 // Already bound and present in PeerSet
                 return;
             }
@@ -450,7 +466,7 @@ export class CommissioningClient extends Behavior {
     #unbindPeer(addr: PeerAddress, remove = false) {
         const node = this.endpoint as ClientNode;
         const peer = node.env.maybeGet(Peer);
-        if (!peer || peer.address !== addr) {
+        if (!peer || !PeerAddress.is(peer.address, addr)) {
             return;
         }
         node.env.delete(Peer, peer);
@@ -470,6 +486,21 @@ export class CommissioningClient extends Behavior {
         }
     }
 }
+
+/**
+ * Default timing overrides applied to the step-18 CASE reconnect unless the caller supplies
+ * {@link CommissioningClient.BaseCommissioningOptions.caseConnectionTiming}.
+ *
+ * Values are tighter than the global peer timing defaults because the device is known to be freshly online:
+ * - `delayBeforeNextAddress`: 15 s (vs. 45 s global default)
+ * - `maxDelayBetweenInitialContactRetries`: 60 s (vs. 2 min global default)
+ * - `delayAfterPeerError`: 2 min (vs. 5 min global default)
+ */
+const defaultCaseConnectionTiming: Partial<PeerTimingParameters> = {
+    delayBeforeNextAddress: Seconds(15),
+    maxDelayBetweenInitialContactRetries: Seconds(60),
+    delayAfterPeerError: Minutes(2),
+};
 
 export namespace CommissioningClient {
     /**
@@ -740,6 +771,28 @@ export namespace CommissioningClient {
         commissioningFlowImpl?: ClassExtends<ControllerCommissioningFlow>;
 
         /**
+         * Abort signal for cancellation.  When fired during PASE establishment, cancels the PASE attempt.
+         * In parallel commissioning scenarios this fires once a winner is found, stopping remaining candidates.
+         */
+        abort?: AbortSignal;
+
+        /**
+         * Called immediately after PASE is established, before the main commissioning flow begins.
+         *
+         * Return `true` to proceed with commissioning (this candidate won the parallel race).
+         * Return `false` to abort cleanly — the PASE session is closed and commissioning stops.
+         *
+         * When omitted, commissioning always proceeds.
+         */
+        continueCommissioningAfterPase?: () => boolean;
+
+        /**
+         * Overall wall-clock budget for PASE establishment.
+         * Defaults to 30 seconds.
+         */
+        timeout?: Duration;
+
+        /**
          * Discovery capabilities to use for discovery. These are included in the QR code normally and defined if BLE
          * is supported for initial commissioning.
          */
@@ -787,6 +840,54 @@ export namespace CommissioningClient {
          * See ControllerCommissioningFlowOptions.onAttestationFailure for details.
          */
         onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
+
+        /**
+         * WiFi network credentials to configure on the device during commissioning.  Required if the device connects
+         * to the network over WiFi and doesn't already have credentials configured.
+         */
+        wifiNetwork?: ControllerCommissioningFlowOptions["wifiNetwork"];
+
+        /**
+         * Thread network credentials to configure on the device during commissioning.  Required if the device connects
+         * to the network over Thread and doesn't already have credentials configured.
+         */
+        threadNetwork?: ControllerCommissioningFlowOptions["threadNetwork"];
+
+        /**
+         * The regulatory location (indoor or outdoor) where the device is used.
+         * Defaults to `Indoor` if not provided.
+         */
+        regulatoryLocation?: ControllerCommissioningFlowOptions["regulatoryLocation"];
+
+        /**
+         * The two-character country code where the device is deployed (e.g. "DE", "US").
+         * Defaults to "XX" (unspecified).
+         */
+        regulatoryCountryCode?: ControllerCommissioningFlowOptions["regulatoryCountryCode"];
+
+        /**
+         * Override the final commissioning step.
+         *
+         * When provided, matter.js completes commissioning over PASE and then calls this function instead of performing
+         * the CASE reconnection and "CommissioningComplete" command internally.  The function must connect to the device
+         * operationally and invoke "CommissioningComplete" itself.
+         *
+         * This is used by {@link PaseCommissioner} so that a lightweight commissioner can perform the PASE phase and
+         * then hand off to a full controller to finish commissioning.
+         * TODO: Revisit when we decide how to continue with the PaseCommissioner approach at all
+         */
+        finalizeCommissioning?: (address: ProtocolPeerAddress, discoveryData?: DiscoveryData) => Promise<void>;
+
+        /**
+         * Timing overrides for the step-18 CASE reconnect.
+         *
+         * After commissioning the commissioner establishes the first operational CASE session.  The device is freshly
+         * online at that point so tighter timing is appropriate.  Any fields provided here are merged on top of the
+         * global peer timing defaults for that single connection only.
+         *
+         * Defaults to `{ delayBeforeNextAddress: Seconds(15), maxDelayBetweenInitialContactRetries: Seconds(60), delayAfterPeerError: Minutes(2) }`.
+         */
+        caseConnectionTiming?: Partial<PeerTimingParameters>;
     }
 
     export interface PasscodeOptions extends BaseCommissioningOptions {

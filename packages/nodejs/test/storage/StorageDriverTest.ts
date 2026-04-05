@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { SqliteStorageError, StorageFactory, StorageType } from "#storage/index.js";
+import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
+import { SqliteStorageDriver } from "#storage/sqlite/SqliteStorageDriver.js";
+import { SqliteStorageDriverError } from "#storage/sqlite/SqliteStorageDriverError.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
-import { Bytes, Storage, StorageError } from "@matter/general";
+import { Bytes, StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -18,36 +20,59 @@ const CONTEXTx1 = ["context"];
 const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
-describe("StorageDrivers", () => {
-    const drivers = [StorageType.FILE];
-    if (supportsSqlite()) {
-        drivers.push(StorageType.SQLITE);
-    }
+interface DriverFactory {
+    name: string;
+    create(namespace: string): Promise<StorageDriver>;
+    remove(namespace: string): Promise<void>;
+}
 
+const drivers: DriverFactory[] = [
+    {
+        name: "file",
+        async create(namespace) {
+            const path = resolve(TEST_STORAGE_LOCATION, namespace);
+            const storage = new FileStorageDriver(path);
+            await storage.initialize();
+            return storage;
+        },
+        async remove(namespace) {
+            await rm(resolve(TEST_STORAGE_LOCATION, namespace), { recursive: true, force: true });
+        },
+    },
+];
+
+if (supportsSqlite()) {
+    drivers.push({
+        name: "sqlite",
+        async create(namespace) {
+            const path = resolve(TEST_STORAGE_LOCATION, `${namespace}.db`);
+            const storage = new SqliteStorageDriver({ namespaceOrPath: path });
+            await storage.initialize();
+            return storage;
+        },
+        async remove(namespace) {
+            await rm(resolve(TEST_STORAGE_LOCATION, `${namespace}.db`), { recursive: true, force: true });
+        },
+    });
+}
+
+describe("StorageDrivers", () => {
     before(async () => {
         await mkdir(TEST_STORAGE_LOCATION, { recursive: true });
     });
 
     for (const driver of drivers) {
-        describe(`${driver} driver`, () => {
-            const driverInfo = {
-                driver,
-                rootDir: TEST_STORAGE_LOCATION,
-                namespace: `test_${driver}`,
-            };
+        describe(`${driver.name} driver`, () => {
+            const namespace = `test_${driver.name}`;
 
-            let storage: Storage;
+            let storage: StorageDriver;
 
             beforeEach(async () => {
-                storage = await StorageFactory.create({
-                    driver,
-                    rootDir: TEST_STORAGE_LOCATION,
-                    namespace: `test_${driver}`,
-                });
+                storage = await driver.create(namespace);
             });
             afterEach(async () => {
                 await storage?.close();
-                await StorageFactory.remove(driverInfo);
+                await driver.remove(namespace);
             });
 
             it("write and read success", async () => {
@@ -81,9 +106,9 @@ describe("StorageDrivers", () => {
                 assert.equal(value, undefined);
             });
 
-            it("write and clear success", async () => {
+            it("write and clearAll success", async () => {
                 await storage.set(CONTEXTx1, "key", "value");
-                await storage.clear();
+                await storage.clearAll(CONTEXTx1);
 
                 const value = await storage.get(CONTEXTx1, "key");
                 assert.equal(value, undefined);
@@ -145,9 +170,6 @@ describe("StorageDrivers", () => {
                 await storage.set(["context", "sub's/fun"], "key", "value");
                 await storage.set(CONTEXTx3, "key", "value");
 
-                // const storageRead = new StorageBackendDisk(TEST_STORAGE_LOCATION)
-                // await storageRead.initialize()
-
                 expect(await storage.contexts(CONTEXTx3)).deep.equal([]);
                 expect(await storage.contexts(CONTEXTx2)).deep.equal(["subsubcontext"]);
                 expect(await storage.contexts(CONTEXTx1)).deep.members(["sub's/fun", "subcontext"]);
@@ -165,14 +187,47 @@ describe("StorageDrivers", () => {
                 expect(await storage.keys(CONTEXTx3)).deep.equal([]);
             });
 
-            it("Rejects with error when context is empty on set", async () => {
+            it("Allows root-level keys with empty context", async () => {
+                await storage.set([], "key", "value");
+                assert.equal(await storage.get([], "key"), "value");
+                assert.deepEqual(await storage.keys([]), ["key"]);
+                await storage.delete([], "key");
+                assert.deepEqual(await storage.keys([]), []);
+            });
+
+            it("root-level keys coexist with context keys", async () => {
+                await storage.set([], "rootKey", "rootValue");
+                await storage.set([], { rootA: "a", rootB: "b" });
+                await storage.set(CONTEXTx1, "ctxKey", "ctxValue");
+                await storage.set(CONTEXTx2, "subKey", "subValue");
+
+                // Root-level keys are isolated
+                expect(await storage.keys([])).deep.members(["rootKey", "rootA", "rootB"]);
+                assert.equal(await storage.get([], "rootKey"), "rootValue");
+                assert.equal(await storage.get([], "rootA"), "a");
+                assert.equal(await storage.get([], "rootB"), "b");
+
+                // Context keys are unaffected
+                expect(await storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+                assert.equal(await storage.get(CONTEXTx1, "ctxKey"), "ctxValue");
+
+                // contexts([]) still returns top-level contexts
+                expect(await storage.contexts([])).deep.members(["context"]);
+
+                // Delete root key doesn't affect context keys
+                await storage.delete([], "rootKey");
+                expect(await storage.keys([])).deep.members(["rootA", "rootB"]);
+                expect(await storage.keys(CONTEXTx1)).deep.equal(["ctxKey"]);
+            });
+
+            it("Rejects with error when context segment is empty on set", async () => {
                 await assert.rejects(
                     async () => {
                         await storage.set([""], "key", "value");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
-                        assert.equal(message, "Context must not be an empty and not contain dots.");
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
+                        assert.equal(message, "Context must not contain empty segments or leading or trailing dots.");
                         return true;
                     },
                 );
@@ -184,34 +239,34 @@ describe("StorageDrivers", () => {
                         await storage.set(CONTEXTx1, "", "value");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Key must not be an empty string.");
                         return true;
                     },
                 );
             });
 
-            it("Rejects with error when context is empty on get", async () => {
+            it("Rejects with error when context segment is empty on get", async () => {
                 await assert.rejects(
                     async () => {
                         await storage.get([""], "key");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
-                        assert.equal(message, "Context must not be an empty and not contain dots.");
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
+                        assert.equal(message, "Context must not contain empty segments or leading or trailing dots.");
                         return true;
                     },
                 );
             });
 
-            it("Rejects with error when context is empty on get with subcontext", async () => {
+            it("Rejects with error when context segment is empty on get with subcontext", async () => {
                 await assert.rejects(
                     async () => {
                         await storage.get(["ok", ""], "key");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
-                        assert.equal(message, "Context must not be an empty and not contain dots.");
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
+                        assert.equal(message, "Context must not contain empty segments or leading or trailing dots.");
                         return true;
                     },
                 );
@@ -223,7 +278,7 @@ describe("StorageDrivers", () => {
                         await storage.get(CONTEXTx1, "");
                     },
                     (error: StorageError) => {
-                        const message = error instanceof SqliteStorageError ? error.mainReason : error.message;
+                        const message = error instanceof SqliteStorageDriverError ? error.mainReason : error.message;
                         assert.equal(message, "Key must not be an empty string.");
                         return true;
                     },

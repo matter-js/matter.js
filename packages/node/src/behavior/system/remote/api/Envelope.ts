@@ -34,7 +34,7 @@ export class Envelope<T = unknown> {
      */
     validate(path?: DataModelPath) {
         if (!path) {
-            path = DataModelPath(this.#supervisor.schema.path);
+            path = new DataModelPath(this.#supervisor.schema.path);
         }
 
         this.#js = this.#supervisor.cast(this.#js) as T;

@@ -4,21 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Events } from "#behavior/Events.js";
 import { ClusterBehavior } from "#behavior/cluster/ClusterBehavior.js";
 import { ClusterEvents } from "#behavior/cluster/ClusterEvents.js";
+import { Events } from "#behavior/Events.js";
+import { Supervision } from "#behavior/supervision/Supervision.js";
+import { BasicSet, deepCopy, InternalError, Logger, MaybePromise, ObserverGroup, serialize } from "@matter/general";
 import {
-    BasicSet,
-    camelize,
-    deepCopy,
-    InternalError,
-    Logger,
-    MaybePromise,
-    ObserverGroup,
-    serialize,
-} from "@matter/general";
-import {
-    AccessLevel,
     any,
     bool,
     fabricIdx,
@@ -52,23 +43,14 @@ import { assertRemoteActor, Fabric, FabricManager, GroupSession, Val } from "@ma
 import {
     AttributeId,
     ClusterId,
-    Command,
     FabricIndex,
     GroupId,
     NullableSchema,
-    OptionalCommand,
     Status,
     StatusResponse,
-    TlvArray,
-    TlvBitmap,
-    TlvField,
-    TlvGroupId,
     TlvNumericSchema,
-    TlvObject,
+    TlvOfModel,
     TlvSchema,
-    TlvString,
-    TlvUInt32,
-    TlvUInt8,
     ValidationOutOfBoundsError,
 } from "@matter/types";
 import { ScenesManagement } from "@matter/types/clusters/scenes-management";
@@ -78,6 +60,18 @@ const logger = Logger.get("ScenesManagementServer");
 
 /** Used in FabricSceneInfo to denote that it is unknown which scene is or was last active */
 const UNDEFINED_SCENE_ID = 0xff;
+
+/**
+ * Build a ConstraintError response that echoes back an out-of-range sceneId.
+ *
+ * The response must include the invalid sceneId so the client knows which request failed.  Since the spec constraint
+ * is `max 254`, we use {@link Supervision} to suppress constraint validation on the echoed field.
+ */
+function constraintErrorWithSceneId(groupId: GroupId, sceneId: number) {
+    const response = { status: Status.ConstraintError, groupId, sceneId };
+    Supervision(response, "sceneId").constraint = false;
+    return response;
+}
 
 /** Defines the Global Scene together with UNDEFINED_GROUP */
 const GLOBAL_SCENE_ID = 0;
@@ -132,75 +126,42 @@ export const DataTypeToSceneAttributeDataMap: Record<string, AttributeValuePairD
 };
 
 /**
- * Monkey patching Tlv Structure of some commands to prevent data validation of the sceneId, groupId, sceneName and
- * transitionTime field to be handled as ConstraintError because we need to return errors as a special response.
- * We do this to leave the model in fact for other validations and only apply the change for our Schema-aware Tlv parsing.
+ * Extend the ScenesManagement model to relax constraints on command request fields.  This prevents the interaction
+ * layer from rejecting with ConstraintError so the behavior can validate and return proper Status responses.
  */
-ScenesManagement.Cluster.commands = {
-    ...ScenesManagement.Cluster.commands,
-    addScene: Command(
-        0x0,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            sceneId: TlvField(1, TlvUInt8),
-            transitionTime: TlvField(2, TlvUInt32),
-            sceneName: TlvField(3, TlvString),
-            extensionFieldSetStructs: TlvField(4, TlvArray(ScenesManagement.TlvExtensionFieldSet)),
-        }),
-        0x0,
-        ScenesManagement.TlvAddSceneResponse,
-        { invokeAcl: AccessLevel.Manage },
-    ),
-    viewScene: Command(
-        0x1,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            sceneId: TlvField(1, TlvUInt8),
-        }),
-        0x1,
-        ScenesManagement.TlvViewSceneResponse,
-    ),
-    removeScene: Command(
-        0x2,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            sceneId: TlvField(1, TlvUInt8),
-        }),
-        0x2,
-        ScenesManagement.TlvRemoveSceneResponse,
-        { invokeAcl: AccessLevel.Manage },
-    ),
-    storeScene: Command(
-        0x4,
-        TlvObject({
-            groupId: TlvField(0, TlvGroupId),
-            sceneId: TlvField(1, TlvUInt8),
-        }),
-        0x4,
-        ScenesManagement.TlvStoreSceneResponse,
-        {
-            invokeAcl: AccessLevel.Manage,
-        },
-    ),
-    copyScene: OptionalCommand(
-        0x40,
-        TlvObject({
-            mode: TlvField(0, TlvBitmap(TlvUInt8, ScenesManagement.CopyMode)),
-            groupIdentifierFrom: TlvField(1, TlvGroupId),
-            sceneIdentifierFrom: TlvField(2, TlvUInt8),
-            groupIdentifierTo: TlvField(3, TlvGroupId),
-            sceneIdentifierTo: TlvField(4, TlvUInt8),
-        }),
-        0x40,
-        ScenesManagement.TlvCopySceneResponse,
-        {
-            invokeAcl: AccessLevel.Manage,
-        },
-    ),
-};
+const { commands } = ScenesManagement.schema;
 
-// We enable group names by default
-const ScenesManagementBase = ScenesManagementBehavior.with(ScenesManagement.Feature.SceneNames);
+const addScene = commands.require("AddScene");
+const viewScene = commands.require("ViewScene");
+const removeScene = commands.require("RemoveScene");
+const storeScene = commands.require("StoreScene");
+const copyScene = commands.require("CopyScene");
+
+const ScenesManagementSchema = ScenesManagement.schema.extend(
+    undefined,
+
+    addScene.extend(
+        undefined,
+        addScene.fields.extend("SceneId", { constraint: "none" }),
+        addScene.fields.extend("TransitionTime", { constraint: "none" }),
+        addScene.fields.extend("SceneName", { constraint: "none" }),
+    ),
+
+    viewScene.extend(undefined, viewScene.fields.extend("SceneId", { constraint: "none" })),
+    removeScene.extend(undefined, removeScene.fields.extend("SceneId", { constraint: "none" })),
+    storeScene.extend(undefined, storeScene.fields.extend("SceneId", { constraint: "none" })),
+
+    copyScene.extend(
+        undefined,
+        copyScene.fields.extend("SceneIdentifierFrom", { constraint: "none" }),
+        copyScene.fields.extend("SceneIdentifierTo", { constraint: "none" }),
+    ),
+);
+
+// Pass the extended schema with relaxed command constraints, then enable SceneNames.
+const ScenesManagementBase = ScenesManagementBehavior.for(ScenesManagement, ScenesManagementSchema).with(
+    ScenesManagement.Feature.SceneNames,
+);
 
 /**
  * This is the default server implementation of {@link ScenesManagementBehavior}.
@@ -211,7 +172,7 @@ const ScenesManagementBase = ScenesManagementBehavior.with(ScenesManagement.Feat
  * to implement. If they do not implement the scene is not applied for that cluster.
  */
 export class ScenesManagementServer extends ScenesManagementBase {
-    declare state: ScenesManagementServer.State;
+    declare readonly state: ScenesManagementServer.State;
     declare protected internal: ScenesManagementServer.Internal;
 
     override initialize() {
@@ -234,7 +195,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
      * This method is called by the GroupsServer implementation and also internally by this cluster.
      */
     removeScenesForGroupOnFabric(fabricIndex: FabricIndex, groupId: GroupId) {
-        this.state.sceneTable = deepCopy(this.state.sceneTable).filter(
+        this.state.sceneTable = this.state.sceneTable.filter(
             s => !(s.fabricIndex === fabricIndex && s.sceneGroupId === groupId),
         );
 
@@ -254,7 +215,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
 
     /** Handles removal of all groups in a fabric. This method is called by the GroupsServer implementation. */
     removeScenesForAllGroupsForFabric(fabricIndex: FabricIndex) {
-        this.state.sceneTable = deepCopy(this.state.sceneTable).filter(s => s.fabricIndex !== fabricIndex);
+        this.state.sceneTable = this.state.sceneTable.filter(s => s.fabricIndex !== fabricIndex);
         this.#invalidateFabricSceneInfoForFabric(fabricIndex);
 
         this.#updateFabricSceneInfoCountsForFabric(fabricIndex);
@@ -320,7 +281,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         extensionFieldSetStructs,
     }: ScenesManagement.AddSceneRequest): ScenesManagement.AddSceneResponse {
         if (sceneId > 254 || transitionTime > 60000000) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { fabricIndex, groupId, existingSceneIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -352,7 +313,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         sceneId,
     }: ScenesManagement.ViewSceneRequest): ScenesManagement.ViewSceneResponse {
         if (sceneId > 254) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { groupId, existingSceneIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -381,7 +342,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         sceneId,
     }: ScenesManagement.RemoveSceneRequest): ScenesManagement.RemoveSceneResponse {
         if (sceneId > 254) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { groupId, existingSceneIndex, fabricIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -430,7 +391,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         sceneId,
     }: ScenesManagement.StoreSceneRequest): ScenesManagement.StoreSceneResponse {
         if (sceneId > 254) {
-            return { status: Status.ConstraintError, groupId: reqGroupId, sceneId };
+            return constraintErrorWithSceneId(reqGroupId, sceneId);
         }
 
         const { groupId, existingSceneIndex, fabricIndex } = this.#assertSceneCommandParameter(reqGroupId, sceneId);
@@ -863,7 +824,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
         if (!type.schema.id) {
             return;
         }
-        const clusterName = camelize(type.schema.name);
+        const clusterName = type.schema.propertyName;
 
         const clusterId = ClusterId(type.schema.id);
         let sceneClusterDetails;
@@ -873,7 +834,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
             }
 
             const attributeId = AttributeId(attribute.id);
-            const attributeName = camelize(attribute.name);
+            const attributeName = attribute.propertyName;
 
             // Ignore attributes that are not present on the endpoint or do not have change events
             const event = (this.endpoint.events as Events.Generic<ClusterEvents.ChangedObservable<any>>)[clusterName]?.[
@@ -912,7 +873,7 @@ export class ScenesManagementServer extends ScenesManagementBase {
             sceneClusterDetails.attributes.add({
                 id: attributeId,
                 name: attributeName,
-                schema: type.cluster.attributes[attributeName].schema,
+                schema: TlvOfModel(attribute) as TlvSchema<any>,
                 type: attrType,
                 mappedType: DataTypeToSceneAttributeDataMap[attrType],
                 nullable: !!attribute.effectiveQuality.nullable,

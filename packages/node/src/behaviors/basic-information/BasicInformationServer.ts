@@ -12,6 +12,7 @@ import { AttributeModel, EventModel, Schema, Specification } from "@matter/model
 import { Fabric, FabricManager } from "@matter/protocol";
 import { DEFAULT_MAX_PATHS_PER_INVOKE, VendorId } from "@matter/types";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
+import { validateBasicInfoAttributes } from "./basic-information-validators.js";
 import { BasicInformationBehavior } from "./BasicInformationBehavior.js";
 
 const logger = Logger.get("BasicInformationServer");
@@ -69,7 +70,7 @@ export class BasicInformationServer extends Base {
         if (this.state.reachable !== undefined && this.events.reachable$Changed !== undefined) {
             const reachableChangedSchema = BasicInformationBehavior.schema.get(
                 EventModel,
-                BasicInformation.Cluster.events.reachableChanged.id,
+                BasicInformation.events.reachableChanged.id,
             );
             if (reachableChangedSchema === undefined) {
                 throw new ImplementationError("Reachable Changed event schema is missing");
@@ -87,13 +88,7 @@ export class BasicInformationServer extends Base {
             this.reactTo(this.events.reachable$Changed, this.#emitReachableChange);
         }
 
-        if (
-            this.state.uniqueId !== undefined &&
-            this.state.serialNumber !== undefined &&
-            this.state.uniqueId === this.state.serialNumber
-        ) {
-            logger.warn("uniqueId and serialNumber shall not be the same.");
-        }
+        validateBasicInfoAttributes(this.state, logger);
     }
 
     static override readonly schema = this.enableUniqueIdPersistence(Base.schema);

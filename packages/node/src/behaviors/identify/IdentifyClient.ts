@@ -10,7 +10,7 @@ import { Identify } from "@matter/types/clusters/identify";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const IdentifyClientConstructor = ClientBehavior(Identify.Complete);
+export const IdentifyClientConstructor = ClientBehavior(Identify);
 export interface IdentifyClient extends InstanceType<typeof IdentifyClientConstructor> {}
 export interface IdentifyClientConstructor extends Identity<typeof IdentifyClientConstructor> {}
 export const IdentifyClient: IdentifyClientConstructor = IdentifyClientConstructor;

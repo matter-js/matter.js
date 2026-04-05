@@ -10,7 +10,7 @@ import { ThreadBorderRouterManagement } from "@matter/types/clusters/thread-bord
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const ThreadBorderRouterManagementClientConstructor = ClientBehavior(ThreadBorderRouterManagement.Complete);
+export const ThreadBorderRouterManagementClientConstructor = ClientBehavior(ThreadBorderRouterManagement);
 export interface ThreadBorderRouterManagementClient extends InstanceType<typeof ThreadBorderRouterManagementClientConstructor> {}
 export interface ThreadBorderRouterManagementClientConstructor extends Identity<typeof ThreadBorderRouterManagementClientConstructor> {}
 export const ThreadBorderRouterManagementClient: ThreadBorderRouterManagementClientConstructor = ThreadBorderRouterManagementClientConstructor;

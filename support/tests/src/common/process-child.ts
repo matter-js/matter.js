@@ -6,15 +6,14 @@
 
 import { asError, InternalError, NodeId } from "@matter/main";
 import { Message } from "./message.js";
-import "./test-environment.js";
 
 /**
  * Set up child process after fork.
  *
  * Adds RPC support for each message defined in {@link handlers}.
  */
-export function boot(handlers: {
-    [K in Message["kind"]]: (message: Extract<Message, { kind: K }>) => Promise<void>;
+export function boot<M extends { kind: string } = Message>(handlers: {
+    [K in M["kind"]]: (message: Extract<M, { kind: K }>) => Promise<unknown>;
 }) {
     if (process.send === undefined) {
         process.stderr.write("This script must be run as a child process with IPC enabled\n");
@@ -25,21 +24,21 @@ export function boot(handlers: {
 
     process.on("message", processMessage);
 
-    function processMessage(message: Message) {
-        const handler = handlers[message.kind] as (message: Message) => Promise<void>;
+    function processMessage(message: M & Partial<Message.Acknowledged>) {
+        const handler = handlers[message.kind as M["kind"]] as (message: M) => Promise<unknown>;
         if (handler === undefined) {
             throw new InternalError(`Unsupported message kind ${message.kind}`);
         }
 
         const result = handler(message);
-        if ("exchangeNo" in message) {
-            acknowledge(message, result);
+        if ("exchangeNo" in message && message.exchangeNo !== undefined) {
+            acknowledge(message as Message.Acknowledged, result);
         }
     }
 
     function acknowledge(message: Message.Acknowledged, promise: Promise<unknown>) {
         promise.then(
-            () => send({ kind: "ack", exchangeNo: message.exchangeNo }),
+            result => send({ kind: "ack", exchangeNo: message.exchangeNo, result }),
             error => send({ kind: "ack", exchangeNo: message.exchangeNo, error: asError(error).message }),
         );
     }

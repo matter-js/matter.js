@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { StorageError } from "#storage/Storage.js";
-import { StorageBackendMemory } from "#storage/StorageBackendMemory.js";
+import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
 import { StorageContext } from "#storage/StorageContext.js";
+import { StorageError } from "#storage/StorageDriver.js";
 import { StorageManager } from "#storage/StorageManager.js";
 import { SupportedStorageTypes } from "#storage/StringifyTools.js";
 import { Bytes } from "#util/Bytes.js";
@@ -28,8 +28,7 @@ const CONTEXTx2 = [...CONTEXTx1, "subcontext"];
 const CONTEXTx3 = [...CONTEXTx2, "subsubcontext"];
 
 async function create(contexts = CONTEXTx1) {
-    const storage = new StorageBackendMemory();
-    storage.initialize();
+    const storage = MemoryStorageDriver.create();
     const storageContext = new StorageContext(storage, contexts);
     return { storage, storageContext };
 }
@@ -140,7 +139,7 @@ describe("StorageContext", () => {
     });
 
     it("create sub StorageContext write and read success", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
 
@@ -156,7 +155,7 @@ describe("StorageContext", () => {
     });
 
     it("create sub StorageContext overlapping naming write and read success", async () => {
-        const storage = new StorageBackendMemory();
+        const storage = new MemoryStorageDriver();
 
         const storageManager = new StorageManager(storage);
 
@@ -226,7 +225,7 @@ describe("StorageContext", () => {
         storageContext.set("key3", "value3");
         storageContext.set("key4", "value4");
 
-        storageContext.clear();
+        storageContext.clearAll();
 
         expect(storageContext.has("key")).equal(false);
         expect(storageContext.has("ke2")).equal(false);
@@ -256,14 +255,14 @@ describe("StorageContext", () => {
     });
 
     describe("Blob storage functions", () => {
-        let storage: StorageBackendMemory;
+        let storage: MemoryStorageDriver;
         let blobContext: StorageContext;
 
         const CONTEXT = ["test"];
         const KEY = "blobkey";
 
         beforeEach(async () => {
-            storage = await StorageBackendMemory.create();
+            storage = MemoryStorageDriver.create();
             blobContext = new StorageContext(storage, CONTEXT);
         });
 

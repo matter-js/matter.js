@@ -10,7 +10,7 @@ import { RadonConcentrationMeasurement } from "@matter/types/clusters/radon-conc
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const RadonConcentrationMeasurementClientConstructor = ClientBehavior(RadonConcentrationMeasurement.Complete);
+export const RadonConcentrationMeasurementClientConstructor = ClientBehavior(RadonConcentrationMeasurement);
 export interface RadonConcentrationMeasurementClient extends InstanceType<typeof RadonConcentrationMeasurementClientConstructor> {}
 export interface RadonConcentrationMeasurementClientConstructor extends Identity<typeof RadonConcentrationMeasurementClientConstructor> {}
 export const RadonConcentrationMeasurementClient: RadonConcentrationMeasurementClientConstructor = RadonConcentrationMeasurementClientConstructor;

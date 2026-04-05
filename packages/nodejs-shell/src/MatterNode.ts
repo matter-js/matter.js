@@ -7,15 +7,14 @@
 // Include this first to auto-register Crypto, Network and Time Node.js implementations
 import {
     Environment,
+    Filesystem,
     Logger,
     ObserverGroup,
-    SharedEnvironmentServices,
     StorageContext,
     StorageManager,
     StorageService,
 } from "@matter/general";
-import { ServerNode, SoftwareUpdateManager } from "@matter/node";
-import { DclCertificateService, DclOtaUpdateService, DclVendorInfoService } from "@matter/protocol";
+import { DclBehavior, ServerNode, SoftwareUpdateManager } from "@matter/node";
 import { NodeId } from "@matter/types";
 import { CommissioningController } from "@project-chip/matter.js";
 import { CommissioningControllerNodeOptions, Endpoint, PairedNode } from "@project-chip/matter.js/device";
@@ -33,7 +32,7 @@ export class MatterNode {
     readonly #nodeNum: number;
     readonly #netInterface?: string;
     #dclFetchTestCertificates = false;
-    #services?: SharedEnvironmentServices;
+    #allowTestOtaImages = false;
     #observers?: ObserverGroup;
 
     constructor(nodeNum: number, netInterface?: string) {
@@ -51,13 +50,6 @@ export class MatterNode {
         return this.#environment;
     }
 
-    protected get services() {
-        if (!this.#services) {
-            this.#services = this.#environment.asDependent();
-        }
-        return this.#services;
-    }
-
     get node(): ServerNode {
         if (this.commissioningController === undefined) {
             throw new Error("CommissioningController not initialized. Start first");
@@ -65,25 +57,22 @@ export class MatterNode {
         return this.commissioningController.node;
     }
 
-    get otaService() {
-        if (!this.environment.has(DclOtaUpdateService)) {
-            new DclOtaUpdateService(this.environment); // Adds itself to the environment
-        }
-        return this.services.get(DclOtaUpdateService);
+    async otaService() {
+        const service = await this.node.act(agent => agent.get(DclBehavior).otaUpdateService);
+        await service.construction;
+        return service;
     }
 
-    get certificateService() {
-        if (!this.environment.has(DclCertificateService)) {
-            new DclCertificateService(this.environment, { fetchTestCertificates: this.#dclFetchTestCertificates });
-        }
-        return this.services.get(DclCertificateService);
+    async certificateService() {
+        const service = await this.node.act(agent => agent.get(DclBehavior).certificateService);
+        await service.construction;
+        return service;
     }
 
-    get vendorInfoService() {
-        if (!this.environment.has(DclVendorInfoService)) {
-            new DclVendorInfoService(this.environment); // Adds itself to the environment
-        }
-        return this.services.get(DclVendorInfoService);
+    async vendorInfoService() {
+        const service = await this.node.act(agent => agent.get(DclBehavior).vendorInfoService);
+        await service.construction;
+        return service;
     }
 
     async initialize(resetStorage: boolean) {
@@ -114,10 +103,9 @@ export class MatterNode {
                 },
             });
 
-            const storageService = this.commissioningController.env.get(StorageService);
-            const baseLocation = storageService.location;
-            if (baseLocation !== undefined) {
-                this.#storageLocation = join(baseLocation, id);
+            const env = this.commissioningController.env;
+            if (env.has(Filesystem)) {
+                this.#storageLocation = join(env.get(Filesystem).path, id);
             }
 
             if (resetStorage) {
@@ -126,11 +114,14 @@ export class MatterNode {
 
             // We side open a storage with the same ID as the ServerNode but only care about the "Node" sub context which
             // is consistent.
-            this.#storageManager = await storageService.open(id);
+            this.#storageManager = await env.get(StorageService).open(id);
             this.#storageContext = this.#storageManager.createContext("Node");
 
             // Read DCL test certificates setting
             this.#dclFetchTestCertificates = await this.#storageContext.get<boolean>("DclFetchTestCertificates", false);
+
+            // Read OTA test images setting
+            this.#allowTestOtaImages = await this.#storageContext.get<boolean>("AllowTestOtaImages", false);
         } else {
             console.log(
                 "Legacy support was removed in Matter.js 0.13. Please downgrade or migrate the storage manually",
@@ -147,10 +138,12 @@ export class MatterNode {
     }
 
     async close() {
-        await this.commissioningController?.close();
-        await this.#services?.close();
-        this.#observers?.close();
-        await this.#storageManager?.close();
+        try {
+            await this.commissioningController?.close();
+        } finally {
+            this.#observers?.close();
+            await this.#storageManager?.close();
+        }
     }
 
     async start() {
@@ -161,6 +154,14 @@ export class MatterNode {
 
         if (this.commissioningController !== undefined) {
             await this.commissioningController.start();
+
+            await this.commissioningController.node.setStateOf(DclBehavior, {
+                fetchTestCertificates: this.#dclFetchTestCertificates,
+            });
+
+            await this.commissioningController.otaProvider.setStateOf(SoftwareUpdateManager, {
+                allowTestOtaImages: this.#allowTestOtaImages,
+            });
 
             if (await this.Store.has("ControllerFabricLabel")) {
                 await this.commissioningController.updateFabricLabel(

@@ -1446,4 +1446,40 @@ describe("BdxTest", () => {
             });
         });
     });
+
+    describe("BdxSession getters", () => {
+        it("sessionId and sessionActiveTimestamp are accessible after transfer completes", async () => {
+            const data = crypto.randomBytes(256);
+
+            let fd: PersistedFileDesignator;
+            let bdxClientRef: BdxClient;
+            await bdxTransfer({
+                prepare: (clientStorage, _serverStorage, messenger) => {
+                    fd = new PersistedFileDesignator("data", clientStorage);
+                    clientStorage.context.set("data", data);
+
+                    const bdxClient = BdxClient.asSender(messenger, { fileDesignator: fd });
+                    bdxClientRef = bdxClient;
+                    return {
+                        bdxClient,
+                        expectedInitialMessageType: BdxMessageType.SendInit,
+                    };
+                },
+                validate: async (_clientStorage, _serverStorage, { clientExchangeData }) => {
+                    // Verify that sessionId returns a non-negative number
+                    const sessionId = bdxClientRef.session.session.id;
+                    expect(typeof sessionId).equals("number");
+                    expect(sessionId).greaterThanOrEqual(0);
+
+                    // Verify that sessionActiveTimestamp returns a timestamp (number)
+                    const activeTimestamp = bdxClientRef.session.session.activeTimestamp;
+                    expect(typeof activeTimestamp).equals("number");
+                    expect(activeTimestamp).greaterThanOrEqual(0);
+
+                    // Verify that at least one message was transferred
+                    expect(clientExchangeData.length).greaterThan(0);
+                },
+            });
+        });
+    });
 });

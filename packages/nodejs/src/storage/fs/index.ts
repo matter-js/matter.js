@@ -4,5 +4,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export * from "./StorageBackendDisk.js";
-export * from "./StorageBackendJsonFile.js";
+export * from "./FileStorageDriver.js";
+export * from "./JsonFileStorageDriver.js";
+import { FileStorageDriver } from "./FileStorageDriver.js";
+import { JsonFileStorageDriver } from "./JsonFileStorageDriver.js";
+
+/** @deprecated Use {@link FileStorageDriver} */
+export const StorageBackendDisk = FileStorageDriver;
+/** @deprecated Use {@link FileStorageDriver} */
+export type StorageBackendDisk = FileStorageDriver;
+
+/** @deprecated Use {@link JsonFileStorageDriver} */
+export const StorageBackendJsonFile = JsonFileStorageDriver;
+/** @deprecated Use {@link JsonFileStorageDriver} */
+export type StorageBackendJsonFile = JsonFileStorageDriver;

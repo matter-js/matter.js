@@ -6,7 +6,6 @@
 
 /*** THIS FILE WILL BE REGENERATED IF YOU DO NOT REMOVE THIS MESSAGE ***/
 
-export * from "./KeypadInputInterface.js";
 export * from "./KeypadInputBehavior.js";
 export * from "./KeypadInputServer.js";
 export * from "./KeypadInputClient.js";

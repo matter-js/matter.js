@@ -31,6 +31,7 @@ export class MessageChannel implements Channel<Message> {
     #channel: Channel<Bytes>;
     #networkAddressChanged = Observable<[ServerAddressUdp]>();
     #isIpNetworkChannel = false;
+    #channelAddressObserver?: (networkAddress: ServerAddressUdp) => void;
     public closed = false;
     #onClose?: () => MaybePromise<void>;
     // When the session is supporting MRP and the channel is not reliable, use MRP handling
@@ -43,10 +44,7 @@ export class MessageChannel implements Channel<Message> {
         this.#channel = channel;
         if (isIpNetworkChannel(channel)) {
             this.#isIpNetworkChannel = true;
-            channel.networkAddressChanged.on(networkAddress => {
-                logger.debug(`Network address of UDP Channel changed to ${ServerAddress.urlFor(networkAddress)}`);
-                this.#networkAddressChanged.emit(networkAddress);
-            });
+            this.#observeChannelAddress(channel);
         }
         this.#onClose = onClose;
     }
@@ -80,7 +78,15 @@ export class MessageChannel implements Channel<Message> {
         return this.#channel.maxPayloadSize;
     }
 
-    async send(message: Message, exchange?: MessageExchange, logContext?: ExchangeLogContext) {
+    async send(message: Message, options?: MessageChannelSendOptions) {
+        const { exchange, addressOverride } = options ?? {};
+        let { logContext } = options ?? {};
+        if (addressOverride && this.#isIpNetworkChannel) {
+            logContext = {
+                ...logContext,
+                address: ServerAddress.urlFor(addressOverride),
+            };
+        }
         logger.debug("Message", Mark.OUTBOUND, Message.diagnosticsOf(exchange ?? this.session, message, logContext));
         const packet = this.session.encode(message);
         const bytes = MessageCodec.encodePacket(packet);
@@ -90,6 +96,9 @@ export class MessageChannel implements Channel<Message> {
             );
         }
 
+        if (addressOverride && this.#isIpNetworkChannel) {
+            return await (this.#channel as IpNetworkChannel<Bytes>).send(bytes, addressOverride);
+        }
         return await this.#channel.send(bytes);
     }
 
@@ -133,11 +142,30 @@ export class MessageChannel implements Channel<Message> {
         ) {
             return;
         }
-        if (!sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>)) {
+        const addressChanged = !sameIpNetworkChannel(channel, this.#channel as IpNetworkChannel<Bytes>);
+
+        // Resubscribe address observer before replacing, so we detach from the old channel
+        this.#observeChannelAddress(channel);
+
+        // Always replace the underlying channel so references stay fresh, even when addresses match
+        this.#channel = channel;
+
+        if (addressChanged) {
             logger.debug(`Updated address of channel to`, this.name);
-            this.#channel = channel;
             this.#networkAddressChanged.emit(channel.networkAddress);
         }
+    }
+
+    #observeChannelAddress(newChannel: IpNetworkChannel<Bytes>) {
+        // Detach from previous channel
+        if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
+            (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
+        }
+        this.#channelAddressObserver = (networkAddress: ServerAddressUdp) => {
+            logger.debug(`Network address of UDP Channel changed to ${ServerAddress.urlFor(networkAddress)}`);
+            this.#networkAddressChanged.emit(networkAddress);
+        };
+        newChannel.networkAddressChanged.on(this.#channelAddressObserver);
     }
 
     async close() {
@@ -189,4 +217,15 @@ export class MessageChannel implements Channel<Message> {
             calculateMaximum,
         );
     }
+}
+
+export interface MessageChannelSendOptions {
+    /** The exchange initiating the send, used for diagnostics. */
+    exchange?: MessageExchange;
+
+    /** Additional context for logging. */
+    logContext?: ExchangeLogContext;
+
+    /** Override the destination address for this send without changing the channel's default address. */
+    addressOverride?: ServerAddressUdp;
 }

@@ -6,12 +6,14 @@
 
 import { DescriptorServer } from "#behaviors/descriptor";
 import { Seconds } from "@matter/general";
-import type { Val } from "@matter/protocol";
-import { ClusterType } from "@matter/types";
 import { PowerSource } from "@matter/types/clusters/power-source";
 import { PowerSourceBehavior } from "./PowerSourceBehavior.js";
 
-const PowerSourceLevelBase = PowerSourceBehavior.with(PowerSource.Feature.Battery, PowerSource.Feature.Rechargeable);
+const PowerSourceLevelBase = PowerSourceBehavior.with(
+    PowerSource.Feature.Battery,
+    PowerSource.Feature.Rechargeable,
+    PowerSource.Feature.Wired,
+);
 
 /**
  * This is the default server implementation of {@link PowerSourceBehavior}.
@@ -53,9 +55,8 @@ export class PowerSourceBaseServer extends PowerSourceLevelBase {
         }
 
         if (this.features.wired) {
-            const state = this.state as Val.Struct;
-            if (state.wiredCurrentType === undefined) {
-                state.wiredCurrentType = PowerSource.WiredCurrentType.Ac;
+            if (this.state.wiredCurrentType === undefined) {
+                this.state.wiredCurrentType = PowerSource.WiredCurrentType.Ac;
             }
         }
     }
@@ -63,4 +64,4 @@ export class PowerSourceBaseServer extends PowerSourceLevelBase {
 
 // We had turned on some more features to provide the default implementation, but export the cluster with default
 // Features again.
-export class PowerSourceServer extends PowerSourceBaseServer.for(ClusterType(PowerSource.Base)) {}
+export class PowerSourceServer extends PowerSourceBaseServer.for(PowerSource) {}

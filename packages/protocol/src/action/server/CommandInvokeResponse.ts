@@ -284,7 +284,14 @@ export class CommandInvokeResponse<
                 this.#currentEndpoint = endpoint;
             }
 
-            await this.#invokeCommand(command, path, commandRef, commandFields, cluster.commands[command.id]);
+            await this.#invokeCommand(
+                command,
+                path,
+                commandRef,
+                commandFields,
+                cluster.commands[command.id],
+                cluster.skipCommandValidation,
+            );
         });
     }
 
@@ -349,6 +356,7 @@ export class CommandInvokeResponse<
                     commandRef,
                     commandFields,
                     cluster.commands[command.id],
+                    cluster.skipCommandValidation,
                 );
             }
         }
@@ -409,11 +417,14 @@ export class CommandInvokeResponse<
         commandRef: number | undefined,
         commandFields: TlvStream | undefined,
         invoker: CommandInvokeHandler,
+        skipValidation?: boolean,
     ) {
         try {
             const { requestTlv, responseTlv } = command;
             const request = this.#decodeWithSchema(requestTlv, commandFields);
-            requestTlv.validate(request);
+            if (!skipValidation) {
+                requestTlv.validate(request);
+            }
             const response = await invoker(request, this.session);
             await this.session.transaction?.commit();
 

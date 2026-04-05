@@ -10,7 +10,7 @@ import { IcdManagement } from "@matter/types/clusters/icd-management";
 import { ClientBehavior } from "../../behavior/cluster/ClientBehavior.js";
 import { Identity } from "@matter/general";
 
-export const IcdManagementClientConstructor = ClientBehavior(IcdManagement.Complete);
+export const IcdManagementClientConstructor = ClientBehavior(IcdManagement);
 export interface IcdManagementClient extends InstanceType<typeof IcdManagementClientConstructor> {}
 export interface IcdManagementClientConstructor extends Identity<typeof IcdManagementClientConstructor> {}
 export const IcdManagementClient: IcdManagementClientConstructor = IcdManagementClientConstructor;

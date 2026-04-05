@@ -16,7 +16,7 @@ import { Identity } from "@matter/general";
  * This class does not have optional features of Descriptor.Cluster enabled. You can enable additional features using
  * DescriptorBehavior.with.
  */
-export const DescriptorBehaviorConstructor = ClusterBehavior.for(Descriptor.Cluster);
+export const DescriptorBehaviorConstructor = ClusterBehavior.for(Descriptor);
 
 export interface DescriptorBehaviorConstructor extends Identity<typeof DescriptorBehaviorConstructor> {}
 export const DescriptorBehavior: DescriptorBehaviorConstructor = DescriptorBehaviorConstructor;

@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { camelize, Logger } from "#general";
+import { Logger } from "#general";
 import { ClusterModel, ElementTag, FieldValue, RequirementElement, RequirementModel } from "#model";
 import { EndpointFile } from "./EndpointFile.js";
 
@@ -120,12 +120,12 @@ export class ClusterRequirements {
             if (!elementSet) {
                 elementSet = this.alterations[`${requirement.element}s`] = {};
             }
-            elementSet[camelize(requirement.name)] = alteration;
+            elementSet[requirement.propertyName] = alteration;
         } else {
             if (!this.defaults) {
                 this.defaults = {};
             }
-            this.defaults[camelize(requirement.name)] = alteration.default;
+            this.defaults[requirement.propertyName] = alteration.default;
         }
     }
 }

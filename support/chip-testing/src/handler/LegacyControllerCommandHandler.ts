@@ -21,25 +21,20 @@ import {
     TlvCertSigningRequest,
 } from "@matter/main/protocol";
 import {
-    Attribute,
-    Command,
-    getClusterById,
+    ClusterType,
     GroupId,
     ManualPairingCodeCodec,
     QrPairingCodeCodec,
     SecureChannelStatusCode,
-    TlvAny,
     TlvBoolean,
     TlvByteString,
     TlvInt32,
-    TlvNoResponse,
     TlvNullable,
-    TlvObject,
     TlvString,
     TlvUInt64,
-    TlvVoid,
     VendorId,
 } from "@matter/main/types";
+import { AttributeModel, CommandModel, Matter } from "@matter/model";
 import { CommissioningController, NodeCommissioningOptions } from "@project-chip/matter.js";
 import { InteractionClient, NodeDiscoveryType } from "@project-chip/matter.js/cluster";
 import { CustomCommissioningFlow } from "../CustomCommissioningFlow.js";
@@ -323,14 +318,22 @@ export class LegacyControllerCommandHandler extends CommandHandler {
         const { nodeId, endpointId, clusterId, attributeName, value } = data;
 
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
-        const cluster = getClusterById(clusterId);
+        const clusterModel = Matter.clusters(clusterId);
+        if (clusterModel === undefined) {
+            throw new Error(`Unknown cluster ${clusterId}`);
+        }
+        const ns = ClusterType(clusterModel) as ClusterType.Concrete;
+        const nsAttr = ns.attributes?.[attributeName];
+        if (nsAttr === undefined) {
+            throw new Error(`Unknown attribute ${attributeName} on cluster ${clusterId}`);
+        }
 
         logger.info("Writing attribute", attributeName, "with value", value);
         await client.setAttribute({
             attributeData: {
                 endpointId,
                 clusterId,
-                attribute: cluster.attributes[attributeName],
+                attribute: nsAttr,
                 value,
             },
         });
@@ -374,28 +377,32 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                       forcedConnection: true,
                   });
         }
-        const cluster = getClusterById(clusterId);
-        const clusterCommand = Object.values(cluster.commands).find(
-            command => (command as any).requestId === commandId,
-        ) as Command<any, any, any> | undefined;
-        if (!cluster) {
+        const clusterModel = Matter.clusters(clusterId);
+        if (clusterModel === undefined) {
             throw new Error("Cluster not found");
         }
-        if (!clusterCommand) {
+        const ns = ClusterType(clusterModel) as ClusterType.Concrete;
+        const nsCmd = ns.commands
+            ? Object.values(ns.commands).find((cmd: ClusterType.Command) => cmd.id === commandId)
+            : undefined;
+        if (!nsCmd) {
             throw new Error("Command for Cluster not found");
         }
+        // Skip client-side validation because we're proxying commands from the CHIP test framework, which
+        // intentionally sends invalid values to test server-side error handling
         if (suppressResponse) {
-            return await client.invokeWithSuppressedResponse<Command<any, any, any>>({
+            return await client.invokeWithSuppressedResponse({
                 endpointId,
                 clusterId,
-                command: clusterCommand,
+                command: nsCmd,
                 request: commandData,
+                skipValidation: true,
             });
         }
-        return await client.invoke<Command<any, any, any>>({
+        return await client.invoke({
             endpointId,
             clusterId,
-            command: clusterCommand,
+            command: nsCmd,
             request: commandData,
             asTimedRequest: timedInteractionTimeout !== undefined,
             timedRequestTimeout: timedInteractionTimeout,
@@ -407,16 +414,25 @@ export class LegacyControllerCommandHandler extends CommandHandler {
     async handleInvokeById(data: InvokeByIdRequest): Promise<void> {
         const { nodeId, endpointId, clusterId, commandId, data: commandData, timedInteractionTimeout } = data;
         const client = await (await this.#controllerInstance.getNode(nodeId)).getInteractionClient();
-        await client.invoke<Command<any, any, any>>({
+
+        // Try to look up the real model for proper encoding
+        const realCmd = Matter.clusters(clusterId)?.commands(commandId);
+        const cmdModel =
+            realCmd ??
+            new CommandModel({
+                id: commandId,
+                name: `command_${commandId}`,
+                direction: "request",
+                access: timedInteractionTimeout !== undefined ? "T" : undefined,
+            });
+
+        await client.invoke({
             endpointId,
             clusterId: clusterId,
-            command: Command(commandId, TlvAny, 0x00, TlvNoResponse, {
-                timed: timedInteractionTimeout !== undefined,
-            }),
-            request: commandData === undefined ? TlvVoid.encodeTlv() : TlvObject({}).encodeTlv(commandData as any),
+            command: { id: commandId, name: cmdModel.name, schema: cmdModel },
+            request: commandData,
             asTimedRequest: timedInteractionTimeout !== undefined,
             timedRequestTimeout: timedInteractionTimeout,
-            skipValidation: true,
         });
     }
 
@@ -453,11 +469,16 @@ export class LegacyControllerCommandHandler extends CommandHandler {
             }
         }
 
+        // Try to look up the real model for proper encoding
+        const realAttr = Matter.clusters(clusterId)?.attributes(attributeId);
+        const attrModel =
+            realAttr ?? new AttributeModel({ id: attributeId, name: `attr_${attributeId}`, access: "RW" });
+
         await client.setAttribute({
             attributeData: {
                 endpointId,
                 clusterId,
-                attribute: Attribute(attributeId, TlvAny),
+                attribute: { id: attributeId, name: attrModel.name, schema: attrModel },
                 value: tlvValue,
             },
         });
@@ -519,6 +540,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                           : vendorId !== undefined
                             ? { vendorId, productId }
                             : {},
+                timeout: Seconds(15),
             },
             passcode,
         };
