@@ -43,6 +43,9 @@ export interface NewExchangeOptions extends Omit<InteractionSettings, "transacti
      * The exchange creation fails if no active session is available.
      */
     requireExistingSession?: boolean;
+
+    /** Required transport type for this exchange. If set, only sessions of this transport type are used. */
+    requiredTransport?: ChannelType;
 }
 
 /**
@@ -85,7 +88,7 @@ export class DedicatedChannelExchangeProvider extends ExchangeProvider {
     }
 
     get channelType() {
-        return this.#session.channel.channel.type;
+        return this.#session.channel.transportChannel.type;
     }
 
     get session() {

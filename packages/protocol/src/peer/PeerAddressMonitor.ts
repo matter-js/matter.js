@@ -90,13 +90,13 @@ export class PeerAddressMonitor {
     }
 
     async #check() {
-        const session = this.#peer.newestSession;
+        const session = this.#peer.newestSession();
         const interaction = this.#peer.interaction;
         if (!session || !interaction) {
             return;
         }
 
-        const { channel } = session.channel;
+        const channel = session.channel.transportChannel;
         if (!isIpNetworkChannel(channel)) {
             return;
         }

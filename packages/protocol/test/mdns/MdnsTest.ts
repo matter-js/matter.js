@@ -7,7 +7,6 @@
 import { Fabric } from "#fabric/Fabric.js";
 import { Advertisement, CommissioningMode, MdnsAdvertiser, MdnsServer, ServiceDescription } from "#index.js";
 import {
-    ConnectionlessTransport,
     DnsCodec,
     DnsMessage,
     DnsRecordType,
@@ -19,11 +18,12 @@ import {
     MockCrypto,
     MockNetwork,
     MockRouter,
-    MockUdpChannel,
+    MockUdpSocket,
     NetworkSimulator,
     Seconds,
     Time,
-    UdpChannel,
+    Transport,
+    UdpSocket,
 } from "@matter/general";
 import { GlobalFabricId, NodeId, VendorId } from "@matter/types";
 
@@ -99,8 +99,8 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         let serverSocket: MdnsSocket;
         let server: MdnsServer;
         let clientSocket: MdnsSocket;
-        let scanListener: UdpChannel;
-        let broadcastListener: UdpChannel;
+        let scanListener: UdpSocket;
+        let broadcastListener: UdpSocket;
         let scannerInterceptor: MockRouter.Interceptor | undefined;
         let broadcasterInterceptor: MockRouter.Interceptor | undefined;
 
@@ -134,7 +134,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             server = new MdnsServer(serverSocket);
 
             // Add an additional listener on the broadcaster to detect scans
-            scanListener = new MockUdpChannel(
+            scanListener = new MockUdpSocket(
                 serverNetwork,
                 {
                     listeningPort: 5353,
@@ -154,7 +154,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
             scannerInterceptor = undefined; // Reset
 
             // Add an additional listener on the scanner to detect broadcaster announcements
-            broadcastListener = new MockUdpChannel(
+            broadcastListener = new MockUdpSocket(
                 clientNetwork,
                 {
                     listeningPort: 5353,
@@ -220,7 +220,7 @@ const COMMISSIONABLE_SERVICE = ServiceDescription.Commissionable({
         }
 
         class MessageCollector extends Array<DnsMessage> {
-            #listener: ConnectionlessTransport.Listener;
+            #listener: Transport.Listener;
 
             constructor(onMessage?: (message: DnsMessage) => void) {
                 super();

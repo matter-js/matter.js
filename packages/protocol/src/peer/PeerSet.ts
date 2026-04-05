@@ -27,7 +27,7 @@ import {
     ObservableSet,
     ObserverGroup,
     RetrySchedule,
-    ServerAddressUdp,
+    ServerAddressIp,
 } from "@matter/general";
 import { FabricIndex } from "@matter/types";
 import { NetworkProfiles } from "./NetworkProfile.js";
@@ -246,15 +246,21 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
         this.#observers.close();
     }
 
-    async #openSocket(address: ServerAddressUdp, abort: AbortSignal) {
-        const isIpv6Address = isIPv6(address.ip);
-        const operationalInterface = this.#peerContext.exchanges.interfaceFor(
-            ChannelType.UDP,
-            isIpv6Address ? "::" : "0.0.0.0",
-        );
+    async #openSocket(address: ServerAddressIp, abort: AbortSignal) {
+        const channelType = "type" in address && address.type === "tcp" ? ChannelType.TCP : ChannelType.UDP;
+
+        let lookupAddress: string | undefined;
+        if (channelType === ChannelType.UDP) {
+            // UDP transports are bound to specific interfaces (IPv4/IPv6)
+            lookupAddress = isIPv6(address.ip) ? "::" : "0.0.0.0";
+        }
+
+        const operationalInterface = this.#peerContext.exchanges.interfaceFor(channelType, lookupAddress);
 
         if (operationalInterface === undefined) {
-            throw new NetworkUnreachableError(`No interface available for IP address ${address.ip}`);
+            throw new NetworkUnreachableError(
+                `No ${channelType.toUpperCase()} interface available for address ${address.ip}`,
+            );
         }
 
         return await Abort.race(abort, operationalInterface.openChannel(address));
@@ -295,6 +301,10 @@ export class PeerSet implements ImmutableSet<Peer>, ObservableSet<Peer> {
 
 function operationalAddressOf(session: Session) {
     if (session.isClosed || !isIpNetworkChannel(session.channel)) {
+        return;
+    }
+    // TCP incoming connections have an ephemeral remote port — not the peer's listening port
+    if (session.channel.transportChannel.type === ChannelType.TCP) {
         return;
     }
     return session.channel.networkAddress;

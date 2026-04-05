@@ -42,24 +42,24 @@ export interface AddressStatus extends Partial<AddressLifespan> {
     weight?: number;
 }
 
-export type ServerAddressUdp = {
-    type: "udp";
+/** Transport-agnostic IP address as discovered via DNS-SD. */
+export type ServerAddressIp = {
     ip: string;
     port: number;
 } & AddressStatus;
 
-export type ServerAddressTcp = {
-    type: "tcp";
-    ip: string;
-    port: number;
-} & AddressStatus;
+/** IP address with explicit UDP transport. */
+export type ServerAddressUdp = ServerAddressIp & { type: "udp" };
+
+/** IP address with explicit TCP transport. */
+export type ServerAddressTcp = ServerAddressIp & { type: "tcp" };
 
 export type ServerAddressBle = {
     type: "ble";
     peripheralAddress: string;
 } & AddressStatus;
 
-export type ServerAddress = ServerAddressUdp | ServerAddressTcp | ServerAddressBle;
+export type ServerAddress = ServerAddressIp | ServerAddressUdp | ServerAddressTcp | ServerAddressBle;
 
 export function ServerAddress(definition: ServerAddress) {
     return {
@@ -70,41 +70,54 @@ export function ServerAddress(definition: ServerAddress) {
         priority: undefined,
         weight: undefined,
         ...definition,
-    } as ServerAddress;
+    } as unknown as ServerAddress;
 }
 
 export namespace ServerAddress {
-    export function urlFor(address: ServerAddress): string {
-        switch (address.type) {
-            case "udp":
-            case "tcp":
-                const ip = address.ip;
-                return `${address.type}://${ip.includes(":") ? `[${ip}]` : ip}:${address.port}`;
+    /** Type guard for IP-based addresses (with or without explicit transport type). */
+    export function isIp(address: ServerAddress): address is ServerAddressIp {
+        return "ip" in address;
+    }
 
-            case "ble":
-                return `ble://${address.peripheralAddress}`;
+    /** Type guard for BLE addresses. */
+    export function isBle(address: ServerAddress): address is ServerAddressBle {
+        return "peripheralAddress" in address;
+    }
 
-            default:
-                return `${(address as any).type}://`;
+    /** Returns the transport protocol label for display — "udp", "tcp", or "ip" if unspecified. */
+    export function protocolOf(address: ServerAddress): string {
+        if (isBle(address)) {
+            return "ble";
         }
+        if ("type" in address && typeof address.type === "string") {
+            return address.type;
+        }
+        return "ip";
+    }
+
+    export function urlFor(address: ServerAddress): string {
+        if (isIp(address)) {
+            const proto = protocolOf(address);
+            const host = address.ip.includes(":") ? `[${address.ip}]` : address.ip;
+            return `${proto}://${host}:${address.port}`;
+        }
+
+        if (isBle(address)) {
+            return `ble://${address.peripheralAddress}`;
+        }
+
+        return `unknown://`;
     }
 
     export function diagnosticFor(address: ServerAddress) {
         const diagnostic = Array<unknown>();
 
-        switch (address.type) {
-            case "udp":
-            case "tcp":
-                diagnostic.push(`${address.type}://`, Diagnostic.strong(address.ip), ":", address.port);
-                break;
-
-            case "ble":
-                diagnostic.push("ble://", Diagnostic.strong(address.peripheralAddress));
-                break;
-
-            default:
-                diagnostic.push(`${(address as any).type}://`);
-                break;
+        if (isIp(address)) {
+            diagnostic.push(`${protocolOf(address)}://`, Diagnostic.strong(address.ip), ":", address.port);
+        } else if (isBle(address)) {
+            diagnostic.push("ble://", Diagnostic.strong(address.peripheralAddress));
+        } else {
+            diagnostic.push("unknown://");
         }
 
         if ("ttl" in address && typeof address.ttl === "number") {
@@ -114,16 +127,13 @@ export namespace ServerAddress {
         return Diagnostic.squash(...diagnostic);
     }
 
+    /** IP addresses are equal if ip and port match, regardless of transport type. */
     export function isEqual(a: ServerAddress, b: ServerAddress): boolean {
-        if (a.type !== b.type) {
-            return false;
-        }
-
-        if (a.type === "udp" && b.type === "udp") {
+        if (isIp(a) && isIp(b)) {
             return a.ip === b.ip && a.port === b.port;
         }
 
-        if (a.type === "ble" && b.type === "ble") {
+        if (isBle(a) && isBle(b)) {
             return a.peripheralAddress === b.peripheralAddress;
         }
 

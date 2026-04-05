@@ -127,7 +127,6 @@ describe("IpService", () => {
             expect(next.done).equals(false);
             expect(next.value.kind).equals(kind);
             expect(next.value.address).deep.equals({
-                type: "udp",
                 ip,
                 port: 1234,
             });

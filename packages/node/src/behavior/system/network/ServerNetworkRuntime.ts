@@ -9,8 +9,6 @@ import type { ServerNode } from "#node/ServerNode.js";
 import { InteractionServer } from "#node/server/InteractionServer.js";
 import {
     AddressInUseError,
-    ConnectionlessTransport,
-    ConnectionlessTransportSet,
     Crypto,
     InterfaceType,
     Logger,
@@ -19,7 +17,9 @@ import {
     NetworkInterfaceDetailed,
     NoAddressAvailableError,
     ObserverGroup,
-    UdpInterface,
+    Transport,
+    TransportSet,
+    UdpTransport,
 } from "@matter/general";
 import { DeviceClassification } from "@matter/model";
 import {
@@ -36,11 +36,13 @@ import {
     ScannerSet,
     SecureChannelProtocol,
     SessionManager,
+    TcpTransport,
 } from "@matter/protocol";
 import { CommissioningServer } from "../commissioning/CommissioningServer.js";
 import { ProductDescriptionServer } from "../product-description/ProductDescriptionServer.js";
 import { SessionsBehavior } from "../sessions/SessionsBehavior.js";
 import { NetworkRuntime } from "./NetworkRuntime.js";
+import { NetworkServer } from "./NetworkServer.js";
 import { ServerGroupNetworking } from "./ServerGroupNetworking.js";
 
 const logger = Logger.get("ServerNetworkRuntime");
@@ -62,8 +64,8 @@ function convertNetworkEnvironmentType(type: string | number) {
 export class ServerNetworkRuntime extends NetworkRuntime {
     #mdnsAdvertiser?: MdnsAdvertiser;
     #bleAdvertiser?: BleAdvertiser;
-    #bleTransport?: ConnectionlessTransport;
-    #ipv6UdpInterface?: UdpInterface;
+    #bleTransport?: Transport;
+    #ipv6UdpTransport?: UdpTransport;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
 
@@ -144,9 +146,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Add transports to the {@link ConnectionlessTransportSet}.
+     * Add transports to the {@link TransportSet}.
      */
-    protected async addTransports(interfaces: ConnectionlessTransportSet) {
+    protected async addTransports(interfaces: TransportSet) {
         const netconf = this.owner.state.network;
         const network = this.owner.env.get(Network);
 
@@ -157,9 +159,9 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const maxPortRetries = port ? 1 : MAX_PORT_ASSIGNMENT_RETRIES;
 
         for (let attempt = 1; attempt <= maxPortRetries; attempt++) {
-            let ipv6Interface: UdpInterface;
+            let ipv6Interface: UdpTransport;
             try {
-                ipv6Interface = await UdpInterface.create(
+                ipv6Interface = await UdpTransport.create(
                     network,
                     "udp6",
                     port ? port : undefined,
@@ -171,10 +173,10 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 throw error;
             }
 
-            let ipv4Interface: UdpInterface | undefined;
+            let ipv4Interface: UdpTransport | undefined;
             if (netconf.ipv4) {
                 try {
-                    ipv4Interface = await UdpInterface.create(
+                    ipv4Interface = await UdpTransport.create(
                         network,
                         "udp4",
                         ipv6Interface.port,
@@ -193,10 +195,37 @@ export class ServerNetworkRuntime extends NetworkRuntime {
                 }
             }
 
-            this.#ipv6UdpInterface = ipv6Interface;
+            const tcpConfig = NetworkServer.resolveTcpConfig(netconf.tcp);
+            let tcpTransport: TcpTransport | undefined;
+            if (tcpConfig.incoming || tcpConfig.outgoing) {
+                try {
+                    tcpTransport = await TcpTransport.create({
+                        network,
+                        listeningPort: tcpConfig.incoming ? ipv6Interface.port : undefined,
+                    });
+                } catch (error) {
+                    if (error instanceof AddressInUseError && attempt < maxPortRetries) {
+                        logger.info(
+                            `TCP port ${ipv6Interface.port} already in use, retrying with new port (attempt ${attempt}/${maxPortRetries})`,
+                        );
+                        await ipv6Interface.close();
+                        if (ipv4Interface !== undefined) {
+                            await ipv4Interface.close();
+                        }
+                        continue;
+                    }
+                    throw error;
+                }
+            }
+
+            this.#ipv6UdpTransport = ipv6Interface;
             interfaces.add(ipv6Interface);
             if (ipv4Interface !== undefined) {
                 interfaces.add(ipv4Interface);
+            }
+            if (tcpTransport !== undefined) {
+                interfaces.add(tcpTransport);
+                logger.info(`TCP transport enabled (incoming=${tcpConfig.incoming}, outgoing=${tcpConfig.outgoing})`);
             }
             await this.owner.set({ network: { operationalPort: ipv6Interface.port } });
             break;
@@ -270,8 +299,8 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         await device.deleteAdvertiser(advertiser);
     }
 
-    async #deleteTransport(transport: ConnectionlessTransport) {
-        const netInterfaces = this.owner.env.get(ConnectionlessTransportSet);
+    async #deleteTransport(transport: Transport) {
+        const netInterfaces = this.owner.env.get(TransportSet);
         netInterfaces.delete(transport);
         await transport.close();
     }
@@ -285,10 +314,16 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         const { env } = owner;
 
         // Configure network
-        const interfaces = env.get(ConnectionlessTransportSet);
+        const interfaces = env.get(TransportSet);
         await this.addTransports(interfaces);
 
         const advertiser = env.get(DeviceAdvertiser);
+
+        // Set TCP support for operational DNS-SD advertisements
+        const tcpConfig = NetworkServer.resolveTcpConfig(owner.state.network.tcp);
+        if (tcpConfig.incoming || tcpConfig.outgoing) {
+            advertiser.supportedTransports = { tcpClient: tcpConfig.outgoing, tcpServer: tcpConfig.incoming };
+        }
 
         await this.addBroadcasters(advertiser);
 
@@ -327,7 +362,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         if (timing) {
             env.get(PeerSet).timing = timing;
         }
-
         // Auto-detect the "unknown" profile for peers with unknown physical properties.  If the node has
         // application endpoints we derive it from local network capabilities.  Users can still override
         // via profiles.unknown in config.
@@ -399,7 +433,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             using _lifetime = this.construction.join("transports");
 
             // Close transports but leave the set in place as it is shared and will be reused
-            await env.maybeGet(ConnectionlessTransportSet)?.close();
+            await env.maybeGet(TransportSet)?.close();
         }
 
         {
@@ -411,15 +445,11 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     }
 
     /**
-     * Auto-detect limits for the conservative/unknown profile based on the local node's endpoint structure.
-     *
-     * Returns profile limits if the node has application endpoints (i.e. it is a device), derived from the root
-     * endpoint's NetworkCommissioning supported features.  Returns undefined for pure controller/utility nodes.
+     * Auto-detect limits for the unknown profile based on the local node's endpoint structure.
      */
     #detectFallbackProfile(): NetworkProfiles.Limits | undefined {
         const { owner } = this;
 
-        // Check if any child endpoint is an application device type
         let hasApplicationEndpoint = false;
         for (const part of owner.parts) {
             if (!DeviceClassification.isUtility(part.type.deviceClass)) {
@@ -432,8 +462,6 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             return undefined;
         }
 
-        // We are a device — determine profile from the root endpoint's NetworkCommissioning features.
-        // TODO - whenever we support WiFi/Thread or secondary network interfaces we need to adjust this logic
         const nc = owner.behaviors.typeFor(NetworkCommissioningBehavior);
         if (nc?.schema.supportedFeatures.has("TH")) {
             logger.info("Default network profile for unknown peers set to thread");
@@ -449,12 +477,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
             logger.warn("Group networking already initialized, skipping.");
             return;
         }
-        if (this.#ipv6UdpInterface === undefined) {
+        if (this.#ipv6UdpTransport === undefined) {
             logger.warn("No IPv6 UDP interface available, skipping group networking initialization.");
             return;
         }
 
-        this.#groupNetworking = new ServerGroupNetworking(this.owner.env, this.#ipv6UdpInterface);
+        this.#groupNetworking = new ServerGroupNetworking(this.owner.env, this.#ipv6UdpTransport);
         await this.#groupNetworking.construction;
     }
 }

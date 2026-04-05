@@ -18,6 +18,7 @@ import {
     AsyncObservable,
     BasicMultiplex,
     BasicSet,
+    ChannelType,
     ClosedError,
     Diagnostic,
     DnssdNames,
@@ -31,7 +32,7 @@ import {
     Millis,
     ObserverGroup,
     QuietObservable,
-    ServerAddressUdp,
+    ServerAddressIp,
     Time,
     Timestamp,
 } from "@matter/general";
@@ -61,6 +62,11 @@ export class Peer {
     #protocol?: NodeProtocol;
     #physicalProperties?: PhysicalDeviceProperties;
     #abort = new Abort();
+
+    /**
+     * Preferred transport for outgoing connections to this peer.
+     */
+    transportPreference?: ChannelType;
     #connecting?: ConnectionProcess;
     #service: IpService;
     #observers = new ObserverGroup();
@@ -111,7 +117,7 @@ export class Peer {
         });
 
         this.#observers.on(this.#sessions.added, session => {
-            const updateNetworkAddress = (networkAddress: ServerAddressUdp) => {
+            const updateNetworkAddress = (networkAddress: ServerAddressIp) => {
                 this.#descriptor.operationalAddress = networkAddress;
             };
 
@@ -120,12 +126,22 @@ export class Peer {
                 this.#sessions.delete(session);
             });
 
-            // Ensure the operational address is always set to the most recent IP
             if (!session.isClosed) {
-                const { channel } = session.channel;
+                const channel = session.channel.transportChannel;
                 if (isIpNetworkChannel(channel)) {
-                    updateNetworkAddress(channel.networkAddress);
-                    channel.networkAddressChanged.on(updateNetworkAddress);
+                    if (channel.type === ChannelType.TCP) {
+                        // For incoming TCP the remote port is ephemeral — use the mDNS port
+                        const discoveredPort = [...this.#service.addresses][0]?.port;
+                        if (discoveredPort !== undefined) {
+                            updateNetworkAddress({
+                                ip: channel.networkAddress.ip,
+                                port: discoveredPort,
+                            });
+                        }
+                    } else {
+                        updateNetworkAddress(channel.networkAddress);
+                        channel.networkAddressChanged.on(updateNetworkAddress);
+                    }
                 }
             }
 
@@ -258,7 +274,7 @@ export class Peer {
         }
 
         while (true) {
-            const session = this.newestSession;
+            const session = this.newestSession(options?.transport);
             if (session) {
                 return session;
             }
@@ -369,12 +385,16 @@ export class Peer {
         await this.#updated.emit(this);
     }
 
-    get newestSession() {
+    newestSession(type?: ChannelType) {
         // Prefer the most recently used session.  Older ones may not work with broken peers (e.g. CHIP test harness)
         let found: NodeSession | undefined;
 
         for (const session of this.#sessions) {
             if (session.isClosing || session.isPeerLost) {
+                continue;
+            }
+
+            if (type !== undefined && session.channel.transportChannel.type !== type) {
                 continue;
             }
 
@@ -427,6 +447,7 @@ export class Peer {
             done: PeerConnection(this, this.#context, {
                 network: options?.network,
                 timing: options?.timing,
+                transport: options?.transport,
                 handleError: options?.handleError,
                 abort,
                 kicker,
@@ -490,6 +511,11 @@ export namespace Peer {
          * ongoing attempt.
          */
         timing?: Partial<PeerTimingParameters>;
+
+        /**
+         * Constrain the transport type for this connection.
+         */
+        transport?: ChannelType;
 
         /**
          * Per-call error handler, overrides {@link PeerConnection.Context.handleError} for this connection only.

@@ -25,3 +25,4 @@ export * from "./ota/index.js";
 export * from "./peer/index.js";
 export * from "./protocol/index.js";
 export * from "./securechannel/index.js";
+export * from "./transport/index.js";

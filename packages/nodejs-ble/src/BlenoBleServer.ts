@@ -12,6 +12,7 @@ import {
     Logger,
     Millis,
     Time,
+    Transport,
     createPromise,
 } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
@@ -149,6 +150,10 @@ export class BlenoBleServer extends BleChannel<Bytes> {
     );
     #disconnected = false;
     #closing = false;
+    readonly #closeListeners = new Set<() => void>();
+    #iteratorQueue = new Array<Bytes>();
+    #iteratorWaiter?: (value: IteratorResult<Bytes>) => void;
+    #iteratorDone = false;
 
     private readonly matterBleService;
 
@@ -185,6 +190,10 @@ export class BlenoBleServer extends BleChannel<Bytes> {
         Bleno.on("disconnect", clientAddress => {
             logger.debug(`disconnect, client: ${clientAddress}`);
             this.isAdvertising = false;
+            this.#terminateIterator();
+            for (const listener of this.#closeListeners) {
+                listener();
+            }
             if (this.btpSession !== undefined) {
                 this.btpSession
                     .close()
@@ -250,7 +259,9 @@ export class BlenoBleServer extends BleChannel<Bytes> {
         } else {
             if (this.btpSession !== undefined) {
                 logger.debug(`Received Matter data for BTP Session: ${data.toString("hex")}`);
-                void this.btpSession.handleIncomingBleData(new Uint8Array(data));
+                this.btpSession.handleIncomingBleData(new Uint8Array(data)).catch(error => {
+                    logger.info("Error handling incoming BLE data", error);
+                });
             } else {
                 throw new BtpFlowError(
                     `Received Matter data but no BTP session was initialized: ${data.toString("hex")}`,
@@ -295,11 +306,12 @@ export class BlenoBleServer extends BleChannel<Bytes> {
             // callback to disconnect the BLE connection
             async () => this.close(),
 
-            // callback to forward decoded and de-assembled Matter messages to ExchangeManager
+            // callback to forward decoded and de-assembled Matter messages
             async (data: Bytes) => {
                 if (this.onMatterMessageListener === undefined) {
                     throw new InternalError(`No listener registered for Matter messages`);
                 }
+                this.#pushMessage(data);
                 this.onMatterMessageListener(this, data);
             },
         );
@@ -380,11 +392,55 @@ export class BlenoBleServer extends BleChannel<Bytes> {
         logger.error("Timeout for handshake subscribe request on C2 reached, disconnecting.");
     }
 
+    onClose(listener: () => void): Transport.Listener {
+        this.#closeListeners.add(listener);
+        return {
+            close: async () => {
+                this.#closeListeners.delete(listener);
+            },
+        };
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#iteratorQueue.length > 0) {
+                    return Promise.resolve({ value: this.#iteratorQueue.shift()!, done: false });
+                }
+                if (this.#iteratorDone || this.#disconnected) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#iteratorWaiter = resolve;
+                });
+            },
+        };
+    }
+
+    #pushMessage(message: Bytes): void {
+        if (this.#iteratorWaiter) {
+            const resolve = this.#iteratorWaiter;
+            this.#iteratorWaiter = undefined;
+            resolve({ value: message, done: false });
+        } else if (!this.#iteratorDone) {
+            this.#iteratorQueue.push(message);
+        }
+    }
+
+    #terminateIterator(): void {
+        if (!this.#iteratorDone) {
+            this.#iteratorDone = true;
+            this.#iteratorWaiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#iteratorWaiter = undefined;
+        }
+    }
+
     async close() {
         if (this.#closing) {
             return;
         }
         this.#closing = true;
+        this.#terminateIterator();
         this.btpHandshakeTimeout.stop();
         await this.disconnect();
         if (this.btpSession !== undefined) {

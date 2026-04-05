@@ -138,7 +138,8 @@ class ControllerNode {
             const options: NodeCommissioningOptions = {
                 commissioning: commissioningOptions,
                 discovery: {
-                    knownAddress: ip !== undefined && port !== undefined ? { ip, port, type: "udp" } : undefined,
+                    knownAddress:
+                        ip !== undefined && port !== undefined ? { ip, port, type: "udp" as const } : undefined,
                     identifierData:
                         longDiscriminator !== undefined
                             ? { longDiscriminator }

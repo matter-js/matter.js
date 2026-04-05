@@ -8,12 +8,12 @@ import {
     Bytes,
     Channel,
     ChannelType,
-    ConnectionlessTransport,
     Diagnostic,
     InternalError,
     Logger,
     ServerAddress,
     Time,
+    Transport,
     createPromise,
 } from "@matter/general";
 import { Ble, BleChannel, BleError, BtpCodec, BtpFlowError, BtpSessionHandler, MatterBle } from "@matter/protocol";
@@ -28,7 +28,7 @@ import { BleScanner } from "./BleScanner.js";
 
 const logger = Logger.get("BleChannel");
 
-export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
+export class ReactNativeBleCentralInterface implements Transport {
     #ble: Ble;
     #openChannels: Map<string, Device> = new Map();
     #onMatterMessageListener: ((socket: Channel<Bytes>, data: Bytes) => void) | undefined;
@@ -38,8 +38,8 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
     }
 
     async openChannel(address: ServerAddress): Promise<Channel<Bytes>> {
-        if (address.type !== "ble") {
-            throw new InternalError(`Unsupported address type ${address.type}.`);
+        if (!ServerAddress.isBle(address)) {
+            throw new InternalError(`Unsupported address type for BLE channel.`);
         }
         if (this.#onMatterMessageListener === undefined) {
             throw new InternalError(`Network Interface was not added to the system yet.`);
@@ -142,7 +142,7 @@ export class ReactNativeBleCentralInterface implements ConnectionlessTransport {
         throw new BleError(`No Matter service found on peripheral ${device.id}`);
     }
 
-    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): ConnectionlessTransport.Listener {
+    onData(listener: (socket: Channel<Bytes>, data: Bytes) => void): Transport.Listener {
         this.#onMatterMessageListener = listener;
         return {
             close: async () => await this.close(),
@@ -238,7 +238,9 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
 
             // 2. then handle Incoming Data - btpSession is guaranteed to be set after handshake
             if (btpSession) {
-                btpSession.handleIncomingBleData(data).catch(() => {});
+                btpSession.handleIncomingBleData(data).catch(error => {
+                    logger.info("Error handling incoming BLE data", error);
+                });
             }
         });
 
@@ -262,11 +264,12 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
                     logger.debug("disconnected from peripheral");
                 },
 
-                // callback to forward decoded and de-assembled Matter messages to ExchangeManager
+                // callback to forward decoded and de-assembled Matter messages
                 async data => {
                     if (onMatterMessageListener === undefined) {
                         throw new InternalError(`No listener registered for Matter messages`);
                     }
+                    bleChannel.#pushMessage(data);
                     onMatterMessageListener(bleChannel, data);
                 },
             );
@@ -282,6 +285,10 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
 
     private connected = true;
     private disconnectSubscription: Subscription;
+    readonly #closeListeners = new Set<() => void>();
+    #iteratorQueue = new Array<Bytes>();
+    #iteratorWaiter?: (value: IteratorResult<Bytes>) => void;
+    #iteratorDone = false;
 
     constructor(
         private readonly peripheral: Device,
@@ -292,6 +299,10 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
             logger.debug(`Disconnected from peripheral ${peripheral.id}: ${error}`);
             this.connected = false;
             this.disconnectSubscription.remove();
+            this.#terminateIterator();
+            for (const listener of this.#closeListeners) {
+                listener();
+            }
             this.btpSession.close().catch(error => {
                 logger.debug(`Error closing BTP session on disconnect`, error);
             });
@@ -319,7 +330,51 @@ export class ReactNativeBleChannel extends BleChannel<Bytes> {
         return `ble://${this.peripheral.id}`;
     }
 
+    onClose(listener: () => void): Transport.Listener {
+        this.#closeListeners.add(listener);
+        return {
+            close: async () => {
+                this.#closeListeners.delete(listener);
+            },
+        };
+    }
+
+    [Symbol.asyncIterator](): AsyncIterator<Bytes> {
+        return {
+            next: () => {
+                if (this.#iteratorQueue.length > 0) {
+                    return Promise.resolve({ value: this.#iteratorQueue.shift()!, done: false });
+                }
+                if (this.#iteratorDone || !this.connected) {
+                    return Promise.resolve({ value: undefined as unknown as Bytes, done: true });
+                }
+                return new Promise<IteratorResult<Bytes>>(resolve => {
+                    this.#iteratorWaiter = resolve;
+                });
+            },
+        };
+    }
+
+    #pushMessage(message: Bytes): void {
+        if (this.#iteratorWaiter) {
+            const resolve = this.#iteratorWaiter;
+            this.#iteratorWaiter = undefined;
+            resolve({ value: message, done: false });
+        } else if (!this.#iteratorDone) {
+            this.#iteratorQueue.push(message);
+        }
+    }
+
+    #terminateIterator(): void {
+        if (!this.#iteratorDone) {
+            this.#iteratorDone = true;
+            this.#iteratorWaiter?.({ value: undefined as unknown as Bytes, done: true });
+            this.#iteratorWaiter = undefined;
+        }
+    }
+
     async close() {
+        this.#terminateIterator();
         // should unsubscribe first
         this.disconnectSubscription.remove();
         // then close others

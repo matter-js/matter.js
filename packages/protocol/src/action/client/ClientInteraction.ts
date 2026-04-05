@@ -27,6 +27,7 @@ import {
     AbortedError,
     AsyncIterator,
     BasicSet,
+    ChannelType,
     ClosedError,
     createPromise,
     Diagnostic,
@@ -509,6 +510,12 @@ export class ClientInteraction<
      * when the device supports multiple invokes per exchange and the target is not endpoint 0.
      */
     async *invoke(request: ClientInvoke, session?: SessionT): DecodedInvokeResult {
+        // Large Message Quality commands must not be batched and require TCP
+        if (request.largeMessage) {
+            yield* this.#invokeSingle(request, session);
+            return;
+        }
+
         const maxPathsPerInvoke = this.#exchangeProvider.maxPathsPerInvoke ?? 1;
 
         // Single command with batching support — auto-batch
@@ -962,6 +969,9 @@ export class ClientInteraction<
 
         const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
 
+        // Large Message Quality commands require TCP transport
+        const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
+
         let messenger: InteractionClientMessenger;
         try {
             messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
@@ -969,6 +979,7 @@ export class ClientInteraction<
                 abort,
                 connectionTimeout: session?.connectionTimeout,
                 addressOverride: request.addressOverride,
+                requiredTransport,
             });
         } catch (e) {
             abort[Symbol.dispose]();

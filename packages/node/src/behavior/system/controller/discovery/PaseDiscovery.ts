@@ -6,7 +6,7 @@
 
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ServerAddress } from "@matter/general";
+import { Seconds, ServerAddress } from "@matter/general";
 import { ControllerCommissioner, EstablishPaseOptions, EstablishPaseResult, NodeSession } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
@@ -22,11 +22,16 @@ import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
  * This is the discovery counterpart to {@link CommissioningDiscovery}: whereas that class performs a full
  * commissioning flow, this class stops at PASE and returns the raw session for callers that manage their own
  * commissioning (e.g. split-commissioning scenarios or raw PASE channel establishment for chip-testing).
+ *
+ * Default discovery timeout is 60 seconds when not specified by the caller.
  */
 export class PaseDiscovery extends ParallelPaseDiscovery<NodeSession> {
     #options: PaseDiscovery.Options;
 
     constructor(owner: ServerNode, options: PaseDiscovery.Options) {
+        if (options.timeout === undefined) {
+            options = { ...options, timeout: Seconds(60) };
+        }
         super(owner, options);
         this.#options = options;
     }

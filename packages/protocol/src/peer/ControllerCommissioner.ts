@@ -29,7 +29,6 @@ import {
     Channel,
     ChannelType,
     ClassExtends,
-    ConnectionlessTransportSet,
     Duration,
     Environment,
     Environmental,
@@ -42,6 +41,7 @@ import {
     NoResponseTimeoutError,
     Seconds,
     ServerAddress,
+    TransportSet,
 } from "@matter/general";
 import { NodeId, SECURE_CHANNEL_PROTOCOL_ID, SecureChannelStatusCode } from "@matter/types";
 import { GeneralCommissioning } from "@matter/types/clusters/general-commissioning";
@@ -168,7 +168,7 @@ export interface EstablishPaseResult {
  */
 export interface ControllerCommissionerContext {
     peers: PeerSet;
-    transports: ConnectionlessTransportSet;
+    transports: TransportSet;
     sessions: SessionManager;
     exchanges: ExchangeManager;
     ca: CertificateAuthority;
@@ -190,7 +190,7 @@ export class ControllerCommissioner {
     static [Environmental.create](env: Environment) {
         const instance = new ControllerCommissioner({
             peers: env.get(PeerSet),
-            transports: env.get(ConnectionlessTransportSet),
+            transports: env.get(TransportSet),
             sessions: env.get(SessionManager),
             exchanges: env.get(ExchangeManager),
             ca: env.get(CertificateAuthority),
@@ -318,38 +318,31 @@ export class ControllerCommissioner {
             logger.info(`Establish PASE to device`, DiscoveryDataDiagnostics(device));
         }
 
-        switch (address.type) {
-            case "udp":
-                const { ip } = address;
+        if (ServerAddress.isIp(address)) {
+            // PASE always uses UDP — even if address was discovered with TCP type
+            const { ip } = address;
 
-                const isIpv6Address = isIPv6(ip);
-                const paseInterface = this.#context.transports.interfaceFor(
-                    ChannelType.UDP,
-                    isIpv6Address ? "::" : "0.0.0.0",
+            const isIpv6Address = isIPv6(ip);
+            const paseInterface = this.#context.transports.interfaceFor(
+                ChannelType.UDP,
+                isIpv6Address ? "::" : "0.0.0.0",
+            );
+            if (paseInterface === undefined) {
+                throw new PairRetransmissionLimitReachedError(
+                    `IPv${isIpv6Address ? "6" : "4"} interface not initialized. Cannot use ${ip} for commissioning.`,
                 );
-                if (paseInterface === undefined) {
-                    // mainly IPv6 address when IPv4 is disabled
-                    throw new PairRetransmissionLimitReachedError(
-                        `IPv${isIpv6Address ? "6" : "4"} interface not initialized. Cannot use ${ip} for commissioning.`,
-                    );
-                }
-                paseChannel = await Abort.attempt(signal, paseInterface.openChannel(address));
-                break;
-
-            case "ble":
-                const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
-                if (!ble) {
-                    throw new PairRetransmissionLimitReachedError(
-                        `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
-                    );
-                }
-                paseChannel = await Abort.attempt(signal, ble.openChannel(address));
-                break;
-
-            default:
-                throw new ImplementationError(
-                    `Unsupported address type ${(address as ServerAddress).type} for Matter protocol`,
+            }
+            paseChannel = await Abort.attempt(signal, paseInterface.openChannel(address));
+        } else if (ServerAddress.isBle(address)) {
+            const ble = this.#context.transports.interfaceFor(ChannelType.BLE);
+            if (!ble) {
+                throw new PairRetransmissionLimitReachedError(
+                    `BLE interface not initialized. Cannot use ${address.peripheralAddress} for commissioning.`,
                 );
+            }
+            paseChannel = await Abort.attempt(signal, ble.openChannel(address));
+        } else {
+            throw new ImplementationError(`Unsupported address type for Matter PASE commissioning`);
         }
 
         // Do PASE pairing
@@ -437,7 +430,7 @@ export class ControllerCommissioner {
      * single-address case.
      */
     #addressesToCandidates(addresses: ServerAddress[], discoveryData?: DiscoveryData): CommissionableDevice[] {
-        const sorted = [...addresses].sort((a, b) => (a.type === "udp" ? -1 : b.type === "udp" ? 1 : 0));
+        const sorted = [...addresses].sort((a, b) => (ServerAddress.isIp(a) ? -1 : ServerAddress.isIp(b) ? 1 : 0));
         return sorted.map((address, index) => ({
             ...(discoveryData ?? {}),
             addresses: [address],
