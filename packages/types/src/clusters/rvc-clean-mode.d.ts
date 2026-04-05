@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
  * for the cleaning type of robotic vacuum cleaner devices.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 7.3
+ * @see {@link MatterSpecification.v151.Cluster} § 7.3
  */
 export declare namespace RvcCleanMode {
     /**
@@ -35,7 +35,7 @@ export declare namespace RvcCleanMode {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 4;
+    export const revision: 5;
 
     /**
      * Canonical metadata for the RvcCleanMode cluster.
@@ -52,12 +52,12 @@ export declare namespace RvcCleanMode {
          * At least one entry in the SupportedModes attribute shall include the Vacuum and/or the Mop mode tag in the
          * ModeTags field list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.6
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.6
          */
         currentMode: number;
     }
@@ -73,12 +73,12 @@ export declare namespace RvcCleanMode {
          * At least one entry in the SupportedModes attribute shall include the Vacuum and/or the Mop mode tag in the
          * ModeTags field list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.6
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.6
          */
         currentMode: number;
     }
@@ -92,7 +92,7 @@ export declare namespace RvcCleanMode {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
          */
         changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ChangeToModeResponse>;
     }
@@ -103,12 +103,12 @@ export declare namespace RvcCleanMode {
     export interface Commands extends BaseCommands {}
 
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
-    export type Features = "OnOff";
+    export type Features = "OnOff" | "DirectModeChange";
 
     /**
      * These are optional features supported by RvcCleanModeCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 7.3.4
+     * @see {@link MatterSpecification.v151.Cluster} § 7.3.4
      */
     export enum Feature {
         /**
@@ -116,14 +116,26 @@ export declare namespace RvcCleanMode {
          *
          * Dependency with the OnOff cluster
          */
-        OnOff = "OnOff"
+        OnOff = "OnOff",
+
+        /**
+         * DirectModeChange (DIRECTMODECH)
+         *
+         * This feature indicates whether the cluster implementation supports changing the clean modes while the RVC Run
+         * Mode cluster’s CurrentMode attribute is set to a mode without the Idle mode tag. If the implementation does
+         * not support such a change, the ChangeToModeResponse command shall have the StatusCode field set to the
+         * InvalidInMode value.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.4.1
+         */
+        DirectModeChange = "DirectModeChange"
     }
 
     /**
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 7.3.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 7.3.5.1
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -133,14 +145,14 @@ export declare namespace RvcCleanMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -180,7 +192,7 @@ export declare namespace RvcCleanMode {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
@@ -188,13 +200,13 @@ export declare namespace RvcCleanMode {
     /**
      * This command is sent by the device on receipt of the ChangeToMode command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2
      */
     export declare class ChangeToModeResponse {
         constructor(values?: Partial<ChangeToModeResponse>);
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.2.1
          */
         status: ModeChangeStatus | ModeBase.ModeChangeStatus;
 
@@ -203,83 +215,83 @@ export declare namespace RvcCleanMode {
 
     export enum ModeChangeStatus {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.1
          */
         CleaningInProgress = 64
     }
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         Day = 9,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         DeepClean = 16384,
 
         /**
          * The device’s vacuuming feature is enabled in this mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2.2
          */
         Vacuum = 16385,
 
         /**
          * The device’s mopping feature is enabled in this mode.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2.3
          */
         Mop = 16386,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 7.3.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 7.3.7.2
          */
         VacuumThenMop = 16387
     }
@@ -287,7 +299,7 @@ export declare namespace RvcCleanMode {
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
@@ -303,7 +315,7 @@ export declare namespace RvcCleanMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -311,7 +323,7 @@ export declare namespace RvcCleanMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
     };

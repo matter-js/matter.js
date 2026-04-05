@@ -105,7 +105,7 @@ declare namespace MatterSpecification {
     }
 
     /**
-     * Matter v1.4.1
+     * Matter v1.4.2
      */
     export namespace v142 {
         /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Core Specification 1.4.2} */
@@ -118,6 +118,40 @@ declare namespace MatterSpecification {
         export interface Device {}
 
         /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Standard namespace Specification 1.4.2} */
+        export interface Namespace {}
+    }
+
+    /**
+     * Matter v1.5
+     */
+    export namespace v15 {
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Core Specification 1.5} */
+        export interface Core {}
+
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Application Cluster Specification 1.5} */
+        export interface Cluster {}
+
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Device Library Specification 1.5} */
+        export interface Device {}
+
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Standard namespace Specification 1.5} */
+        export interface Namespace {}
+    }
+
+    /**
+     * Matter v1.5.1
+     */
+    export namespace v151 {
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Core Specification 1.5.1} */
+        export interface Core {}
+
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Application Cluster Specification 1.5.1} */
+        export interface Cluster {}
+
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Device Library Specification 1.5.1} */
+        export interface Device {}
+
+        /** {@link https://csa-iot.org/developer-resource/specifications-download-request/ Matter Standard namespace Specification 1.5.1} */
         export interface Namespace {}
     }
 }

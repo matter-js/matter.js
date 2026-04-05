@@ -30,6 +30,13 @@ import type { SubjectId } from "../datatype/SubjectId.js";
  * Ecosystem Administrators to maintain a consistent view of the Joint Fabric including Nodes, Groups, settings and
  * privileges.
  *
+ * The Joint Fabric Datastore contains the access control configuration for the Joint Fabric - the groups, the group
+ * keys, the group membership (expressed in terms of binding and ACL entries), as well as the CAT value and version for
+ * each group. This section describes how all changes to the Joint Fabric access control configuration are made via the
+ * Joint Fabric Datastore: a change is first made to the Datastore where the impacted configuration of individual nodes
+ * is marked as pending; the Datastore is then responsible for propagating the change to all impacted nodes and then
+ * updating its per-node (and sometimes per-endpoint) pending state to committed.
+ *
  * The Joint Fabric Datastore cluster server shall only be accessible on a Node which is acting as the Joint Fabric
  * Anchor Administrator. When not acting as the Joint Fabric Anchor Administrator, the Joint Fabric Datastore cluster
  * shall NOT be accessible.
@@ -41,7 +48,7 @@ import type { SubjectId } from "../datatype/SubjectId.js";
  *
  * > Support for Joint Fabric Datastore cluster is provisional.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.24
+ * @see {@link MatterSpecification.v151.Core} § 11.24
  */
 export declare namespace JointFabricDatastore {
     /**
@@ -74,28 +81,28 @@ export declare namespace JointFabricDatastore {
          * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
          * fabric. A null value indicates that the Joint Fabric is not yet formed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.1
          */
         anchorRootCa: Bytes;
 
         /**
          * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.2
          */
         anchorNodeId: NodeId;
 
         /**
          * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.3
          */
         anchorVendorId: VendorId;
 
         /**
          * Friendly name for the accessing fabric which can be propagated to nodes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.4
          */
         friendlyName: string;
 
@@ -104,7 +111,7 @@ export declare namespace JointFabricDatastore {
          *
          * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.5
          */
         groupKeySetList: DatastoreGroupKeySet[];
 
@@ -114,14 +121,14 @@ export declare namespace JointFabricDatastore {
          * This list must include, at a minimum, one group with GroupCAT value set to Administrator CAT and one group
          * with GroupCAT value set to Anchor CAT.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.6
          */
         groupList: DatastoreGroupInformationEntry[];
 
         /**
          * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.7
          */
         nodeList: DatastoreNodeInformationEntry[];
 
@@ -133,7 +140,7 @@ export declare namespace JointFabricDatastore {
          *
          * A null value or empty list indicates that the Joint Fabric is not yet formed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.8
          */
         adminList: DatastoreAdministratorInformationEntry[];
 
@@ -144,7 +151,7 @@ export declare namespace JointFabricDatastore {
          * DataStore is not yet ready for use. The DeletePending status indicates that the DataStore is in the process
          * of being transferred to another Joint Fabric Anchor Administrator.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.9
          */
         status: DatastoreStatusEntry;
 
@@ -154,7 +161,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.10
          */
         endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
 
@@ -164,7 +171,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.11
          */
         endpointBindingList: DatastoreEndpointBindingEntry[];
 
@@ -174,7 +181,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.12
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.12
          */
         nodeKeySetList: DatastoreNodeKeySetEntry[];
 
@@ -184,7 +191,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.13
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.13
          */
         nodeAclList: DatastoreAclEntry[];
 
@@ -194,7 +201,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.14
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.14
          */
         nodeEndpointList: DatastoreEndpointEntry[];
     }
@@ -207,28 +214,28 @@ export declare namespace JointFabricDatastore {
          * This shall indicate the Anchor Root CA used to sign all NOC Issuers in the Joint Fabric for the accessing
          * fabric. A null value indicates that the Joint Fabric is not yet formed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.1
          */
         anchorRootCa: Bytes;
 
         /**
          * This shall indicate the Node identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.2
          */
         anchorNodeId: NodeId;
 
         /**
          * This shall indicate the Vendor identifier of the Joint Fabric Anchor Root CA for the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.3
          */
         anchorVendorId: VendorId;
 
         /**
          * Friendly name for the accessing fabric which can be propagated to nodes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.4
          */
         friendlyName: string;
 
@@ -237,7 +244,7 @@ export declare namespace JointFabricDatastore {
          *
          * This attribute shall contain at least one entry, the IPK, which has GroupKeySetID of 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.5
          */
         groupKeySetList: DatastoreGroupKeySet[];
 
@@ -247,14 +254,14 @@ export declare namespace JointFabricDatastore {
          * This list must include, at a minimum, one group with GroupCAT value set to Administrator CAT and one group
          * with GroupCAT value set to Anchor CAT.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.6
          */
         groupList: DatastoreGroupInformationEntry[];
 
         /**
          * This shall indicate the list of nodes in the Joint Fabric for the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.7
          */
         nodeList: DatastoreNodeInformationEntry[];
 
@@ -266,7 +273,7 @@ export declare namespace JointFabricDatastore {
          *
          * A null value or empty list indicates that the Joint Fabric is not yet formed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.8
          */
         adminList: DatastoreAdministratorInformationEntry[];
 
@@ -277,7 +284,7 @@ export declare namespace JointFabricDatastore {
          * DataStore is not yet ready for use. The DeletePending status indicates that the DataStore is in the process
          * of being transferred to another Joint Fabric Anchor Administrator.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.9
          */
         status: DatastoreStatusEntry;
 
@@ -287,7 +294,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.10
          */
         endpointGroupIdList: DatastoreEndpointGroupIdEntry[];
 
@@ -297,7 +304,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.11
          */
         endpointBindingList: DatastoreEndpointBindingEntry[];
 
@@ -307,7 +314,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.12
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.12
          */
         nodeKeySetList: DatastoreNodeKeySetEntry[];
 
@@ -317,7 +324,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.13
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.13
          */
         nodeAclList: DatastoreAclEntry[];
 
@@ -327,7 +334,7 @@ export declare namespace JointFabricDatastore {
          * Any changes to this List (add/remove entry) must follow the pending→committed workflow with current state
          * reflected in the Status Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.6.14
+         * @see {@link MatterSpecification.v151.Core} § 11.24.6.14
          */
         nodeEndpointList: DatastoreEndpointEntry[];
     }
@@ -345,11 +352,11 @@ export declare namespace JointFabricDatastore {
          *
          *   1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID.
          *
-         *   2. If a match is found, return CONSTRAINT_ERROR.
+         *   2. If a match is found, then this command shall fail with a CONSTRAINT_ERROR status code.
          *
          *   3. Add the Epoch Key Entry for the KeySet to the KeySetList attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.1
          */
         addKeySet(request: AddKeySetRequest): MaybePromise;
 
@@ -363,7 +370,7 @@ export declare namespace JointFabricDatastore {
          *   1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given GroupKeySetID, and
          *      update any changed fields.
          *
-         *   2. If entry is not found, return NOT_FOUND.
+         *   2. If entry is not found, then this command shall fail with a NOT_FOUND status code.
          *
          *   3. If any fields are changed as a result of this command:
          *
@@ -381,7 +388,7 @@ export declare namespace JointFabricDatastore {
          *               DatastoreNodeKeySetEntryStruct to CommitFailed and FailureCode code to the returned error. The
          *               pending change shall be applied in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.2
          */
         updateKeySet(request: UpdateKeySetRequest): MaybePromise;
 
@@ -396,18 +403,18 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. If entry is not found, return NOT_FOUND.
+         *   1. If entry is not found, then this command shall fail with a NOT_FOUND status code.
          *
          *   2. Ensure there are no Nodes using this KeySet. To do this:
          *
          *     a. Iterate through each Node Information Entry:
          *
          *       i. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry does NOT
-         *          have Status DeletePending, then return CONSTRAINT_ERROR.
+         *          have Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
          *
          *   3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.3
          */
         removeKeySet(request: RemoveKeySetRequest): MaybePromise;
 
@@ -421,13 +428,13 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Ensure there are no Groups in the GroupList attribute with the given GroupID. If a match is found,
-         *      return CONSTRAINT_ERROR.
+         *   1. Ensure there are no Groups in the GroupList attribute with the given GroupID. If a match is found, then
+         *      this command shall fail with a CONSTRAINT_ERROR status code.
          *
          *   2. Add the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to the GroupList
          *      attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.4
          */
         addGroup(request: AddGroupRequest): MaybePromise;
 
@@ -444,7 +451,7 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. If entry is not found, return NOT_FOUND.
+         *   1. If entry is not found, then this command shall fail with a NOT_FOUND status code.
          *
          *   2. Update the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to match the
          *      non-NULL fields passed in.
@@ -494,7 +501,7 @@ export declare namespace JointFabricDatastore {
          *
          *       2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.5
          */
         updateGroup(request: UpdateGroupRequest): MaybePromise;
 
@@ -508,19 +515,19 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. If entry is not found, return NOT_FOUND.
+         *   1. If entry is not found, then this command shall fail with a NOT_FOUND status code.
          *
          *   2. Ensure there are no Nodes in this group. To do this:
          *
          *     a. Iterate through each Node Information Entry:
          *
          *       i. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have Status
-         *          DeletePending, then return CONSTRAINT_ERROR.
+         *          DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
          *
          *   3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the GroupList
          *      attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.6
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.6
          */
         removeGroup(request: RemoveGroupRequest): MaybePromise;
 
@@ -530,7 +537,7 @@ export declare namespace JointFabricDatastore {
          * NodeID, FriendlyName, VendorID and ICAC represent the admin to be added to the Joint Fabric Datastore
          * Cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.7
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.7
          */
         addAdmin(request: AddAdminRequest): MaybePromise;
 
@@ -540,9 +547,9 @@ export declare namespace JointFabricDatastore {
          * NodeID represents the admin to be updated in the Joint Fabric Datastore Cluster. NULL values for the
          * additional parameters will be ignored (not updated).
          *
-         * If entry is not found, return NOT_FOUND.
+         * If entry is not found, then this command shall fail with a NOT_FOUND status code.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.8
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.8
          */
         updateAdmin(request: UpdateAdminRequest): MaybePromise;
 
@@ -552,9 +559,9 @@ export declare namespace JointFabricDatastore {
          *
          * NodeID represents the unique identifier for the admin to be removed from the Joint Fabric Datastore Cluster.
          *
-         * If entry is not found, return NOT_FOUND.
+         * If entry is not found, then this command shall fail with a NOT_FOUND status code.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.9
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.9
          */
         removeAdmin(request: RemoveAdminRequest): MaybePromise;
 
@@ -567,9 +574,10 @@ export declare namespace JointFabricDatastore {
          *
          *   1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending.
          *
-         * If a Node Information Entry exists for the given NodeID, this command shall return INVALID_CONSTRAINT.
+         * If a Node Information Entry exists for the given NodeID, then this command shall fail with a
+         * INVALID_CONSTRAINT status code.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.10
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.10
          */
         addPendingNode(request: AddPendingNodeRequest): MaybePromise;
 
@@ -579,7 +587,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
+         *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this command shall
+         *      fail with a NOT_FOUND status code.
          *
          *   2. Update the CommissioningStatusEntry for the Node Information Entry to Pending.
          *
@@ -703,7 +712,7 @@ export declare namespace JointFabricDatastore {
          *
          * 6. Update the CommissioningStatusEntry for the Node Information Entry to Committed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.11
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.11
          */
         refreshNode(request: RefreshNodeRequest): MaybePromise;
 
@@ -713,9 +722,10 @@ export declare namespace JointFabricDatastore {
          *
          * NodeID represents the node to be updated in the Joint Fabric Datastore Cluster.
          *
-         * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
+         * If a Node Information Entry does not exist for the given NodeID, then this command shall fail with a
+         * NOT_FOUND status code.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.12
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.12
          */
         updateNode(request: UpdateNodeRequest): MaybePromise;
 
@@ -724,9 +734,10 @@ export declare namespace JointFabricDatastore {
          *
          * NodeID represents the unique identifier for the node to be removed from the Joint Fabric Datastore Cluster.
          *
-         * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
+         * If a Node Information Entry does not exist for the given NodeID, then this command shall fail with a
+         * NOT_FOUND status code.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.13
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.13
          */
         removeNode(request: RemoveNodeRequest): MaybePromise;
 
@@ -739,10 +750,10 @@ export declare namespace JointFabricDatastore {
          *
          * NodeID represents the unique identifier for the node to which the endpoint belongs.
          *
-         * If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, this command shall
-         * return NOT_FOUND.
+         * If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, then this command shall
+         * fail with a NOT_FOUND status code.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.14
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.14
          */
         updateEndpointForNode(request: UpdateEndpointForNodeRequest): MaybePromise;
 
@@ -759,8 +770,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
-         *      return NOT_FOUND.
+         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then
+         *      this command shall fail with a NOT_FOUND status code.
          *
          *   2. Ensure the Group Key List for the Node Information Entry with the given NodeID includes the KeySet for
          *      the given Group ID. If it does not:
@@ -787,7 +798,7 @@ export declare namespace JointFabricDatastore {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.15
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.15
          */
         addGroupIdToEndpointForNode(request: AddGroupIdToEndpointForNodeRequest): MaybePromise;
 
@@ -804,8 +815,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
-         *      return NOT_FOUND.
+         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then
+         *      this command shall fail with a NOT_FOUND status code.
          *
          *   2. Ensure the Group List for the Endpoint Information Entry with the given NodeID and EndpointID does not
          *      include an entry for the given Group. If it does:
@@ -832,7 +843,7 @@ export declare namespace JointFabricDatastore {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.16
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.16
          */
         removeGroupIdFromEndpointForNode(request: RemoveGroupIdFromEndpointForNodeRequest): MaybePromise;
 
@@ -849,8 +860,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
-         *      return NOT_FOUND.
+         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then
+         *      this command shall fail with a NOT_FOUND status code.
          *
          *   2. Ensure the Binding List for the Node Information Entry with the given NodeID includes the given Binding.
          *      If it does not:
@@ -865,7 +876,7 @@ export declare namespace JointFabricDatastore {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.17
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.17
          */
         addBindingToEndpointForNode(request: AddBindingToEndpointForNodeRequest): MaybePromise;
 
@@ -883,8 +894,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not,
-         *      return NOT_FOUND.
+         *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then
+         *      this command shall fail with a NOT_FOUND status code.
          *
          *   2. Ensure the Binding List for the Node Information Entry with the given NodeID does not include an entry
          *      with the given ListID. If it does:
@@ -898,7 +909,7 @@ export declare namespace JointFabricDatastore {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.18
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.18
          */
         removeBindingFromEndpointForNode(request: RemoveBindingFromEndpointForNodeRequest): MaybePromise;
 
@@ -912,7 +923,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
+         *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this command shall
+         *      fail with a NOT_FOUND status code.
          *
          *   2. Ensure the ACL List for the given NodeID includes the given ACLEntry. If it does not:
          *
@@ -925,7 +937,7 @@ export declare namespace JointFabricDatastore {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.19
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.19
          */
         addAclToNode(request: AddAclToNodeRequest): MaybePromise;
 
@@ -940,7 +952,8 @@ export declare namespace JointFabricDatastore {
          *
          * Upon receipt of this command, the Datastore shall:
          *
-         *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
+         *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this command shall
+         *      fail with a NOT_FOUND status code.
          *
          *   2. Ensure the ACL List for the given NodeID does not include the given ACLEntry. If it does:
          *
@@ -953,7 +966,7 @@ export declare namespace JointFabricDatastore {
          *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
          *           error shall be handled in a subsequent Node Refresh.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.7.20
+         * @see {@link MatterSpecification.v151.Core} § 11.24.7.20
          */
         removeAclFromNode(request: RemoveAclFromNodeRequest): MaybePromise;
     }
@@ -966,7 +979,7 @@ export declare namespace JointFabricDatastore {
     export type Components = [{ flags: {}, attributes: BaseAttributes, commands: BaseCommands }];
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.18
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.18
      */
     export declare class DatastoreGroupKeySet {
         constructor(values?: Partial<DatastoreGroupKeySet>);
@@ -982,7 +995,7 @@ export declare namespace JointFabricDatastore {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.5
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.5
      */
     export declare class DatastoreGroupInformationEntry {
         constructor(values?: Partial<DatastoreGroupInformationEntry>);
@@ -990,14 +1003,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the group.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.1
          */
         groupId: number | bigint;
 
         /**
          * The friendly name for the group.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.2
          */
         friendlyName: string;
 
@@ -1010,7 +1023,7 @@ export declare namespace JointFabricDatastore {
          * A value of 0 is not allowed since this value is reserved for IPK and the group entry for this value is not
          * managed by the Datastore.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.3
          */
         groupKeySetId: number | null;
 
@@ -1021,7 +1034,7 @@ export declare namespace JointFabricDatastore {
          *
          * This value may be null when unicast communication is not used for the group.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.4
          */
         groupCat: number | null;
 
@@ -1030,7 +1043,7 @@ export declare namespace JointFabricDatastore {
          *
          * This value shall be null when GroupCAT value is null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.5
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.5
          */
         groupCatVersion: number | null;
 
@@ -1038,13 +1051,13 @@ export declare namespace JointFabricDatastore {
          * The permission level associated with ACL entries for this group. There should be only one Administrator group
          * per fabric, and at most one Manage group per Ecosystem (Vendor Entry).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.5.6
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.5.6
          */
         groupPermission: DatastoreAccessControlEntryPrivilege;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.14
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.14
      */
     export declare class DatastoreNodeInformationEntry {
         constructor(values?: Partial<DatastoreNodeInformationEntry>);
@@ -1052,14 +1065,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.14.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.14.1
          */
         nodeId: NodeId;
 
         /**
          * Friendly name for this node which is not propagated to nodes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.14.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.14.2
          */
         friendlyName: string;
 
@@ -1067,13 +1080,13 @@ export declare namespace JointFabricDatastore {
          * Set to Pending prior to completing commissioning, set to Committed after commissioning complete is
          * successful, or set to CommitFailed if commissioning failed with the FailureCode Field set to the error.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.14.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.14.3
          */
         commissioningStatusEntry: DatastoreStatusEntry;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.15
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.15
      */
     export declare class DatastoreAdministratorInformationEntry {
         constructor(values?: Partial<DatastoreAdministratorInformationEntry>);
@@ -1081,34 +1094,34 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.15.1
          */
         nodeId: NodeId;
 
         /**
          * Friendly name for this node which is not propagated to nodes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.15.2
          */
         friendlyName: string;
 
         /**
          * The Vendor ID for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.15.3
          */
         vendorId: VendorId;
 
         /**
          * The ICAC used to issue the NOC.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.15.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.15.4
          */
         icac: Bytes;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.2
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.2
      */
     export declare class DatastoreStatusEntry {
         constructor(values?: Partial<DatastoreStatusEntry>);
@@ -1116,14 +1129,14 @@ export declare namespace JointFabricDatastore {
         /**
          * This field shall contain the current state of the target device operation.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.2.1
          */
         state: DatastoreState;
 
         /**
          * This field shall contain the timestamp of the last update.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.2.2
          */
         updateTimestamp: number;
 
@@ -1131,13 +1144,13 @@ export declare namespace JointFabricDatastore {
          * This field shall contain the StatusCode of the last failed operation where the State field is set to
          * CommitFailure.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.2.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.2.3
          */
         failureCode: Status;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.8
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.8
      */
     export declare class DatastoreEndpointGroupIdEntry {
         constructor(values?: Partial<DatastoreEndpointGroupIdEntry>);
@@ -1145,34 +1158,34 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.8.1
          */
         nodeId: NodeId;
 
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.8.2
          */
         endpointId: EndpointNumber;
 
         /**
          * The unique identifier for the group.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.8.3
          */
         groupId: GroupId;
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.8.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.8.4
          */
         statusEntry: DatastoreStatusEntry;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.7
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.7
      */
     export declare class DatastoreEndpointBindingEntry {
         constructor(values?: Partial<DatastoreEndpointBindingEntry>);
@@ -1180,14 +1193,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.7.1
          */
         nodeId: NodeId;
 
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.7.2
          */
         endpointId: EndpointNumber;
 
@@ -1198,27 +1211,27 @@ export declare namespace JointFabricDatastore {
          * This field is used to uniquely identify an entry in the EndpointBindingList attribute for the purpose of
          * deletion (RemoveBindingFromEndpointForNode Command).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.7.3
          */
         listId: number;
 
         /**
          * The binding target structure.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.7.4
          */
         binding: DatastoreBindingTarget;
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.7.5
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.7.5
          */
         statusEntry: DatastoreStatusEntry;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.3
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.3
      */
     export declare class DatastoreNodeKeySetEntry {
         constructor(values?: Partial<DatastoreNodeKeySetEntry>);
@@ -1226,7 +1239,7 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.3.1
          */
         nodeId: NodeId;
 
@@ -1235,7 +1248,7 @@ export declare namespace JointFabricDatastore {
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.3.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.3.3
          */
         statusEntry: DatastoreStatusEntry;
     };
@@ -1245,7 +1258,7 @@ export declare namespace JointFabricDatastore {
      * is managed by the Datastore. Only ACLs on a specific Node that are fabric-scoped to the Joint Fabric are managed
      * by the Datastore. As a result, references to nodes and groups are specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.13
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.13
      */
     export declare class DatastoreAclEntry {
         constructor(values?: Partial<DatastoreAclEntry>);
@@ -1253,28 +1266,28 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.13.1
          */
         nodeId: NodeId;
 
         /**
          * The unique identifier for the ACL entry in the Datastore’s list of DatastoreACLEntry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.13.2
          */
         listId: number;
 
         /**
          * The Access Control Entry structure.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.13.3
          */
         aclEntry: DatastoreAccessControlEntry;
 
         /**
          * Indicates whether entry in this list is pending, committed, delete-pending, or commit-failed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.13.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.13.4
          */
         statusEntry: DatastoreStatusEntry;
     };
@@ -1284,7 +1297,7 @@ export declare namespace JointFabricDatastore {
      * Only Nodes on the Joint Fabric are managed by the Datastore. As a result, references to NodeID are specific to
      * the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.9
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.9
      */
     export declare class DatastoreEndpointEntry {
         constructor(values?: Partial<DatastoreEndpointEntry>);
@@ -1292,14 +1305,14 @@ export declare namespace JointFabricDatastore {
         /**
          * The unique identifier for the endpoint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.9.1
          */
         endpointId: EndpointNumber;
 
         /**
          * The unique identifier for the node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.9.2
          */
         nodeId: NodeId;
 
@@ -1308,14 +1321,14 @@ export declare namespace JointFabricDatastore {
          * (add/remove entry) must follow the pending→committed workflow with current state reflected in the Status
          * Entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.9.3
          */
         friendlyName: string;
 
         /**
          * Indicates whether changes to Friendly Name are pending, committed, or commit-failed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.9.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.9.4
          */
         statusEntry: DatastoreStatusEntry;
     };
@@ -1329,11 +1342,11 @@ export declare namespace JointFabricDatastore {
      *
      *   1. Ensure there are no KeySets in the KeySetList attribute with the given GroupKeySetID.
      *
-     *   2. If a match is found, return CONSTRAINT_ERROR.
+     *   2. If a match is found, then this command shall fail with a CONSTRAINT_ERROR status code.
      *
      *   3. Add the Epoch Key Entry for the KeySet to the KeySetList attribute.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.1
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.1
      */
     export declare class AddKeySetRequest {
         constructor(values?: Partial<AddKeySetRequest>);
@@ -1350,7 +1363,7 @@ export declare namespace JointFabricDatastore {
      *   1. Find the Epoch Key Entry for the KeySet in the KeySetList attribute with the given GroupKeySetID, and update
      *      any changed fields.
      *
-     *   2. If entry is not found, return NOT_FOUND.
+     *   2. If entry is not found, then this command shall fail with a NOT_FOUND status code.
      *
      *   3. If any fields are changed as a result of this command:
      *
@@ -1368,7 +1381,7 @@ export declare namespace JointFabricDatastore {
      *               to CommitFailed and FailureCode code to the returned error. The pending change shall be applied in
      *               a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.2
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.2
      */
     export declare class UpdateKeySetRequest {
         constructor(values?: Partial<UpdateKeySetRequest>);
@@ -1385,18 +1398,18 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. If entry is not found, return NOT_FOUND.
+     *   1. If entry is not found, then this command shall fail with a NOT_FOUND status code.
      *
      *   2. Ensure there are no Nodes using this KeySet. To do this:
      *
      *     a. Iterate through each Node Information Entry:
      *
      *       i. If the NodeKeySetList list contains an entry with the given GroupKeySetID, and the entry does NOT have
-     *          Status DeletePending, then return CONSTRAINT_ERROR.
+     *          Status DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
      *
      *   3. Remove the DatastoreGroupKeySetStruct for the given GroupKeySetID from the GroupKeySetList attribute.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.3
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.3
      */
     export declare class RemoveKeySetRequest {
         constructor(values?: Partial<RemoveKeySetRequest>);
@@ -1413,13 +1426,13 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Ensure there are no Groups in the GroupList attribute with the given GroupID. If a match is found, return
-     *      CONSTRAINT_ERROR.
+     *   1. Ensure there are no Groups in the GroupList attribute with the given GroupID. If a match is found, then this
+     *      command shall fail with a CONSTRAINT_ERROR status code.
      *
      *   2. Add the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to the GroupList
      *      attribute.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.4
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.4
      */
     export declare class AddGroupRequest {
         constructor(values?: Partial<AddGroupRequest>);
@@ -1444,7 +1457,7 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. If entry is not found, return NOT_FOUND.
+     *   1. If entry is not found, then this command shall fail with a NOT_FOUND status code.
      *
      *   2. Update the DatastoreGroupInformationEntryStruct for the Group with the given GroupID to match the non-NULL
      *      fields passed in.
@@ -1494,7 +1507,7 @@ export declare namespace JointFabricDatastore {
      *
      *       2. If not successful, the pending change shall be applied in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.5
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.5
      */
     export declare class UpdateGroupRequest {
         constructor(values?: Partial<UpdateGroupRequest>);
@@ -1503,7 +1516,7 @@ export declare namespace JointFabricDatastore {
         groupKeySetId: number | null;
         groupCat: number | null;
         groupCatVersion: number | null;
-        groupPermission: DatastoreAccessControlEntryPrivilege;
+        groupPermission: DatastoreAccessControlEntryPrivilege | null;
     };
 
     /**
@@ -1516,19 +1529,19 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. If entry is not found, return NOT_FOUND.
+     *   1. If entry is not found, then this command shall fail with a NOT_FOUND status code.
      *
      *   2. Ensure there are no Nodes in this group. To do this:
      *
      *     a. Iterate through each Node Information Entry:
      *
      *       i. If the GroupIDList contains an entry with the given GroupID, and the entry does NOT have Status
-     *          DeletePending, then return CONSTRAINT_ERROR.
+     *          DeletePending, then this command shall fail with a CONSTRAINT_ERROR status code.
      *
      *   3. Remove the DatastoreGroupInformationEntryStruct for the Group with the given GroupID from the GroupList
      *      attribute.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.6
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.6
      */
     export declare class RemoveGroupRequest {
         constructor(values?: Partial<RemoveGroupRequest>);
@@ -1540,7 +1553,7 @@ export declare namespace JointFabricDatastore {
      *
      * NodeID, FriendlyName, VendorID and ICAC represent the admin to be added to the Joint Fabric Datastore Cluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.7
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.7
      */
     export declare class AddAdminRequest {
         constructor(values?: Partial<AddAdminRequest>);
@@ -1556,9 +1569,9 @@ export declare namespace JointFabricDatastore {
      * NodeID represents the admin to be updated in the Joint Fabric Datastore Cluster. NULL values for the additional
      * parameters will be ignored (not updated).
      *
-     * If entry is not found, return NOT_FOUND.
+     * If entry is not found, then this command shall fail with a NOT_FOUND status code.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.8
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.8
      */
     export declare class UpdateAdminRequest {
         constructor(values?: Partial<UpdateAdminRequest>);
@@ -1572,9 +1585,9 @@ export declare namespace JointFabricDatastore {
      *
      * NodeID represents the unique identifier for the admin to be removed from the Joint Fabric Datastore Cluster.
      *
-     * If entry is not found, return NOT_FOUND.
+     * If entry is not found, then this command shall fail with a NOT_FOUND status code.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.9
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.9
      */
     export declare class RemoveAdminRequest {
         constructor(values?: Partial<RemoveAdminRequest>);
@@ -1590,9 +1603,10 @@ export declare namespace JointFabricDatastore {
      *
      *   1. Update CommissioningStatusEntry of the Node Information Entry with the given NodeID to Pending.
      *
-     * If a Node Information Entry exists for the given NodeID, this command shall return INVALID_CONSTRAINT.
+     * If a Node Information Entry exists for the given NodeID, then this command shall fail with a INVALID_CONSTRAINT
+     * status code.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.10
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.10
      */
     export declare class AddPendingNodeRequest {
         constructor(values?: Partial<AddPendingNodeRequest>);
@@ -1606,7 +1620,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
+     *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this command shall fail
+     *      with a NOT_FOUND status code.
      *
      *   2. Update the CommissioningStatusEntry for the Node Information Entry to Pending.
      *
@@ -1727,7 +1742,7 @@ export declare namespace JointFabricDatastore {
      *
      * 6. Update the CommissioningStatusEntry for the Node Information Entry to Committed.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.11
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.11
      */
     export declare class RefreshNodeRequest {
         constructor(values?: Partial<RefreshNodeRequest>);
@@ -1740,9 +1755,10 @@ export declare namespace JointFabricDatastore {
      *
      * NodeID represents the node to be updated in the Joint Fabric Datastore Cluster.
      *
-     * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
+     * If a Node Information Entry does not exist for the given NodeID, then this command shall fail with a NOT_FOUND
+     * status code.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.12
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.12
      */
     export declare class UpdateNodeRequest {
         constructor(values?: Partial<UpdateNodeRequest>);
@@ -1755,9 +1771,10 @@ export declare namespace JointFabricDatastore {
      *
      * NodeID represents the unique identifier for the node to be removed from the Joint Fabric Datastore Cluster.
      *
-     * If a Node Information Entry does not exist for the given NodeID, this command shall return NOT_FOUND.
+     * If a Node Information Entry does not exist for the given NodeID, then this command shall fail with a NOT_FOUND
+     * status code.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.13
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.13
      */
     export declare class RemoveNodeRequest {
         constructor(values?: Partial<RemoveNodeRequest>);
@@ -1772,10 +1789,10 @@ export declare namespace JointFabricDatastore {
      *
      * NodeID represents the unique identifier for the node to which the endpoint belongs.
      *
-     * If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, this command shall return
-     * NOT_FOUND.
+     * If an Endpoint Information Entry does not exist for the given NodeID and EndpointID, then this command shall fail
+     * with a NOT_FOUND status code.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.14
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.14
      */
     export declare class UpdateEndpointForNodeRequest {
         constructor(values?: Partial<UpdateEndpointForNodeRequest>);
@@ -1796,8 +1813,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, return
-     *      NOT_FOUND.
+     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then this
+     *      command shall fail with a NOT_FOUND status code.
      *
      *   2. Ensure the Group Key List for the Node Information Entry with the given NodeID includes the KeySet for the
      *      given Group ID. If it does not:
@@ -1824,7 +1841,7 @@ export declare namespace JointFabricDatastore {
      *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
      *           error shall be handled in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.15
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.15
      */
     export declare class AddGroupIdToEndpointForNodeRequest {
         constructor(values?: Partial<AddGroupIdToEndpointForNodeRequest>);
@@ -1845,8 +1862,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, return
-     *      NOT_FOUND.
+     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then this
+     *      command shall fail with a NOT_FOUND status code.
      *
      *   2. Ensure the Group List for the Endpoint Information Entry with the given NodeID and EndpointID does not
      *      include an entry for the given Group. If it does:
@@ -1873,7 +1890,7 @@ export declare namespace JointFabricDatastore {
      *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
      *           error shall be handled in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.16
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.16
      */
     export declare class RemoveGroupIdFromEndpointForNodeRequest {
         constructor(values?: Partial<RemoveGroupIdFromEndpointForNodeRequest>);
@@ -1894,8 +1911,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, return
-     *      NOT_FOUND.
+     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then this
+     *      command shall fail with a NOT_FOUND status code.
      *
      *   2. Ensure the Binding List for the Node Information Entry with the given NodeID includes the given Binding. If
      *      it does not:
@@ -1910,7 +1927,7 @@ export declare namespace JointFabricDatastore {
      *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
      *           error shall be handled in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.17
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.17
      */
     export declare class AddBindingToEndpointForNodeRequest {
         constructor(values?: Partial<AddBindingToEndpointForNodeRequest>);
@@ -1932,8 +1949,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, return
-     *      NOT_FOUND.
+     *   1. Confirm that an Endpoint Information Entry exists for the given NodeID and EndpointID, and if not, then this
+     *      command shall fail with a NOT_FOUND status code.
      *
      *   2. Ensure the Binding List for the Node Information Entry with the given NodeID does not include an entry with
      *      the given ListID. If it does:
@@ -1947,7 +1964,7 @@ export declare namespace JointFabricDatastore {
      *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
      *           error shall be handled in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.18
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.18
      */
     export declare class RemoveBindingFromEndpointForNodeRequest {
         constructor(values?: Partial<RemoveBindingFromEndpointForNodeRequest>);
@@ -1965,7 +1982,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
+     *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this command shall fail
+     *      with a NOT_FOUND status code.
      *
      *   2. Ensure the ACL List for the given NodeID includes the given ACLEntry. If it does not:
      *
@@ -1978,7 +1996,7 @@ export declare namespace JointFabricDatastore {
      *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
      *           error shall be handled in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.19
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.19
      */
     export declare class AddAclToNodeRequest {
         constructor(values?: Partial<AddAclToNodeRequest>);
@@ -1997,7 +2015,8 @@ export declare namespace JointFabricDatastore {
      *
      * Upon receipt of this command, the Datastore shall:
      *
-     *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, return NOT_FOUND.
+     *   1. Confirm that a Node Information Entry exists for the given NodeID, and if not, then this command shall fail
+     *      with a NOT_FOUND status code.
      *
      *   2. Ensure the ACL List for the given NodeID does not include the given ACLEntry. If it does:
      *
@@ -2010,7 +2029,7 @@ export declare namespace JointFabricDatastore {
      *       ii. If not successful, update the Status to CommitFailed and the FailureCode to the returned error. The
      *           error shall be handled in a subsequent Node Refresh.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.7.20
+     * @see {@link MatterSpecification.v151.Core} § 11.24.7.20
      */
     export declare class RemoveAclFromNodeRequest {
         constructor(values?: Partial<RemoveAclFromNodeRequest>);
@@ -2019,7 +2038,7 @@ export declare namespace JointFabricDatastore {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.1
      */
     export enum DatastoreState {
         /**
@@ -2044,7 +2063,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.4
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.4
      */
     export enum DatastoreAccessControlEntryPrivilege {
         /**
@@ -2079,7 +2098,7 @@ export declare namespace JointFabricDatastore {
      * fabric-scoped to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are
      * specific to the Joint Fabric.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.6
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.6
      */
     export declare class DatastoreBindingTarget {
         constructor(values?: Partial<DatastoreBindingTarget>);
@@ -2088,7 +2107,7 @@ export declare namespace JointFabricDatastore {
          * This field is the binding’s remote target node ID. If the Endpoint field is present, this field shall be
          * present.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.6.1
          */
         node?: NodeId;
 
@@ -2096,7 +2115,7 @@ export declare namespace JointFabricDatastore {
          * This field is the binding’s target group ID that represents remote endpoints. If the Endpoint field is
          * present, this field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.6.2
          */
         group?: GroupId;
 
@@ -2104,7 +2123,7 @@ export declare namespace JointFabricDatastore {
          * This field is the binding’s remote endpoint that the local endpoint is bound to. If the Group field is
          * present, this field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.6.3
          */
         endpoint?: EndpointNumber;
 
@@ -2113,13 +2132,13 @@ export declare namespace JointFabricDatastore {
          * is present, the client cluster shall also exist on this endpoint (with this Binding cluster). If this field
          * is present, the target shall be this cluster on the target endpoint(s).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.24.5.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.24.5.6.4
          */
         cluster?: ClusterId;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.10
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.10
      */
     export enum DatastoreAccessControlEntryAuthMode {
         /**
@@ -2139,7 +2158,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.11
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.11
      */
     export declare class DatastoreAccessControlTarget {
         constructor(values?: Partial<DatastoreAccessControlTarget>);
@@ -2154,7 +2173,7 @@ export declare namespace JointFabricDatastore {
      * to the Joint Fabric are managed by the Datastore. As a result, references to nodes and groups are specific to the
      * Joint Fabric.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.12
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.12
      */
     export declare class DatastoreAccessControlEntry {
         constructor(values?: Partial<DatastoreAccessControlEntry>);
@@ -2165,7 +2184,7 @@ export declare namespace JointFabricDatastore {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.16
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.16
      */
     export enum DatastoreGroupKeySecurityPolicy {
         /**
@@ -2175,7 +2194,7 @@ export declare namespace JointFabricDatastore {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.24.5.17
+     * @see {@link MatterSpecification.v151.Core} § 11.24.5.17
      */
     export enum DatastoreGroupKeyMulticastPolicy {
         /**

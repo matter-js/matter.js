@@ -43,13 +43,7 @@ Resource.add({
                 "\n" +
                 "Note that when the current output is set to an output of type HDMI, adjustments to volume via a " +
                 "Speaker endpoint on the same node may cause HDMI volume up/down commands to be sent to the given " +
-                "HDMI output.",
-
-            children: [{
-                tag: "field", name: "Index", xref: "cluster§6.5.7.1.1",
-                details: "This shall indicate the index field of the OutputInfoStruct from the OutputList attribute in which " +
-                    "to change to."
-            }]
+                "HDMI output."
         },
 
         {

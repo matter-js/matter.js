@@ -16,7 +16,7 @@ import { Identity } from "@matter/general";
  * strings of solar panels, and its associated controller and, if appropriate, inverter, to be monitored and controlled
  * by an Energy Management System.
  *
- * @see {@link MatterSpecification.v142.Device} § 14.3
+ * @see {@link MatterSpecification.v151.Device} § 14.3
  */
 export interface SolarPowerDevice extends Identity<typeof SolarPowerDeviceDefinition> {}
 

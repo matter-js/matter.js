@@ -383,21 +383,7 @@ Resource.add(
                 details: "Indicates the color control capabilities of the device." +
                     "\n" +
                     "Bits 0-4 of the ColorCapabilities attribute shall have the same values as the corresponding bits of " +
-                    "the FeatureMap attribute. All other bits in ColorCapabilities shall be 0.",
-
-                children: [
-                    {
-                        tag: "field", name: "HueSaturation",
-                        description: "Supports color specification via hue/saturation."
-                    },
-                    { tag: "field", name: "EnhancedHue", description: "Enhanced hue is supported." },
-                    { tag: "field", name: "ColorLoop", description: "Color loop is supported." },
-                    { tag: "field", name: "XY", description: "Supports color specification via XY." },
-                    {
-                        tag: "field", name: "ColorTemperature",
-                        description: "Supports color specification via color temperature."
-                    }
-                ]
+                    "the FeatureMap attribute. All other bits in ColorCapabilities shall be 0."
             },
 
             {
@@ -442,6 +428,7 @@ Resource.add(
 
             {
                 tag: "command", name: "MoveToHue", xref: "cluster§3.2.8.4",
+                details: "This command will move the device to the requested hue value using a transition.",
 
                 children: [
                     {
@@ -462,6 +449,7 @@ Resource.add(
 
             {
                 tag: "command", name: "MoveHue", xref: "cluster§3.2.8.5",
+                details: "This command will move the device to the requested hue value using a step rate.",
 
                 children: [
                     {
@@ -478,6 +466,7 @@ Resource.add(
 
             {
                 tag: "command", name: "StepHue", xref: "cluster§3.2.8.6",
+                details: "This command will change the device to the requested hue value using a step and transition.",
 
                 children: [
                     {
@@ -504,10 +493,14 @@ Resource.add(
                 ]
             },
 
-            { tag: "command", name: "MoveToSaturation", xref: "cluster§3.2.8.7" },
+            {
+                tag: "command", name: "MoveToSaturation", xref: "cluster§3.2.8.7",
+                details: "This command will move the device to the requested saturation value using a transition."
+            },
 
             {
                 tag: "command", name: "MoveSaturation", xref: "cluster§3.2.8.8",
+                details: "This command will move the device to the requested saturation value using a rate.",
 
                 children: [
                     {
@@ -524,6 +517,7 @@ Resource.add(
 
             {
                 tag: "command", name: "StepSaturation", xref: "cluster§3.2.8.9",
+                details: "This command will change the device to the requested saturation value using a step transition.",
 
                 children: [
                     {
@@ -550,11 +544,18 @@ Resource.add(
                 ]
             },
 
-            { tag: "command", name: "MoveToHueAndSaturation", xref: "cluster§3.2.8.10" },
-            { tag: "command", name: "MoveToColor", xref: "cluster§3.2.8.11" },
+            {
+                tag: "command", name: "MoveToHueAndSaturation", xref: "cluster§3.2.8.10",
+                details: "This command will move the device to the requested hue and saturation value using a transition."
+            },
+            {
+                tag: "command", name: "MoveToColor", xref: "cluster§3.2.8.11",
+                details: "This command will move the device to the requested color value using a transition."
+            },
 
             {
                 tag: "command", name: "MoveColor", xref: "cluster§3.2.8.12",
+                details: "This command will move the device to the requested color using a step rate.",
 
                 children: [
                     {
@@ -572,6 +573,7 @@ Resource.add(
 
             {
                 tag: "command", name: "StepColor", xref: "cluster§3.2.8.13",
+                details: "This command will move the device to the requested color using a step transition.",
                 children: [{
                     tag: "field", name: "TransitionTime", xref: "cluster§3.2.8.13.2",
                     details: "The field shall indicate, in 1/10ths of a second, the time that shall be taken to perform the color " +
@@ -579,7 +581,10 @@ Resource.add(
                 }]
             },
 
-            { tag: "command", name: "MoveToColorTemperature", xref: "cluster§3.2.8.14" },
+            {
+                tag: "command", name: "MoveToColorTemperature", xref: "cluster§3.2.8.14",
+                details: "This command will move the device to the requested color temperate using a transition."
+            },
 
             {
                 tag: "command", name: "EnhancedMoveToHue", xref: "cluster§3.2.8.15",
@@ -800,6 +805,24 @@ Resource.add(
                             "ColorTemperatureMaximumMireds field it shall be clipped so that the above invariant is satisfied. If " +
                             "the ColorTemperatureMaximumMireds field is set to 0, ColorTempPhysicalMaxMireds shall be used as the " +
                             "upper bound for the ColorTemperatureMireds attribute."
+                    }
+                ]
+            },
+
+            {
+                tag: "datatype", name: "ColorCapabilitiesBitmap", xref: "cluster§3.2.6.1",
+
+                children: [
+                    {
+                        tag: "field", name: "HueSaturation",
+                        description: "Supports color specification via hue/saturation."
+                    },
+                    { tag: "field", name: "EnhancedHue", description: "Enhanced hue is supported." },
+                    { tag: "field", name: "ColorLoop", description: "Color loop is supported." },
+                    { tag: "field", name: "Xy", description: "Supports color specification via XY." },
+                    {
+                        tag: "field", name: "ColorTemperature",
+                        description: "Supports color specification via color temperature."
                     }
                 ]
             },

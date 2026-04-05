@@ -9,12 +9,12 @@ import { AnyElement, DatatypeElement, FabricIndex, FieldElement, Metatype } from
 import { addDocumentation } from "./add-documentation.js";
 import {
     Bits,
+    CompactStr,
     ConformanceCode,
     ConstraintStr,
     Identifier,
     Integer,
     LowerIdentifier,
-    NoSpace,
     Str,
     StrWithSuperscripts,
 } from "./html-translators.js";
@@ -137,12 +137,12 @@ const FieldSchema = {
     id: Integer,
     name: Alias(Identifier, "field"),
 
-    // Not really optional but we want to process rows even if missing
-    type: Optional(NoSpace),
+    // Not really optional, but we want to process rows even if missing
+    type: Optional(CompactStr),
 
     constraint: Optional(ConstraintStr),
     quality: Optional(Str),
-    default: Optional(Alias(NoSpace, "fallback")),
+    default: Optional(Alias(CompactStr, "fallback")),
     access: Optional(Str),
     conformance: Optional(ConformanceCode),
     children: Details(translateValueChildren),
@@ -217,15 +217,28 @@ export function translateValueChildren(
                 ["name", "type", "statuscode", "priority", "description"],
             );
 
-            let records = translateTable("value", definition, {
+            const schema = {
                 id: Alias(Integer, ...ids),
                 name: Alias(Identifier, ...names),
                 conformance: Optional(ConformanceCode),
                 description: Optional(Alias(StrWithSuperscripts, "summary", "notes")),
                 meaning: Optional(Str),
-            });
+            };
 
-            records = records.filter(r => r.name !== "Reserved");
+            // Some enums (e.g. ClosureErrorEnum) lead with a range summary table ("0x00 to 0x7F")
+            // that has no parseable IDs.  Skip range-only tables and use the first with concrete values.
+            let records: ReturnType<typeof translateTable<typeof schema>> = [];
+            const tables = definition.tables ?? [undefined];
+            for (const table of tables) {
+                if (table?.rows[0] && Str(table.rows[0][table.fields[0]]!).match(/ (?:to|-) /)) {
+                    continue;
+                }
+                records = translateTable("value", definition, schema, table);
+                records = records.filter(r => r.name !== "Reserved");
+                if (records.length) {
+                    break;
+                }
+            }
 
             return translateRecordsToMatter("value", records, FieldElement);
         }
@@ -285,7 +298,7 @@ export function accessModifierOf(details?: HtmlReference) {
 
     // Determine what the access flag should be
     let flag: string | undefined;
-    for (const n of details.tables[0].notes) {
+    for (const { note: n } of details.tables[0].notes) {
         const match = n.textContent?.match(/access (?:quality|modifier): fabric[\s-](\w+)/i);
         if (match) {
             const quality = match[1].toLowerCase();

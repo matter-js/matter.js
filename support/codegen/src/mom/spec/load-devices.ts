@@ -54,12 +54,35 @@ function augmentDevice(device: DeviceReference, content: HtmlReference) {
             device.composingTypes = content;
             break;
 
-        case "cluster requirements on composing device types":
+        case "cluster requirements on component device types":
+        case "cluster requirements on composing device types": // pre-1.5 spec terminology
+            what = "composingClusters";
+            device.composingClusters = content;
+            break;
+
+        case "element requirements on component device types":
             what = "composingElements";
             device.composingElements = content;
             break;
 
+        case "condition requirements":
+            what = "conditionRequirements";
+            device.conditionRequirements = content;
+            break;
+
         default:
+            // Collect sub-sections of conditionRequirements as details (e.g. "ManagedAclAllowed Condition")
+            if (
+                device.conditionRequirements &&
+                content.xref.section.startsWith(device.conditionRequirements.xref.section + ".")
+            ) {
+                if (!device.conditionRequirements.details) {
+                    device.conditionRequirements.details = [];
+                }
+                device.conditionRequirements.details.push(content);
+                what = `conditionRequirements detail "${content.name}"`;
+                break;
+            }
             logger.debug(`ignore ${content.name}`);
             break;
     }
@@ -113,4 +136,7 @@ export function* loadDevices(devices: HtmlReference) {
                 break;
         }
     }
+
+    // Emit final device
+    yield* emit();
 }

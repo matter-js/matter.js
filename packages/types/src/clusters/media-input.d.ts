@@ -24,7 +24,7 @@ import type { MaybePromise } from "@matter/general";
  * The cluster server for Media Input is implemented by a device that has selectable input, such as a Video Player
  * device.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.9
+ * @see {@link MatterSpecification.v151.Cluster} § 6.9
  */
 export declare namespace MediaInput {
     /**
@@ -56,14 +56,14 @@ export declare namespace MediaInput {
         /**
          * This attribute shall provide a list of the media inputs supported by the device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.6.1
          */
         inputList: InputInfo[];
 
         /**
          * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.6.2
          */
         currentInput: number;
     }
@@ -78,14 +78,14 @@ export declare namespace MediaInput {
         /**
          * This attribute shall provide a list of the media inputs supported by the device.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.6.1
          */
         inputList: InputInfo[];
 
         /**
          * This attribute shall contain the value of the index field of the currently selected InputInfoStruct.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.6.2
          */
         currentInput: number;
     }
@@ -98,21 +98,21 @@ export declare namespace MediaInput {
          * Upon receipt, this command shall change the media input on the device to the input at a specific index in the
          * Input List.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.1
          */
         selectInput(request: SelectInputRequest): MaybePromise;
 
         /**
          * Upon receipt, this command shall display the active status of the input list on screen.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.2
          */
         showInputStatus(): MaybePromise;
 
         /**
          * Upon receipt, this command shall hide the input list from the screen.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.3
          */
         hideInputStatus(): MaybePromise;
     }
@@ -126,7 +126,7 @@ export declare namespace MediaInput {
          *
          * Updates to the input name shall appear in the device’s settings menus.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.4
          */
         renameInput(request: RenameInputRequest): MaybePromise;
     }
@@ -148,7 +148,7 @@ export declare namespace MediaInput {
     /**
      * These are optional features supported by MediaInputCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.9.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.9.4
      */
     export enum Feature {
         /**
@@ -162,7 +162,7 @@ export declare namespace MediaInput {
     /**
      * This contains information about an input.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.9.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2
      */
     export declare class InputInfo {
         constructor(values?: Partial<InputInfo>);
@@ -170,14 +170,14 @@ export declare namespace MediaInput {
         /**
          * This field shall indicate the unique index into the list of Inputs.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2.1
          */
         index: number;
 
         /**
          * This field shall indicate the type of input
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2.2
          */
         inputType: InputType;
 
@@ -185,7 +185,7 @@ export declare namespace MediaInput {
          * This field shall indicate the input name, such as “HDMI 1”. This field may be blank, but SHOULD be provided
          * when known.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2.3
          */
         name: string;
 
@@ -193,7 +193,7 @@ export declare namespace MediaInput {
          * This field shall indicate the user editable input description, such as “Living room Playstation”. This field
          * may be blank, but SHOULD be provided when known.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.5.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.2.4
          */
         description: string;
     };
@@ -202,7 +202,7 @@ export declare namespace MediaInput {
      * Upon receipt, this command shall change the media input on the device to the input at a specific index in the
      * Input List.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.1
      */
     export declare class SelectInputRequest {
         constructor(values?: Partial<SelectInputRequest>);
@@ -211,7 +211,7 @@ export declare namespace MediaInput {
          * This field shall indicate the index field of the InputInfoStruct from the InputList attribute in which to
          * change to.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.1.1
          */
         index: number;
     };
@@ -221,7 +221,7 @@ export declare namespace MediaInput {
      *
      * Updates to the input name shall appear in the device’s settings menus.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.9.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.9.7.4
      */
     export declare class RenameInputRequest {
         constructor(values?: Partial<RenameInputRequest>);
@@ -230,7 +230,7 @@ export declare namespace MediaInput {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.9.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.9.5.1
      */
     export enum InputType {
         /**

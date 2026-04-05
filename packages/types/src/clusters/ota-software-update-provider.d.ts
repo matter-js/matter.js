@@ -17,7 +17,9 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
 /**
  * Definitions for the OtaSoftwareUpdateProvider cluster.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.20.6
+ * This cluster implements the Provider role in the OTA process.
+ *
+ * @see {@link MatterSpecification.v151.Core} § 11.20.6
  */
 export declare namespace OtaSoftwareUpdateProvider {
     /**
@@ -50,17 +52,21 @@ export declare namespace OtaSoftwareUpdateProvider {
          * Upon receipt, this command shall trigger an attempt to find an updated Software Image by the OTA Provider to
          * match the OTA Requestor’s constraints provided in the payload fields.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1
          */
         queryImage(request: QueryImageRequest): MaybePromise<QueryImageResponse>;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
+         * This command requests the specified version be installed on the device.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.3
          */
         applyUpdateRequest(request: ApplyUpdateRequest): MaybePromise<ApplyUpdateResponse>;
 
         /**
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
+         * This command tells the Provider that the specified update has been applied.
+         *
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.5
          */
         notifyUpdateApplied(request: NotifyUpdateAppliedRequest): MaybePromise;
     }
@@ -76,7 +82,7 @@ export declare namespace OtaSoftwareUpdateProvider {
      * Upon receipt, this command shall trigger an attempt to find an updated Software Image by the OTA Provider to
      * match the OTA Requestor’s constraints provided in the payload fields.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1
      */
     export declare class QueryImageRequest {
         constructor(values?: Partial<QueryImageRequest>);
@@ -85,7 +91,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * The value shall be the Vendor ID applying to the OTA Requestor’s Node and shall match the value reported by
          * the Basic Information Cluster VendorID attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.1
          */
         vendorId: VendorId;
 
@@ -93,7 +99,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * The value shall be the Product ID applying to the OTA Requestor’s Node and shall match the value reported by
          * the Basic Information Cluster ProductID attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.2
          */
         productId: number;
 
@@ -102,7 +108,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * running on the OTA Requestor invoking the command. This version shall be equal to the Software Version
          * attribute of the Basic Information Cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.3
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.3
          */
         softwareVersion: number;
 
@@ -110,9 +116,9 @@ export declare namespace OtaSoftwareUpdateProvider {
          * This field shall contain a list of all download protocols supported by the OTA Requestor.
          *
          * This field shall be used by the OTA Provider to generate the correct URI for the location of the Software
-         * Image when one is found to be available. The values of BDX Synchronous and BDX Asynchronous shall always be
-         * supported by an OTA Provider. Furthermore, OTA Providers with access to external networking SHOULD support
-         * the HTTPS protocol. OTA Providers may support other protocols.
+         * Image when one is found to be available. BDX Synchronous transfer mode shall always be supported by an OTA
+         * Provider. Furthermore, OTA Providers with access to external networking SHOULD support the HTTPS protocol.
+         * OTA Providers may support other protocols.
          *
          * The algorithm to select the specific protocol to use in a given Software Image URI is
          * implementation-dependent, provided that the rules in Section 11.20.3.3.1, “Download Protocol selection” are
@@ -121,7 +127,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * See Section 11.20.3.2, “Querying the OTA Provider” and Section 11.20.3.5, “Transfer of OTA Software Update
          * images” for more details about usage of this field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.4
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.4
          */
         protocolsSupported: DownloadProtocol[];
 
@@ -129,7 +135,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * The value of this field, if present, shall contain the OTA Requestor’s hardware version, and shall be equal
          * to the HardwareVersion attribute of the Basic Information Cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.5
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.5
          */
         hardwareVersion?: number;
 
@@ -138,7 +144,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * for the OTA Requestor as configured. This may be used by the OTA Provider logic to allow per-region selection
          * of the Software Image.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.6
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.6
          */
         location?: string;
 
@@ -148,7 +154,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          *
          * See Section 11.20.3.4, “Obtaining user consent for updating software” for application details about usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.7
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.7
          */
         requestorCanConsent?: boolean;
 
@@ -182,13 +188,15 @@ export declare namespace OtaSoftwareUpdateProvider {
          * See Section 11.20.3.2, “Querying the OTA Provider” for full details about the OTA Software Update Query flow
          * which makes use of this command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.1.8
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.1.8
          */
         metadataForProvider?: Bytes;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2
+     * This command is sent in response to the QueryImage command.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2
      */
     export declare class QueryImageResponse {
         constructor(values?: Partial<QueryImageResponse>);
@@ -199,23 +207,21 @@ export declare namespace OtaSoftwareUpdateProvider {
          * See Section 11.20.3.2, “Querying the OTA Provider” for details about the possible values for this field and
          * their meaning.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.1
          */
         status: Status;
 
         /**
-         * This field shall convey the minimum time to wait, in seconds from the time of this response, before sending
-         * another QueryImage command or beginning a download from the OTA Provider. OTA Requestors shall respect this
-         * minimum delay, unless they had previously restarted and lost track of it. OTA Providers SHOULD expect OTA
-         * Requestors to follow this value to their best capability, however, a restarting Node may come back sooner,
-         * due to having lost track of this state response.
-         *
-         * Beware, this field is conditionally present based on the conformance listed in Section 11.20.6.5.2,
-         * “QueryImageResponse Command”.
+         * This field shall be provided when the Status field is set to Busy, and may be provided in other cases. This
+         * field, if provided, shall convey the minimum time to wait, in seconds from the time of this response, before
+         * sending another QueryImage command or beginning a download from the OTA Provider. OTA Requestors shall
+         * respect this minimum delay, unless they had previously restarted and lost track of it. OTA Providers SHOULD
+         * expect OTA Requestors to follow this value to their best capability, however, a restarting Node may come back
+         * sooner, due to having lost track of this state response.
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for details about the rules regarding this field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.2
          */
         delayedActionTime?: number;
 
@@ -317,7 +323,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          *
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.3
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.3
          */
         imageUri?: string;
 
@@ -330,7 +336,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and acceptable
          * values.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.4
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.4
          */
         softwareVersion?: number;
 
@@ -343,7 +349,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * See Section 11.20.3.2, “Querying the OTA Provider” for additional details about the flow and acceptable
          * values.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.5
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.5
          */
         softwareVersionString?: string;
 
@@ -354,7 +360,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * See Section 11.20.3.6.1, “UpdateToken usage” for additional details about the generation and usage of
          * UpdateToken.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.6
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.6
          */
         updateToken?: Bytes;
 
@@ -366,7 +372,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          *
          * See Section 11.20.3.4, “Obtaining user consent for updating software” for application details about usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.7
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.7
          */
         userConsentNeeded?: boolean;
 
@@ -383,13 +389,15 @@ export declare namespace OtaSoftwareUpdateProvider {
          * by an OTA Provider with this additional knowledge if it has knowledge that the receiving OTA Requestor may be
          * able to use it.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.2.8
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.2.8
          */
         metadataForRequestor?: Bytes;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3
+     * This command requests the specified version be installed on the device.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.3
      */
     export declare class ApplyUpdateRequest {
         constructor(values?: Partial<ApplyUpdateRequest>);
@@ -399,7 +407,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * may be used by the OTA Provider to track minimal lifecycle state to allow finer-grained scheduling of the
          * application of Software Images by OTA Requestors.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.3.1
          */
         updateToken: Bytes;
 
@@ -429,13 +437,15 @@ export declare namespace OtaSoftwareUpdateProvider {
          *
          * See Section 11.20.3.6, “Applying a software update” for all error-handling information.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.3.2
          */
         newVersion: number;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4
+     * This command is sent in response to the ApplyUpdateRequest command.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.4
      */
     export declare class ApplyUpdateResponse {
         constructor(values?: Partial<ApplyUpdateResponse>);
@@ -445,7 +455,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * 11.20.3.6, “Applying a software update” for a description of the Action values provided in response to an OTA
          * Provider receiving an invocation of this command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.4.1
          */
         action: ApplyUpdateAction;
 
@@ -455,13 +465,15 @@ export declare namespace OtaSoftwareUpdateProvider {
          * If this field has a value higher than 86400 seconds (24 hours), then the OTA Requestor may assume a value of
          * 86400, in order to reduce undue Software Image application delays.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.4.2
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.4.2
          */
         delayedActionTime: number;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5
+     * This command tells the Provider that the specified update has been applied.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.5
      */
     export declare class NotifyUpdateAppliedRequest {
         constructor(values?: Partial<NotifyUpdateAppliedRequest>);
@@ -469,7 +481,7 @@ export declare namespace OtaSoftwareUpdateProvider {
         /**
          * This field shall contain the UpdateToken as specified in Section 11.20.3.6.1, “UpdateToken usage”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.5.1
          */
         updateToken: Bytes;
 
@@ -503,7 +515,7 @@ export declare namespace OtaSoftwareUpdateProvider {
          * On receiving this command, an OTA Provider may use the information to update its bookkeeping of cached
          * Software Images, or use it for other similar administrative purposes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.20.6.5.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.20.6.5.5.2
          */
         softwareVersion: number;
     };
@@ -511,7 +523,7 @@ export declare namespace OtaSoftwareUpdateProvider {
     /**
      * See Section 11.20.3.2, “Querying the OTA Provider” for the semantics of these values.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.1
      */
     export enum Status {
         /**
@@ -538,7 +550,7 @@ export declare namespace OtaSoftwareUpdateProvider {
     /**
      * Thrown for cluster status code {@link Status.UpdateAvailable}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.1
      */
     export class UpdateAvailableError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -547,7 +559,7 @@ export declare namespace OtaSoftwareUpdateProvider {
     /**
      * Thrown for cluster status code {@link Status.Busy}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.1
      */
     export class BusyError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -556,7 +568,7 @@ export declare namespace OtaSoftwareUpdateProvider {
     /**
      * Thrown for cluster status code {@link Status.NotAvailable}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.1
      */
     export class NotAvailableError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -565,7 +577,7 @@ export declare namespace OtaSoftwareUpdateProvider {
     /**
      * Thrown for cluster status code {@link Status.DownloadProtocolNotSupported}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.1
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.1
      */
     export class DownloadProtocolNotSupportedError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -575,7 +587,7 @@ export declare namespace OtaSoftwareUpdateProvider {
      * See Section 11.20.3.6, “Applying a software update” for the semantics of the values. This enumeration is used in
      * the Action field of the ApplyUpdateResponse command. See (Action).
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.2
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.2
      */
     export enum ApplyUpdateAction {
         /**
@@ -598,7 +610,11 @@ export declare namespace OtaSoftwareUpdateProvider {
      * Note that only HTTP over TLS (HTTPS) is supported (see RFC 7230). Using HTTP without TLS shall NOT be supported,
      * as there is no way to authenticate the involved participants.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.20.6.4.3
+     * > [!NOTE]
+     *
+     * > Support for the asynchronous BDX mode is provisional.
+     *
+     * @see {@link MatterSpecification.v151.Core} § 11.20.6.4.3
      */
     export enum DownloadProtocol {
         /**

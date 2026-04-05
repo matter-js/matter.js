@@ -59,11 +59,12 @@ Resource.add(
                             "charging completion time." +
                             "\n" +
                             "The EVSE itself can use this information (or may allow a controller such as an EMS) to compute an " +
-                            "optimized charging schedule." +
+                            "optimized charging schedule. For example, an optimizer may be able to use the Commodity Price " +
+                            "cluster to determine the cheapest and lowest GHG based charging schedule for the vehicle." +
                             "\n" +
                             "An EVSE device which includes a Device Energy Management device with the Device Energy Management " +
-                            "cluster PFR (Power Forecast Reporting) feature can use the charging preferences information to " +
-                            "produce its power forecast." +
+                            "cluster PFR (PowerForecastReporting) feature can use the charging preferences information to produce " +
+                            "its power forecast." +
                             "\n" +
                             "EVSE devices that support the Device Energy Management cluster’s FA feature can have their charging " +
                             "profiles set by a controller device such as an EMS. For example, if the EVSE advertises a simple " +
@@ -118,7 +119,7 @@ Resource.add(
                             "\n" +
                             "The charging and discharging may be controlled by a home Energy Management System (EMS) using the " +
                             "Device Energy Management cluster of the associated Device Energy Management device. For example, an " +
-                            "EMS may use the PA (Power Adjustment) feature to continually adjust the charge/discharge current " +
+                            "EMS may use the PA (PowerAdjustment) feature to continually adjust the charge/discharge current " +
                             "to/from the EV so as to minimise the energy flow from/to the grid as the demand in the home and the " +
                             "solar supply to the home both fluctuate."
                     }

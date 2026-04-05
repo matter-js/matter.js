@@ -20,7 +20,7 @@ import type { MaybePromise } from "@matter/general";
  * Heating of hot water is one of the main energy uses in homes, and when coupled with the Energy Management cluster, it
  * can help consumers save cost (e.g. using power at cheaper times or from local solar PV generation).
  *
- * @see {@link MatterSpecification.v142.Cluster} § 9.5
+ * @see {@link MatterSpecification.v151.Cluster} § 9.5
  */
 export declare namespace WaterHeaterManagement {
     /**
@@ -53,14 +53,14 @@ export declare namespace WaterHeaterManagement {
          * Indicates the heat sources that the water heater can call on for heating. If a bit is set then the water
          * heater supports the corresponding heat source.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.1
          */
         heaterTypes: WaterHeaterHeatSource;
 
         /**
          * Indicates if the water heater is heating water. If a bit is set then the corresponding heat source is active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.2
          */
         heatDemand: WaterHeaterHeatSource;
 
@@ -69,7 +69,7 @@ export declare namespace WaterHeaterManagement {
          *
          * See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.6
          */
         boostState: BoostState;
     }
@@ -82,7 +82,7 @@ export declare namespace WaterHeaterManagement {
          * Indicates the volume of water that the hot water tank can hold (in units of Litres). This allows an energy
          * management system to estimate the required heating energy needed to reach the target temperature.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.3
          */
         tankVolume: number;
 
@@ -114,7 +114,7 @@ export declare namespace WaterHeaterManagement {
          *   energy input. The conversion between heat energy and electrical energy is outside the scope of this
          *   cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.4
          */
         estimatedHeatRequired: number | bigint;
     }
@@ -148,7 +148,7 @@ export declare namespace WaterHeaterManagement {
          *
          * TankPercentage = 50%
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.5
          */
         tankPercentage: number;
     }
@@ -164,14 +164,14 @@ export declare namespace WaterHeaterManagement {
          * Indicates the heat sources that the water heater can call on for heating. If a bit is set then the water
          * heater supports the corresponding heat source.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.1
          */
         heaterTypes: WaterHeaterHeatSource;
 
         /**
          * Indicates if the water heater is heating water. If a bit is set then the corresponding heat source is active.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.2
          */
         heatDemand: WaterHeaterHeatSource;
 
@@ -180,7 +180,7 @@ export declare namespace WaterHeaterManagement {
          *
          * See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.6
          */
         boostState: BoostState;
 
@@ -188,7 +188,7 @@ export declare namespace WaterHeaterManagement {
          * Indicates the volume of water that the hot water tank can hold (in units of Litres). This allows an energy
          * management system to estimate the required heating energy needed to reach the target temperature.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.3
          */
         tankVolume: number;
 
@@ -220,7 +220,7 @@ export declare namespace WaterHeaterManagement {
          *   energy input. The conversion between heat energy and electrical energy is outside the scope of this
          *   cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.4
          */
         estimatedHeatRequired: number | bigint;
 
@@ -249,7 +249,7 @@ export declare namespace WaterHeaterManagement {
          *
          * TankPercentage = 50%
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.7.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.5
          */
         tankPercentage: number;
     }
@@ -261,7 +261,7 @@ export declare namespace WaterHeaterManagement {
         /**
          * Allows a client to request that the water heater is put into a Boost state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.8.1
          */
         boost(request: BoostRequest): MaybePromise;
 
@@ -270,7 +270,7 @@ export declare namespace WaterHeaterManagement {
          *
          * This command has no payload.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.8.2
          */
         cancelBoost(): MaybePromise;
     }
@@ -289,14 +289,14 @@ export declare namespace WaterHeaterManagement {
          *
          * The corresponding structure fields within the WaterHeaterBoostInfoStruct are copied from the Boost command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.9.1
          */
         boostStarted: BoostStartedEvent;
 
         /**
          * This event shall be generated whenever the BoostState transitions from Active to Inactive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.9.2
          */
         boostEnded: void;
     }
@@ -313,14 +313,14 @@ export declare namespace WaterHeaterManagement {
          *
          * The corresponding structure fields within the WaterHeaterBoostInfoStruct are copied from the Boost command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.9.1
          */
         boostStarted: BoostStartedEvent;
 
         /**
          * This event shall be generated whenever the BoostState transitions from Active to Inactive.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.9.2
          */
         boostEnded: void;
     }
@@ -335,7 +335,7 @@ export declare namespace WaterHeaterManagement {
     /**
      * These are optional features supported by WaterHeaterManagementCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 9.5.4
      */
     export enum Feature {
         /**
@@ -354,7 +354,7 @@ export declare namespace WaterHeaterManagement {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.1
      */
     export declare class WaterHeaterHeatSource {
         constructor(values?: Partial<WaterHeaterHeatSource> | number);
@@ -386,7 +386,7 @@ export declare namespace WaterHeaterManagement {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.2
      */
     export enum BoostState {
         /**
@@ -403,7 +403,7 @@ export declare namespace WaterHeaterManagement {
     /**
      * Allows a client to request that the water heater is put into a Boost state.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.5.8.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.5.8.1
      */
     export declare class BoostRequest {
         constructor(values?: Partial<BoostRequest>);
@@ -415,7 +415,7 @@ export declare namespace WaterHeaterManagement {
      *
      * The corresponding structure fields within the WaterHeaterBoostInfoStruct are copied from the Boost command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 9.5.9.1
+     * @see {@link MatterSpecification.v151.Cluster} § 9.5.9.1
      */
     export declare class BoostStartedEvent {
         constructor(values?: Partial<BoostStartedEvent>);
@@ -423,7 +423,7 @@ export declare namespace WaterHeaterManagement {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3
+     * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3
      */
     export declare class WaterHeaterBoostInfo {
         constructor(values?: Partial<WaterHeaterBoostInfo>);
@@ -431,7 +431,7 @@ export declare namespace WaterHeaterManagement {
         /**
          * This field shall indicate the time period, in seconds, for which the boost state is activated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.1
          */
         duration: number;
 
@@ -445,7 +445,7 @@ export declare namespace WaterHeaterManagement {
          *
          *   - the TargetPercentage (if specified).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.2
          */
         oneShot?: boolean;
 
@@ -455,7 +455,7 @@ export declare namespace WaterHeaterManagement {
          *
          * The choice of which heat sources are activated is manufacturer specific.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.3
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.3
          */
         emergencyBoost?: boolean;
 
@@ -468,7 +468,7 @@ export declare namespace WaterHeaterManagement {
          * The value of this field shall be within the constraints of the MinHeatSetpointLimit and MaxHeatSetpointLimit
          * attributes (inclusive), of the thermostat cluster.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.4
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.4
          */
         temporarySetpoint?: number;
 
@@ -476,7 +476,7 @@ export declare namespace WaterHeaterManagement {
          * This field shall indicate the target percentage of hot water in the tank that the TankPercentage attribute
          * must reach before the heating is switched off.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.5
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.5
          */
         targetPercentage?: number;
 
@@ -491,7 +491,7 @@ export declare namespace WaterHeaterManagement {
          *
          * This field shall be less than or equal to the TargetPercentage field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 9.5.6.3.6
+         * @see {@link MatterSpecification.v151.Cluster} § 9.5.6.3.6
          */
         targetReheat?: number;
     };

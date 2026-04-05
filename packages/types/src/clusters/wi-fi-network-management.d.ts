@@ -18,7 +18,7 @@ import type { Bytes, MaybePromise } from "@matter/general";
  * Manager device type provides. Privileged nodes within the same fabric as a Network Infrastructure Manager can use
  * these interfaces to request information related to the Wi-Fi Network such as SSID and Passphrase.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 10.2
+ * @see {@link MatterSpecification.v151.Cluster} § 10.2
  */
 export declare namespace WiFiNetworkManagement {
     /**
@@ -60,7 +60,7 @@ export declare namespace WiFiNetworkManagement {
          *   encoding. The most common encoding is UTF-8, however this is just a convention. Some configurations may use
          *   Latin-1 or other character sets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.2.4.1
          */
         ssid: Bytes | null;
 
@@ -82,7 +82,7 @@ export declare namespace WiFiNetworkManagement {
          *   clients that use wildcard reads or otherwise routinely read all available attributes. It can be retrieved
          *   using the NetworkPassphraseRequest command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 10.2.4.2
          */
         passphraseSurrogate: number | bigint | null;
     }
@@ -104,7 +104,7 @@ export declare namespace WiFiNetworkManagement {
          *   encoding. The most common encoding is UTF-8, however this is just a convention. Some configurations may use
          *   Latin-1 or other character sets.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.2.4.1
          */
         ssid: Bytes | null;
 
@@ -126,7 +126,7 @@ export declare namespace WiFiNetworkManagement {
          *   clients that use wildcard reads or otherwise routinely read all available attributes. It can be retrieved
          *   using the NetworkPassphraseRequest command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.2.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 10.2.4.2
          */
         passphraseSurrogate: number | bigint | null;
     }
@@ -147,7 +147,7 @@ export declare namespace WiFiNetworkManagement {
          *
          * Otherwise a NetworkPassphraseResponse shall be generated.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.2.5.1
          */
         networkPassphraseRequest(): MaybePromise<NetworkPassphraseResponse>;
     }
@@ -162,7 +162,7 @@ export declare namespace WiFiNetworkManagement {
     /**
      * This command shall be generated in response to a NetworkPassphraseRequest command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 10.2.5.2
      */
     export declare class NetworkPassphraseResponse {
         constructor(values?: Partial<NetworkPassphraseResponse>);
@@ -184,7 +184,7 @@ export declare namespace WiFiNetworkManagement {
          *   Commissioning cluster does not currently support configuring Matter devices to connect to operational
          *   networks utilizing such a passphrase.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.2.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.2.5.2.1
          */
         passphrase: Bytes;
     };

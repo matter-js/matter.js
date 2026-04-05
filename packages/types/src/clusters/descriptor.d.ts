@@ -36,7 +36,7 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * For Example: A Refrigerator/Freezer appliance device type may be defined as being composed of multiple Temperature
  * Sensor endpoints, a Metering endpoint, and two Thermostat endpoints.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.5
+ * @see {@link MatterSpecification.v151.Core} § 9.5
  */
 export declare namespace Descriptor {
     /**
@@ -73,21 +73,21 @@ export declare namespace Descriptor {
          * common for more than one device type in the DeviceTypeList shall be supported as a shared cluster instance on
          * the endpoint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.1
          */
         deviceTypeList: DeviceType[];
 
         /**
          * This attribute shall list each cluster ID for the server clusters present on the endpoint instance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.2
          */
         serverList: ClusterId[];
 
         /**
          * This attribute shall list each cluster ID for the client clusters present on the endpoint instance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.3
          */
         clientList: ClusterId[];
 
@@ -97,7 +97,7 @@ export declare namespace Descriptor {
          *
          * See Endpoint Composition for more information about which endpoints to include in this list.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.4
          */
         partsList: EndpointNumber[];
 
@@ -114,7 +114,7 @@ export declare namespace Descriptor {
          * The value does not need to be human readable, since it is intended for machine to machine (M2M)
          * communication.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.6
          */
         endpointUniqueId?: string;
     }
@@ -142,7 +142,7 @@ export declare namespace Descriptor {
          * A client may use the Label field of each SemanticTagStruct, if present in each structure, to indicate
          * characteristics of an endpoint, or to augment what is provided in the TagID field of the same structure.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.5
          */
         tagList: Semtag[];
     }
@@ -162,21 +162,21 @@ export declare namespace Descriptor {
          * common for more than one device type in the DeviceTypeList shall be supported as a shared cluster instance on
          * the endpoint.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.1
          */
         deviceTypeList: DeviceType[];
 
         /**
          * This attribute shall list each cluster ID for the server clusters present on the endpoint instance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.2
          */
         serverList: ClusterId[];
 
         /**
          * This attribute shall list each cluster ID for the client clusters present on the endpoint instance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.3
          */
         clientList: ClusterId[];
 
@@ -186,7 +186,7 @@ export declare namespace Descriptor {
          *
          * See Endpoint Composition for more information about which endpoints to include in this list.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.4
          */
         partsList: EndpointNumber[];
 
@@ -203,7 +203,7 @@ export declare namespace Descriptor {
          * The value does not need to be human readable, since it is intended for machine to machine (M2M)
          * communication.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.6
          */
         endpointUniqueId: string;
 
@@ -226,7 +226,7 @@ export declare namespace Descriptor {
          * A client may use the Label field of each SemanticTagStruct, if present in each structure, to indicate
          * characteristics of an endpoint, or to augment what is provided in the TagID field of the same structure.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.5.6.5
          */
         tagList: Semtag[];
     }
@@ -240,7 +240,7 @@ export declare namespace Descriptor {
     /**
      * These are optional features supported by DescriptorCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.5.4
+     * @see {@link MatterSpecification.v151.Core} § 9.5.4
      */
     export enum Feature {
         /**
@@ -249,7 +249,7 @@ export declare namespace Descriptor {
          * See the Disambiguation section in the System Model spec for conformance requirements for this feature and the
          * corresponding attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.4.1
+         * @see {@link MatterSpecification.v151.Core} § 9.5.4.1
          */
         TagList = "TagList"
     }
@@ -258,7 +258,7 @@ export declare namespace Descriptor {
      * The device type and revision define endpoint conformance to a release of a device type definition. See the Data
      * Model specification for more information.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.5.5.1
+     * @see {@link MatterSpecification.v151.Core} § 9.5.5.1
      */
     export declare class DeviceType {
         constructor(values?: Partial<DeviceType>);
@@ -267,7 +267,7 @@ export declare namespace Descriptor {
          * This shall indicate the device type definition. The endpoint shall conform to the device type definition and
          * cluster specifications required by the device type.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.5.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.5.5.1.1
          */
         deviceType: DeviceTypeId;
 
@@ -275,7 +275,7 @@ export declare namespace Descriptor {
          * This is the implemented revision of the device type definition. The endpoint shall conform to this revision
          * of the device type.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.5.5.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.5.5.1.2
          */
         revision: number;
     };

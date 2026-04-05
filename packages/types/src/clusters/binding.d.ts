@@ -45,7 +45,7 @@ import type { FabricIndex } from "../datatype/FabricIndex.js";
  * Once a binding entry is created on the Binding cluster, the client endpoint may initiate interactions to the binding
  * target.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.6
+ * @see {@link MatterSpecification.v151.Core} § 9.6
  */
 export declare namespace Binding {
     /**
@@ -77,7 +77,7 @@ export declare namespace Binding {
         /**
          * Each entry shall represent a binding.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.6.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.6.6.1
          */
         binding: Target[];
     }
@@ -89,7 +89,7 @@ export declare namespace Binding {
         /**
          * Each entry shall represent a binding.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.6.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.6.6.1
          */
         binding: Target[];
     }
@@ -97,7 +97,7 @@ export declare namespace Binding {
     export type Components = [{ flags: {}, attributes: BaseAttributes }];
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.6.5.1
+     * @see {@link MatterSpecification.v151.Core} § 9.6.5.1
      */
     export declare class Target {
         constructor(values?: Partial<Target>);
@@ -105,7 +105,7 @@ export declare namespace Binding {
         /**
          * This field is the remote target node ID. If the Endpoint field is present, this field shall be present.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.6.5.1.1
          */
         node?: NodeId;
 
@@ -113,7 +113,7 @@ export declare namespace Binding {
          * This field is the target group ID that represents remote endpoints. If the Endpoint field is present, this
          * field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.6.5.1.2
          */
         group?: GroupId;
 
@@ -121,7 +121,7 @@ export declare namespace Binding {
          * This field is the remote endpoint that the local endpoint is bound to. If the Group field is present, this
          * field shall NOT be present.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.3
+         * @see {@link MatterSpecification.v151.Core} § 9.6.5.1.3
          */
         endpoint?: EndpointNumber;
 
@@ -130,7 +130,7 @@ export declare namespace Binding {
          * the client cluster shall also exist on this endpoint (with this Binding cluster). If this field is present,
          * the target shall be this cluster on the target endpoint(s).
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.6.5.1.4
+         * @see {@link MatterSpecification.v151.Core} § 9.6.5.1.4
          */
         cluster?: ClusterId;
 

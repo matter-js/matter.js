@@ -28,7 +28,7 @@ import type { Bytes, MaybePromise } from "@matter/general";
  * interface, in this context, is a unique entity that can have an IPv6 address assigned to it and ingress and egress IP
  * packets.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.9
+ * @see {@link MatterSpecification.v151.Core} § 11.9
  */
 export declare namespace NetworkCommissioning {
     /**
@@ -61,7 +61,7 @@ export declare namespace NetworkCommissioning {
          * This shall indicate the maximum number of network configuration entries that can be added, based on available
          * device resources. The length of the Networks attribute shall be less than or equal to this value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.1
          */
         maxNetworks: number;
 
@@ -80,7 +80,7 @@ export declare namespace NetworkCommissioning {
          * Cluster instances shall always have exactly one NetworkInfoStruct instance in their Networks attribute. There
          * shall be no way to add, update or remove Ethernet network configurations to those Cluster instances.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.2
          */
         networks: NetworkInfo[];
 
@@ -91,7 +91,7 @@ export declare namespace NetworkCommissioning {
          * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which is
          * used to write the value. In that case, it is possible that the Administrator would have to await expiry of
          * the fail-safe, and associated recovery of network configuration to prior safe values, before being able to
-         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
+         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe”).
          *
          * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a write
          * to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled, an
@@ -101,7 +101,7 @@ export declare namespace NetworkCommissioning {
          * On Ethernet-only Nodes, there shall always be at least one of the Network Commissioning server cluster
          * instances with InterfaceEnabled set to true.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.5
          */
         interfaceEnabled: boolean;
 
@@ -114,7 +114,7 @@ export declare namespace NetworkCommissioning {
          * This attribute is present to assist with error recovery during Network commissioning and to assist in
          * non-concurrent networking commissioning flows.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.6
          */
         lastNetworkingStatus: NetworkCommissioningStatus | null;
 
@@ -130,7 +130,7 @@ export declare namespace NetworkCommissioning {
          * This attribute is present to assist with error recovery during Network commissioning and to assist in
          * non-concurrent networking commissioning flows.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.7
          */
         lastNetworkId: Bytes | null;
 
@@ -146,7 +146,7 @@ export declare namespace NetworkCommissioning {
          * This attribute is present to assist with error recovery during Network commissioning and to assist in
          * non-concurrent networking commissioning flows.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.8
          */
         lastConnectErrorValue: number | null;
     }
@@ -162,7 +162,7 @@ export declare namespace NetworkCommissioning {
          *
          * See Section 11.9.7.1, “ScanNetworks Command” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.3
          */
         scanMaxTimeSeconds: number;
 
@@ -172,7 +172,7 @@ export declare namespace NetworkCommissioning {
          * operations needed until a successful network connection is deemed to have occurred, including, for example,
          * obtaining IP addresses, or the execution of necessary internal retries.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.4
          */
         connectMaxTimeSeconds: number;
     }
@@ -184,7 +184,7 @@ export declare namespace NetworkCommissioning {
         /**
          * Indicates all the frequency bands supported by the Wi-Fi interface configured by the cluster instance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.9
          */
         supportedWiFiBands: WiFiBand[];
     }
@@ -201,7 +201,7 @@ export declare namespace NetworkCommissioning {
          * run-time details of the actual Thread interface are found in the Thread Network Diagnostics cluster, if
          * supported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.10
          */
         supportedThreadFeatures: ThreadCapabilities;
 
@@ -211,7 +211,7 @@ export declare namespace NetworkCommissioning {
          * The format shall match the value mapping found in the "Version TLV" section of Thread specification. For
          * example, Thread 1.3.0 would have ThreadVersion set to 4.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.11
          */
         threadVersion: number;
     }
@@ -227,7 +227,7 @@ export declare namespace NetworkCommissioning {
          * This shall indicate the maximum number of network configuration entries that can be added, based on available
          * device resources. The length of the Networks attribute shall be less than or equal to this value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.1
          */
         maxNetworks: number;
 
@@ -246,7 +246,7 @@ export declare namespace NetworkCommissioning {
          * Cluster instances shall always have exactly one NetworkInfoStruct instance in their Networks attribute. There
          * shall be no way to add, update or remove Ethernet network configurations to those Cluster instances.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.2
          */
         networks: NetworkInfo[];
 
@@ -257,7 +257,7 @@ export declare namespace NetworkCommissioning {
          * It is undefined what happens if InterfaceEnabled is written to false on the same interface as that which is
          * used to write the value. In that case, it is possible that the Administrator would have to await expiry of
          * the fail-safe, and associated recovery of network configuration to prior safe values, before being able to
-         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe Command”).
+         * communicate with the node again (see Section 11.10.7.2, “ArmFailSafe”).
          *
          * It may be possible to disable Ethernet interfaces but it is implementation-defined. If not supported, a write
          * to this attribute with a value of false shall fail with a status of INVALID_ACTION. When disabled, an
@@ -267,7 +267,7 @@ export declare namespace NetworkCommissioning {
          * On Ethernet-only Nodes, there shall always be at least one of the Network Commissioning server cluster
          * instances with InterfaceEnabled set to true.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.5
          */
         interfaceEnabled: boolean;
 
@@ -280,7 +280,7 @@ export declare namespace NetworkCommissioning {
          * This attribute is present to assist with error recovery during Network commissioning and to assist in
          * non-concurrent networking commissioning flows.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.6
          */
         lastNetworkingStatus: NetworkCommissioningStatus | null;
 
@@ -296,7 +296,7 @@ export declare namespace NetworkCommissioning {
          * This attribute is present to assist with error recovery during Network commissioning and to assist in
          * non-concurrent networking commissioning flows.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.7
          */
         lastNetworkId: Bytes | null;
 
@@ -312,7 +312,7 @@ export declare namespace NetworkCommissioning {
          * This attribute is present to assist with error recovery during Network commissioning and to assist in
          * non-concurrent networking commissioning flows.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.8
          */
         lastConnectErrorValue: number | null;
 
@@ -322,7 +322,7 @@ export declare namespace NetworkCommissioning {
          *
          * See Section 11.9.7.1, “ScanNetworks Command” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.3
          */
         scanMaxTimeSeconds: number;
 
@@ -332,14 +332,14 @@ export declare namespace NetworkCommissioning {
          * operations needed until a successful network connection is deemed to have occurred, including, for example,
          * obtaining IP addresses, or the execution of necessary internal retries.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.4
          */
         connectMaxTimeSeconds: number;
 
         /**
          * Indicates all the frequency bands supported by the Wi-Fi interface configured by the cluster instance.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.9
          */
         supportedWiFiBands: WiFiBand[];
 
@@ -351,7 +351,7 @@ export declare namespace NetworkCommissioning {
          * run-time details of the actual Thread interface are found in the Thread Network Diagnostics cluster, if
          * supported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.10
          */
         supportedThreadFeatures: ThreadCapabilities;
 
@@ -361,7 +361,7 @@ export declare namespace NetworkCommissioning {
          * The format shall match the value mapping found in the "Version TLV" section of Thread specification. For
          * example, Thread 1.3.0 would have ThreadVersion set to 4.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.9.6.11
          */
         threadVersion: number;
     }
@@ -390,8 +390,8 @@ export declare namespace NetworkCommissioning {
          * SSID) is provided in the command arguments. Directed scanning shall restrict the result set to the specified
          * network only.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The client shall NOT expect the server to be done scanning and have responded with ScanNetworksResponse
          * before ScanMaxTimeSeconds seconds have elapsed. Enough transport time affordances for retries SHOULD be
@@ -414,7 +414,7 @@ export declare namespace NetworkCommissioning {
          * while the network interface is processing the scan. Clients SHOULD NOT use this command unless actively in
          * the process of re-configuring network connectivity.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.1
          */
         scanNetworks(request: ScanNetworksRequest): MaybePromise<ScanNetworksResponse>;
 
@@ -426,8 +426,8 @@ export declare namespace NetworkCommissioning {
          * configuration with the same NetworkID. The relative order of the entries in the Networks attribute shall
          * remain unchanged, except for the removal of the requested network configuration.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * If the Networks attribute does not contain a matching entry, the command shall immediately respond with
          * NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound.
@@ -436,7 +436,7 @@ export declare namespace NetworkCommissioning {
          * the entry in the Networks attribute that was just removed, and a NetworkingStatus status field set to
          * Success.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.6
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.6
          */
         removeNetwork(request: RemoveNetworkRequest): MaybePromise<NetworkConfigResponse>;
 
@@ -450,8 +450,8 @@ export declare namespace NetworkCommissioning {
          * to proceed with such an operation, such as if it is currently attempting to connect in the background, or is
          * already proceeding with a prior ConnectNetwork.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * Before connecting to the new network, the Node shall disconnect the operational network connections managed
          * by any other Network Commissioning cluster instances (whether under the Root Node or a Secondary Network
@@ -483,16 +483,18 @@ export declare namespace NetworkCommissioning {
          * The precedence order of any entry subject to ConnectNetwork shall NOT change within the Networks attribute.
          *
          * Even after successfully connecting to a network, the configuration shall revert to the prior state of
-         * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete Command”)
-         * is not successfully invoked before expiry of the Fail-Safe timer.
+         * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete”) is not
+         * successfully invoked before expiry of the Fail-Safe timer.
          *
          * When non-concurrent commissioning is being used by a Commissioner or Administrator, the
          * ConnectNetworkResponse shall be sent with the NetworkingStatus field set to Success prior to closing the
          * commissioning channel, even if not yet connected to the operational network, unless the device would be
          * incapable of joining that network, in which case the usual failure path described in the prior paragraphs
-         * shall be followed. Once the commissioning channel is closed, the operational channel will be started. It is
-         * possible that the only method to determine success of the operation is operational discovery of the Node on
-         * the new operational network. Therefore, before invoking the ConnectNetwork command, the client SHOULD
+         * shall be followed. Once the commissioning channel is closed, if the attribute IsCommissioningWithoutPower is
+         * absent or false, the operational channel shall start without waiting. However, if IsCommissioningWithoutPower
+         * is true, the operational channel shall start automatically as soon as the device is powered up and running.
+         * It is possible that the only method to determine success of the operation is operational discovery of the
+         * Node on the new operational network. Therefore, before invoking the ConnectNetwork command, the client SHOULD
          * re-invoke the Arm Fail-Safe command with a duration that meets the following:
          *
          *   1. Sufficient time to meet the minimum required time (see Section 11.9.6.4, “ConnectMaxTimeSeconds
@@ -515,7 +517,7 @@ export declare namespace NetworkCommissioning {
          * determining the reason for a failure after reconnecting over a Commissioning channel, especially in
          * non-concurrent commissioning situations.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.8
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.8
          */
         connectNetwork(request: ConnectNetworkRequest): MaybePromise<ConnectNetworkResponse>;
 
@@ -525,7 +527,7 @@ export declare namespace NetworkCommissioning {
          * This command shall set the specific order of the network configuration selected by its NetworkID in the
          * Networks attribute to match the position given by NetworkIndex.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.10
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.10
          */
         reorderNetwork(request: ReorderNetworkRequest): MaybePromise<NetworkConfigResponse>;
     }
@@ -539,19 +541,19 @@ export declare namespace NetworkCommissioning {
          *
          * This command shall be used to add or modify Wi-Fi network configurations.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * The Credentials associated with the network are not readable after execution of this command, as they do not
-         * appear in the Networks attribute, for security reasons.
+         * appear in the Section 11.9.6.2, “Networks” attribute, for security reasons.
          *
-         * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
-         * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
+         * If this command contains a ClientIdentifier, and the Section 11.9.6.2, “Networks” list does not contain an
+         * entry with a matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
          *
          * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior
          * of addition/update.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.3
          */
         addOrUpdateWiFiNetwork(request: AddOrUpdateWiFiNetworkRequest): MaybePromise<NetworkConfigResponse>;
     }
@@ -565,8 +567,8 @@ export declare namespace NetworkCommissioning {
          *
          * This command shall be used to add or modify Thread network configurations.
          *
-         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe
-         * Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+         * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then
+         * this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
          *
          * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior
          * of addition/update.
@@ -578,7 +580,7 @@ export declare namespace NetworkCommissioning {
          * OperationalDataset, the operation shall be considered an addition, otherwise, it shall be considered an
          * update.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.4
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.4
          */
         addOrUpdateThreadNetwork(request: AddOrUpdateThreadNetworkRequest): MaybePromise<NetworkConfigResponse>;
     }
@@ -621,7 +623,7 @@ export declare namespace NetworkCommissioning {
     /**
      * These are optional features supported by NetworkCommissioningCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.4
+     * @see {@link MatterSpecification.v151.Core} § 11.9.4
      */
     export enum Feature {
         /**
@@ -649,7 +651,7 @@ export declare namespace NetworkCommissioning {
     /**
      * NetworkInfoStruct struct describes an existing network configuration, as provided in the Networks attribute.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.5
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.5
      */
     export declare class NetworkInfo {
         constructor(values?: Partial<NetworkInfo>);
@@ -678,7 +680,7 @@ export declare namespace NetworkCommissioning {
          *
          * XPAN ID is a big-endian 64-bit unsigned number, represented on the first 8 octets of the octet string.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.5.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.5.5.1
          */
         networkId: Bytes;
 
@@ -687,13 +689,13 @@ export declare namespace NetworkCommissioning {
          * linked to the network technology (e.g. Associated for a Wi-Fi network, media connected for an Ethernet
          * network).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.5.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.5.5.2
          */
         connected: boolean;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.4
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.4
      */
     export enum NetworkCommissioningStatus {
         /**
@@ -766,7 +768,7 @@ export declare namespace NetworkCommissioning {
      * WiFiBandEnum encodes a supported Wi-Fi frequency band present in the WiFiBand field of the
      * WiFiInterfaceScanResultStruct.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.3
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.3
      */
     export enum WiFiBand {
         /**
@@ -808,7 +810,7 @@ export declare namespace NetworkCommissioning {
      *
      * > The valid combinations of capabilities are restricted and dependent on Thread version.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.2
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.2
      */
     export declare class ThreadCapabilities {
         constructor(values?: Partial<ThreadCapabilities> | number);
@@ -857,8 +859,8 @@ export declare namespace NetworkCommissioning {
      * Scanning for a specific network (i.e. directed scanning) takes place if a network identifier (e.g. Wi-Fi SSID) is
      * provided in the command arguments. Directed scanning shall restrict the result set to the specified network only.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * The client shall NOT expect the server to be done scanning and have responded with ScanNetworksResponse before
      * ScanMaxTimeSeconds seconds have elapsed. Enough transport time affordances for retries SHOULD be expected before
@@ -881,7 +883,7 @@ export declare namespace NetworkCommissioning {
      * network interface is processing the scan. Clients SHOULD NOT use this command unless actively in the process of
      * re-configuring network connectivity.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.1
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.1
      */
     export declare class ScanNetworksRequest {
         constructor(values?: Partial<ScanNetworksRequest>);
@@ -891,7 +893,7 @@ export declare namespace NetworkCommissioning {
          * if the field is absent, or if it is null, this shall indicate scanning of all BSSID in range. This field
          * shall be ignored for ScanNetworks invocations on non-Wi-Fi server instances.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.1.1
          */
         ssid?: Bytes | null;
 
@@ -900,7 +902,7 @@ export declare namespace NetworkCommissioning {
          * Commissioning cluster on success of the associated command. If the command fails, the Breadcrumb attribute in
          * the General Commissioning cluster shall be left unchanged.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.1.2
          */
         breadcrumb?: number | bigint;
     };
@@ -916,7 +918,7 @@ export declare namespace NetworkCommissioning {
      * Before generating a ScanNetworksResponse, the server shall set the LastNetworkingStatus attribute value to the
      * NetworkingStatus matching the response.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.2
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.2
      */
     export declare class ScanNetworksResponse {
         constructor(values?: Partial<ScanNetworksResponse>);
@@ -936,7 +938,7 @@ export declare namespace NetworkCommissioning {
          *
          *   - UnknownError: An internal error occurred during scanning.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.2.1
          */
         networkingStatus: NetworkCommissioningStatus;
 
@@ -945,7 +947,7 @@ export declare namespace NetworkCommissioning {
          * case the NetworkingStatus was not Success. Its purpose is to help developers in troubleshooting errors and
          * may go into logs or crash reports.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.2.2
          */
         debugText?: string;
 
@@ -962,7 +964,7 @@ export declare namespace NetworkCommissioning {
          * RSSI order, even if RSSI is not reported in the response, to maximize the likelihood that most likely to be
          * reachable elements are included within the size limits of the response.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.2.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.2.3
          */
         wiFiScanResults?: WiFiInterfaceScanResult[];
 
@@ -978,7 +980,7 @@ export declare namespace NetworkCommissioning {
          * LQI order, to maximize the likelihood that most likely to be reachable elements are included within the size
          * limits of the response.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.2.4
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.2.4
          */
         threadScanResults?: ThreadInterfaceScanResult[];
     };
@@ -991,8 +993,8 @@ export declare namespace NetworkCommissioning {
      * with the same NetworkID. The relative order of the entries in the Networks attribute shall remain unchanged,
      * except for the removal of the requested network configuration.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * If the Networks attribute does not contain a matching entry, the command shall immediately respond with
      * NetworkConfigResponse having NetworkingStatus status field set to NetworkIdNotFound.
@@ -1000,7 +1002,7 @@ export declare namespace NetworkCommissioning {
      * On success, the NetworkConfigResponse command shall have its NetworkIndex field set to the 0-based index of the
      * entry in the Networks attribute that was just removed, and a NetworkingStatus status field set to Success.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.6
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.6
      */
     export declare class RemoveNetworkRequest {
         constructor(values?: Partial<RemoveNetworkRequest>);
@@ -1008,14 +1010,14 @@ export declare namespace NetworkCommissioning {
         /**
          * This field shall contain the NetworkID for the entry to remove: the SSID for Wi-Fi and XPAN ID for Thread.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.6.1
          */
         networkId: Bytes;
 
         /**
          * See Section 11.9.7.1.2, “Breadcrumb Field” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.6.2
          */
         breadcrumb?: number | bigint;
     };
@@ -1034,7 +1036,7 @@ export declare namespace NetworkCommissioning {
      * Before generating a NetworkConfigResponse, the server shall set the LastNetworkID attribute value to the
      * NetworkID that was used in the command for which an invocation caused the response to be generated.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.7
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.7
      */
     export declare class NetworkConfigResponse {
         constructor(values?: Partial<NetworkConfigResponse>);
@@ -1054,14 +1056,14 @@ export declare namespace NetworkCommissioning {
          *
          *   - UnknownError: An internal error occurred during the operation.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.7.1
          */
         networkingStatus: NetworkCommissioningStatus;
 
         /**
          * See Section 11.9.7.2.2, “DebugText Field” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.7.2
          */
         debugText?: string;
 
@@ -1069,7 +1071,7 @@ export declare namespace NetworkCommissioning {
          * This field shall contain the 0-based index of the entry in the Networks attribute that was last added,
          * updated or removed successfully by the associated request command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.7.3
          */
         networkIndex?: number;
     };
@@ -1084,8 +1086,8 @@ export declare namespace NetworkCommissioning {
      * proceed with such an operation, such as if it is currently attempting to connect in the background, or is already
      * proceeding with a prior ConnectNetwork.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * Before connecting to the new network, the Node shall disconnect the operational network connections managed by
      * any other Network Commissioning cluster instances (whether under the Root Node or a Secondary Network Interface),
@@ -1117,14 +1119,16 @@ export declare namespace NetworkCommissioning {
      * The precedence order of any entry subject to ConnectNetwork shall NOT change within the Networks attribute.
      *
      * Even after successfully connecting to a network, the configuration shall revert to the prior state of
-     * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete Command”) is
-     * not successfully invoked before expiry of the Fail-Safe timer.
+     * configuration if the CommissioningComplete command (see Section 11.10.7.6, “CommissioningComplete”) is not
+     * successfully invoked before expiry of the Fail-Safe timer.
      *
      * When non-concurrent commissioning is being used by a Commissioner or Administrator, the ConnectNetworkResponse
      * shall be sent with the NetworkingStatus field set to Success prior to closing the commissioning channel, even if
      * not yet connected to the operational network, unless the device would be incapable of joining that network, in
      * which case the usual failure path described in the prior paragraphs shall be followed. Once the commissioning
-     * channel is closed, the operational channel will be started. It is possible that the only method to determine
+     * channel is closed, if the attribute IsCommissioningWithoutPower is absent or false, the operational channel shall
+     * start without waiting. However, if IsCommissioningWithoutPower is true, the operational channel shall start
+     * automatically as soon as the device is powered up and running. It is possible that the only method to determine
      * success of the operation is operational discovery of the Node on the new operational network. Therefore, before
      * invoking the ConnectNetwork command, the client SHOULD re-invoke the Arm Fail-Safe command with a duration that
      * meets the following:
@@ -1149,7 +1153,7 @@ export declare namespace NetworkCommissioning {
      * the reason for a failure after reconnecting over a Commissioning channel, especially in non-concurrent
      * commissioning situations.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.8
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.8
      */
     export declare class ConnectNetworkRequest {
         constructor(values?: Partial<ConnectNetworkRequest>);
@@ -1158,14 +1162,14 @@ export declare namespace NetworkCommissioning {
          * This field shall contain the NetworkID for the entry used to configure the connection: the SSID for Wi-Fi and
          * XPAN ID for Thread.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.8.1
          */
         networkId: Bytes;
 
         /**
          * See Section 11.9.7.1.2, “Breadcrumb Field” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.8.2
          */
         breadcrumb?: number | bigint;
     };
@@ -1183,7 +1187,7 @@ export declare namespace NetworkCommissioning {
      *   - Set the LastConnectErrorValue attribute value to the ErrorValue matching the response, including setting it
      *     to null if the ErrorValue is not applicable.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.9
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.9
      */
     export declare class ConnectNetworkResponse {
         constructor(values?: Partial<ConnectNetworkResponse>);
@@ -1209,14 +1213,14 @@ export declare namespace NetworkCommissioning {
          *   - Association errors (see also description of errors in NetworkCommissioningStatusEnum): AuthFailure,
          *     UnsupportedSecurity, OtherConnectionFailure, IPV6Failed, IPBindFailed
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.9.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.9.1
          */
         networkingStatus: NetworkCommissioningStatus;
 
         /**
          * See Section 11.9.7.2.2, “DebugText Field” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.9.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.9.2
          */
         debugText?: string;
 
@@ -1240,7 +1244,7 @@ export declare namespace NetworkCommissioning {
          *   - Otherwise, the ErrorValue field shall contain an implementation-dependent value which may be used by a
          *     reader of the structure to record, report or diagnose the failure.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.9.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.9.3
          */
         errorValue: number | null;
     };
@@ -1251,7 +1255,7 @@ export declare namespace NetworkCommissioning {
      * This command shall set the specific order of the network configuration selected by its NetworkID in the Networks
      * attribute to match the position given by NetworkIndex.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.10
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.10
      */
     export declare class ReorderNetworkRequest {
         constructor(values?: Partial<ReorderNetworkRequest>);
@@ -1259,7 +1263,7 @@ export declare namespace NetworkCommissioning {
         /**
          * This field shall contain the NetworkID for the entry to reorder: the SSID for Wi-Fi and XPAN ID for Thread.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.10.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.10.1
          */
         networkId: Bytes;
 
@@ -1267,7 +1271,7 @@ export declare namespace NetworkCommissioning {
          * This field shall contain the 0-based index of the new desired position of the entry in the Networks
          * attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.10.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.10.2
          */
         networkIndex: number;
 
@@ -1320,7 +1324,7 @@ export declare namespace NetworkCommissioning {
          * In the above outcome, BlueDolphin, Home-Guest and WillowTree moved "up" and FancyCat became the lowest
          * priority network in the list.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.10.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.10.3
          */
         breadcrumb?: number | bigint;
     };
@@ -1330,19 +1334,19 @@ export declare namespace NetworkCommissioning {
      *
      * This command shall be used to add or modify Wi-Fi network configurations.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * The Credentials associated with the network are not readable after execution of this command, as they do not
-     * appear in the Networks attribute, for security reasons.
+     * appear in the Section 11.9.6.2, “Networks” attribute, for security reasons.
      *
-     * If this command contains a ClientIdentifier, and the Networks list does not contain an entry with a matching
-     * ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
+     * If this command contains a ClientIdentifier, and the Section 11.9.6.2, “Networks” list does not contain an entry
+     * with a matching ClientIdentifier, then this command shall fail with a status of NOT_FOUND.
      *
      * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior of
      * addition/update.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.3
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.3
      */
     export declare class AddOrUpdateWiFiNetworkRequest {
         constructor(values?: Partial<AddOrUpdateWiFiNetworkRequest>);
@@ -1351,7 +1355,7 @@ export declare namespace NetworkCommissioning {
          * This field shall contain the SSID to which to attempt connection. Specific BSSID selection is not supported
          * by this cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.3.1
          */
         ssid: Bytes;
 
@@ -1388,14 +1392,14 @@ export declare namespace NetworkCommissioning {
          * selects a lower security connectivity type if the link quality is deemed to be too low to achieve successful
          * operation, or if all retry attempts fail.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.3.2
          */
         credentials: Bytes;
 
         /**
          * See Section 11.9.7.1.2, “Breadcrumb Field” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.3.3
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.3.3
          */
         breadcrumb?: number | bigint;
     };
@@ -1405,8 +1409,8 @@ export declare namespace NetworkCommissioning {
      *
      * This command shall be used to add or modify Thread network configurations.
      *
-     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe Command”),
-     * then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
+     * If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe”), then this
+     * command shall fail with a FAILSAFE_REQUIRED status code sent back to the initiator.
      *
      * See Section 11.9.7.5, “Common processing of AddOrUpdateWiFiNetwork and AddOrUpdateThreadNetwork” for behavior of
      * addition/update.
@@ -1417,7 +1421,7 @@ export declare namespace NetworkCommissioning {
      * If the Networks attribute does not contain an entry with the same NetworkID as the one provided in the
      * OperationalDataset, the operation shall be considered an addition, otherwise, it shall be considered an update.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.7.4
+     * @see {@link MatterSpecification.v151.Core} § 11.9.7.4
      */
     export declare class AddOrUpdateThreadNetworkRequest {
         constructor(values?: Partial<AddOrUpdateThreadNetworkRequest>);
@@ -1430,14 +1434,14 @@ export declare namespace NetworkCommissioning {
          *
          * The client shall pass the OperationalDataset as an opaque octet string.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.4.1
          */
         operationalDataset: Bytes;
 
         /**
          * See Section 11.9.7.1.2, “Breadcrumb Field” for usage.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.7.4.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.7.4.2
          */
         breadcrumb?: number | bigint;
     };
@@ -1446,7 +1450,7 @@ export declare namespace NetworkCommissioning {
      * WiFiSecurityBitmap encodes the supported Wi-Fi security types present in the Security field of the
      * WiFiInterfaceScanResultStruct.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.1
      */
     export declare class WiFiSecurity {
         constructor(values?: Partial<WiFiSecurity> | number);
@@ -1480,7 +1484,7 @@ export declare namespace NetworkCommissioning {
     /**
      * WiFiInterfaceScanResultStruct represents a single Wi-Fi network scan result.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.6
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.6
      */
     export declare class WiFiInterfaceScanResult {
         constructor(values?: Partial<WiFiInterfaceScanResult>);
@@ -1493,14 +1497,14 @@ export declare namespace NetworkCommissioning {
          * This field, if present, may be used to differentiate overlapping channel number values across different Wi-Fi
          * frequency bands.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.5.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.5.6.1
          */
         wiFiBand?: WiFiBand;
 
         /**
          * This field, if present, shall denote the signal strength in dBm of the associated scan result.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.5.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.9.5.6.2
          */
         rssi?: number;
     };
@@ -1508,7 +1512,7 @@ export declare namespace NetworkCommissioning {
     /**
      * ThreadInterfaceScanResultStruct represents a single Thread network scan result.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.9.5.7
+     * @see {@link MatterSpecification.v151.Core} § 11.9.5.7
      */
     export declare class ThreadInterfaceScanResult {
         constructor(values?: Partial<ThreadInterfaceScanResult>);
@@ -1521,7 +1525,7 @@ export declare namespace NetworkCommissioning {
         /**
          * ExtendedAddress stands for an IEEE 802.15.4 Extended Address.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.9.5.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.9.5.7.1
          */
         extendedAddress?: Bytes;
 

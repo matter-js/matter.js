@@ -25,13 +25,9 @@ Resource.add({
         { tag: "requirement", name: "Actions", xref: "device§11.2.4" },
         { tag: "requirement", name: "Identify", xref: "device§11.2.4" },
         { tag: "requirement", name: "CommissionerControl", xref: "device§11.2.4" },
-
         {
-            tag: "field", name: "conditions",
-            children: [{
-                tag: "field", name: "FabricSynchronization", description: "See description below.",
-                xref: "device§11.2.3"
-            }]
+            tag: "condition", name: "FabricSynchronization", description: "See description below.",
+            xref: "device§11.2.3"
         }
     ]
 });

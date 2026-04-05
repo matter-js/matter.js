@@ -19,7 +19,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * This cluster is derived from the Mode Base cluster and defines additional mode tags and namespaced enumerated values
  * for oven devices.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 8.11
+ * @see {@link MatterSpecification.v151.Cluster} § 8.11
  */
 export declare namespace OvenMode {
     /**
@@ -52,12 +52,12 @@ export declare namespace OvenMode {
          * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
          * list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.6
          */
         currentMode: number;
     }
@@ -73,12 +73,12 @@ export declare namespace OvenMode {
          * At least one entry in the SupportedModes attribute shall include the Bake mode tag in the ModeTags field
          * list.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.6.1
          */
         supportedModes: ModeOption[];
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.6
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.6
          */
         currentMode: number;
     }
@@ -92,7 +92,7 @@ export declare namespace OvenMode {
          *
          * On receipt of this command the device shall respond with a ChangeToModeResponse command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.7.1
          */
         changeToMode(request: ModeBase.ChangeToModeRequest): MaybePromise<ModeBase.ChangeToModeResponse>;
     }
@@ -108,7 +108,7 @@ export declare namespace OvenMode {
     /**
      * These are optional features supported by OvenModeCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.11.4
+     * @see {@link MatterSpecification.v151.Cluster} § 8.11.4
      */
     export enum Feature {
         /**
@@ -123,7 +123,7 @@ export declare namespace OvenMode {
      * The table below lists the changes relative to the Mode Base cluster for the fields of the ModeOptionStruct type.
      * A blank field indicates no change.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 8.11.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 8.11.5.1
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -133,14 +133,14 @@ export declare namespace OvenMode {
          * the user to indicate what this option means. This field is meant to be readable and understandable by the
          * user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.1
          */
         label: string;
 
         /**
          * This field is used to identify the mode option.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.2
          */
         mode: number;
 
@@ -180,66 +180,66 @@ export declare namespace OvenMode {
          *   - A mode that includes both a generic Quick tag (defined here), and Vacuum and Mop tags, (defined in the
          *     RVC Clean cluster that is a derivation of this cluster).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.2.3
          */
         modeTags: ModeTagStruct[];
     };
 
     export enum ModeTag {
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Auto = 0,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Quick = 1,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Quiet = 2,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         LowNoise = 3,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         LowEnergy = 4,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Vacation = 5,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Min = 6,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Max = 7,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Night = 8,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         Day = 9,
 
         /**
          * This mode sets the device into baking mode for baking food items.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.1
          */
         Bake = 16384,
 
@@ -247,7 +247,7 @@ export declare namespace OvenMode {
          * This mode sets the device into convection mode which creates an airflow within the device during the cooking
          * duration.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.2
          */
         Convection = 16385,
 
@@ -255,58 +255,81 @@ export declare namespace OvenMode {
          * This mode sets the device into grill mode for grilling food items. This is the same as Broil for many
          * regions.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.3
          */
         Grill = 16386,
 
         /**
          * This mode sets the device into roast mode for roasting food items.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.4
          */
         Roast = 16387,
 
         /**
          * This mode sets the device into cleaning mode to clean the internal components of the appliance.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.5
+         * > [!NOTE]
+         *
+         * > Depending on regulatory or other requirements, the following restrictions could apply to the use of this
+         *   mode: - It may NOT be possible to start this mode from a client. It may need to be started at the device
+         *   due to the temperatures used during this mode. - The setting of the oven temperature or other features may
+         *   be limited or not available while this mode is running. - Oven temperature measurement may NOT be available
+         *   while this mode is running.
+         *
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.5
          */
         Clean = 16388,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         ConvectionBake = 16389,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
         ConvectionRoast = 16390,
 
         /**
          * This mode sets the device into a warming mode which begins warming the cavity.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.8
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.8
          */
         Warming = 16391,
 
         /**
          * This mode sets the device into proofing mode which creates an environment ready for proofing.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1.9
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1.9
          */
         Proofing = 16392,
 
         /**
-         * @see {@link MatterSpecification.v142.Cluster} § 8.11.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
          */
-        Steam = 16393
+        Steam = 16393,
+
+        /**
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
+         */
+        AirFry = 16394,
+
+        /**
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
+         */
+        AirSousVide = 16395,
+
+        /**
+         * @see {@link MatterSpecification.v151.Cluster} § 8.11.7.1
+         */
+        FrozenFood = 16396
     }
 
     /**
      * A Mode Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1
      */
     export declare class ModeTagStruct {
         constructor(values?: Partial<ModeTagStruct>);
@@ -322,7 +345,7 @@ export declare namespace OvenMode {
          * whose purpose is to choose the amount of sugar, or in a cluster whose purpose is to choose the amount of
          * salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.1
          */
         mfgCode?: VendorId;
 
@@ -330,7 +353,7 @@ export declare namespace OvenMode {
          * This field shall indicate the mode tag within a mode tag namespace which is either manufacturer specific or
          * standard.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.10.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.10.5.1.2
          */
         value: ModeTag | ModeBase.ModeTag;
     };

@@ -18,7 +18,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  * one or more endpoints on a node. In case the node has multiple power sources, each shall be described by its own
  * cluster instance. Each instance of this cluster may be associated with one or more endpoints or the entire node.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.7
+ * @see {@link MatterSpecification.v151.Core} § 11.7
  */
 export declare namespace PowerSource {
     /**
@@ -51,7 +51,7 @@ export declare namespace PowerSource {
          * Indicates the participation of this power source in providing power to the Node as specified in
          * PowerSourceStatusEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.1
          */
         status: PowerSourceStatus;
 
@@ -62,7 +62,7 @@ export declare namespace PowerSource {
          *
          * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.2
          */
         order: number;
 
@@ -71,7 +71,7 @@ export declare namespace PowerSource {
          * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to
          * convey information such as battery form factor, or chemistry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.3
          */
         description: string;
 
@@ -115,7 +115,7 @@ export declare namespace PowerSource {
          * associated with the mains power, because it indicates the entire node, but the Power Source cluster instance
          * associated with the battery backup would list the endpoints that have a battery backup.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.32
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.32
          */
         endpointList: EndpointNumber[];
     }
@@ -128,7 +128,7 @@ export declare namespace PowerSource {
          * Indicates the type of current the Node expects to be provided by the hard-wired source as specified in
          * WiredCurrentTypeEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.6
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.6
          */
         wiredCurrentType: WiredCurrentType;
 
@@ -137,7 +137,7 @@ export declare namespace PowerSource {
          * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
          * connected, but the Node is still able to assess a value, then the assessed value may be reported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.4
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.4
          */
         wiredAssessedInputVoltage?: number | null;
 
@@ -146,7 +146,7 @@ export declare namespace PowerSource {
          * of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
          * connected, but the Node is still able to assess a value, then the assessed value may be reported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.5
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.5
          */
         wiredAssessedInputFrequency?: number | null;
 
@@ -155,7 +155,7 @@ export declare namespace PowerSource {
          * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
          * connected, but the Node is still able to assess a value, then the assessed value may be reported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.7
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.7
          */
         wiredAssessedCurrent?: number | null;
 
@@ -163,7 +163,7 @@ export declare namespace PowerSource {
          * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV (millivolts),
          * expected to be provided by the hard-wired source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.8
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.8
          */
         wiredNominalVoltage?: number;
 
@@ -171,14 +171,14 @@ export declare namespace PowerSource {
          * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA (milliamps),
          * expected to be provided by the hard-wired source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.9
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.9
          */
         wiredMaximumCurrent?: number;
 
         /**
          * Indicates if the Node detects that the hard-wired power source is properly connected.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.10
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.10
          */
         wiredPresent?: boolean;
 
@@ -192,7 +192,7 @@ export declare namespace PowerSource {
          * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
          * or they may subscribe to WiredFaultChange.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.11
          */
         activeWiredFaults?: WiredFault[];
     }
@@ -205,7 +205,7 @@ export declare namespace PowerSource {
          * Indicates a coarse ranking of the charge level of the battery, used to indicate when intervention is required
          * as specified in BatChargeLevelEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.15
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.15
          */
         batChargeLevel: BatChargeLevel;
 
@@ -214,14 +214,14 @@ export declare namespace PowerSource {
          * single use, non-rechargeable cell. Replacement, however, may also indicate end of life, or serious fault with
          * a rechargeable or even non-replaceable cell.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.16
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.16
          */
         batReplacementNeeded: boolean;
 
         /**
          * Indicates the replaceability of the battery as specified in BatReplaceabilityEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.17
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.17
          */
         batReplaceability: BatReplaceability;
 
@@ -229,7 +229,7 @@ export declare namespace PowerSource {
          * Indicates the currently measured output voltage of the battery in mV (millivolts). A value of NULL shall
          * indicate the Node is currently unable to assess the value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.12
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.12
          */
         batVoltage?: number | null;
 
@@ -246,7 +246,7 @@ export declare namespace PowerSource {
          *
          * Since reporting consumes power, devices SHOULD be careful not to over-report.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.13
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.13
          */
         batPercentRemaining?: number | null;
 
@@ -262,14 +262,14 @@ export declare namespace PowerSource {
          *
          * Since reporting consumes power, devices SHOULD be careful not to over-report.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.14
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.14
          */
         batTimeRemaining?: number | null;
 
         /**
          * Indicates whether the Node detects that the batteries are properly installed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.18
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.18
          */
         batPresent?: boolean;
 
@@ -283,7 +283,7 @@ export declare namespace PowerSource {
          * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
          * or they may subscribe to BatFaultChange.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.19
          */
         activeBatFaults?: BatFault[];
     }
@@ -296,7 +296,7 @@ export declare namespace PowerSource {
          * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
          * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.20
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.20
          */
         batReplacementDescription: string;
 
@@ -304,7 +304,7 @@ export declare namespace PowerSource {
          * Indicates the quantity of individual, user- or factory-serviceable battery cells or packs in the battery
          * source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.26
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.26
          */
         batQuantity: number;
 
@@ -312,28 +312,28 @@ export declare namespace PowerSource {
          * Indicates the ID of the common or colloquial designation of the battery, as specified in
          * BatCommonDesignationEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.21
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.21
          */
         batCommonDesignation?: BatCommonDesignation;
 
         /**
          * Indicates the string representing the ANSI designation for the battery as specified in ANSI C18.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.22
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.22
          */
         batAnsiDesignation?: string;
 
         /**
          * Indicates the string representing the IEC designation for the battery as specified in IEC 60086.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.23
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.23
          */
         batIecDesignation?: string;
 
         /**
          * Indicates the ID of the preferred chemistry of the battery source as specified in BatApprovedChemistryEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.24
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.24
          */
         batApprovedChemistry?: BatApprovedChemistry;
     }
@@ -346,7 +346,7 @@ export declare namespace PowerSource {
          * Indicates the preferred minimum charge capacity rating in mAh of individual, user- or factory-serviceable
          * battery cells or packs in the battery source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.25
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.25
          */
         batCapacity?: number;
     }
@@ -359,14 +359,14 @@ export declare namespace PowerSource {
          * Indicates the current state of the battery source with respect to charging as specified in
          * BatChargeStateEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.27
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.27
          */
         batChargeState: BatChargeState;
 
         /**
          * Indicates whether the Node can remain operational while the battery source is charging.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.29
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.29
          */
         batFunctionalWhileCharging: boolean;
 
@@ -382,7 +382,7 @@ export declare namespace PowerSource {
          *
          * Since reporting consumes power, devices SHOULD be careful not to over-report.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.28
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.28
          */
         batTimeToFullCharge?: number | null;
 
@@ -390,7 +390,7 @@ export declare namespace PowerSource {
          * Indicates assessed current in mA (milliamps) presently supplied to charge the battery source. A value of NULL
          * shall indicate the Node is currently unable to assess the value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.30
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.30
          */
         batChargingCurrent?: number | null;
 
@@ -404,7 +404,7 @@ export declare namespace PowerSource {
          * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
          * attribute, or they may subscribe to the BatFaultChange event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.31
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.31
          */
         activeBatChargeFaults?: BatChargeFault[];
     }
@@ -420,7 +420,7 @@ export declare namespace PowerSource {
          * Indicates the participation of this power source in providing power to the Node as specified in
          * PowerSourceStatusEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.1
          */
         status: PowerSourceStatus;
 
@@ -431,7 +431,7 @@ export declare namespace PowerSource {
          *
          * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.2
          */
         order: number;
 
@@ -440,7 +440,7 @@ export declare namespace PowerSource {
          * power sources, e.g. "DC Power", "Primary Battery" or "Battery back-up". This attribute shall NOT be used to
          * convey information such as battery form factor, or chemistry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.3
          */
         description: string;
 
@@ -484,7 +484,7 @@ export declare namespace PowerSource {
          * associated with the mains power, because it indicates the entire node, but the Power Source cluster instance
          * associated with the battery backup would list the endpoints that have a battery backup.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.32
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.32
          */
         endpointList: EndpointNumber[];
 
@@ -492,7 +492,7 @@ export declare namespace PowerSource {
          * Indicates the type of current the Node expects to be provided by the hard-wired source as specified in
          * WiredCurrentTypeEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.6
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.6
          */
         wiredCurrentType: WiredCurrentType;
 
@@ -501,7 +501,7 @@ export declare namespace PowerSource {
          * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
          * connected, but the Node is still able to assess a value, then the assessed value may be reported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.4
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.4
          */
         wiredAssessedInputVoltage: number | null;
 
@@ -510,7 +510,7 @@ export declare namespace PowerSource {
          * of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
          * connected, but the Node is still able to assess a value, then the assessed value may be reported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.5
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.5
          */
         wiredAssessedInputFrequency: number | null;
 
@@ -519,7 +519,7 @@ export declare namespace PowerSource {
          * value of NULL shall indicate the Node is currently unable to assess the value. If the wired source is not
          * connected, but the Node is still able to assess a value, then the assessed value may be reported.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.7
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.7
          */
         wiredAssessedCurrent: number | null;
 
@@ -527,7 +527,7 @@ export declare namespace PowerSource {
          * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV (millivolts),
          * expected to be provided by the hard-wired source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.8
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.8
          */
         wiredNominalVoltage: number;
 
@@ -535,14 +535,14 @@ export declare namespace PowerSource {
          * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA (milliamps),
          * expected to be provided by the hard-wired source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.9
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.9
          */
         wiredMaximumCurrent: number;
 
         /**
          * Indicates if the Node detects that the hard-wired power source is properly connected.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.10
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.10
          */
         wiredPresent: boolean;
 
@@ -556,7 +556,7 @@ export declare namespace PowerSource {
          * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
          * or they may subscribe to WiredFaultChange.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.11
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.11
          */
         activeWiredFaults: WiredFault[];
 
@@ -564,7 +564,7 @@ export declare namespace PowerSource {
          * Indicates a coarse ranking of the charge level of the battery, used to indicate when intervention is required
          * as specified in BatChargeLevelEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.15
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.15
          */
         batChargeLevel: BatChargeLevel;
 
@@ -573,14 +573,14 @@ export declare namespace PowerSource {
          * single use, non-rechargeable cell. Replacement, however, may also indicate end of life, or serious fault with
          * a rechargeable or even non-replaceable cell.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.16
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.16
          */
         batReplacementNeeded: boolean;
 
         /**
          * Indicates the replaceability of the battery as specified in BatReplaceabilityEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.17
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.17
          */
         batReplaceability: BatReplaceability;
 
@@ -588,7 +588,7 @@ export declare namespace PowerSource {
          * Indicates the currently measured output voltage of the battery in mV (millivolts). A value of NULL shall
          * indicate the Node is currently unable to assess the value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.12
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.12
          */
         batVoltage: number | null;
 
@@ -605,7 +605,7 @@ export declare namespace PowerSource {
          *
          * Since reporting consumes power, devices SHOULD be careful not to over-report.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.13
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.13
          */
         batPercentRemaining: number | null;
 
@@ -621,14 +621,14 @@ export declare namespace PowerSource {
          *
          * Since reporting consumes power, devices SHOULD be careful not to over-report.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.14
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.14
          */
         batTimeRemaining: number | null;
 
         /**
          * Indicates whether the Node detects that the batteries are properly installed.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.18
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.18
          */
         batPresent: boolean;
 
@@ -642,7 +642,7 @@ export declare namespace PowerSource {
          * no significance. Clients interested in monitoring changes in active faults may subscribe to this attribute,
          * or they may subscribe to BatFaultChange.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.19
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.19
          */
         activeBatFaults: BatFault[];
 
@@ -650,7 +650,7 @@ export declare namespace PowerSource {
          * This attribute shall provide a user-facing description of this battery, which SHOULD contain information
          * required to identify a replacement, such as form factor, chemistry or preferred manufacturer.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.20
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.20
          */
         batReplacementDescription: string;
 
@@ -658,7 +658,7 @@ export declare namespace PowerSource {
          * Indicates the quantity of individual, user- or factory-serviceable battery cells or packs in the battery
          * source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.26
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.26
          */
         batQuantity: number;
 
@@ -666,28 +666,28 @@ export declare namespace PowerSource {
          * Indicates the ID of the common or colloquial designation of the battery, as specified in
          * BatCommonDesignationEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.21
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.21
          */
         batCommonDesignation: BatCommonDesignation;
 
         /**
          * Indicates the string representing the ANSI designation for the battery as specified in ANSI C18.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.22
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.22
          */
         batAnsiDesignation: string;
 
         /**
          * Indicates the string representing the IEC designation for the battery as specified in IEC 60086.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.23
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.23
          */
         batIecDesignation: string;
 
         /**
          * Indicates the ID of the preferred chemistry of the battery source as specified in BatApprovedChemistryEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.24
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.24
          */
         batApprovedChemistry: BatApprovedChemistry;
 
@@ -695,7 +695,7 @@ export declare namespace PowerSource {
          * Indicates the preferred minimum charge capacity rating in mAh of individual, user- or factory-serviceable
          * battery cells or packs in the battery source.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.25
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.25
          */
         batCapacity: number;
 
@@ -703,14 +703,14 @@ export declare namespace PowerSource {
          * Indicates the current state of the battery source with respect to charging as specified in
          * BatChargeStateEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.27
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.27
          */
         batChargeState: BatChargeState;
 
         /**
          * Indicates whether the Node can remain operational while the battery source is charging.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.29
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.29
          */
         batFunctionalWhileCharging: boolean;
 
@@ -726,7 +726,7 @@ export declare namespace PowerSource {
          *
          * Since reporting consumes power, devices SHOULD be careful not to over-report.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.28
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.28
          */
         batTimeToFullCharge: number | null;
 
@@ -734,7 +734,7 @@ export declare namespace PowerSource {
          * Indicates assessed current in mA (milliamps) presently supplied to charge the battery source. A value of NULL
          * shall indicate the Node is currently unable to assess the value.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.30
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.30
          */
         batChargingCurrent: number | null;
 
@@ -748,7 +748,7 @@ export declare namespace PowerSource {
          * have no significance. Clients interested in monitoring changes in active faults may subscribe to this
          * attribute, or they may subscribe to the BatFaultChange event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.7.31
+         * @see {@link MatterSpecification.v151.Core} § 11.7.7.31
          */
         activeBatChargeFaults: BatChargeFault[];
     }
@@ -761,7 +761,7 @@ export declare namespace PowerSource {
          * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on
          * this wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.1
          */
         wiredFaultChange?: WiredFaultChangeEvent;
     }
@@ -774,7 +774,7 @@ export declare namespace PowerSource {
          * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on
          * this battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.2
          */
         batFaultChange?: BatFaultChangeEvent;
     }
@@ -788,7 +788,7 @@ export declare namespace PowerSource {
          * Node on this battery power source changes. This event shall correspond to a change in value of
          * ActiveBatChargeFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.3
          */
         batChargeFaultChange?: BatChargeFaultChangeEvent;
     }
@@ -804,7 +804,7 @@ export declare namespace PowerSource {
          * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on
          * this wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.1
          */
         wiredFaultChange: WiredFaultChangeEvent;
 
@@ -812,7 +812,7 @@ export declare namespace PowerSource {
          * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on
          * this battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.2
          */
         batFaultChange: BatFaultChangeEvent;
 
@@ -821,7 +821,7 @@ export declare namespace PowerSource {
          * Node on this battery power source changes. This event shall correspond to a change in value of
          * ActiveBatChargeFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.3
          */
         batChargeFaultChange: BatChargeFaultChangeEvent;
     }
@@ -841,7 +841,7 @@ export declare namespace PowerSource {
     /**
      * These are optional features supported by PowerSourceCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.7.4
+     * @see {@link MatterSpecification.v151.Core} § 11.7.4
      */
     export enum Feature {
         /**
@@ -874,7 +874,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.4
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.4
      */
     export enum PowerSourceStatus {
         /**
@@ -899,7 +899,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.5
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.5
      */
     export enum WiredCurrentType {
         /**
@@ -914,7 +914,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.1
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.1
      */
     export enum WiredFault {
         /**
@@ -934,7 +934,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.6
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.6
      */
     export enum BatChargeLevel {
         /**
@@ -954,7 +954,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.7
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.7
      */
     export enum BatReplaceability {
         /**
@@ -979,7 +979,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.2
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.2
      */
     export enum BatFault {
         /**
@@ -999,7 +999,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.8
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.8
      */
     export enum BatCommonDesignation {
         /**
@@ -1384,7 +1384,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.9
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.9
      */
     export enum BatApprovedChemistry {
         /**
@@ -1554,7 +1554,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.10
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.10
      */
     export enum BatChargeState {
         /**
@@ -1579,7 +1579,7 @@ export declare namespace PowerSource {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.7.6.3
+     * @see {@link MatterSpecification.v151.Core} § 11.7.6.3
      */
     export enum BatChargeFault {
         /**
@@ -1642,7 +1642,7 @@ export declare namespace PowerSource {
      * The WiredFaultChange Event shall be generated when the set of wired faults currently detected by the Node on this
      * wired power source changes. This event shall correspond to a change in value of ActiveWiredFaults.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.7.8.1
+     * @see {@link MatterSpecification.v151.Core} § 11.7.8.1
      */
     export declare class WiredFaultChangeEvent {
         constructor(values?: Partial<WiredFaultChangeEvent>);
@@ -1650,14 +1650,14 @@ export declare namespace PowerSource {
         /**
          * This field shall represent the set of faults currently detected, as per ActiveWiredFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.1.1
          */
         current: WiredFault[];
 
         /**
          * This field shall represent the set of faults detected prior to this change event, as per ActiveWiredFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.1.2
          */
         previous: WiredFault[];
     };
@@ -1666,7 +1666,7 @@ export declare namespace PowerSource {
      * The BatFaultChange Event shall be generated when the set of battery faults currently detected by the Node on this
      * battery power source changes. This event shall correspond to a change in value of ActiveBatFaults.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.7.8.2
+     * @see {@link MatterSpecification.v151.Core} § 11.7.8.2
      */
     export declare class BatFaultChangeEvent {
         constructor(values?: Partial<BatFaultChangeEvent>);
@@ -1674,14 +1674,14 @@ export declare namespace PowerSource {
         /**
          * This field shall represent the set of faults currently detected, as per ActiveBatFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.2.1
          */
         current: BatFault[];
 
         /**
          * This field shall represent the set of faults detected prior to this change event, as per ActiveBatFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.2.2
          */
         previous: BatFault[];
     };
@@ -1690,7 +1690,7 @@ export declare namespace PowerSource {
      * The BatChargeFaultChange Event shall be generated when the set of charge faults currently detected by the Node on
      * this battery power source changes. This event shall correspond to a change in value of ActiveBatChargeFaults.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.7.8.3
+     * @see {@link MatterSpecification.v151.Core} § 11.7.8.3
      */
     export declare class BatChargeFaultChangeEvent {
         constructor(values?: Partial<BatChargeFaultChangeEvent>);
@@ -1698,7 +1698,7 @@ export declare namespace PowerSource {
         /**
          * This field shall represent the set of faults currently detected, as per ActiveBatChargeFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.3.1
          */
         current: BatChargeFault[];
 
@@ -1706,7 +1706,7 @@ export declare namespace PowerSource {
          * This field shall represent the set of faults detected prior to this change event, as per
          * ActiveBatChargeFaults.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.7.8.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.7.8.3.2
          */
         previous: BatChargeFault[];
     };

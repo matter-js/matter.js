@@ -7,6 +7,9 @@
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
 import {
+    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
+} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
+import {
     WiFiNetworkManagementServer as BaseWiFiNetworkManagementServer
 } from "../behaviors/wi-fi-network-management/WiFiNetworkManagementServer.js";
 import {
@@ -15,9 +18,6 @@ import {
 import {
     ThreadNetworkDirectoryServer as BaseThreadNetworkDirectoryServer
 } from "../behaviors/thread-network-directory/ThreadNetworkDirectoryServer.js";
-import {
-    ThreadNetworkDiagnosticsServer as BaseThreadNetworkDiagnosticsServer
-} from "../behaviors/thread-network-diagnostics/ThreadNetworkDiagnosticsServer.js";
 import { MutableEndpoint } from "../endpoint/type/MutableEndpoint.js";
 import { SupportedBehaviors } from "../endpoint/properties/SupportedBehaviors.js";
 import { Identity } from "@matter/general";
@@ -34,14 +34,21 @@ import { Identity } from "@matter/general";
  *
  * A Network Infrastructure Manager device may be managed by a service associated with the device vendor, for example,
  * an Internet Service Provider. Sometimes this managing service will have policies that require the use of the Managed
- * Device feature of the Access Control Cluster (see Section 15.3.5.1, “Access Control MNGD Conformance”). Consequently,
+ * Device feature of the Access Control Cluster (see Section 15.3.5.1, “ManagedAclAllowed Condition”). Consequently,
  * Commissioners of this device type should be aware of this feature and its use.
  *
- * @see {@link MatterSpecification.v142.Device} § 15.3
+ * @see {@link MatterSpecification.v151.Device} § 15.3
  */
 export interface NetworkInfrastructureManagerDevice extends Identity<typeof NetworkInfrastructureManagerDeviceDefinition> {}
 
 export namespace NetworkInfrastructureManagerRequirements {
+    /**
+     * The ThreadNetworkDiagnostics cluster is required by the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
+     */
+    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
+
     /**
      * The WiFiNetworkManagement cluster is required by the Matter specification.
      *
@@ -64,21 +71,14 @@ export namespace NetworkInfrastructureManagerRequirements {
     export const ThreadNetworkDirectoryServer = BaseThreadNetworkDirectoryServer;
 
     /**
-     * The ThreadNetworkDiagnostics cluster is required by the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link ThreadNetworkDiagnosticsServer} for convenience.
-     */
-    export const ThreadNetworkDiagnosticsServer = BaseThreadNetworkDiagnosticsServer;
-
-    /**
      * An implementation for each server cluster supported by the endpoint per the Matter specification.
      */
     export const server = {
         mandatory: {
+            ThreadNetworkDiagnostics: ThreadNetworkDiagnosticsServer,
             WiFiNetworkManagement: WiFiNetworkManagementServer,
             ThreadBorderRouterManagement: ThreadBorderRouterManagementServer,
-            ThreadNetworkDirectory: ThreadNetworkDirectoryServer,
-            ThreadNetworkDiagnostics: ThreadNetworkDiagnosticsServer
+            ThreadNetworkDirectory: ThreadNetworkDirectoryServer
         }
     };
 }
@@ -90,10 +90,10 @@ export const NetworkInfrastructureManagerDeviceDefinition = MutableEndpoint({
     requirements: NetworkInfrastructureManagerRequirements,
 
     behaviors: SupportedBehaviors(
+        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDiagnostics,
         NetworkInfrastructureManagerRequirements.server.mandatory.WiFiNetworkManagement,
         NetworkInfrastructureManagerRequirements.server.mandatory.ThreadBorderRouterManagement,
-        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDirectory,
-        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDiagnostics
+        NetworkInfrastructureManagerRequirements.server.mandatory.ThreadNetworkDirectory
     )
 });
 

@@ -24,11 +24,11 @@ Resource.add({
         { tag: "requirement", name: "CarbonDioxideConcentrationMeasurement", xref: "device§7.10.4" },
         { tag: "requirement", name: "NitrogenDioxideConcentrationMeasurement", xref: "device§7.10.4" },
         { tag: "requirement", name: "OzoneConcentrationMeasurement", xref: "device§7.10.4" },
+        { tag: "requirement", name: "Pm25ConcentrationMeasurement", xref: "device§7.10.4" },
         { tag: "requirement", name: "FormaldehydeConcentrationMeasurement", xref: "device§7.10.4" },
         { tag: "requirement", name: "Pm1ConcentrationMeasurement", xref: "device§7.10.4" },
-        { tag: "requirement", name: "Pm25ConcentrationMeasurement", xref: "device§7.10.4" },
         { tag: "requirement", name: "Pm10ConcentrationMeasurement", xref: "device§7.10.4" },
-        { tag: "requirement", name: "RadonConcentrationMeasurement", xref: "device§7.10.4" },
-        { tag: "requirement", name: "TotalVolatileOrganicCompoundsConcentrationMeasurement", xref: "device§7.10.4" }
+        { tag: "requirement", name: "TotalVolatileOrganicCompoundsConcentrationMeasurement", xref: "device§7.10.4" },
+        { tag: "requirement", name: "RadonConcentrationMeasurement", xref: "device§7.10.4" }
     ]
 });

@@ -18,15 +18,15 @@ import {
 
 export const EnergyEvse = Cluster(
     { name: "EnergyEvse", id: 0x99, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 3 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 4 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
         Field({ name: "PREF", conformance: "M", constraint: "0", title: "ChargingPreferences" }),
-        Field({ name: "SOC", conformance: "P, O", constraint: "1", title: "SoCReporting" }),
-        Field({ name: "PNC", conformance: "P, O", constraint: "2", title: "PlugAndCharge" }),
+        Field({ name: "SOC", conformance: "O", constraint: "1", title: "SoCReporting" }),
+        Field({ name: "PNC", conformance: "O", constraint: "2", title: "PlugAndCharge" }),
         Field({ name: "RFID", conformance: "O", constraint: "3", title: "Rfid" }),
-        Field({ name: "V2X", conformance: "P, O", constraint: "4", title: "V2X" })
+        Field({ name: "V2X", conformance: "O", constraint: "4", title: "V2X" })
     ),
 
     Attribute({ name: "State", id: 0x0, type: "StateEnum", access: "R V", conformance: "M", quality: "X" }),

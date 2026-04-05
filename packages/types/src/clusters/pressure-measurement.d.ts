@@ -16,7 +16,7 @@ import type { ClusterModel } from "@matter/model";
  * This cluster provides an interface to pressure measurement functionality, including configuration and provision of
  * notifications of pressure measurements.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 2.4
+ * @see {@link MatterSpecification.v151.Cluster} § 2.4
  */
 export declare namespace PressureMeasurement {
     /**
@@ -32,7 +32,7 @@ export declare namespace PressureMeasurement {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 3;
+    export const revision: 4;
 
     /**
      * Canonical metadata for the PressureMeasurement cluster.
@@ -52,7 +52,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.1
          */
         measuredValue: number | null;
 
@@ -61,7 +61,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.2
          */
         minMeasuredValue: number | null;
 
@@ -70,14 +70,14 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.4
          */
         tolerance?: number;
     }
@@ -93,7 +93,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.5
          */
         scaledValue: number | null;
 
@@ -102,7 +102,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.6
          */
         minScaledValue: number | null;
 
@@ -111,14 +111,14 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.7
          */
         maxScaledValue: number | null;
 
         /**
          * Indicates the base 10 exponent used to obtain ScaledValue (see ScaledValue).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.9
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.9
          */
         scale: number;
 
@@ -128,7 +128,7 @@ export declare namespace PressureMeasurement {
          *
          * (ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.8
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.8
          */
         scaledTolerance?: number;
     }
@@ -147,7 +147,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.1
          */
         measuredValue: number | null;
 
@@ -156,7 +156,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.2
          */
         minMeasuredValue: number | null;
 
@@ -165,14 +165,14 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.3
          */
         maxMeasuredValue: number | null;
 
         /**
          * See Measured Value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.4
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.4
          */
         tolerance: number;
 
@@ -183,7 +183,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.5
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.5
          */
         scaledValue: number | null;
 
@@ -192,7 +192,7 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.6
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.6
          */
         minScaledValue: number | null;
 
@@ -201,14 +201,14 @@ export declare namespace PressureMeasurement {
          *
          * The null value indicates that the value is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.7
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.7
          */
         maxScaledValue: number | null;
 
         /**
          * Indicates the base 10 exponent used to obtain ScaledValue (see ScaledValue).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.9
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.9
          */
         scale: number;
 
@@ -218,7 +218,7 @@ export declare namespace PressureMeasurement {
          *
          * (ScaledValue – ScaledTolerance) to (ScaledValue + ScaledTolerance).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 2.4.5.8
+         * @see {@link MatterSpecification.v151.Cluster} § 2.4.5.8
          */
         scaledTolerance: number;
     }
@@ -232,7 +232,7 @@ export declare namespace PressureMeasurement {
     /**
      * These are optional features supported by PressureMeasurementCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 2.4.4
+     * @see {@link MatterSpecification.v151.Cluster} § 2.4.4
      */
     export enum Feature {
         /**

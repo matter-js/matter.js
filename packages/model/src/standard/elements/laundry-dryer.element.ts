@@ -18,8 +18,8 @@ export const LaundryDryerDt = DeviceType(
     Requirement({ name: "Identify", id: 0x3, conformance: "O", element: "serverCluster" }),
     Requirement(
         { name: "LaundryWasherMode", id: 0x51, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" }),
-        Requirement({ name: "ONOFF", conformance: "X", element: "feature" })
+        Requirement({ name: "ONOFF", conformance: "X", element: "feature" }),
+        Requirement({ name: "StartUpMode", conformance: "X", element: "attribute" })
     ),
     Requirement(
         { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster" },

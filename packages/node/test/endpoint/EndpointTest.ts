@@ -19,12 +19,9 @@ import { RootEndpoint } from "#endpoints/root";
 import { FabricIndex } from "@matter/types";
 import { AccessControl } from "@matter/types/clusters/access-control";
 import { BasicInformation } from "@matter/types/clusters/basic-information";
-import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MockServerNode } from "../node/mock-server-node.js";
 
-const WindowCoveringLiftDevice = WindowCoveringDevice.with(
-    WindowCoveringServer.for(WindowCovering).with("Lift", "PositionAwareLift", "AbsolutePosition"),
-);
+const WindowCoveringLiftDevice = WindowCoveringDevice.with(WindowCoveringServer.with("Lift", "PositionAwareLift"));
 
 describe("Endpoint", () => {
     describe("agentType", () => {
@@ -55,20 +52,20 @@ describe("Endpoint", () => {
         it("accepts endpoint type with options", async () => {
             const endpoint = new Endpoint(WindowCoveringLiftDevice, {
                 owner: new MockServerNode(),
-                windowCovering: { physicalClosedLimitLift: 100 },
+                windowCovering: { currentPositionLiftPercent100ths: 100 },
             });
             await endpoint.construction;
-            expect(endpoint.state.windowCovering.physicalClosedLimitLift).equals(100);
+            expect(endpoint.state.windowCovering.currentPositionLiftPercent100ths).equals(100);
         });
 
         it("accepts configuration", async () => {
             const endpoint = new Endpoint({
                 type: WindowCoveringLiftDevice,
                 owner: new MockServerNode(),
-                windowCovering: { physicalClosedLimitLift: 200 },
+                windowCovering: { currentPositionLiftPercent100ths: 200 },
             });
             await endpoint.construction;
-            expect(endpoint.state.windowCovering.physicalClosedLimitLift).equals(200);
+            expect(endpoint.state.windowCovering.currentPositionLiftPercent100ths).equals(200);
         });
     });
 

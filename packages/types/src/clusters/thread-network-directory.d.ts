@@ -17,7 +17,7 @@ import type { Bytes, MaybePromise } from "@matter/general";
  * This cluster stores a list of Thread networks (including the credentials required to access each network), as well as
  * a designation of the user’s preferred network, to facilitate the sharing of Thread networks across fabrics.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 10.4
+ * @see {@link MatterSpecification.v151.Cluster} § 10.4
  */
 export declare namespace ThreadNetworkDirectory {
     /**
@@ -64,7 +64,7 @@ export declare namespace ThreadNetworkDirectory {
          *
          * On a factory reset this attribute shall be reset to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.5.1
          */
         preferredExtendedPanId: Bytes | null;
 
@@ -80,7 +80,7 @@ export declare namespace ThreadNetworkDirectory {
          * On a factory reset this list shall be cleared, and any Thread Operational datasets previously stored shall be
          * removed from the Node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.5.2
          */
         threadNetworks: ThreadNetwork[];
 
@@ -89,7 +89,7 @@ export declare namespace ThreadNetworkDirectory {
          * times the number of SupportedFabrics advertised in the Operational Credentials Cluster on the root endpoint
          * of this node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.5.3
          */
         threadNetworkTableSize: number;
     }
@@ -116,7 +116,7 @@ export declare namespace ThreadNetworkDirectory {
          *
          * On a factory reset this attribute shall be reset to null.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.5.1
          */
         preferredExtendedPanId: Bytes | null;
 
@@ -132,7 +132,7 @@ export declare namespace ThreadNetworkDirectory {
          * On a factory reset this list shall be cleared, and any Thread Operational datasets previously stored shall be
          * removed from the Node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.5.2
          */
         threadNetworks: ThreadNetwork[];
 
@@ -141,7 +141,7 @@ export declare namespace ThreadNetworkDirectory {
          * times the number of SupportedFabrics advertised in the Operational Credentials Cluster on the root endpoint
          * of this node.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.5.3
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.5.3
          */
         threadNetworkTableSize: number;
     }
@@ -157,21 +157,21 @@ export declare namespace ThreadNetworkDirectory {
          * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, …) of an existing
          * entry with a given Extended PAN ID can be made using this command.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1
          */
         addNetwork(request: AddNetworkRequest): MaybePromise;
 
         /**
          * Removes the network with the given Extended PAN ID from the ThreadNetworks attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.2
          */
         removeNetwork(request: RemoveNetworkRequest): MaybePromise;
 
         /**
          * Retrieves the Thread Operational Dataset with the given Extended PAN ID.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.3
          */
         getOperationalDataset(request: GetOperationalDatasetRequest): MaybePromise<OperationalDatasetResponse>;
     }
@@ -186,7 +186,7 @@ export declare namespace ThreadNetworkDirectory {
     /**
      * Represents the data associated with a Thread Network.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1
+     * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1
      */
     export declare class ThreadNetwork {
         constructor(values?: Partial<ThreadNetwork>);
@@ -194,28 +194,28 @@ export declare namespace ThreadNetworkDirectory {
         /**
          * This field shall indicate the Extended PAN ID from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1.1
          */
         extendedPanId: Bytes;
 
         /**
          * This field shall indicate the Network Name from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1.2
          */
         networkName: string;
 
         /**
          * This field shall indicate the Channel from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1.3
          */
         channel: number;
 
         /**
          * This field shall indicate the Active Timestamp from the OperationalDataset for the given Thread network.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.4.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.4.1.4
          */
         activeTimestamp: number | bigint;
     };
@@ -227,7 +227,7 @@ export declare namespace ThreadNetworkDirectory {
      * replaced. As a result, changes to the network parameters (e.g. Channel, Network Name, PSKc, …) of an existing
      * entry with a given Extended PAN ID can be made using this command.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1
+     * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1
      */
     export declare class AddNetworkRequest {
         constructor(values?: Partial<AddNetworkRequest>);
@@ -237,7 +237,7 @@ export declare namespace ThreadNetworkDirectory {
          * specification. It shall contain at least the following sub-TLVs: Active Timestamp, Channel, Channel Mask,
          * Extended PAN ID, Network Key, Network Mesh-Local Prefix, Network Name, PAN ID, PSKc, and Security Policy.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.1.1
          */
         operationalDataset: Bytes;
     };
@@ -245,7 +245,7 @@ export declare namespace ThreadNetworkDirectory {
     /**
      * Removes the network with the given Extended PAN ID from the ThreadNetworks attribute.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.2
+     * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.2
      */
     export declare class RemoveNetworkRequest {
         constructor(values?: Partial<RemoveNetworkRequest>);
@@ -255,7 +255,7 @@ export declare namespace ThreadNetworkDirectory {
     /**
      * Retrieves the Thread Operational Dataset with the given Extended PAN ID.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.3
+     * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.3
      */
     export declare class GetOperationalDatasetRequest {
         constructor(values?: Partial<GetOperationalDatasetRequest>);
@@ -265,7 +265,7 @@ export declare namespace ThreadNetworkDirectory {
     /**
      * Contains the Thread Operational Dataset for the Extended PAN specified in GetOperationalDataset.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 10.4.6.4
+     * @see {@link MatterSpecification.v151.Cluster} § 10.4.6.4
      */
     export declare class OperationalDatasetResponse {
         constructor(values?: Partial<OperationalDatasetResponse>);

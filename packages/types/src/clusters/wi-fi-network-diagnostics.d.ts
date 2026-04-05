@@ -18,7 +18,7 @@ import type { Bytes, MaybePromise } from "@matter/general";
  * by a Node to assist a user or Administrator in diagnosing potential problems. The Wi-Fi Network Diagnostics Cluster
  * attempts to centralize all metrics that are relevant to a potential Wi-Fi radio running on a Node.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.15
+ * @see {@link MatterSpecification.v151.Core} § 11.15
  */
 export declare namespace WiFiNetworkDiagnostics {
     /**
@@ -50,42 +50,42 @@ export declare namespace WiFiNetworkDiagnostics {
         /**
          * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.1
          */
         bssid: Bytes | null;
 
         /**
          * Indicates the current type of Wi-Fi security used.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.2
          */
         securityType: SecurityType | null;
 
         /**
          * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.3
          */
         wiFiVersion: WiFiVersion | null;
 
         /**
          * Indicates the channel that Wi-Fi communication is currently operating on.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.4
          */
         channelNumber: number | null;
 
         /**
          * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.5
          */
         rssi: number | null;
 
         /**
          * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.12
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.12
          */
         currentMaxRate?: number | bigint | null;
     }
@@ -98,7 +98,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
          * ability to count beacons expected and not received, this value may remain set to zero.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.6
          */
         beaconLostCount: number | null;
 
@@ -106,7 +106,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
          * all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.13
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.13
          */
         overrunCount: number | bigint | null;
     }
@@ -121,35 +121,35 @@ export declare namespace WiFiNetworkDiagnostics {
          * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
          * remain set to zero.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.7
          */
         beaconRxCount: number | null;
 
         /**
          * Indicates the number of multicast packets received by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.8
          */
         packetMulticastRxCount: number | null;
 
         /**
          * Indicates the number of multicast packets transmitted by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.9
          */
         packetMulticastTxCount: number | null;
 
         /**
          * Indicates the number of unicast packets received by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.10
          */
         packetUnicastRxCount: number | null;
 
         /**
          * Indicates the number of unicast packets transmitted by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.11
          */
         packetUnicastTxCount: number | null;
     }
@@ -164,42 +164,42 @@ export declare namespace WiFiNetworkDiagnostics {
         /**
          * Indicates the BSSID for which the Wi-Fi network the Node is currently connected.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.1
          */
         bssid: Bytes | null;
 
         /**
          * Indicates the current type of Wi-Fi security used.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.2
          */
         securityType: SecurityType | null;
 
         /**
          * Indicates the current IEEE 802.11 standard version in use by the Node, per the table below.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.3
          */
         wiFiVersion: WiFiVersion | null;
 
         /**
          * Indicates the channel that Wi-Fi communication is currently operating on.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.4
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.4
          */
         channelNumber: number | null;
 
         /**
          * Indicates the current RSSI of the Node’s Wi-Fi radio in dBm.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.5
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.5
          */
         rssi: number | null;
 
         /**
          * Indicates the current maximum PHY rate of transfer of data in bits-per-second.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.12
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.12
          */
         currentMaxRate: number | bigint | null;
 
@@ -207,7 +207,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * Indicates the count of the number of missed beacons the Node has detected. If the Node does not have an
          * ability to count beacons expected and not received, this value may remain set to zero.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.6
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.6
          */
         beaconLostCount: number | null;
 
@@ -215,7 +215,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * Indicates the number of packets dropped either at ingress or egress, due to lack of buffer memory to retain
          * all packets on the network interface. The attribute shall be reset to 0 upon a reboot of the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.13
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.13
          */
         overrunCount: number | bigint | null;
 
@@ -225,35 +225,35 @@ export declare namespace WiFiNetworkDiagnostics {
          * BeaconLostCount. If the Node does not have an ability to report count of beacons received, this value may
          * remain set to zero.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.7
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.7
          */
         beaconRxCount: number | null;
 
         /**
          * Indicates the number of multicast packets received by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.8
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.8
          */
         packetMulticastRxCount: number | null;
 
         /**
          * Indicates the number of multicast packets transmitted by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.9
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.9
          */
         packetMulticastTxCount: number | null;
 
         /**
          * Indicates the number of unicast packets received by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.10
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.10
          */
         packetUnicastRxCount: number | null;
 
         /**
          * Indicates the number of unicast packets transmitted by the Node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.6.11
+         * @see {@link MatterSpecification.v151.Core} § 11.15.6.11
          */
         packetUnicastTxCount: number | null;
     }
@@ -279,7 +279,7 @@ export declare namespace WiFiNetworkDiagnostics {
          *
          *   - PacketUnicastTxCount
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.7.1
          */
         resetCounts(): MaybePromise;
     }
@@ -297,7 +297,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
          * de-authenticated or dis-association and indicates the reason.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
          */
         disconnection?: DisconnectionEvent;
 
@@ -306,7 +306,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * access point, but is unable to successfully associate or authenticate, after exhausting all internal retries
          * of its supplicant.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.2
          */
         associationFailure?: AssociationFailureEvent;
 
@@ -315,7 +315,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
          * Wi-Fi Access Point.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.3
          */
         connectionStatus?: ConnectionStatusEvent;
     }
@@ -331,7 +331,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
          * de-authenticated or dis-association and indicates the reason.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
          */
         disconnection: DisconnectionEvent;
 
@@ -340,7 +340,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * access point, but is unable to successfully associate or authenticate, after exhausting all internal retries
          * of its supplicant.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.2
          */
         associationFailure: AssociationFailureEvent;
 
@@ -349,7 +349,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
          * Wi-Fi Access Point.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.3
          */
         connectionStatus: ConnectionStatusEvent;
     }
@@ -364,7 +364,7 @@ export declare namespace WiFiNetworkDiagnostics {
     /**
      * These are optional features supported by WiFiNetworkDiagnosticsCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.4
+     * @see {@link MatterSpecification.v151.Core} § 11.15.4
      */
     export enum Feature {
         /**
@@ -384,7 +384,7 @@ export declare namespace WiFiNetworkDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.15.5.1
+     * @see {@link MatterSpecification.v151.Core} § 11.15.5.1
      */
     export enum SecurityType {
         /**
@@ -419,7 +419,7 @@ export declare namespace WiFiNetworkDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.15.5.2
+     * @see {@link MatterSpecification.v151.Core} § 11.15.5.2
      */
     export enum WiFiVersion {
         A = 0,
@@ -447,7 +447,7 @@ export declare namespace WiFiNetworkDiagnostics {
      * The Disconnection Event shall indicate that a Node’s Wi-Fi connection has been disconnected as a result of
      * de-authenticated or dis-association and indicates the reason.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.8.1
+     * @see {@link MatterSpecification.v151.Core} § 11.15.8.1
      */
     export declare class DisconnectionEvent {
         constructor(values?: Partial<DisconnectionEvent>);
@@ -456,7 +456,7 @@ export declare namespace WiFiNetworkDiagnostics {
          * This field shall contain the Reason Code field value for the Disassociation or Deauthentication event that
          * caused the disconnection and the value shall align with Table 9-49 "Reason codes" of IEEE 802.11-2020.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.1.1
          */
         reasonCode: number;
     };
@@ -466,7 +466,7 @@ export declare namespace WiFiNetworkDiagnostics {
      * point, but is unable to successfully associate or authenticate, after exhausting all internal retries of its
      * supplicant.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.8.2
+     * @see {@link MatterSpecification.v151.Core} § 11.15.8.2
      */
     export declare class AssociationFailureEvent {
         constructor(values?: Partial<AssociationFailureEvent>);
@@ -474,7 +474,7 @@ export declare namespace WiFiNetworkDiagnostics {
         /**
          * The Status field shall be set to a value from the AssociationFailureCauseEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.2.1
          */
         associationFailureCause: AssociationFailureCause;
 
@@ -491,7 +491,7 @@ export declare namespace WiFiNetworkDiagnostics {
          *
          * Table 9-50 "Status codes" of IEEE 802.11-2020 contains a description of all values possible.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.15.8.2.2
+         * @see {@link MatterSpecification.v151.Core} § 11.15.8.2.2
          */
         status: number;
     };
@@ -501,7 +501,7 @@ export declare namespace WiFiNetworkDiagnostics {
      * Connected, in this context, shall mean that a Node acting as a Wi-Fi station is successfully associated to a
      * Wi-Fi Access Point.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.15.8.3
+     * @see {@link MatterSpecification.v151.Core} § 11.15.8.3
      */
     export declare class ConnectionStatusEvent {
         constructor(values?: Partial<ConnectionStatusEvent>);
@@ -509,7 +509,7 @@ export declare namespace WiFiNetworkDiagnostics {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.15.5.3
+     * @see {@link MatterSpecification.v151.Core} § 11.15.5.3
      */
     export enum AssociationFailureCause {
         /**
@@ -534,7 +534,7 @@ export declare namespace WiFiNetworkDiagnostics {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.15.5.4
+     * @see {@link MatterSpecification.v151.Core} § 11.15.5.4
      */
     export enum ConnectionStatus {
         /**

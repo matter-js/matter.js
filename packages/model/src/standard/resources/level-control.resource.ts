@@ -11,8 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "LevelControl", pics: "LVL", xref: "cluster§1.6",
     details: "This cluster provides an interface for controlling a characteristic of a device that can be set to a " +
-        "level, for example the brightness of a light, the degree of closure of a door, or the power output " +
-        "of a heater.",
+        "level, for example the brightness of a light or lamp, a pump’s flow rate setpoint, etc.",
 
     children: [
         {
@@ -84,16 +83,25 @@ Resource.add({
         },
 
         {
-            tag: "attribute", name: "MinLevel", discriminator: "[LT]", xref: "cluster§1.6.6.4",
-            details: "Indicates the minimum value of CurrentLevel that is capable of being assigned."
+            tag: "attribute", name: "MinLevel", xref: "cluster§1.6.6.4",
+
+            details: "Indicates the minimum value of CurrentLevel that is capable of being assigned." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As " +
+                "such, when the Lighting feature is supported this value shall be 1."
         },
-        {
-            tag: "attribute", name: "MinLevel", discriminator: "[!LT]", xref: "cluster§1.6.6.4",
-            details: "Indicates the minimum value of CurrentLevel that is capable of being assigned."
-        },
+
         {
             tag: "attribute", name: "MaxLevel", xref: "cluster§1.6.6.5",
-            details: "Indicates the maximum value of CurrentLevel that is capable of being assigned."
+
+            details: "Indicates the maximum value of CurrentLevel that is capable of being assigned." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. " +
+                "As such, when the Lighting feature is supported this value shall be 254."
         },
 
         {
@@ -202,10 +210,14 @@ Resource.add({
                 "attribute shall return to its value prior to the restart."
         },
 
-        { tag: "command", name: "MoveToLevel", xref: "cluster§1.6.7.1" },
+        {
+            tag: "command", name: "MoveToLevel", xref: "cluster§1.6.7.1",
+            details: "This command will move the device to the specified level."
+        },
 
         {
             tag: "command", name: "Move", xref: "cluster§1.6.7.2",
+            details: "This command will move the device using the specified values.",
 
             children: [
                 {
@@ -228,6 +240,7 @@ Resource.add({
 
         {
             tag: "command", name: "Step", xref: "cluster§1.6.7.3",
+            details: "This command will do a relative step change of the device using the specified values.",
 
             children: [
                 {
@@ -252,12 +265,18 @@ Resource.add({
             ]
         },
 
-        { tag: "command", name: "Stop", xref: "cluster§1.6.7.4" },
+        {
+            tag: "command", name: "Stop", xref: "cluster§1.6.7.4",
+            details: "This command will stop the actions of various other commands that are still in progress."
+        },
         { tag: "command", name: "MoveToLevelWithOnOff", xref: "cluster§1.6.7" },
         { tag: "command", name: "MoveWithOnOff", xref: "cluster§1.6.7" },
         { tag: "command", name: "StepWithOnOff", xref: "cluster§1.6.7" },
         { tag: "command", name: "StopWithOnOff", xref: "cluster§1.6.7" },
-        { tag: "command", name: "MoveToClosestFrequency", xref: "cluster§1.6.7.5" },
+        {
+            tag: "command", name: "MoveToClosestFrequency", xref: "cluster§1.6.7.5",
+            details: "This command will cause the device to change the current frequency to the requested value."
+        },
 
         {
             tag: "datatype", name: "OptionsBitmap", xref: "cluster§1.6.5.1",

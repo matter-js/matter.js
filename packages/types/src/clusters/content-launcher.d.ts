@@ -31,7 +31,7 @@ import type { MediaPlayback } from "./media-playback.js";
  * Application Basic cluster), the Video Player device shall launch the application when a client invokes the
  * LaunchContent or LaunchURL commands.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.7
+ * @see {@link MatterSpecification.v151.Cluster} § 6.7
  */
 export declare namespace ContentLauncher {
     /**
@@ -64,14 +64,14 @@ export declare namespace ContentLauncher {
          * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
          * of entries in the HTTP "Accept" request header.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.6.1
          */
         acceptHeader: string[];
 
         /**
          * This attribute shall provide information about supported streaming protocols.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.6.2
          */
         supportedStreamingProtocols: SupportedProtocols;
     }
@@ -87,14 +87,14 @@ export declare namespace ContentLauncher {
          * This attribute shall provide a list of content types supported by the Video Player or Content App in the form
          * of entries in the HTTP "Accept" request header.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.6.1
          */
         acceptHeader: string[];
 
         /**
          * This attribute shall provide information about supported streaming protocols.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.6.2
          */
         supportedStreamingProtocols: SupportedProtocols;
     }
@@ -120,7 +120,7 @@ export declare namespace ContentLauncher {
          *
          * This command returns a Launch Response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2
          */
         launchUrl(request: LaunchUrlRequest): MaybePromise<LauncherResponse>;
     }
@@ -134,7 +134,7 @@ export declare namespace ContentLauncher {
          *
          * This command returns a Launch Response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1
          */
         launchContent(request: LaunchContentRequest): MaybePromise<LauncherResponse>;
     }
@@ -156,7 +156,7 @@ export declare namespace ContentLauncher {
     /**
      * These are optional features supported by ContentLauncherCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.4
      */
     export enum Feature {
         /**
@@ -197,7 +197,7 @@ export declare namespace ContentLauncher {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.1
      */
     export declare class SupportedProtocols {
         constructor(values?: Partial<SupportedProtocols> | number);
@@ -229,7 +229,7 @@ export declare namespace ContentLauncher {
      *
      * This command returns a Launch Response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2
      */
     export declare class LaunchUrlRequest {
         constructor(values?: Partial<LaunchUrlRequest>);
@@ -238,7 +238,7 @@ export declare namespace ContentLauncher {
          * This field shall indicate the URL of content to launch. The syntax of this field shall follow the syntax as
          * specified in RFC 1738 and shall use the https scheme.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2.1
          */
         contentUrl: string;
 
@@ -246,7 +246,7 @@ export declare namespace ContentLauncher {
          * This field, if present, shall provide a string that may be used to describe the content being accessed at the
          * given URL.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2.2
          */
         displayString?: string;
 
@@ -254,7 +254,7 @@ export declare namespace ContentLauncher {
          * This field, if present, shall indicate the branding information that may be displayed when playing back the
          * given content.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2.3
          */
         brandingInformation?: BrandingInformation;
 
@@ -268,7 +268,7 @@ export declare namespace ContentLauncher {
          * Text/AudioTracks are not available, the server shall return the TextTrackNotAvailable and/or
          * AudioTrackNotAvailable Status(es) in the LauncherResponse.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.2.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.2.4
          */
         playbackPreferences?: PlaybackPreferences;
     };
@@ -276,7 +276,7 @@ export declare namespace ContentLauncher {
     /**
      * This command shall be generated in response to LaunchContent and LaunchURL commands.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.3
      */
     export declare class LauncherResponse {
         constructor(values?: Partial<LauncherResponse>);
@@ -284,14 +284,14 @@ export declare namespace ContentLauncher {
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.3.1
          */
         status: Status;
 
         /**
          * This field shall indicate Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.3.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.3.2
          */
         data?: string;
     };
@@ -301,7 +301,7 @@ export declare namespace ContentLauncher {
      *
      * This command returns a Launch Response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1
      */
     export declare class LaunchContentRequest {
         constructor(values?: Partial<LaunchContentRequest>);
@@ -309,7 +309,7 @@ export declare namespace ContentLauncher {
         /**
          * This field shall indicate the content to launch.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1.1
          */
         search: ContentSearch;
 
@@ -320,14 +320,14 @@ export declare namespace ContentLauncher {
          *
          *   - FALSE means matches should be displayed on screen for user selection.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1.2
          */
         autoPlay: boolean;
 
         /**
          * This field, if present, shall indicate app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1.3
          */
         data?: string;
 
@@ -341,7 +341,7 @@ export declare namespace ContentLauncher {
          * Text/AudioTracks are not available, the server shall return the TextTrackNotAvailable and/or
          * AudioTrackNotAvailable Status(es) in the LauncherResponse.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1.4
          */
         playbackPreferences?: PlaybackPreferences;
 
@@ -352,13 +352,13 @@ export declare namespace ContentLauncher {
          * request refers to the specific episode of the ongoing season of the TV series. TRUE means current activity
          * context may be considered FALSE means current activity context shall NOT be considered
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.7.1.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.7.1.5
          */
         useCurrentContext?: boolean;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.2
      */
     export enum Status {
         /**
@@ -390,7 +390,7 @@ export declare namespace ContentLauncher {
     /**
      * Thrown for cluster status code {@link Status.UrlNotAvailable}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.2
      */
     export class UrlNotAvailableError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -399,7 +399,7 @@ export declare namespace ContentLauncher {
     /**
      * Thrown for cluster status code {@link Status.AuthFailed}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.2
      */
     export class AuthFailedError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -408,7 +408,7 @@ export declare namespace ContentLauncher {
     /**
      * Thrown for cluster status code {@link Status.TextTrackNotAvailable}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.2
      */
     export class TextTrackNotAvailableError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -417,14 +417,14 @@ export declare namespace ContentLauncher {
     /**
      * Thrown for cluster status code {@link Status.AudioTrackNotAvailable}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.2
      */
     export class AudioTrackNotAvailableError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.3
      */
     export enum Parameter {
         /**
@@ -523,7 +523,7 @@ export declare namespace ContentLauncher {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.4
      */
     export enum MetricType {
         /**
@@ -531,7 +531,7 @@ export declare namespace ContentLauncher {
          *
          * This value is used for dimensions defined in a number of Pixels.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.4.1
          */
         Pixels = 0,
 
@@ -544,7 +544,7 @@ export declare namespace ContentLauncher {
          * Metric type, the resulting values shall be rounded ("floored") towards 0 if the measurement requires an
          * integer final value.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.4.2
          */
         Percentage = 1
     }
@@ -552,7 +552,7 @@ export declare namespace ContentLauncher {
     /**
      * This object defines additional name=value pairs that can be used for identifying content.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.5
      */
     export declare class AdditionalInfo {
         constructor(values?: Partial<AdditionalInfo>);
@@ -560,14 +560,14 @@ export declare namespace ContentLauncher {
         /**
          * This field shall indicate the name of external id, ex. "musicbrainz".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.5.1
          */
         name: string;
 
         /**
          * This field shall indicate the value for external id, ex. "ST0000000666661".
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.5.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.5.2
          */
         value: string;
     };
@@ -575,7 +575,7 @@ export declare namespace ContentLauncher {
     /**
      * This object defines inputs to a search for content for display or playback.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.6
      */
     export declare class ParameterStruct {
         constructor(values?: Partial<ParameterStruct>);
@@ -583,21 +583,21 @@ export declare namespace ContentLauncher {
         /**
          * This field shall indicate the entity type.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.6.1
          */
         type: Parameter;
 
         /**
          * This field shall indicate the entity value, which is a search string, ex. “Manchester by the Sea”.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.6.2
          */
         value: string;
 
         /**
          * This field shall indicate the list of additional external content identifiers.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.6.3
          */
         externalIdList?: AdditionalInfo[];
     };
@@ -605,7 +605,7 @@ export declare namespace ContentLauncher {
     /**
      * This object defines inputs to a search for content for display or playback.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.7
      */
     export declare class ContentSearch {
         constructor(values?: Partial<ContentSearch>);
@@ -615,7 +615,7 @@ export declare namespace ContentLauncher {
          * the search parameters shall be joined with 'AND' logic. e.g. action movies with Tom Cruise will be
          * represented as [{Actor: 'Tom Cruise'}, {Type: 'Movie'}, {Genre: 'Action'}]
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.7.1
          */
         parameterList: ParameterStruct[];
     };
@@ -623,7 +623,7 @@ export declare namespace ContentLauncher {
     /**
      * This object defines dimension which can be used for defining Size of background images.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.8
      */
     export declare class Dimension {
         constructor(values?: Partial<Dimension>);
@@ -631,21 +631,21 @@ export declare namespace ContentLauncher {
         /**
          * This field shall indicate the width using the metric defined in Metric
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.8.1
          */
         width: number;
 
         /**
          * This field shall indicate the height using the metric defined in Metric
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.8.2
          */
         height: number;
 
         /**
          * This field shall indicate metric used for defining Height/Width.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.8.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.8.3
          */
         metric: MetricType;
     };
@@ -654,7 +654,7 @@ export declare namespace ContentLauncher {
      * This object defines style information which can be used by content providers to change the Media Player’s style
      * related properties.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9
      */
     export declare class StyleInformation {
         constructor(values?: Partial<StyleInformation>);
@@ -664,7 +664,7 @@ export declare namespace ContentLauncher {
          * Watermark etc. The syntax of this field shall follow the syntax as specified in RFC 1738 and shall use the
          * https scheme.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9.1
          */
         imageUrl?: string;
 
@@ -677,7 +677,7 @@ export declare namespace ContentLauncher {
          *
          *   - #76DE1980 for R=0x76, G=0xDE, B=0x19, A=0x80
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9.2
          */
         color?: string;
 
@@ -685,7 +685,7 @@ export declare namespace ContentLauncher {
          * This field shall indicate the size of the image used for Styling different Video Player sections like Logo,
          * Watermark etc.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.9.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.9.3
          */
         size?: Dimension;
     };
@@ -694,7 +694,7 @@ export declare namespace ContentLauncher {
      * This object defines Branding Information which can be provided by the client in order to customize the skin of
      * the Video Player during playback.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10
      */
     export declare class BrandingInformation {
         constructor(values?: Partial<BrandingInformation>);
@@ -702,7 +702,7 @@ export declare namespace ContentLauncher {
         /**
          * This field shall indicate name of the provider for the given content.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.1
          */
         providerName: string;
 
@@ -710,7 +710,7 @@ export declare namespace ContentLauncher {
          * This field shall indicate background of the Video Player while content launch request is being processed by
          * it. This background information may also be used by the Video Player when it is in idle state.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.2
          */
         background?: StyleInformation;
 
@@ -718,14 +718,14 @@ export declare namespace ContentLauncher {
          * This field shall indicate the logo shown when the Video Player is launching. This is also used when the Video
          * Player is in the idle state and Splash field is not available.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.3
          */
         logo?: StyleInformation;
 
         /**
          * This field shall indicate the style of progress bar for media playback.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.4
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.4
          */
         progressBar?: StyleInformation;
 
@@ -733,14 +733,14 @@ export declare namespace ContentLauncher {
          * This field shall indicate the screen shown when the Video Player is in an idle state. If this property is not
          * populated, the Video Player shall default to logo or the provider name.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.5
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.5
          */
         splash?: StyleInformation;
 
         /**
          * This field shall indicate watermark shown when the media is playing.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.10.6
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.10.6
          */
         watermark?: StyleInformation;
     };
@@ -749,7 +749,7 @@ export declare namespace ContentLauncher {
      * PlaybackPreferencesStruct defines the preferences sent by the client to the receiver in the ContentLauncher
      * LaunchURL or LaunchContent commands.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.11
      */
     export declare class PlaybackPreferences {
         constructor(values?: Partial<PlaybackPreferences>);
@@ -761,7 +761,7 @@ export declare namespace ContentLauncher {
          * indicate that playback position is not applicable for the current state of the media playback. (For example :
          * Live media with no known duration and where seek is not supported).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.11.1
          */
         playbackPosition?: number | bigint | null;
 
@@ -770,7 +770,7 @@ export declare namespace ContentLauncher {
          * not specify a preferred Text Track on the client. In such a case, the decision to display and select a Text
          * Track is up to the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.11.2
          */
         textTrack?: TrackPreference | null;
 
@@ -780,7 +780,7 @@ export declare namespace ContentLauncher {
          * shall indicate that the user did not specify a preferred Audio Track on the client. In such a case, the
          * decision to play and select an Audio Track is up to the server.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.11.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.11.3
          */
         audioTracks?: TrackPreference[] | null;
     };
@@ -788,7 +788,7 @@ export declare namespace ContentLauncher {
     /**
      * This structure defines Text/Audio Track preferences.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12
+     * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.12
      */
     export declare class TrackPreference {
         constructor(values?: Partial<TrackPreference>);
@@ -797,7 +797,7 @@ export declare namespace ContentLauncher {
          * This field shall contain one of the standard Tags for Identifying Languages RFC 5646, which identifies the
          * primary language used in the Track.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.12.1
          */
         languageCode: string;
 
@@ -806,7 +806,7 @@ export declare namespace ContentLauncher {
          * feature associated with the Track. A value of null shall indicate that there are no Characteristics
          * corresponding to the Track.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.12.2
          */
         characteristics?: MediaPlayback.Characteristic[] | null;
 
@@ -816,10 +816,10 @@ export declare namespace ContentLauncher {
          *
          * This field shall NOT be present if the track is not an audio track.
          *
-         * If the track is an audio track, this field MUST be present. A value of null shall indicate that the server
+         * If the track is an audio track, this field shall be present. A value of null shall indicate that the server
          * can choose the audio output(s) to play the Audio Track on.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.7.5.12.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.7.5.12.3
          */
         audioOutputIndex?: number | null;
     };

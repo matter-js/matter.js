@@ -39,7 +39,10 @@ Resource.add({
                 "  - The OperationalState attribute shall be set to SeekingCharger." +
                 "\n" +
                 "  - The device shall respond with an OperationalCommandResponse command with an ErrorStateID of " +
-                "NoError."
+                "NoError." +
+                "\n" +
+                "  - After the device reaches the dock and completes its docking activities, the RVC Run Mode " +
+                "cluster’s CurrentMode attribute shall be set to an Idle mode."
         },
 
         {
@@ -147,7 +150,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "DirtyWaterTankMissing",
-                    description: "The device has detected that its dirty water is missing"
+                    description: "The device has detected that its dirty water tank is missing"
                 },
                 {
                     tag: "field", name: "WheelsJammed",

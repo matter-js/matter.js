@@ -25,7 +25,7 @@ import { Identity } from "@matter/general";
  * and other items associate with food preparation and consumption. The device can be permanently installed or portable
  * and can have variety of filling and draining methods.
  *
- * @see {@link MatterSpecification.v142.Device} § 13.5
+ * @see {@link MatterSpecification.v151.Device} § 13.5
  */
 export interface DishwasherDevice extends Identity<typeof DishwasherDeviceDefinition> {}
 

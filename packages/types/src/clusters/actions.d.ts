@@ -50,7 +50,7 @@ import type { EndpointNumber } from "../datatype/EndpointNumber.js";
  * The term 'action' in the description of this cluster should not be confused with the term 'action' as used in the
  * Interaction Model.
  *
- * @see {@link MatterSpecification.v142.Core} § 9.14
+ * @see {@link MatterSpecification.v151.Core} § 9.14
  */
 export declare namespace Actions {
     /**
@@ -83,14 +83,14 @@ export declare namespace Actions {
          * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
          * EndpointListID shall exist in the EndpointLists attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.5.1
          */
         actionList: Action[];
 
         /**
          * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique EndpointListID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.5.2
          */
         endpointLists: EndpointList[];
 
@@ -116,7 +116,7 @@ export declare namespace Actions {
          *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
          *       action with ActionID 0x3039.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.5.3
          */
         setupUrl?: string;
     }
@@ -131,14 +131,14 @@ export declare namespace Actions {
          * The ActionList attribute holds the list of actions. Each entry shall have an unique ActionID, and its
          * EndpointListID shall exist in the EndpointLists attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.5.1
          */
         actionList: Action[];
 
         /**
          * The EndpointLists attribute holds the list of endpoint lists. Each entry shall have an unique EndpointListID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.5.2
          */
         endpointLists: EndpointList[];
 
@@ -164,7 +164,7 @@ export declare namespace Actions {
          *       https://domain.example/Matter/bridgev1/Actions/?a=12345 for linking to specific info/editing of the
          *       action with ActionID 0x3039.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.5.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.5.3
          */
         setupUrl: string;
     }
@@ -181,7 +181,7 @@ export declare namespace Actions {
          *
          * Example: recall a scene on a number of lights.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.1
          */
         instantAction(request: InstantActionRequest): MaybePromise;
 
@@ -198,7 +198,7 @@ export declare namespace Actions {
          *
          * Example: recall a scene on a number of lights, with a specified transition time.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.2
          */
         instantActionWithTransition(request: InstantActionWithTransitionRequest): MaybePromise;
 
@@ -214,7 +214,7 @@ export declare namespace Actions {
          * Example: start a sequence of events such as a wake-up experience involving lights moving through several
          * brightness/color combinations and the window covering gradually opening.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.3
          */
         startAction(request: StartActionRequest): MaybePromise;
 
@@ -228,7 +228,7 @@ export declare namespace Actions {
          * Example: start a dynamic lighting pattern (such as gradually rotating the colors around the setpoints of the
          * scene) on a set of lights for 1 hour (Duration=3600).
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.4
          */
         startActionWithDuration(request: StartActionWithDurationRequest): MaybePromise;
 
@@ -240,7 +240,7 @@ export declare namespace Actions {
          *
          * Example: stop a dynamic lighting pattern which was previously started with StartAction.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.5
          */
         stopAction(request: StopActionRequest): MaybePromise;
 
@@ -252,7 +252,7 @@ export declare namespace Actions {
          * Example: pause a dynamic lighting effect (the lights stay at their current color) which was previously
          * started with StartAction.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.6
          */
         pauseAction(request: PauseActionRequest): MaybePromise;
 
@@ -271,7 +271,7 @@ export declare namespace Actions {
          * some hours or during a nightly reset, while an Disable would remain in effect until explicitly enabled
          * again).
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.7
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.7
          */
         pauseActionWithDuration(request: PauseActionWithDurationRequest): MaybePromise;
 
@@ -286,7 +286,7 @@ export declare namespace Actions {
          * Example: resume a dynamic lighting effect (the lights' colors will change gradually, continuing from the
          * point they were paused).
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.8
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.8
          */
         resumeAction(request: ResumeActionRequest): MaybePromise;
 
@@ -297,7 +297,7 @@ export declare namespace Actions {
          *
          * Example: enable a motion sensor to control the lights in an area.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.9
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.9
          */
         enableAction(request: EnableActionRequest): MaybePromise;
 
@@ -311,7 +311,7 @@ export declare namespace Actions {
          * field is used to indicated the length of your absence from home. After that period, the presence mimicking
          * behavior will no longer control these lights.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.10
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.10
          */
         enableActionWithDuration(request: EnableActionWithDurationRequest): MaybePromise;
 
@@ -322,7 +322,7 @@ export declare namespace Actions {
          *
          * Example: disable a motion sensor to no longer control the lights in an area.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.11
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.11
          */
         disableAction(request: DisableActionRequest): MaybePromise;
 
@@ -338,7 +338,7 @@ export declare namespace Actions {
          * turning on in the morning while you’re not at home). After this period, the wakeup experience will control
          * the lights as before.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.12
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.12
          */
         disableActionWithDuration(request: DisableActionWithDurationRequest): MaybePromise;
     }
@@ -365,7 +365,7 @@ export declare namespace Actions {
          *
          *   - one when the transition completed (NewState=Inactive)
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.1
          */
         stateChanged: StateChangedEvent;
 
@@ -394,7 +394,7 @@ export declare namespace Actions {
          *
          *   - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.2
          */
         actionFailed: ActionFailedEvent;
     }
@@ -416,7 +416,7 @@ export declare namespace Actions {
          *
          *   - one when the transition completed (NewState=Inactive)
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.1
          */
         stateChanged: StateChangedEvent;
 
@@ -445,7 +445,7 @@ export declare namespace Actions {
          *
          *   - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.2
          */
         actionFailed: ActionFailedEvent;
     }
@@ -455,7 +455,7 @@ export declare namespace Actions {
     /**
      * This data type holds the details of a single action, and contains the data fields below.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.6
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.6
      */
     export declare class Action {
         constructor(values?: Partial<Action>);
@@ -463,7 +463,7 @@ export declare namespace Actions {
         /**
          * This field shall provide an unique identifier used to identify an action.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.6.1
          */
         actionId: number;
 
@@ -472,7 +472,7 @@ export declare namespace Actions {
          * this action. This can be used for identifying the action to the user by the client. Example: "my colorful
          * scene".
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.6.2
          */
         name: string;
 
@@ -481,7 +481,7 @@ export declare namespace Actions {
          * SupportedCommands can be used by the client in its UX or logic to determine how to present or use such
          * action. See ActionTypeEnum for details and examples.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.6.3
          */
         type: ActionType;
 
@@ -489,7 +489,7 @@ export declare namespace Actions {
          * This field shall provide a reference to the associated endpoint list, which specifies the endpoints on this
          * Node which will be impacted by this ActionID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.4
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.6.4
          */
         endpointListId: number;
 
@@ -498,14 +498,14 @@ export declare namespace Actions {
          * particular action, with a bit set to 1 for each supported command according to the table below. Other bits
          * shall be set to 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.5
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.6.5
          */
         supportedCommands: CommandBits;
 
         /**
          * This field shall indicate the current state of this action.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.6.6
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.6.6
          */
         state: ActionState;
     };
@@ -514,7 +514,7 @@ export declare namespace Actions {
      * This data type holds the details of a single endpoint list, which relates to a set of endpoints that have some
      * logical relation, and contains the data fields below.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.7
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.7
      */
     export declare class EndpointList {
         constructor(values?: Partial<EndpointList>);
@@ -522,7 +522,7 @@ export declare namespace Actions {
         /**
          * This field shall provide an unique identifier used to identify the endpoint list.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.7.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.7.1
          */
         endpointListId: number;
 
@@ -531,21 +531,21 @@ export declare namespace Actions {
          * the set of endpoints in this list. This can be used for identifying the action to the user by the client.
          * Example: "living room".
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.7.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.7.2
          */
         name: string;
 
         /**
          * This field shall indicate the type of endpoint list, see EndpointListTypeEnum.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.7.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.7.3
          */
         type: EndpointListType;
 
         /**
          * This field shall provide a list of endpoint numbers.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.7.4
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.7.4
          */
         endpoints: EndpointNumber[];
     };
@@ -558,7 +558,7 @@ export declare namespace Actions {
      *
      * Example: recall a scene on a number of lights.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.1
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.1
      */
     export declare class InstantActionRequest {
         constructor(values?: Partial<InstantActionRequest>);
@@ -579,7 +579,7 @@ export declare namespace Actions {
      *
      * Example: recall a scene on a number of lights, with a specified transition time.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.2
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.2
      */
     export declare class InstantActionWithTransitionRequest {
         constructor(values?: Partial<InstantActionWithTransitionRequest>);
@@ -589,7 +589,7 @@ export declare namespace Actions {
         /**
          * This field shall indicate the transition time in 1/10th of seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.2.1
          */
         transitionTime: number;
     };
@@ -606,7 +606,7 @@ export declare namespace Actions {
      * Example: start a sequence of events such as a wake-up experience involving lights moving through several
      * brightness/color combinations and the window covering gradually opening.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.3
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.3
      */
     export declare class StartActionRequest {
         constructor(values?: Partial<StartActionRequest>);
@@ -624,7 +624,7 @@ export declare namespace Actions {
      * Example: start a dynamic lighting pattern (such as gradually rotating the colors around the setpoints of the
      * scene) on a set of lights for 1 hour (Duration=3600).
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.4
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.4
      */
     export declare class StartActionWithDurationRequest {
         constructor(values?: Partial<StartActionWithDurationRequest>);
@@ -634,7 +634,7 @@ export declare namespace Actions {
         /**
          * This field shall indicate the requested duration in seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.4.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.4.1
          */
         duration: number;
     };
@@ -647,7 +647,7 @@ export declare namespace Actions {
      *
      * Example: stop a dynamic lighting pattern which was previously started with StartAction.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.5
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.5
      */
     export declare class StopActionRequest {
         constructor(values?: Partial<StopActionRequest>);
@@ -663,7 +663,7 @@ export declare namespace Actions {
      * Example: pause a dynamic lighting effect (the lights stay at their current color) which was previously started
      * with StartAction.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.6
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.6
      */
     export declare class PauseActionRequest {
         constructor(values?: Partial<PauseActionRequest>);
@@ -684,7 +684,7 @@ export declare namespace Actions {
      * differently in the implementation of the action (e.g. a Pause would be automatically resumed after some hours or
      * during a nightly reset, while an Disable would remain in effect until explicitly enabled again).
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.7
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.7
      */
     export declare class PauseActionWithDurationRequest {
         constructor(values?: Partial<PauseActionWithDurationRequest>);
@@ -694,7 +694,7 @@ export declare namespace Actions {
         /**
          * This field shall indicate the requested duration in seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.7.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.7.1
          */
         duration: number;
     };
@@ -710,7 +710,7 @@ export declare namespace Actions {
      * Example: resume a dynamic lighting effect (the lights' colors will change gradually, continuing from the point
      * they were paused).
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.8
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.8
      */
     export declare class ResumeActionRequest {
         constructor(values?: Partial<ResumeActionRequest>);
@@ -725,7 +725,7 @@ export declare namespace Actions {
      *
      * Example: enable a motion sensor to control the lights in an area.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.9
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.9
      */
     export declare class EnableActionRequest {
         constructor(values?: Partial<EnableActionRequest>);
@@ -743,7 +743,7 @@ export declare namespace Actions {
      * is used to indicated the length of your absence from home. After that period, the presence mimicking behavior
      * will no longer control these lights.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.10
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.10
      */
     export declare class EnableActionWithDurationRequest {
         constructor(values?: Partial<EnableActionWithDurationRequest>);
@@ -753,7 +753,7 @@ export declare namespace Actions {
         /**
          * This field shall indicate the requested duration in seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.10.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.10.1
          */
         duration: number;
     };
@@ -765,7 +765,7 @@ export declare namespace Actions {
      *
      * Example: disable a motion sensor to no longer control the lights in an area.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.11
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.11
      */
     export declare class DisableActionRequest {
         constructor(values?: Partial<DisableActionRequest>);
@@ -785,7 +785,7 @@ export declare namespace Actions {
      * on in the morning while you’re not at home). After this period, the wakeup experience will control the lights as
      * before.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.6.12
+     * @see {@link MatterSpecification.v151.Core} § 9.14.6.12
      */
     export declare class DisableActionWithDurationRequest {
         constructor(values?: Partial<DisableActionWithDurationRequest>);
@@ -795,7 +795,7 @@ export declare namespace Actions {
         /**
          * This field shall indicate the requested duration in seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.6.12.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.6.12.1
          */
         duration: number;
     };
@@ -813,7 +813,7 @@ export declare namespace Actions {
      *
      *   - one when the transition completed (NewState=Inactive)
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.7.1
+     * @see {@link MatterSpecification.v151.Core} § 9.14.7.1
      */
     export declare class StateChangedEvent {
         constructor(values?: Partial<StateChangedEvent>);
@@ -821,7 +821,7 @@ export declare namespace Actions {
         /**
          * This field shall be set to the ActionID of the action which has changed state.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.1.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.1.1
          */
         actionId: number;
 
@@ -829,14 +829,14 @@ export declare namespace Actions {
          * This field shall be set to the InvokeID which was provided to the most recent command referencing this
          * ActionID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.1.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.1.2
          */
         invokeId: number;
 
         /**
          * This field shall be set to state that the action has changed to.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.1.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.1.3
          */
         newState: ActionState;
     };
@@ -866,7 +866,7 @@ export declare namespace Actions {
      *
      *   - StateChanged (InvokeID=2, NewState=Inactive) upon the execution of the action for the second command
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.7.2
+     * @see {@link MatterSpecification.v151.Core} § 9.14.7.2
      */
     export declare class ActionFailedEvent {
         constructor(values?: Partial<ActionFailedEvent>);
@@ -874,7 +874,7 @@ export declare namespace Actions {
         /**
          * This field shall be set to the ActionID of the action which encountered an error.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.2.1
          */
         actionId: number;
 
@@ -882,21 +882,21 @@ export declare namespace Actions {
          * This field shall be set to the InvokeID which was provided to the most recent command referencing this
          * ActionID.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.2.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.2.2
          */
         invokeId: number;
 
         /**
          * This field shall be set to state that the action is in at the time of generating the event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.2.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.2.3
          */
         newState: ActionState;
 
         /**
          * This field shall be set to indicate the reason for non-successful progress of the action.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.7.2.4
+         * @see {@link MatterSpecification.v151.Core} § 9.14.7.2.4
          */
         error: ActionError;
     };
@@ -904,7 +904,7 @@ export declare namespace Actions {
     /**
      * Note - The bit allocation of this bitmap shall follow the ID’s of the Commands of this cluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.1
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.1
      */
     export declare class CommandBits {
         constructor(values?: Partial<CommandBits> | number);
@@ -971,7 +971,7 @@ export declare namespace Actions {
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.2
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.2
      */
     export enum ActionType {
         /**
@@ -989,7 +989,7 @@ export declare namespace Actions {
          * actions. Example: see Section 9.14.8.1, “Example 1: Scene recall” and Section 9.14.8.2, “Example 2: Set
          * dynamic light effect”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.1
          */
         Scene = 1,
 
@@ -999,7 +999,7 @@ export declare namespace Actions {
          * Indicates an action which involves a sequence of events/states of the associated endpoints, such as a wake-up
          * experience. Example: see Section 9.14.8.4, “Example 4: Wake-up routine”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.2
          */
         Sequence = 2,
 
@@ -1009,7 +1009,7 @@ export declare namespace Actions {
          * Indications an automation (e.g. a motion sensor controlling lights, an alarm system) which can be e.g.
          * started, stopped, paused, resumed. Example: see Section 9.14.8.3, “Example 3: Pause sensor automation”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.3
          */
         Automation = 3,
 
@@ -1020,7 +1020,7 @@ export declare namespace Actions {
          * is not met. Example: lock the doors when the server’s system has detected no one is at home while the doors
          * are in the 'unlocked' state.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.4
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.4
          */
         Exception = 4,
 
@@ -1030,7 +1030,7 @@ export declare namespace Actions {
          * Indicates an action that can be triggered (e.g. by InstantAction) to notify the user. Example: play a pattern
          * on the lights in the living room if there is someone in the garden in the evening.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.5
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.5
          */
         Notification = 5,
 
@@ -1040,7 +1040,7 @@ export declare namespace Actions {
          * Similar to Notification but with a higher priority (and might override other endpoint states which
          * Type=Notification would not override). Example: flash all lights in the house when CO sensor triggers.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.2.6
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.2.6
          */
         Alarm = 6
     }
@@ -1048,7 +1048,7 @@ export declare namespace Actions {
     /**
      * Note that some of these states are applicable only for certain actions, as determined by their SupportedCommands.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.3
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.3
      */
     export enum ActionState {
         /**
@@ -1073,7 +1073,7 @@ export declare namespace Actions {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.4
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.4
      */
     export enum ActionError {
         /**
@@ -1091,7 +1091,7 @@ export declare namespace Actions {
      * The Room and Zone values are provided for the cases where a user (or the system on behalf of the user) has
      * created logical grouping of the endpoints (e.g. bridged devices) based on location.
      *
-     * @see {@link MatterSpecification.v142.Core} § 9.14.4.5
+     * @see {@link MatterSpecification.v151.Core} § 9.14.4.5
      */
     export enum EndpointListType {
         /**
@@ -1101,7 +1101,7 @@ export declare namespace Actions {
          * independently created by the user. For Type=Other the Name may be empty. A Matter controller would typically
          * not use this for anything else than just to know which endpoints would be affected by the action.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.5.1
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.5.1
          */
         Other = 0,
 
@@ -1114,7 +1114,7 @@ export declare namespace Actions {
          * device in each system - both at first contact and upon later updates to the endpoints (e.g. user adds a
          * bridged device or creates a new room).
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.5.2
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.5.2
          */
         Room = 1,
 
@@ -1127,7 +1127,7 @@ export declare namespace Actions {
          * This indicates that a user has defined this list of endpoints as something they logically would like to
          * control as a group, so Matter controllers could provide the user with a way to do as such.
          *
-         * @see {@link MatterSpecification.v142.Core} § 9.14.4.5.3
+         * @see {@link MatterSpecification.v151.Core} § 9.14.4.5.3
          */
         Zone = 2
     }

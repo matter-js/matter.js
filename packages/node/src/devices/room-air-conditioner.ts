@@ -13,6 +13,12 @@ import { GroupsServer as BaseGroupsServer } from "../behaviors/groups/GroupsServ
 import {
     ScenesManagementServer as BaseScenesManagementServer
 } from "../behaviors/scenes-management/ScenesManagementServer.js";
+import {
+    HepaFilterMonitoringServer as BaseHepaFilterMonitoringServer
+} from "../behaviors/hepa-filter-monitoring/HepaFilterMonitoringServer.js";
+import {
+    ActivatedCarbonFilterMonitoringServer as BaseActivatedCarbonFilterMonitoringServer
+} from "../behaviors/activated-carbon-filter-monitoring/ActivatedCarbonFilterMonitoringServer.js";
 import { FanControlServer as BaseFanControlServer } from "../behaviors/fan-control/FanControlServer.js";
 import {
     ThermostatUserInterfaceConfigurationServer as BaseThermostatUserInterfaceConfigurationServer
@@ -35,7 +41,7 @@ import { Identity } from "@matter/general";
  * RoomAirConditionerDevice requires Thermostat cluster but Thermostat is not added by default because you must select
  * the features your device supports. You can add manually using RoomAirConditionerDevice.with().
  *
- * @see {@link MatterSpecification.v142.Device} § 13.3
+ * @see {@link MatterSpecification.v151.Device} § 13.3
  */
 export interface RoomAirConditionerDevice extends Identity<typeof RoomAirConditionerDeviceDefinition> {}
 
@@ -76,6 +82,21 @@ export namespace RoomAirConditionerRequirements {
     export const ScenesManagementServer = BaseScenesManagementServer;
 
     /**
+     * The HepaFilterMonitoring cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link HepaFilterMonitoringServer} for convenience.
+     */
+    export const HepaFilterMonitoringServer = BaseHepaFilterMonitoringServer;
+
+    /**
+     * The ActivatedCarbonFilterMonitoring cluster is optional per the Matter specification.
+     *
+     * We provide this alias to the default implementation {@link ActivatedCarbonFilterMonitoringServer} for
+     * convenience.
+     */
+    export const ActivatedCarbonFilterMonitoringServer = BaseActivatedCarbonFilterMonitoringServer;
+
+    /**
      * The FanControl cluster is optional per the Matter specification.
      *
      * We provide this alias to the default implementation {@link FanControlServer} for convenience.
@@ -113,6 +134,8 @@ export namespace RoomAirConditionerRequirements {
         optional: {
             Groups: GroupsServer,
             ScenesManagement: ScenesManagementServer,
+            HepaFilterMonitoring: HepaFilterMonitoringServer,
+            ActivatedCarbonFilterMonitoring: ActivatedCarbonFilterMonitoringServer,
             FanControl: FanControlServer,
             ThermostatUserInterfaceConfiguration: ThermostatUserInterfaceConfigurationServer,
             TemperatureMeasurement: TemperatureMeasurementServer,
@@ -124,7 +147,7 @@ export namespace RoomAirConditionerRequirements {
 export const RoomAirConditionerDeviceDefinition = MutableEndpoint({
     name: "RoomAirConditioner",
     deviceType: 0x72,
-    deviceRevision: 2,
+    deviceRevision: 4,
     requirements: RoomAirConditionerRequirements,
     behaviors: SupportedBehaviors(
         RoomAirConditionerRequirements.server.mandatory.Identify,

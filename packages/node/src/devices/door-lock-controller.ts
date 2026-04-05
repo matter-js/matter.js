@@ -6,9 +6,6 @@
 
 /*** THIS FILE IS GENERATED, DO NOT EDIT ***/
 
-import {
-    TimeSynchronizationServer as BaseTimeSynchronizationServer
-} from "../behaviors/time-synchronization/TimeSynchronizationServer.js";
 import { DoorLockBehavior as BaseDoorLockBehavior } from "../behaviors/door-lock/DoorLockBehavior.js";
 import { GroupsBehavior as BaseGroupsBehavior } from "../behaviors/groups/GroupsBehavior.js";
 import {
@@ -21,18 +18,11 @@ import { Identity } from "@matter/general";
 /**
  * A Door Lock Controller is a device capable of controlling a door lock.
  *
- * @see {@link MatterSpecification.v142.Device} § 8.2
+ * @see {@link MatterSpecification.v151.Device} § 8.2
  */
 export interface DoorLockControllerDevice extends Identity<typeof DoorLockControllerDeviceDefinition> {}
 
 export namespace DoorLockControllerRequirements {
-    /**
-     * The TimeSynchronization cluster is optional per the Matter specification.
-     *
-     * We provide this alias to the default implementation {@link TimeSynchronizationServer} for convenience.
-     */
-    export const TimeSynchronizationServer = BaseTimeSynchronizationServer;
-
     /**
      * The DoorLock cluster is required by the Matter specification.
      *
@@ -53,11 +43,6 @@ export namespace DoorLockControllerRequirements {
      * We provide this alias to the default implementation {@link ScenesManagementBehavior} for convenience.
      */
     export const ScenesManagementBehavior = BaseScenesManagementBehavior;
-
-    /**
-     * An implementation for each server cluster supported by the endpoint per the Matter specification.
-     */
-    export const server = { optional: { TimeSynchronization: TimeSynchronizationServer }, mandatory: {} };
 
     /**
      * A definition for each client cluster supported by the endpoint per the Matter specification.

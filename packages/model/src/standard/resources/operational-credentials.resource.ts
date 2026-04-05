@@ -164,8 +164,8 @@ Resource.add({
                 "shall be tagged as being for a subsequent AddNOC. See Section 11.18.6.8, “AddNOC Command” and " +
                 "Section 11.18.6.9, “UpdateNOC Command” for details about the processing." +
                 "\n" +
-                "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
-                "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                "If this command is received without an armed fail-safe context (see Section 11.10.7.2, " +
+                "“ArmFailSafe”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
                 "initiator." +
                 "\n" +
                 "If a prior UpdateNOC or AddNOC command was successfully executed within the fail-safe timer period, " +
@@ -265,8 +265,8 @@ Resource.add({
                         "\n" +
                         "### Effect on Receipt" +
                         "\n" +
-                        "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
-                        "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                        "If this command is received without an armed fail-safe context (see Section 11.10.7.2, " +
+                        "“ArmFailSafe”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
                         "initiator." +
                         "\n" +
                         "If a prior UpdateNOC or AddNOC command was successfully executed within the fail-safe timer period, " +
@@ -339,7 +339,7 @@ Resource.add({
                         "cluster (see Section 11.2.7.1, “KeySetWrite Command”), for subsequent use during CASE." +
                         "\n" +
                         "  9. The Fabric Index associated with the armed fail-safe context (see Section 11.10.7.2, " +
-                        "“ArmFailSafe Command”) shall be updated to match the Fabric Index just allocated." +
+                        "“ArmFailSafe”) shall be updated to match the Fabric Index just allocated." +
                         "\n" +
                         "  10. If the current secure session was established with PASE, the receiver shall:" +
                         "\n" +
@@ -373,8 +373,8 @@ Resource.add({
                 "\n" +
                 "### Effect on Receipt" +
                 "\n" +
-                "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
-                "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                "If this command is received without an armed fail-safe context (see Section 11.10.7.2, " +
+                "“ArmFailSafe”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
                 "initiator." +
                 "\n" +
                 "If a prior UpdateNOC or AddNOC command was successfully executed within the fail-safe timer period, " +
@@ -519,12 +519,20 @@ Resource.add({
                 "exists for an Administrator or Commissioner to convey Fabric Removal to an entity related to that " +
                 "Fabric, whether in-band or out-of-band, then this method SHOULD be used to notify the other " +
                 "Administrative Domain’s party of the removal. Otherwise, users may only observe the removal of a " +
-                "Fabric association as persistently failing attempts to reach a Node operationally.",
+                "Fabric association as persistently failing attempts to reach a Node operationally." +
+                "\n" +
+                "> [!NOTE]" +
+                "\n" +
+                "> If the Administrator intends to remove a fabric over a CASE session, the RevokeCommissioning " +
+                "command of the AdministratorCommissioning Cluster SHOULD be invoked before removal of the fabric " +
+                "and, if the removal is successful, also after the removal of the fabric. This serves as a security " +
+                "measure to prevent a malicious fabric administrator from re-adding themselves through an open " +
+                "commissioning window after being removed.",
 
             children: [{
                 tag: "field", name: "FabricIndex", xref: "core§11.18.6.12.1",
 
-                details: "This field shall contain the Fabric Index reference (see Section 7.19.2.23, “Fabric Index Type”) " +
+                details: "This field shall contain the Fabric Index reference (see Section 7.19.2.23, “Fabric Index”) " +
                     "associated with the Fabric which is to be removed from the device." +
                     "\n" +
                     "### Effect on Receipt" +
@@ -581,8 +589,8 @@ Resource.add({
                 "If the certificate from the RootCACertificate field is already installed, based on exact " +
                 "byte-for-byte equality, then this command shall succeed with no change to the list." +
                 "\n" +
-                "If this command is received without an armed fail-safe context (see Section 11.10.7.2, “ArmFailSafe " +
-                "Command”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
+                "If this command is received without an armed fail-safe context (see Section 11.10.7.2, " +
+                "“ArmFailSafe”), then this command shall fail with a FAILSAFE_REQUIRED status code sent back to the " +
                 "initiator." +
                 "\n" +
                 "If a prior AddTrustedRootCertificate command was successfully invoked within the fail-safe timer " +
@@ -697,7 +705,7 @@ Resource.add({
                 "The FabricBindingVersion field shall contain value 0x01 for version 1.0 of the Matter Cryptographic " +
                 "Primitives." +
                 "\n" +
-                "The Signature field shall contain the octet string result of CryptoSign(noc_private_key, " +
+                "The Signature field shall contain the octet string result of Crypto_Sign(noc_private_key, " +
                 "vendor_id_verification_tbs):" +
                 "\n" +
                 "  - noc_private_key is the operational private key associated with the Node Operational Key Pair for " +

@@ -14,7 +14,6 @@ const TestWindowCoveringServerBase = WindowCoveringServer.with(
     WindowCovering.Feature.Tilt,
     WindowCovering.Feature.PositionAwareLift,
     WindowCovering.Feature.PositionAwareTilt,
-    WindowCovering.Feature.AbsolutePosition,
 );
 
 type MoveData = {

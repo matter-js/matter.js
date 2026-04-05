@@ -150,7 +150,7 @@ Resource.add({
                 },
 
                 {
-                    tag: "field", name: "Exhausted", description: "All logs has been transferred",
+                    tag: "field", name: "Exhausted", description: "All logs have been transferred",
                     xref: "core§11.11.4.2.2",
                     details: "shall be used when a BDX session is requested, however, all available logs were provided in a " +
                         "LogContent field."

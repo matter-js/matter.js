@@ -11,6 +11,10 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 ## __WORK IN PROGRESS__
 
+- Breaking: Matter 1.5 specification introduces some changes, as always with new Matter specification versions. You might need to adjust your code.
+    - Some Namespaces were renamed and now have a "Common*" prefix
+    - Several previous "Zigbee only" features, attributes and commands were removed because they were never allowed for Matter
+
 - @matter/\*
     - RAM usage reductions and improvements
 
@@ -18,6 +22,9 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Breaking: Type-specific Model subfields such as "clusters" and "attributes" no longer support array-like positional access; use `Matter.clusters.at(4)` instead of `Matter.clusters[4]`
     - Enhancement: First Model preparations for Matter 1.5 and 1.5.1
     - Enhancement: The fluent API for manipulating the Matter data model is improved
+
+- @matter/\*:
+    - Upgraded to Matter specification version 1.5
 
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup

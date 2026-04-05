@@ -16,15 +16,15 @@ export const CookSurfaceDt = DeviceType(
         Requirement({ name: "DeviceTypeList", default: [ { deviceType: 119, revision: 2 } ], element: "attribute" })
     ),
     Requirement(
+        { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster" },
+        Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
+    ),
+    Requirement(
         { name: "TemperatureControl", id: 0x56, conformance: "O.a+", element: "serverCluster" },
         Requirement({ name: "TEMPERATURELEVEL", conformance: "M", element: "feature" }),
         Requirement({ name: "TEMPERATURENUMBER", conformance: "X", element: "feature" })
     ),
-    Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O.a+", element: "serverCluster" }),
-    Requirement(
-        { name: "OnOff", id: 0x6, conformance: "O", element: "serverCluster" },
-        Requirement({ name: "OFFONLY", conformance: "M", element: "feature" })
-    )
+    Requirement({ name: "TemperatureMeasurement", id: 0x402, conformance: "O.a+", element: "serverCluster" })
 );
 
 MatterDefinition.children.push(CookSurfaceDt);

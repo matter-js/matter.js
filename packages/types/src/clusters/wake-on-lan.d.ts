@@ -38,7 +38,7 @@ import type { Bytes } from "@matter/general";
  * The cluster server for Wake on LAN or Wake on WLAN is implemented by a device that supports the Wake on LAN/WLAN
  * protocol, such as a TV, Set-top Box, or Smart Speaker.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.12
+ * @see {@link MatterSpecification.v151.Cluster} § 1.12
  */
 export declare namespace WakeOnLan {
     /**
@@ -74,7 +74,7 @@ export declare namespace WakeOnLan {
          * Format of this attribute shall be an upper-case hex-encoded string representing the hex address, like
          * 12345678ABCD.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.1
          */
         macAddress?: string;
 
@@ -88,7 +88,7 @@ export declare namespace WakeOnLan {
          *   will therefore choose not to include it or read it. The MAC Address can often be determined using ARP in
          *   IPv4 or NDP in IPv6.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.2
          */
         linkLocalAddress?: Bytes;
     }
@@ -106,7 +106,7 @@ export declare namespace WakeOnLan {
          * Format of this attribute shall be an upper-case hex-encoded string representing the hex address, like
          * 12345678ABCD.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.1
          */
         macAddress: string;
 
@@ -120,7 +120,7 @@ export declare namespace WakeOnLan {
          *   will therefore choose not to include it or read it. The MAC Address can often be determined using ARP in
          *   IPv4 or NDP in IPv6.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.12.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.12.4.2
          */
         linkLocalAddress: Bytes;
     }

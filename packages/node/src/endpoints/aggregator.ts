@@ -28,7 +28,7 @@ import { Identity } from "@matter/general";
  * When using this device type as a collection of bridged nodes, please see the "Bridge" section in the System Model
  * specification.
  *
- * @see {@link MatterSpecification.v142.Device} § 11.2
+ * @see {@link MatterSpecification.v151.Device} § 11.2
  */
 export interface AggregatorEndpoint extends Identity<typeof AggregatorEndpointDefinition> {}
 

@@ -17,7 +17,7 @@ import {
 
 export const OccupancySensing = Cluster(
     { name: "OccupancySensing", id: 0x406, classification: "application" },
-    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 5 }),
+    Attribute({ name: "ClusterRevision", id: 0xfffd, type: "ClusterRevision", default: 7 }),
 
     Attribute(
         { name: "FeatureMap", id: 0xfffc, type: "FeatureMap" },
@@ -31,10 +31,9 @@ export const OccupancySensing = Cluster(
         Field({ name: "VIS", conformance: "O.a+", constraint: "7", title: "Vision" })
     ),
 
-    Attribute({
-        name: "Occupancy", id: 0x0, type: "OccupancyBitmap", access: "R V", conformance: "M",
-        constraint: "0 to 1", quality: "P"
-    }),
+    Attribute(
+        { name: "Occupancy", id: 0x0, type: "OccupancyBitmap", access: "R V", conformance: "M", constraint: "0 to 1" }
+    ),
     Attribute({
         name: "OccupancySensorType", id: 0x1, type: "OccupancySensorTypeEnum", access: "R V",
         conformance: "M, D", constraint: "desc", quality: "F"

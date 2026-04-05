@@ -27,7 +27,7 @@ import type { Status as GlobalStatus } from "../globals/Status.js";
  * application corresponding to the endpoint on which the cluster is supported (AP feature not supported) or it can
  * support launching any application (AP feature supported).
  *
- * @see {@link MatterSpecification.v142.Cluster} § 6.4
+ * @see {@link MatterSpecification.v151.Cluster} § 6.4
  */
 export declare namespace ApplicationLauncher {
     /**
@@ -61,7 +61,7 @@ export declare namespace ApplicationLauncher {
          * vendor ID and the corresponding endpoint number when the application is represented by a Content App
          * endpoint. A null shall be used to indicate there is no current in-focus application.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.6.2
          */
         currentApp?: ApplicationEp | null;
     }
@@ -78,7 +78,7 @@ export declare namespace ApplicationLauncher {
          * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their own
          * Vendor ID) and will assign an ApplicationID to each Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.6.1
          */
         catalogList: number[];
     }
@@ -95,7 +95,7 @@ export declare namespace ApplicationLauncher {
          * vendor ID and the corresponding endpoint number when the application is represented by a Content App
          * endpoint. A null shall be used to indicate there is no current in-focus application.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.6.2
          */
         currentApp: ApplicationEp | null;
 
@@ -107,7 +107,7 @@ export declare namespace ApplicationLauncher {
          * It is expected that Content App Platform providers will have their own catalog vendor ID (set to their own
          * Vendor ID) and will assign an ApplicationID to each Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.6.1
          */
         catalogList: number[];
     }
@@ -132,7 +132,7 @@ export declare namespace ApplicationLauncher {
          *
          * This command returns a Launcher Response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.1
          */
         launchApp(request: LaunchAppRequest): MaybePromise<LauncherResponse>;
 
@@ -150,7 +150,7 @@ export declare namespace ApplicationLauncher {
          *
          * This command returns a Launcher Response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.2
          */
         stopApp(request: StopAppRequest): MaybePromise<LauncherResponse>;
 
@@ -169,7 +169,7 @@ export declare namespace ApplicationLauncher {
          *
          * This command returns a Launcher Response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.3
          */
         hideApp(request: HideAppRequest): MaybePromise<LauncherResponse>;
     }
@@ -188,7 +188,7 @@ export declare namespace ApplicationLauncher {
     /**
      * These are optional features supported by ApplicationLauncherCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.4
      */
     export enum Feature {
         /**
@@ -203,7 +203,7 @@ export declare namespace ApplicationLauncher {
     /**
      * This specifies an app along with its corresponding endpoint.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.3
      */
     export declare class ApplicationEp {
         constructor(values?: Partial<ApplicationEp>);
@@ -227,7 +227,7 @@ export declare namespace ApplicationLauncher {
      *
      * This command returns a Launcher Response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.1
      */
     export declare class LaunchAppRequest {
         constructor(values?: Partial<LaunchAppRequest>);
@@ -235,7 +235,7 @@ export declare namespace ApplicationLauncher {
         /**
          * This field shall specify the Application to launch.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.1.1
          */
         application?: Application;
 
@@ -249,7 +249,7 @@ export declare namespace ApplicationLauncher {
          *   Apps that are not yet Matter aware can be launched via Matter, while retaining the existing ability to
          *   launch with proprietary data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.1.2
          */
         data?: Bytes;
     };
@@ -257,7 +257,7 @@ export declare namespace ApplicationLauncher {
     /**
      * This command shall be generated in response to LaunchApp/StopApp/HideApp commands.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.4
      */
     export declare class LauncherResponse {
         constructor(values?: Partial<LauncherResponse>);
@@ -265,14 +265,14 @@ export declare namespace ApplicationLauncher {
         /**
          * This field shall indicate the status of the command which resulted in this response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.4.1
          */
         status: Status;
 
         /**
          * This field shall specify Optional app-specific data.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.4.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.4.2
          */
         data?: Bytes;
     };
@@ -291,7 +291,7 @@ export declare namespace ApplicationLauncher {
      *
      * This command returns a Launcher Response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.2
      */
     export declare class StopAppRequest {
         constructor(values?: Partial<StopAppRequest>);
@@ -299,7 +299,7 @@ export declare namespace ApplicationLauncher {
         /**
          * This field shall specify the Application to stop.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.2.1
          */
         application?: Application;
     };
@@ -319,7 +319,7 @@ export declare namespace ApplicationLauncher {
      *
      * This command returns a Launcher Response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.3
      */
     export declare class HideAppRequest {
         constructor(values?: Partial<HideAppRequest>);
@@ -327,13 +327,13 @@ export declare namespace ApplicationLauncher {
         /**
          * This field shall specify the Application to hide.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.7.3.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.7.3.1
          */
         application?: Application;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
      */
     export enum Status {
         /**
@@ -370,7 +370,7 @@ export declare namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.AppNotAvailable}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
      */
     export class AppNotAvailableError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -379,7 +379,7 @@ export declare namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.SystemBusy}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
      */
     export class SystemBusyError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -388,7 +388,7 @@ export declare namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.PendingUserApproval}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
      */
     export class PendingUserApprovalError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -397,7 +397,7 @@ export declare namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.Downloading}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
      */
     export class DownloadingError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -406,7 +406,7 @@ export declare namespace ApplicationLauncher {
     /**
      * Thrown for cluster status code {@link Status.Installing}.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.1
      */
     export class InstallingError extends StatusResponseError {
         constructor(message?: string, code?: GlobalStatus, clusterCode?: number)
@@ -415,7 +415,7 @@ export declare namespace ApplicationLauncher {
     /**
      * This indicates a global identifier for an Application given a catalog.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.2
      */
     export declare class Application {
         constructor(values?: Partial<Application>);
@@ -427,7 +427,7 @@ export declare namespace ApplicationLauncher {
          * Content App Platform providers will have their own catalog vendor ID (set to their own Vendor ID) and will
          * assign an ApplicationID to each Content App.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.2.1
          */
         catalogVendorId: number;
 
@@ -437,7 +437,7 @@ export declare namespace ApplicationLauncher {
          *
          * For the DIAL registry catalog, this value shall be the DIAL prefix (see [DIAL Registry]).
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 6.4.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 6.4.5.2.2
          */
         applicationId: string;
     };

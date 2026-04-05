@@ -34,7 +34,7 @@ import type { VendorId } from "../datatype/VendorId.js";
  * derived cluster purpose. An anonymous mode shall NOT replace the meaning of a standard semantic tag, when one exists,
  * for the cluster purpose.
  *
- * @see {@link MatterSpecification.v142.Cluster} § 1.9
+ * @see {@link MatterSpecification.v151.Cluster} § 1.9
  */
 export declare namespace ModeSelect {
     /**
@@ -71,7 +71,7 @@ export declare namespace ModeSelect {
          * and the second instance can have the description Sugar. This allows the user to tell the purpose of each of
          * the instances.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.1
          */
         description: string;
 
@@ -81,7 +81,7 @@ export declare namespace ModeSelect {
          * no standard namespace, and therefore, no standard semantic tags are provided in this cluster instance. Each
          * standard namespace and corresponding values and value meanings shall be defined in another document.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.2
          */
         standardNamespace: Namespace | null;
 
@@ -90,7 +90,7 @@ export declare namespace ModeSelect {
          * in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each entry in
          * this list shall have a unique value for the Mode field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.3
          */
         supportedModes: ModeOption[];
 
@@ -99,7 +99,7 @@ export declare namespace ModeSelect {
          *
          * The value of this field must match the Mode field of one of the entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.4
          */
         currentMode: number;
 
@@ -118,7 +118,7 @@ export declare namespace ModeSelect {
          *
          * If this attribute is not implemented, or is set to the null value, it shall have no effect.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.5
          */
         startUpMode?: number | null;
     }
@@ -134,7 +134,7 @@ export declare namespace ModeSelect {
          *
          * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.6
          */
         onMode: number | null;
     }
@@ -154,7 +154,7 @@ export declare namespace ModeSelect {
          * and the second instance can have the description Sugar. This allows the user to tell the purpose of each of
          * the instances.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.1
          */
         description: string;
 
@@ -164,7 +164,7 @@ export declare namespace ModeSelect {
          * no standard namespace, and therefore, no standard semantic tags are provided in this cluster instance. Each
          * standard namespace and corresponding values and value meanings shall be defined in another document.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.2
          */
         standardNamespace: Namespace | null;
 
@@ -173,7 +173,7 @@ export declare namespace ModeSelect {
          * in this list represents a unique mode as indicated by the Mode field of the ModeOptionStruct. Each entry in
          * this list shall have a unique value for the Mode field.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.3
          */
         supportedModes: ModeOption[];
 
@@ -182,7 +182,7 @@ export declare namespace ModeSelect {
          *
          * The value of this field must match the Mode field of one of the entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.4
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.4
          */
         currentMode: number;
 
@@ -201,7 +201,7 @@ export declare namespace ModeSelect {
          *
          * If this attribute is not implemented, or is set to the null value, it shall have no effect.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.5
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.5
          */
         startUpMode: number | null;
 
@@ -212,7 +212,7 @@ export declare namespace ModeSelect {
          *
          * The value of this field shall match the Mode field of one of the entries in the SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.6.6
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.6.6
          */
         onMode: number | null;
     }
@@ -226,7 +226,7 @@ export declare namespace ModeSelect {
          * the server shall set the CurrentMode attribute to the NewMode value, otherwise, the server shall respond with
          * an INVALID_COMMAND status response.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.7.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.7.1
          */
         changeToMode(request: ChangeToModeRequest): MaybePromise;
     }
@@ -245,7 +245,7 @@ export declare namespace ModeSelect {
     /**
      * These are optional features supported by ModeSelectCluster.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.9.4
+     * @see {@link MatterSpecification.v151.Cluster} § 1.9.4
      */
     export enum Feature {
         /**
@@ -254,7 +254,7 @@ export declare namespace ModeSelect {
          * This feature creates a dependency between an OnOff cluster instance and this cluster instance on the same
          * endpoint. See Section 1.9.6.6, “OnMode Attribute” for more information.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.4.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.4.1
          */
         OnOff = "OnOff"
     }
@@ -262,7 +262,7 @@ export declare namespace ModeSelect {
     /**
      * This is a struct representing a possible mode of the server.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.2
+     * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.2
      */
     export declare class ModeOption {
         constructor(values?: Partial<ModeOption>);
@@ -271,7 +271,7 @@ export declare namespace ModeSelect {
          * This field is readable text that describes the mode option that can be used by a client to indicate to the
          * user what this option means. This field is meant to be readable and understandable by the user.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.2.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.2.1
          */
         label: string;
 
@@ -279,7 +279,7 @@ export declare namespace ModeSelect {
          * The Mode field is used to identify the mode option. The value shall be unique for every item in the
          * SupportedModes attribute.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.2.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.2.2
          */
         mode: number;
 
@@ -297,7 +297,7 @@ export declare namespace ModeSelect {
          * For example: A mode labeled "100%" can have both the HIGH (MS) and MAX (standard) semantic tag. Clients
          * seeking the option for either HIGH or MAX will find the same option in this case.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.2.3
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.2.3
          */
         semanticTags: SemanticTag[];
     };
@@ -307,7 +307,7 @@ export declare namespace ModeSelect {
      * server shall set the CurrentMode attribute to the NewMode value, otherwise, the server shall respond with an
      * INVALID_COMMAND status response.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.9.7.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.9.7.1
      */
     export declare class ChangeToModeRequest {
         constructor(values?: Partial<ChangeToModeRequest>);
@@ -317,7 +317,7 @@ export declare namespace ModeSelect {
     /**
      * A Semantic Tag is meant to be interpreted by the client for the purpose the cluster serves.
      *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.1
+     * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.1
      */
     export declare class SemanticTag {
         constructor(values?: Partial<SemanticTag>);
@@ -329,7 +329,7 @@ export declare namespace ModeSelect {
          * have the same meaning. For example: a manufacturer tag meaning "pinch", has the same meaning in a cluster
          * whose purpose is to choose the amount of sugar, or amount of salt.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.1.2
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.1.2
          */
         mfgCode: VendorId;
 
@@ -337,7 +337,7 @@ export declare namespace ModeSelect {
          * This field shall indicate the semantic tag within a semantic tag namespace which is either manufacturer
          * specific or standard. For semantic tags in a standard namespace, see Standard Namespace.
          *
-         * @see {@link MatterSpecification.v142.Cluster} § 1.9.5.1.1
+         * @see {@link MatterSpecification.v151.Cluster} § 1.9.5.1.1
          */
         value: number;
     };

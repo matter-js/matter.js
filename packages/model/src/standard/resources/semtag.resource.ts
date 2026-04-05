@@ -32,7 +32,7 @@ Resource.add({
             tag: "field", name: "NamespaceId", xref: "core§7.19.2.46.2",
             details: "The NamespaceID field shall identify a namespace." +
                 "\n" +
-                "The common and device-specific semantic tag namespaces are listed in StandardNamespaces."
+                "The common and device-specific semantic tag namespaces are listed in [StandardNamespaces]."
         },
 
         {
@@ -41,7 +41,7 @@ Resource.add({
                 "NamespaceID." +
                 "\n" +
                 "A device may expose tags from the common or device-specific namespaces and from " +
-                "manufacturer-specific namespaces in a single TagList."
+                "manufacturer-specific namespaces in a single Section 9.5.6.5, “TagList”."
         },
 
         {

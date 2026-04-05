@@ -28,7 +28,7 @@ import type { Status } from "../globals/Status.js";
  * The Time Synchronization cluster may be present on the root node endpoint, and shall NOT be present on any other
  * Endpoint of any Node.
  *
- * @see {@link MatterSpecification.v142.Core} § 11.17
+ * @see {@link MatterSpecification.v151.Core} § 11.17
  */
 export declare namespace TimeSynchronization {
     /**
@@ -64,7 +64,7 @@ export declare namespace TimeSynchronization {
          * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
          * when a SetUTCTime is received.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.1
          */
         utcTime: number | bigint | null;
 
@@ -75,7 +75,7 @@ export declare namespace TimeSynchronization {
          * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity if
          * UTCTime is non-null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.2
          */
         granularity: Granularity;
 
@@ -89,7 +89,7 @@ export declare namespace TimeSynchronization {
          *
          * This value shall be set to None if UTCTime is null and shall NOT be set to None if UTCTime is non-null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.3
          */
         timeSource?: TimeSource;
     }
@@ -104,7 +104,7 @@ export declare namespace TimeSynchronization {
          * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
          * been set.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.4
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.4
          */
         trustedTimeSource: TrustedTimeSource | null;
     }
@@ -123,7 +123,7 @@ export declare namespace TimeSynchronization {
          * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
          * NOT contain a port number.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.5
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.5
          */
         defaultNtp: string | null;
 
@@ -131,7 +131,7 @@ export declare namespace TimeSynchronization {
          * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may include
          * domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.13
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.13
          */
         supportsDnsResolve: boolean;
     }
@@ -170,7 +170,7 @@ export declare namespace TimeSynchronization {
          * has been set, it may set this value to a list containing a single TimeZoneStruct with an offset of 0 (UTC)
          * and a ValidAt time of 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.6
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.6
          */
         timeZone: TimeZone[];
 
@@ -191,7 +191,7 @@ export declare namespace TimeSynchronization {
          * If a time zone does not use DST, this shall be indicated by a single entry with a 0 offset and a null
          * ValidUntil field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.7
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.7
          */
         dstOffset: DstOffset[];
 
@@ -204,7 +204,7 @@ export declare namespace TimeSynchronization {
          * If the node has not achieved time synchronization, this shall be null. If the node has an empty DSTOffset,
          * this shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.8
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.8
          */
         localTime: number | bigint | null;
 
@@ -213,7 +213,7 @@ export declare namespace TimeSynchronization {
          * their own DSTOffset attribute to add new entries and may push DSTOffset updates to other Nodes in the same
          * time zone as required.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.9
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.9
          */
         timeZoneDatabase: TimeZoneDatabase;
 
@@ -221,14 +221,14 @@ export declare namespace TimeSynchronization {
          * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the value
          * of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time zone changes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.11
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.11
          */
         timeZoneListMaxSize: number;
 
         /**
          * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.12
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.12
          */
         dstOffsetListMaxSize: number;
     }
@@ -242,7 +242,7 @@ export declare namespace TimeSynchronization {
          *
          * If the node is not currently running an NTP server, this value shall be False.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.10
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.10
          */
         ntpServerAvailable: boolean;
     }
@@ -261,7 +261,7 @@ export declare namespace TimeSynchronization {
          * If the node has not achieved time synchronization, this attribute shall be null. This attribute may be set
          * when a SetUTCTime is received.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.1
          */
         utcTime: number | bigint | null;
 
@@ -272,7 +272,7 @@ export declare namespace TimeSynchronization {
          * This value shall be set to NoTimeGranularity if UTCTime is null and shall NOT be set to NoTimeGranularity if
          * UTCTime is non-null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.2
          */
         granularity: Granularity;
 
@@ -286,7 +286,7 @@ export declare namespace TimeSynchronization {
          *
          * This value shall be set to None if UTCTime is null and shall NOT be set to None if UTCTime is non-null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.3
          */
         timeSource: TimeSource;
 
@@ -296,7 +296,7 @@ export declare namespace TimeSynchronization {
          * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
          * been set.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.4
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.4
          */
         trustedTimeSource: TrustedTimeSource | null;
 
@@ -310,7 +310,7 @@ export declare namespace TimeSynchronization {
          * format, as specified in RFC 5952. The address format shall follow the recommendations in Section 4 and shall
          * NOT contain a port number.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.5
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.5
          */
         defaultNtp: string | null;
 
@@ -318,7 +318,7 @@ export declare namespace TimeSynchronization {
          * Indicates if the node supports resolving a domain name. DefaultNTP Address values for these nodes may include
          * domain names. If this is False, the Address for a DefaultNTP shall be an IPv6 address.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.13
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.13
          */
         supportsDnsResolve: boolean;
 
@@ -352,7 +352,7 @@ export declare namespace TimeSynchronization {
          * has been set, it may set this value to a list containing a single TimeZoneStruct with an offset of 0 (UTC)
          * and a ValidAt time of 0.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.6
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.6
          */
         timeZone: TimeZone[];
 
@@ -373,7 +373,7 @@ export declare namespace TimeSynchronization {
          * If a time zone does not use DST, this shall be indicated by a single entry with a 0 offset and a null
          * ValidUntil field.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.7
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.7
          */
         dstOffset: DstOffset[];
 
@@ -386,7 +386,7 @@ export declare namespace TimeSynchronization {
          * If the node has not achieved time synchronization, this shall be null. If the node has an empty DSTOffset,
          * this shall be null.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.8
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.8
          */
         localTime: number | bigint | null;
 
@@ -395,7 +395,7 @@ export declare namespace TimeSynchronization {
          * their own DSTOffset attribute to add new entries and may push DSTOffset updates to other Nodes in the same
          * time zone as required.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.9
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.9
          */
         timeZoneDatabase: TimeZoneDatabase;
 
@@ -403,14 +403,14 @@ export declare namespace TimeSynchronization {
          * Indicates the number of supported list entries in the TimeZone attribute. This attribute may take the value
          * of 1 or 2, where the optional second list entry may be used to handle scheduled regulatory time zone changes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.11
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.11
          */
         timeZoneListMaxSize: number;
 
         /**
          * Indicates the number of supported list entries in DSTOffset attribute. This value must be at least 1.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.12
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.12
          */
         dstOffsetListMaxSize: number;
 
@@ -419,7 +419,7 @@ export declare namespace TimeSynchronization {
          *
          * If the node is not currently running an NTP server, this value shall be False.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.8.10
+         * @see {@link MatterSpecification.v151.Core} § 11.17.8.10
          */
         ntpServerAvailable: boolean;
     }
@@ -447,7 +447,7 @@ export declare namespace TimeSynchronization {
          * opts to not update its time, it shall fail the command with a cluster specific Status Code of
          * TimeNotAccepted.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.1
          */
         setUtcTime(request: SetUtcTimeRequest): MaybePromise;
     }
@@ -468,7 +468,7 @@ export declare namespace TimeSynchronization {
          *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command’s
          *     accessing fabric index.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.2
          */
         setTrustedTimeSource(request: SetTrustedTimeSourceRequest): MaybePromise;
     }
@@ -486,7 +486,7 @@ export declare namespace TimeSynchronization {
          * status code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP attribute to match the
          * DefaultNTP provided in this command.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.6
          */
         setDefaultNtp(request: SetDefaultNtpRequest): MaybePromise;
     }
@@ -512,7 +512,7 @@ export declare namespace TimeSynchronization {
          * A DSTTableEmpty event shall be generated if the DSTOffset attribute is empty. A DSTStatus event shall be
          * generated if the node was previously applying a DST offset.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.3
          */
         setTimeZone(request: SetTimeZoneRequest): MaybePromise<SetTimeZoneResponse>;
 
@@ -530,7 +530,7 @@ export declare namespace TimeSynchronization {
          * If the DSTOffset attribute change causes a corresponding change to the DST state, a DSTStatus event shall be
          * generated. If the list is empty, the node shall generate a DSTTableEmpty event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.5
          */
         setDstOffset(request: SetDstOffsetRequest): MaybePromise;
     }
@@ -554,7 +554,7 @@ export declare namespace TimeSynchronization {
          * node is unable to get a time from any source. This event SHOULD NOT be generated more often than once per
          * hour.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.4
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.4
          */
         timeFailure: void;
     }
@@ -572,7 +572,7 @@ export declare namespace TimeSynchronization {
          * or the specified peer cannot be reached. MissingTrustedTimeSource events corresponding to a time update
          * SHOULD NOT be generated more often than once per hour.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.5
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.5
          */
         missingTrustedTimeSource: void;
     }
@@ -593,14 +593,14 @@ export declare namespace TimeSynchronization {
          *
          * There is no data for this event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.1
          */
         dstTableEmpty: void;
 
         /**
          * This event shall be generated when the node starts or stops applying a DST offset.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.2
          */
         dstStatus: DstStatusEvent;
 
@@ -608,7 +608,7 @@ export declare namespace TimeSynchronization {
          * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for
          * DST changes that are not accompanied by a time zone change.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.3
          */
         timeZoneStatus: TimeZoneStatusEvent;
     }
@@ -625,7 +625,7 @@ export declare namespace TimeSynchronization {
          * node is unable to get a time from any source. This event SHOULD NOT be generated more often than once per
          * hour.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.4
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.4
          */
         timeFailure: void;
 
@@ -638,7 +638,7 @@ export declare namespace TimeSynchronization {
          * or the specified peer cannot be reached. MissingTrustedTimeSource events corresponding to a time update
          * SHOULD NOT be generated more often than once per hour.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.5
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.5
          */
         missingTrustedTimeSource: void;
 
@@ -654,14 +654,14 @@ export declare namespace TimeSynchronization {
          *
          * There is no data for this event.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.1
          */
         dstTableEmpty: void;
 
         /**
          * This event shall be generated when the node starts or stops applying a DST offset.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.2
          */
         dstStatus: DstStatusEvent;
 
@@ -669,7 +669,7 @@ export declare namespace TimeSynchronization {
          * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for
          * DST changes that are not accompanied by a time zone change.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.3
          */
         timeZoneStatus: TimeZoneStatusEvent;
     }
@@ -701,7 +701,7 @@ export declare namespace TimeSynchronization {
     /**
      * These are optional features supported by TimeSynchronizationCluster.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.5
+     * @see {@link MatterSpecification.v151.Core} § 11.17.5
      */
     export enum Feature {
         /**
@@ -712,7 +712,7 @@ export declare namespace TimeSynchronization {
          * commands, and TimeZone and DSTOffset attributes, and shall expose the local time through the LocalTime
          * attribute.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.5.1
          */
         TimeZone = "TimeZone",
 
@@ -721,7 +721,7 @@ export declare namespace TimeSynchronization {
          *
          * Allows a node to use NTP/SNTP for time synchronization.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.5.2
          */
         NtpClient = "NtpClient",
 
@@ -731,7 +731,7 @@ export declare namespace TimeSynchronization {
          * Allows a Node to host an NTP server for the network so that other Nodes can achieve a high accuracy time
          * synchronization within the network. See Section 11.17.15, “Acting as an NTP Server”.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.5.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.5.3
          */
         NtpServer = "NtpServer",
 
@@ -740,13 +740,13 @@ export declare namespace TimeSynchronization {
          *
          * This node also supports a time synchronization client and can connect to and read time from other nodes.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.5.4
+         * @see {@link MatterSpecification.v151.Core} § 11.17.5.4
          */
         TimeSyncClient = "TimeSyncClient"
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.1
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.1
      */
     export enum Granularity {
         /**
@@ -782,7 +782,7 @@ export declare namespace TimeSynchronization {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.2
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.2
      */
     export enum TimeSource {
         /**
@@ -873,7 +873,7 @@ export declare namespace TimeSynchronization {
     }
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.4
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.4
      */
     export declare class TrustedTimeSource {
         constructor(values?: Partial<TrustedTimeSource>);
@@ -882,27 +882,27 @@ export declare namespace TimeSynchronization {
          * The Fabric Index associated with the Fabric of the client which last set the value of the trusted time source
          * node.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.4.1
          */
         fabricIndex: FabricIndex;
 
         /**
          * Node ID of the trusted time source node on the Fabric associated with the entry.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.4.2
          */
         nodeId: NodeId;
 
         /**
          * Endpoint on the trusted time source node that contains the Time Synchronization cluster server.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.4.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.4.3
          */
         endpoint: EndpointNumber;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.6
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.6
      */
     export declare class TimeZone {
         constructor(values?: Partial<TimeZone>);
@@ -910,14 +910,14 @@ export declare namespace TimeSynchronization {
         /**
          * The time zone offset from UTC in seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.6.1
          */
         offset: number;
 
         /**
          * The UTC time when the offset shall be applied.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.6.2
          */
         validAt: number | bigint;
 
@@ -927,13 +927,13 @@ export declare namespace TimeSynchronization {
          * TimeZoneDatabase it may use the Name field to set its own DST offsets if it has database information for the
          * supplied time zone Name and the given Offset matches.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.6.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.6.3
          */
         name?: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.7
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.7
      */
     export declare class DstOffset {
         constructor(values?: Partial<DstOffset>);
@@ -943,14 +943,14 @@ export declare namespace TimeSynchronization {
          * accept any values in the int32 range to accommodate potential future legislation that does not fit with these
          * assumptions.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.7.1
          */
         offset: number;
 
         /**
          * The UTC time when the offset shall be applied.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.7.2
          */
         validStarting: number | bigint;
 
@@ -958,7 +958,7 @@ export declare namespace TimeSynchronization {
          * The UTC time when the offset shall stop being applied. Providing a null value here indicates a permanent DST
          * change. If this value is non-null the value shall be larger than the ValidStarting time.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.7.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.7.3
          */
         validUntil: number | bigint | null;
     };
@@ -968,7 +968,7 @@ export declare namespace TimeSynchronization {
      * may be used to omit historical data, less commonly used time zones, and/or time zones not related to the region a
      * product is sold in.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.3
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.3
      */
     export enum TimeZoneDatabase {
         /**
@@ -1005,7 +1005,7 @@ export declare namespace TimeSynchronization {
      * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If it opts
      * to not update its time, it shall fail the command with a cluster specific Status Code of TimeNotAccepted.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.1
+     * @see {@link MatterSpecification.v151.Core} § 11.17.9.1
      */
     export declare class SetUtcTimeRequest {
         constructor(values?: Partial<SetUtcTimeRequest>);
@@ -1013,21 +1013,21 @@ export declare namespace TimeSynchronization {
         /**
          * This field shall give the Client’s UTC Time.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.1
          */
         utcTime: number | bigint;
 
         /**
          * This field shall give the Client’s Granularity, as described in Granularity.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.2
          */
         granularity: Granularity;
 
         /**
          * This field shall give the Client’s TimeSource, as described in TimeSource.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.1.3
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.3
          */
         timeSource?: TimeSource;
     };
@@ -1044,7 +1044,7 @@ export declare namespace TimeSynchronization {
      *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command’s
      *     accessing fabric index.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.2
+     * @see {@link MatterSpecification.v151.Core} § 11.17.9.2
      */
     export declare class SetTrustedTimeSourceRequest {
         constructor(values?: Partial<SetTrustedTimeSourceRequest>);
@@ -1052,7 +1052,7 @@ export declare namespace TimeSynchronization {
         /**
          * This field contains the Node ID and endpoint of a trusted time source on the accessing fabric.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.2.1
          */
         trustedTimeSource: FabricScopedTrustedTimeSource | null;
 
@@ -1068,7 +1068,7 @@ export declare namespace TimeSynchronization {
      * code of INVALID_COMMAND. Otherwise, the node shall set the DefaultNTP attribute to match the DefaultNTP provided
      * in this command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.6
+     * @see {@link MatterSpecification.v151.Core} § 11.17.9.6
      */
     export declare class SetDefaultNtpRequest {
         constructor(values?: Partial<SetDefaultNtpRequest>);
@@ -1077,7 +1077,7 @@ export declare namespace TimeSynchronization {
          * This field contains the address of an NTP server than can be used as a fallback for time synchronization. The
          * format of this field shall follow the requirements in the DefaultNTP attribute description.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.6.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.6.1
          */
         defaultNtp: string | null;
     };
@@ -1099,7 +1099,7 @@ export declare namespace TimeSynchronization {
      * DSTTableEmpty event shall be generated if the DSTOffset attribute is empty. A DSTStatus event shall be generated
      * if the node was previously applying a DST offset.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.3
+     * @see {@link MatterSpecification.v151.Core} § 11.17.9.3
      */
     export declare class SetTimeZoneRequest {
         constructor(values?: Partial<SetTimeZoneRequest>);
@@ -1110,7 +1110,7 @@ export declare namespace TimeSynchronization {
      * THis command is used to report the result of a SetTimeZone command. This command shall be generated in response
      * to a SetTimeZone command.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.4
+     * @see {@link MatterSpecification.v151.Core} § 11.17.9.4
      */
     export declare class SetTimeZoneResponse {
         constructor(values?: Partial<SetTimeZoneResponse>);
@@ -1120,7 +1120,7 @@ export declare namespace TimeSynchronization {
          * this information to set the DSTOffset attribute. If the node is setting its own DSTOffset attribute, the
          * DSTOffsetRequired field shall be set to false, otherwise it shall be set to true.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.9.4.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.9.4.1
          */
         dstOffsetRequired: boolean;
     };
@@ -1139,7 +1139,7 @@ export declare namespace TimeSynchronization {
      * If the DSTOffset attribute change causes a corresponding change to the DST state, a DSTStatus event shall be
      * generated. If the list is empty, the node shall generate a DSTTableEmpty event.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.9.5
+     * @see {@link MatterSpecification.v151.Core} § 11.17.9.5
      */
     export declare class SetDstOffsetRequest {
         constructor(values?: Partial<SetDstOffsetRequest>);
@@ -1149,7 +1149,7 @@ export declare namespace TimeSynchronization {
     /**
      * This event shall be generated when the node starts or stops applying a DST offset.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.10.2
+     * @see {@link MatterSpecification.v151.Core} § 11.17.10.2
      */
     export declare class DstStatusEvent {
         constructor(values?: Partial<DstStatusEvent>);
@@ -1158,7 +1158,7 @@ export declare namespace TimeSynchronization {
          * Indicates whether the current DST offset is being applied (i.e, daylight savings time is applied, as opposed
          * to standard time).
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.2.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.2.1
          */
         dstOffsetActive: boolean;
     };
@@ -1167,7 +1167,7 @@ export declare namespace TimeSynchronization {
      * This event shall be generated when the node changes its time zone offset or name. It shall NOT be sent for DST
      * changes that are not accompanied by a time zone change.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.10.3
+     * @see {@link MatterSpecification.v151.Core} § 11.17.10.3
      */
     export declare class TimeZoneStatusEvent {
         constructor(values?: Partial<TimeZoneStatusEvent>);
@@ -1175,7 +1175,7 @@ export declare namespace TimeSynchronization {
         /**
          * Current time zone offset from UTC in seconds.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.3.1
          */
         offset: number;
 
@@ -1183,13 +1183,13 @@ export declare namespace TimeSynchronization {
          * Current time zone name. This name SHOULD use the country/city format specified by the IANA Time Zone
          * Database.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.10.3.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.10.3.2
          */
         name?: string;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.6.5
+     * @see {@link MatterSpecification.v151.Core} § 11.17.6.5
      */
     export declare class FabricScopedTrustedTimeSource {
         constructor(values?: Partial<FabricScopedTrustedTimeSource>);
@@ -1197,7 +1197,7 @@ export declare namespace TimeSynchronization {
         /**
          * Node ID of the trusted time source node on the Fabric of the issuer.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.1
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.5.1
          */
         nodeId: NodeId;
 
@@ -1206,13 +1206,13 @@ export declare namespace TimeSynchronization {
          * provided to avoid having to do discovery of the location of that endpoint by walking over all endpoints and
          * checking their Descriptor Cluster.
          *
-         * @see {@link MatterSpecification.v142.Core} § 11.17.6.5.2
+         * @see {@link MatterSpecification.v151.Core} § 11.17.6.5.2
          */
         endpoint: EndpointNumber;
     };
 
     /**
-     * @see {@link MatterSpecification.v142.Core} § 11.17.7.1
+     * @see {@link MatterSpecification.v151.Core} § 11.17.7.1
      */
     export enum StatusCode {
         /**
@@ -1224,7 +1224,7 @@ export declare namespace TimeSynchronization {
     /**
      * Thrown for cluster status code {@link StatusCode.TimeNotAccepted}.
      *
-     * @see {@link MatterSpecification.v142.Core} § 11.17.7.1
+     * @see {@link MatterSpecification.v151.Core} § 11.17.7.1
      */
     export class TimeNotAcceptedError extends StatusResponseError {
         constructor(message?: string, code?: Status, clusterCode?: number)

@@ -18,7 +18,7 @@ import { Identity } from "@matter/general";
  * A Light Sensor device is a measurement and sensing device that is capable of measuring and reporting the intensity of
  * light (illuminance) to which the sensor is being subjected.
  *
- * @see {@link MatterSpecification.v142.Device} § 7.2
+ * @see {@link MatterSpecification.v151.Device} § 7.2
  */
 export interface LightSensorDevice extends Identity<typeof LightSensorDeviceDefinition> {}
 
@@ -46,7 +46,7 @@ export namespace LightSensorRequirements {
 export const LightSensorDeviceDefinition = MutableEndpoint({
     name: "LightSensor",
     deviceType: 0x106,
-    deviceRevision: 3,
+    deviceRevision: 4,
     requirements: LightSensorRequirements,
     behaviors: SupportedBehaviors(
         LightSensorRequirements.server.mandatory.Identify,
