@@ -171,6 +171,10 @@ export class MessageChannel implements Channel<Message> {
     async close() {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
+        if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
+            (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
+            this.#channelAddressObserver = undefined;
+        }
         await this.#channel.close();
         if (!wasAlreadyClosed) {
             await this.#onClose?.();

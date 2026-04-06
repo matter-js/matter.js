@@ -952,26 +952,34 @@ export class ClientInteraction<
         session: InteractionSession | undefined,
         extraAbort?: AbortSignal,
     ) {
-        using lifetime = this.#lifetime.join(what);
+        // Ownership of lifetime transfers to the returned context; do not use `using` here as
+        // that would dispose prematurely when #begin returns, creating a zombie in the spans Set
+        const lifetime = this.#lifetime.join(what);
 
-        if (this.#abort.aborted) {
-            throw new ImplementationError(
-                `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
-            );
-        }
-
-        const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
-
+        let abort: Abort;
         let messenger: InteractionClientMessenger;
         try {
-            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-                network: request.network ?? this.#network,
-                abort,
-                connectionTimeout: session?.connectionTimeout,
-                addressOverride: request.addressOverride,
-            });
+            if (this.#abort.aborted) {
+                throw new ImplementationError(
+                    `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+                );
+            }
+
+            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+
+            try {
+                messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                    network: request.network ?? this.#network,
+                    abort,
+                    connectionTimeout: session?.connectionTimeout,
+                    addressOverride: request.addressOverride,
+                });
+            } catch (e) {
+                abort[Symbol.dispose]();
+                throw e;
+            }
         } catch (e) {
-            abort[Symbol.dispose]();
+            lifetime[Symbol.dispose]();
             throw e;
         }
 

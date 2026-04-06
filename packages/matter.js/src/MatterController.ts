@@ -830,6 +830,8 @@ export class MatterController {
             }
 
             const commissioning = RemoteDescriptor.toLongForm({
+                // Fallback discoveredAt in case discoveryData doesn't have one
+                discoveredAt: Time.nowMs,
                 ...(discoveryData ? deviceData : {}),
                 addresses: operationalAddress ? [operationalAddress] : [],
             });
