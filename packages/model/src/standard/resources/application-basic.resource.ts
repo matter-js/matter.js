@@ -92,8 +92,8 @@ Resource.add({
                         "DIAL registry shall use value 0x0000." +
                         "\n" +
                         "It is assumed that Content App Platform providers (see Video Player Architecture section in " +
-                        "[MatterDevLib]) will have their own catalog vendor ID (set to their own Vendor ID) and will assign " +
-                        "an ApplicationID to each Content App."
+                        "[[MatterDevLib]](#ref_MatterDevLib)) will have their own catalog vendor ID (set to their own Vendor " +
+                        "ID) and will assign an ApplicationID to each Content App."
                 },
 
                 {

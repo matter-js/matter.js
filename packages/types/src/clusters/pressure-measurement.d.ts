@@ -89,7 +89,7 @@ export declare namespace PressureMeasurement {
         /**
          * Indicates the pressure in Pascals as follows:
          *
-         * ScaledValue = 10Scale x Pressure [Pa]
+         * ScaledValue = 10^Scale x Pressure [Pa]
          *
          * The null value indicates that the value is not available.
          *
@@ -179,7 +179,7 @@ export declare namespace PressureMeasurement {
         /**
          * Indicates the pressure in Pascals as follows:
          *
-         * ScaledValue = 10Scale x Pressure [Pa]
+         * ScaledValue = 10^Scale x Pressure [Pa]
          *
          * The null value indicates that the value is not available.
          *

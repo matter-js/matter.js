@@ -22,7 +22,7 @@ import type { Status } from "../globals/Status.js";
  * Accurate time is required for a number of reasons, including scheduling, display and validating security materials.
  *
  * This section describes a mechanism for Nodes to achieve and maintain time synchronization. The Time Synchronization
- * cluster provides attributes for reading a Node’s current time. It also allows Administrators to set current time,
+ * cluster provides attributes for reading a Node's current time. It also allows Administrators to set current time,
  * time zone and daylight savings time (DST) settings.
  *
  * The Time Synchronization cluster may be present on the root node endpoint, and shall NOT be present on any other
@@ -80,7 +80,7 @@ export declare namespace TimeSynchronization {
         granularity: Granularity;
 
         /**
-         * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether the
+         * Indicates the node's time source. This attribute indicates what method the node is using to sync, whether the
          * source uses NTS or not and whether the source is internal or external to the Matter network. This attribute
          * may be used by a client to determine its level of trust in the UTCTime. It is of type TimeSourceEnum.
          *
@@ -100,7 +100,7 @@ export declare namespace TimeSynchronization {
     export interface TimeSyncClientAttributes {
         /**
          * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
-         * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an
+         * source. See Section 11.17.13, "Time source prioritization". This attribute reflects the last value set by an
          * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
          * been set.
          *
@@ -144,7 +144,7 @@ export declare namespace TimeSynchronization {
          * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
          * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
          * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
-         * “DSTOffset Attribute” for daylight savings time).
+         * "DSTOffset Attribute" for daylight savings time).
          *
          * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
          * time.
@@ -277,7 +277,7 @@ export declare namespace TimeSynchronization {
         granularity: Granularity;
 
         /**
-         * Indicates the node’s time source. This attribute indicates what method the node is using to sync, whether the
+         * Indicates the node's time source. This attribute indicates what method the node is using to sync, whether the
          * source uses NTS or not and whether the source is internal or external to the Matter network. This attribute
          * may be used by a client to determine its level of trust in the UTCTime. It is of type TimeSourceEnum.
          *
@@ -292,7 +292,7 @@ export declare namespace TimeSynchronization {
 
         /**
          * Indicates the Node ID, endpoint, and associated fabric index of a Node that may be used as trusted time
-         * source. See Section 11.17.13, “Time source prioritization”. This attribute reflects the last value set by an
+         * source. See Section 11.17.13, "Time source prioritization". This attribute reflects the last value set by an
          * administrator using the SetTrustedTimeSource command. If the value is null, no trusted time source has yet
          * been set.
          *
@@ -326,7 +326,7 @@ export declare namespace TimeSynchronization {
          * This attribute shall contain a list of time zone offsets from UTC and when they shall take effect. This
          * attribute uses a list of time offset configurations to allow Nodes to handle scheduled regulatory time zone
          * changes. This attribute shall NOT be used to indicate daylight savings time changes (see Section 11.17.8.7,
-         * “DSTOffset Attribute” for daylight savings time).
+         * "DSTOffset Attribute" for daylight savings time).
          *
          * The first entry shall have a ValidAt entry of 0. If there is a second entry, it shall have a non-zero ValidAt
          * time.
@@ -441,7 +441,7 @@ export declare namespace TimeSynchronization {
          * If the time is updated, the node shall also update its Granularity attribute based on the granularity
          * specified in the command and the expected clock drift of the node. This SHOULD normally be one level lower
          * than the stated command Granularity. It shall also update its TimeSource attribute to Admin. It shall also
-         * update its Last Known Good UTC Time as defined in Section 3.5.6.1, “Last Known Good UTC Time”.
+         * update its Last Known Good UTC Time as defined in Section 3.5.6.1, "Last Known Good UTC Time".
          *
          * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If it
          * opts to not update its time, it shall fail the command with a cluster specific Status Code of
@@ -465,7 +465,7 @@ export declare namespace TimeSynchronization {
          *     to null and shall generate a MissingTrustedTimeSource event.
          *
          *   - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and Endpoint
-         *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command’s
+         *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command's
          *     accessing fabric index.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.2
@@ -729,7 +729,7 @@ export declare namespace TimeSynchronization {
          * NtpServer (NTPS)
          *
          * Allows a Node to host an NTP server for the network so that other Nodes can achieve a high accuracy time
-         * synchronization within the network. See Section 11.17.15, “Acting as an NTP Server”.
+         * synchronization within the network. See Section 11.17.15, "Acting as an NTP Server".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.17.5.3
          */
@@ -1000,7 +1000,7 @@ export declare namespace TimeSynchronization {
      * If the time is updated, the node shall also update its Granularity attribute based on the granularity specified
      * in the command and the expected clock drift of the node. This SHOULD normally be one level lower than the stated
      * command Granularity. It shall also update its TimeSource attribute to Admin. It shall also update its Last Known
-     * Good UTC Time as defined in Section 3.5.6.1, “Last Known Good UTC Time”.
+     * Good UTC Time as defined in Section 3.5.6.1, "Last Known Good UTC Time".
      *
      * If the node updates its UTCTime attribute, it shall accept the command with a status code of SUCCESS. If it opts
      * to not update its time, it shall fail the command with a cluster specific Status Code of TimeNotAccepted.
@@ -1011,21 +1011,21 @@ export declare namespace TimeSynchronization {
         constructor(values?: Partial<SetUtcTimeRequest>);
 
         /**
-         * This field shall give the Client’s UTC Time.
+         * This field shall give the Client's UTC Time.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.1
          */
         utcTime: number | bigint;
 
         /**
-         * This field shall give the Client’s Granularity, as described in Granularity.
+         * This field shall give the Client's Granularity, as described in Granularity.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.2
          */
         granularity: Granularity;
 
         /**
-         * This field shall give the Client’s TimeSource, as described in TimeSource.
+         * This field shall give the Client's TimeSource, as described in TimeSource.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.17.9.1.3
          */
@@ -1041,7 +1041,7 @@ export declare namespace TimeSynchronization {
      *     null and shall generate a MissingTrustedTimeSource event.
      *
      *   - Otherwise, the node shall set the TrustedTimeSource attribute to a struct which has NodeID and Endpoint
-     *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command’s
+     *     fields matching those in the TrustedTimeSource field and has its FabricIndex field set to the command's
      *     accessing fabric index.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.17.9.2

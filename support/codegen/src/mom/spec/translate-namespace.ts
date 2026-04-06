@@ -6,11 +6,11 @@
 
 import { SemanticNamespaceElement, SemanticTagElement } from "#model";
 import { addDocumentation } from "./add-documentation.js";
-import { Identifier, Integer, Str, StrWithSuperscripts } from "./html-translators.js";
-import { HtmlReference } from "./spec-types.js";
+import { SpecReference } from "./spec-types.js";
 import { Alias, Optional, translateTable } from "./translate-table.js";
+import { Identifier, Integer, Str, StrWithSuperscripts } from "./translators.js";
 
-export function* translateNamespace(nsRef: HtmlReference) {
+export function* translateNamespace(nsRef: SpecReference) {
     const ids = translateTable("semanticNamespace", nsRef, {
         id: Integer,
         name: Alias(Identifier, "namespace"),

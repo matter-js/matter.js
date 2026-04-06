@@ -67,7 +67,7 @@ export declare namespace WaterHeaterManagement {
         /**
          * Indicates whether the Boost, as triggered by a Boost command, is currently Active or Inactive.
          *
-         * See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details.
+         * See Section 9.5.8.1, "Boost Command" and Section 9.5.8.2, "CancelBoost Command" for more details.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.6
          */
@@ -91,28 +91,25 @@ export declare namespace WaterHeaterManagement {
          * computed by taking the specific heat capacity of water (4182 J/kg °C) and by knowing the current temperature
          * of the water, the tank volume and target temperature.
          *
-         * For example, if the target temperature was 60°C, the current temperature was 20°C and the tank volume was
-         * 100L:
+         * > [!NOTE]
          *
-         * Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature - current
-         * temperature) = (60°C - 20°C) = 40°C
-         *
-         * Energy required to heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J
-         *
-         * Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)
+         * > For example, if the target temperature was 60°C, the current temperature was 20°C and the tank volume was
+         *   100L: Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature -
+         *   current temperature) = (60°C - 20°C) = 40°C Energy required to heat the water to 60°C = 4182 x 40 x 100 =
+         *   16,728,000 J Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)
          *
          * If the TankPercent feature is supported, then this estimate shall also take into account the percentage of
          * the water in the tank which is already hot.
          *
          * > [!NOTE]
          *
-         * > The electrical energy required to heat the water depends on the heating system used to heat the water. For
-         *   example, a direct electric immersion heating element can be close to 100% efficient, so the electrical
-         *   energy needed to heat the hot water is nearly the same as the EstimatedHeatEnergyRequired. However some
-         *   forms of heating, such as an air-source heat pump which extracts heat from ambient air, requires much less
-         *   electrical energy to heat hot water. Heat pumps can be produce 3kWh of heat output for 1kWh of electrical
-         *   energy input. The conversion between heat energy and electrical energy is outside the scope of this
-         *   cluster.
+         * > NOTE: The electrical energy required to heat the water depends on the heating system used to heat the
+         *   water. For example, a direct electric immersion heating element can be close to 100% efficient, so the
+         *   electrical energy needed to heat the hot water is nearly the same as the EstimatedHeatEnergyRequired.
+         *   However some forms of heating, such as an air-source heat pump which extracts heat from ambient air,
+         *   requires much less electrical energy to heat hot water. Heat pumps can be produce 3kWh of heat output for
+         *   1kWh of electrical energy input. The conversion between heat energy and electrical energy is outside the
+         *   scope of this cluster.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.4
          */
@@ -139,14 +136,12 @@ export declare namespace WaterHeaterManagement {
          * However it might be possible with a single temperature probe to estimate how much hot water is left using a
          * simpler algorithm:
          *
-         * For example, if the target temperature was 60°C, the CurrentTemperature was 40°C from a single temperature
-         * probe measuring the average water temperature and the temperature of incoming cold water (COLD_WATER_TEMP)
-         * was assumed to be 20°C:
+         * > [!NOTE]
          *
-         * TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature - COLD_WATER_TEMP)) *
-         * 100) TankPercentage = min( max(TankPercentage,0), 100)
-         *
-         * TankPercentage = 50%
+         * > For example, if the target temperature was 60°C, the CurrentTemperature was 40°C from a single temperature
+         *   probe measuring the average water temperature and the temperature of incoming cold water (COLD_WATER_TEMP)
+         *   was assumed to be 20°C: TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature
+         *   - COLD_WATER_TEMP)) * 100) TankPercentage = min( max(TankPercentage,0), 100) TankPercentage = 50%
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.5
          */
@@ -178,7 +173,7 @@ export declare namespace WaterHeaterManagement {
         /**
          * Indicates whether the Boost, as triggered by a Boost command, is currently Active or Inactive.
          *
-         * See Section 9.5.8.1, “Boost Command” and Section 9.5.8.2, “CancelBoost Command” for more details.
+         * See Section 9.5.8.1, "Boost Command" and Section 9.5.8.2, "CancelBoost Command" for more details.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.6
          */
@@ -197,28 +192,25 @@ export declare namespace WaterHeaterManagement {
          * computed by taking the specific heat capacity of water (4182 J/kg °C) and by knowing the current temperature
          * of the water, the tank volume and target temperature.
          *
-         * For example, if the target temperature was 60°C, the current temperature was 20°C and the tank volume was
-         * 100L:
+         * > [!NOTE]
          *
-         * Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature - current
-         * temperature) = (60°C - 20°C) = 40°C
-         *
-         * Energy required to heat the water to 60°C = 4182 x 40 x 100 = 16,728,000 J
-         *
-         * Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)
+         * > For example, if the target temperature was 60°C, the current temperature was 20°C and the tank volume was
+         *   100L: Mass of water = 1kg per Litre Total Mass = 100 x 1kg = 100kg Δ Temperature = (target temperature -
+         *   current temperature) = (60°C - 20°C) = 40°C Energy required to heat the water to 60°C = 4182 x 40 x 100 =
+         *   16,728,000 J Converting Joules in to Wh of heat (divide by 3600): = 16,728,000 J / 3600 = 4647 Wh (4.65kWh)
          *
          * If the TankPercent feature is supported, then this estimate shall also take into account the percentage of
          * the water in the tank which is already hot.
          *
          * > [!NOTE]
          *
-         * > The electrical energy required to heat the water depends on the heating system used to heat the water. For
-         *   example, a direct electric immersion heating element can be close to 100% efficient, so the electrical
-         *   energy needed to heat the hot water is nearly the same as the EstimatedHeatEnergyRequired. However some
-         *   forms of heating, such as an air-source heat pump which extracts heat from ambient air, requires much less
-         *   electrical energy to heat hot water. Heat pumps can be produce 3kWh of heat output for 1kWh of electrical
-         *   energy input. The conversion between heat energy and electrical energy is outside the scope of this
-         *   cluster.
+         * > NOTE: The electrical energy required to heat the water depends on the heating system used to heat the
+         *   water. For example, a direct electric immersion heating element can be close to 100% efficient, so the
+         *   electrical energy needed to heat the hot water is nearly the same as the EstimatedHeatEnergyRequired.
+         *   However some forms of heating, such as an air-source heat pump which extracts heat from ambient air,
+         *   requires much less electrical energy to heat hot water. Heat pumps can be produce 3kWh of heat output for
+         *   1kWh of electrical energy input. The conversion between heat energy and electrical energy is outside the
+         *   scope of this cluster.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.4
          */
@@ -240,14 +232,12 @@ export declare namespace WaterHeaterManagement {
          * However it might be possible with a single temperature probe to estimate how much hot water is left using a
          * simpler algorithm:
          *
-         * For example, if the target temperature was 60°C, the CurrentTemperature was 40°C from a single temperature
-         * probe measuring the average water temperature and the temperature of incoming cold water (COLD_WATER_TEMP)
-         * was assumed to be 20°C:
+         * > [!NOTE]
          *
-         * TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature - COLD_WATER_TEMP)) *
-         * 100) TankPercentage = min( max(TankPercentage,0), 100)
-         *
-         * TankPercentage = 50%
+         * > For example, if the target temperature was 60°C, the CurrentTemperature was 40°C from a single temperature
+         *   probe measuring the average water temperature and the temperature of incoming cold water (COLD_WATER_TEMP)
+         *   was assumed to be 20°C: TankPercentage = int(((current temperature - COLD_WATER_TEMP) / (target temperature
+         *   - COLD_WATER_TEMP)) * 100) TankPercentage = min( max(TankPercentage,0), 100) TankPercentage = 50%
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.5.7.5
          */

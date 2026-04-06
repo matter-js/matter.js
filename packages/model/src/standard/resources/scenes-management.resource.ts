@@ -390,7 +390,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "SceneCount", xref: "cluster§1.4.7.2.1",
-                    details: "This field shall indicate the number of scenes currently used in the server’s Scene Table on the " +
+                    details: "This field shall indicate the number of scenes currently used in the server's Scene Table on the " +
                         "endpoint where the Scenes Management cluster appears." +
                         "\n" +
                         "This only includes the count for the associated fabric."
@@ -444,8 +444,8 @@ Resource.add({
 
                 details: "This field shall be present for all instances in a given ExtensionFieldSetStruct." +
                     "\n" +
-                    "Which Value* field is used shall be determined based on the data type of the attribute indicated by " +
-                    "AttributeID, as described in the Value* Fields subsection." +
+                    "Which Value field is used shall be determined based on the data type of the attribute indicated by " +
+                    "AttributeID, as described in the Value Fields subsection." +
                     "\n" +
                     "The AttributeID field shall NOT refer to an attribute without the Scenes (\"S\") designation in the " +
                     "Quality column of the cluster specification."

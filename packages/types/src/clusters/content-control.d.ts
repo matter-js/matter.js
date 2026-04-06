@@ -25,7 +25,7 @@ import type { Status } from "../globals/Status.js";
  *
  * > [!NOTE]
  *
- * > Support for Content Control cluster is provisional.
+ * > NOTE: Support for Content Control cluster is provisional.
  *
  * @see {@link MatterSpecification.v151.Cluster} § 6.13
  */
@@ -564,9 +564,9 @@ export declare namespace ContentControl {
          * Upon receipt of the SetBlockContentTimeWindow command, the media device shall check if the TimeWindowIndex
          * field passed in this command is NULL. If the TimeWindowIndex field is NULL, the media device shall check if
          * there is an entry in the BlockContentTimeWindow attribute which matches with the TimePeriod and DayOfWeek
-         * fields passed in this command. * If Yes, then a response with TimeWindowAlreadyExist error status shall be
-         * returned. * If No, then the media device shall assign one unique index for this time window and add it into
-         * the BlockContentTimeWindow list attribute.
+         * fields passed in this command. If Yes, then a response with TimeWindowAlreadyExist error status shall be
+         * returned. If No, then the media device shall assign one unique index for this time window and add it into the
+         * BlockContentTimeWindow list attribute.
          *
          * If the TimeWindowIndex field is not NULL and presents in the BlockContentTimeWindow attribute, the media
          * device shall replace the original time window with the new time window passed in this command.
@@ -1126,9 +1126,9 @@ export declare namespace ContentControl {
      * Upon receipt of the SetBlockContentTimeWindow command, the media device shall check if the TimeWindowIndex field
      * passed in this command is NULL. If the TimeWindowIndex field is NULL, the media device shall check if there is an
      * entry in the BlockContentTimeWindow attribute which matches with the TimePeriod and DayOfWeek fields passed in
-     * this command. * If Yes, then a response with TimeWindowAlreadyExist error status shall be returned. * If No, then
-     * the media device shall assign one unique index for this time window and add it into the BlockContentTimeWindow
-     * list attribute.
+     * this command. If Yes, then a response with TimeWindowAlreadyExist error status shall be returned. If No, then the
+     * media device shall assign one unique index for this time window and add it into the BlockContentTimeWindow list
+     * attribute.
      *
      * If the TimeWindowIndex field is not NULL and presents in the BlockContentTimeWindow attribute, the media device
      * shall replace the original time window with the new time window passed in this command.
@@ -1327,7 +1327,7 @@ export declare namespace ContentControl {
         ChannelAlreadyExist = 5,
 
         /**
-         * Provided Channel(s) doesn’t exist in BlockChannelList attribute.
+         * Provided Channel(s) doesn't exist in BlockChannelList attribute.
          */
         ChannelNotExist = 6,
 
@@ -1342,7 +1342,7 @@ export declare namespace ContentControl {
         ApplicationAlreadyExist = 8,
 
         /**
-         * Provided Application(s) doesn’t exist in BlockApplicationList attribute.
+         * Provided Application(s) doesn't exist in BlockApplicationList attribute.
          */
         ApplicationNotExist = 9,
 
@@ -1352,7 +1352,7 @@ export declare namespace ContentControl {
         TimeWindowAlreadyExist = 10,
 
         /**
-         * Provided time window doesn’t exist in BlockContentTimeWindow attribute.
+         * Provided time window doesn't exist in BlockContentTimeWindow attribute.
          */
         TimeWindowNotExist = 11
     }

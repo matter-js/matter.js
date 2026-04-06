@@ -5,8 +5,7 @@
  */
 
 import { looksLikeListItem } from "@matter/general";
-import { Str, convertSuperscripts } from "./html-translators.js";
-import { HtmlReference } from "./spec-types.js";
+import { SpecReference } from "./spec-types.js";
 
 /**
  * Extraction terminates when it encounters these flags.  These are for places where we don't have an elegant way of
@@ -79,7 +78,7 @@ function mergeSplitParagraphs(paragraphs: string[]) {
         if (
             paragraph.endsWith(".") ||
             paragraph.endsWith(":") ||
-            paragraph.endsWith(".”") ||
+            paragraph.endsWith(".\u201D") ||
             paragraph.endsWith('."') ||
             paragraph.startsWith("###")
         ) {
@@ -119,7 +118,7 @@ function mergeSplitParagraphs(paragraphs: string[]) {
                 // Has an unmatched closing parenthesis
                 nextParagraph.match(/^[^(]*\)/) ||
                 // Has an unmatched double quotation
-                nextParagraph.match(/^[^“]*”/)
+                nextParagraph.match(/^[^"]*"/)
             ) {
                 if (!nextParagraph.match(/[.?!]\s/) || nextParagraph.match(/[.?!:]$/)) {
                     joinParagraphs(i, " ");
@@ -133,10 +132,9 @@ function mergeSplitParagraphs(paragraphs: string[]) {
 }
 
 /**
- * Make a valiant attempt to extract comprehensible documentation from the gobbledy gook produced by tired spec writers
- * -> word -> PDF -> HTML -> us pipeline.
+ * Extract documentation from prose strings produced by the markdown scanner.
  */
-export function addDocumentation(target: { details?: string }, definition: HtmlReference) {
+export function addDocumentation(target: { details?: string }, definition: SpecReference) {
     const prose = definition.prose;
     if (!prose) {
         return;
@@ -144,91 +142,15 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
 
     let paragraphs = Array<string>();
 
-    let listIndent = 0;
-    let listSpacing = 0;
-
-    prose: for (const p of prose) {
-        // Anchors receive special examination
-        let looksLikeHeading = false;
-        const first = p.firstChild as any;
-        if (first?.tagName == "A" && first.getAttribute("name")) {
-            const text = first.textContent;
-
-            // Ignore table notations
-            if (text.match(/^Table \d+/)) {
-                listIndent = 0;
-                continue;
-            }
-
-            // This edge case happens a half dozen times or so; subsection headings would otherwise appear as unadorned
-            // text.  Instead stick a markdownish prefix on them.  Heuristically ignore various junk that also appears
-            // in links but isn't a heading
-            if (text.match(/^[^(.:]*$/)) {
-                looksLikeHeading = true;
-            }
-        }
-
-        // Skip code blocks from listingblock/literalblock <pre> elements
-        if (p.tagName === "PRE" && p.textContent?.match(/[{;]|function\s|return\s/)) {
-            continue;
-        }
-
-        // Convert numeric superscripts before text extraction (safe for prose, not for constraint columns)
-        convertSuperscripts(p);
-
-        // Extract text
-        let text = Str(p);
-
-        // For Asciidoctor list items, add numbered/bulleted marker.  The FormattedText serializer handles
-        // indentation based on marker type, so we use depth-appropriate markers matching its Bullets array
-        if (p.parentElement?.tagName === "LI") {
-            const li = p.parentElement;
-            const list = li.parentElement;
-
-            // Compute nesting depth by counting ancestor ol/ul elements
-            let depth = 0;
-            for (let ancestor = list?.parentElement; ancestor; ancestor = ancestor.parentElement) {
-                if (ancestor.tagName === "OL" || ancestor.tagName === "UL") {
-                    depth++;
-                }
-            }
-
-            // Skip bullet-less lists (Asciidoctor class="none" used for layout/continuation)
-            if ((list as HTMLElement)?.className?.includes("none")) {
-                // no marker
-            } else if (list?.tagName === "OL") {
-                // Ordered list — compute 1-based index and format based on list type
-                const index = Array.from(list.children).indexOf(li) + 1;
-                const type = list.getAttribute("type");
-                if (type === "a") {
-                    text = `${String.fromCharCode(96 + index)}. ${text}`;
-                } else if (type === "A") {
-                    text = `${String.fromCharCode(64 + index)}. ${text}`;
-                } else if (type === "i") {
-                    text = `${toRoman(index)}. ${text}`;
-                } else if (type === "I") {
-                    text = `${toRoman(index).toUpperCase()}. ${text}`;
-                } else {
-                    text = `${index}. ${text}`;
-                }
-            } else {
-                // Unordered list — markdown-style dash with indentation for nesting
-                const indent = "  ".repeat(depth);
-                text = `${indent}- ${text}`;
-            }
-        }
-
+    prose: for (const text of prose) {
         // Ignore figure annotations
         if (text.match(/^Figure \d+/)) {
-            listIndent = 0;
             continue;
         }
 
-        // Admonition blocks (NOTE/WARNING) are marked with data-admonition attribute by the scanner
-        const admonition = p.getAttribute?.("data-admonition");
-        if (admonition) {
-            listIndent = 0;
-            paragraphs.push(`> [!${admonition}]\n> ${extractUsefulDocumentation(text)}`);
+        // Admonition blocks are pre-formatted as `> [!NOTE]\n> text` by the scanner
+        if (text.startsWith("> [!")) {
+            paragraphs.push(extractUsefulDocumentation(text));
             continue;
         }
 
@@ -239,7 +161,8 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             }
         }
 
-        // Additional "heading" detection - short line that starts with capital and can't be a sentence fragment
+        // Heading detection — short line that starts with capital and can't be a sentence fragment
+        let looksLikeHeading = false;
         if (
             text.length < 50 &&
             text.match(/^[A-Z]/) &&
@@ -257,28 +180,10 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
         // Add the text
         if (text) {
             if (looksLikeHeading) {
-                // Special case
-                listIndent = 0;
-                text = `### ${text}`;
-            } else if (looksLikeListItem(text)) {
-                // This looks like a list entry; record metadata required to detect broken list entry "paragraphs" that
-                // occur due to page split
-                listIndent = getIndent(p);
-
-                // We use this as an additional heuristic to avoid joining lists with paragraphs that have the same
-                // indentation
-                listSpacing = getPaddingTop(p);
-            } else if (listIndent) {
-                // Repair split list entries.  We do this earlier than other repairs because we leverage styling
-                // information that is unavailable after conversion to text
-                if (getIndent(p) >= listIndent && getPaddingTop(p) <= listSpacing) {
-                    paragraphs[paragraphs.length - 1] += ` ${text}`;
-                    continue;
-                }
-
-                listIndent = 0;
+                paragraphs.push(`### ${text}`);
+            } else {
+                paragraphs.push(text);
             }
-            paragraphs.push(text);
         }
     }
 
@@ -294,66 +199,6 @@ export function addDocumentation(target: { details?: string }, definition: HtmlR
             .filter(p => p !== "" && p !== "###");
         target.details = paragraphs.join("\n");
     }
-}
-
-function getIndent(el: HTMLElement) {
-    return sumStyles(el, "padding-left", "margin-left", "text-indent");
-}
-
-function getPaddingTop(el: HTMLElement) {
-    let value = sumStyles(el, "padding-top");
-
-    // Acrobat's formatting is terrible.  Detect "<p><br/></p>" which often ends up separating paragraphs from lists
-    if (el.previousElementSibling?.children[0]?.tagName === "BR") {
-        value += 10;
-    }
-
-    return value;
-}
-
-function sumStyles(el: HTMLElement, ...names: string[]) {
-    const styles = el.style;
-
-    let sum = 0;
-
-    for (const name of names) {
-        const value = styles.getPropertyValue(name)?.toString();
-        if (!value) {
-            continue;
-        }
-        const number = Number.parseInt(value);
-        if (!number) {
-            continue;
-        }
-
-        // Do not worry about units; we're just spitballing anyway
-        sum += number;
-    }
-
-    return sum;
-}
-
-/** Convert a number to lowercase roman numeral string */
-function toRoman(n: number): string {
-    const numerals = [
-        [100, "c"],
-        [90, "xc"],
-        [50, "l"],
-        [40, "xl"],
-        [10, "x"],
-        [9, "ix"],
-        [5, "v"],
-        [4, "iv"],
-        [1, "i"],
-    ] as const;
-    let result = "";
-    for (const [value, numeral] of numerals) {
-        while (n >= value) {
-            result += numeral;
-            n -= value;
-        }
-    }
-    return result;
 }
 
 /**

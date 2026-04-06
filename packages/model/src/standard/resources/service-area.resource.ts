@@ -44,7 +44,7 @@ Resource.add({
         {
             tag: "attribute", name: "SupportedAreas", xref: "cluster§1.17.6.1",
 
-            details: "This attribute shall contain the list of areas that can be included in the SelectedAreas attribute’s " +
+            details: "This attribute shall contain the list of areas that can be included in the SelectedAreas attribute's " +
                 "list. Each item in this list represents a unique area, as indicated by the AreaID field of " +
                 "AreaStruct." +
                 "\n" +
@@ -60,8 +60,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> due to the maximum size of this list and to the fact that the entries may include strings (see " +
-                "LocationName), care must be taken by implementers to avoid creating a data structure that is " +
+                "> NOTE: due to the maximum size of this list and to the fact that the entries may include strings " +
+                "(see LocationName), care must be taken by implementers to avoid creating a data structure that is " +
                 "overly large, which can result in significant latency in accessing this attribute." +
                 "\n" +
                 "The value of this attribute may change at any time via an out-of-band interaction outside of the " +
@@ -126,10 +126,10 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> due to the maximum size of this list and to the fact that the entries may include strings (see the " +
-                "Name field of the MapStruct data type), care must be taken by implementers to avoid creating a " +
-                "data structure that is overly large, which can result in significant latency in accessing this " +
-                "attribute." +
+                "> NOTE: due to the maximum size of this list and to the fact that the entries may include strings " +
+                "(see the Name field of the MapStruct data type), care must be taken by implementers to avoid " +
+                "creating a data structure that is overly large, which can result in significant latency in " +
+                "accessing this attribute." +
                 "\n" +
                 "The value of this attribute may change at any time via an out-of-band interaction outside of the " +
                 "server, such as interactions with a user interface." +
@@ -158,7 +158,7 @@ Resource.add({
                 "If this attribute is not empty:" +
                 "\n" +
                 "  - each item in this list shall match the AreaID field of an entry in the SupportedAreas " +
-                "attribute’s list" +
+                "attribute's list" +
                 "\n" +
                 "  - each entry in this list shall have a unique value"
         },
@@ -177,19 +177,19 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> A device may traverse an area regardless of the status of the area (pending, skipped, or " +
+                "> NOTE: A device may traverse an area regardless of the status of the area (pending, skipped, or " +
                 "completed)." +
                 "\n" +
                 "If a device can simultaneously operate at multiple areas, such as in the case of a sensor that can " +
                 "monitor multiple areas at the same time, the CurrentArea attribute shall NOT be implemented, since " +
-                "it doesn’t apply. Else this attribute shall be optionally implemented." +
+                "it doesn't apply. Else this attribute shall be optionally implemented." +
                 "\n" +
                 "A null value indicates that the device is currently unable to provide this information. For example, " +
                 "the device is traversing an unknown area, or the SupportedAreas attribute was updated and the area " +
                 "where the device is located was removed from that list." +
                 "\n" +
                 "If not null, the value of this attribute shall match the AreaID field of an entry on the " +
-                "SupportedAreas attribute’s list."
+                "SupportedAreas attribute's list."
         },
 
         {
@@ -220,7 +220,7 @@ Resource.add({
                 "\n" +
                 "    > [!NOTE]" +
                 "\n" +
-                "    > If the device is capable of pausing its operation, this attribute may be set to null, to " +
+                "    > NOTE: If the device is capable of pausing its operation, this attribute may be set to null, to " +
                 "indicate that completion time is unknown, or increment the value while being in the paused " +
                 "state."
         },
@@ -232,7 +232,7 @@ Resource.add({
                 "\n" +
                 "Each entry in this list shall have a unique value for the AreaID field." +
                 "\n" +
-                "For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute’s " +
+                "For each entry in this list, the AreaID field shall match an entry on the SupportedAreas attribute's " +
                 "list." +
                 "\n" +
                 "When this attribute is empty, that represents that no progress information is currently available." +
@@ -261,9 +261,9 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> if the device implements the Operational Status cluster, or a derivation of it, in case the device " +
-                "fails to service any locations in the SelectedAreas list before ending the operation, it SHOULD " +
-                "use the Operational Status cluster to indicate that the device was unable to complete the " +
+                "> NOTE: if the device implements the Operational Status cluster, or a derivation of it, in case the " +
+                "device fails to service any locations in the SelectedAreas list before ending the operation, it " +
+                "SHOULD use the Operational Status cluster to indicate that the device was unable to complete the " +
                 "operation (see the UnableToCompleteOperation error from that cluster specification). The clients " +
                 "SHOULD then read the Progress attribute, and indicate which areas have been successfully serviced " +
                 "(marked as completed)."
@@ -355,7 +355,7 @@ Resource.add({
                     tag: "field", name: "RelativePositionTag", xref: "cluster§1.17.5.1.2",
 
                     details: "This field shall identify the position of the area relative to a landmark. This is a static " +
-                        "description of a zone known to the server, and this field never reflects the device’s own proximity " +
+                        "description of a zone known to the server, and this field never reflects the device's own proximity " +
                         "or position relative to the landmark, but that of the zone." +
                         "\n" +
                         "This field shall be the ID of a relative position semantic tag, located within the Common Relative " +
@@ -380,7 +380,7 @@ Resource.add({
                 "\n" +
                 "For an area description to be meaningful, it shall have at least one of the following:" +
                 "\n" +
-                "  - a non-empty name (LocationInfo’s LocationName field)" +
+                "  - a non-empty name (LocationInfo's LocationName field)" +
                 "\n" +
                 "OR" +
                 "\n" +
@@ -394,18 +394,18 @@ Resource.add({
                 "If LocationInfo is not null, and its LocationName field is an empty string, at least one of the " +
                 "following shall NOT be null:" +
                 "\n" +
-                "  - LocationInfo’s FloorNumber field" +
+                "  - LocationInfo's FloorNumber field" +
                 "\n" +
-                "  - LocationInfo’s AreaType field" +
+                "  - LocationInfo's AreaType field" +
                 "\n" +
                 "  - LandmarkInfo field" +
                 "\n" +
-                "If all three of the following are null, LocationInfo’s LocationName field shall NOT be an empty " +
+                "If all three of the following are null, LocationInfo's LocationName field shall NOT be an empty " +
                 "string:" +
                 "\n" +
-                "  - LocationInfo’s FloorNumber field" +
+                "  - LocationInfo's FloorNumber field" +
                 "\n" +
-                "  - LocationInfo’s AreaType field" +
+                "  - LocationInfo's AreaType field" +
                 "\n" +
                 "  - LandmarkInfo field",
 
@@ -417,11 +417,11 @@ Resource.add({
                         "\n" +
                         "A few examples are provided below." +
                         "\n" +
-                        "  - An area can have LocationInfo’s LocationName field set to \"blue room\", and the AreaType field " +
+                        "  - An area can have LocationInfo's LocationName field set to \"blue room\", and the AreaType field " +
                         "set to the ID of a \"Living Room\" semantic tag. Clients wishing to direct the device to operate " +
                         "in (or service) the living room can use this area." +
                         "\n" +
-                        "  - An area can have LocationInfo set to null, the LandmarkInfo’s LandmarkTag field set to the ID of " +
+                        "  - An area can have LocationInfo set to null, the LandmarkInfo's LandmarkTag field set to the ID of " +
                         "the \"Table\" landmark semantic tag, and the RelativePositionTag field set to the ID of the " +
                         "\"Under\" position semantic tag. With such an area indication, the client can request the device " +
                         "to operate in (or service) the area located under the table."
@@ -449,7 +449,7 @@ Resource.add({
             children: [
                 {
                     tag: "field", name: "MapId", xref: "cluster§1.17.5.3.1",
-                    details: "This field shall represent the map’s identifier."
+                    details: "This field shall represent the map's identifier."
                 },
 
                 {
@@ -478,7 +478,7 @@ Resource.add({
                         "indicates that the area is not associated with a map." +
                         "\n" +
                         "If the SupportedMaps attribute is not empty, this field shall match the MapID field of an entry from " +
-                        "the SupportedMaps attribute’s list. If the SupportedMaps attribute is empty, this field shall be " +
+                        "the SupportedMaps attribute's list. If the SupportedMaps attribute is empty, this field shall be " +
                         "null."
                 },
 
@@ -492,8 +492,8 @@ Resource.add({
                         "\n" +
                         "> [!NOTE]" +
                         "\n" +
-                        "> If any entries on the SupportedAreas attribute’s list have the AreaInfo field missing the semantic " +
-                        "data, the client may remind the user to assign the respective data."
+                        "> NOTE: If any entries on the SupportedAreas attribute's list have the AreaInfo field missing the " +
+                        "semantic data, the client may remind the user to assign the respective data."
                 }
             ]
         },
@@ -506,7 +506,7 @@ Resource.add({
                 {
                     tag: "field", name: "AreaId", xref: "cluster§1.17.5.5.1",
                     details: "This field shall indicate the identifier of the area, and the identifier shall be an entry in the " +
-                        "SupportedAreas attribute’s list."
+                        "SupportedAreas attribute's list."
                 },
                 {
                     tag: "field", name: "Status", xref: "cluster§1.17.5.5.2",
@@ -558,7 +558,7 @@ Resource.add({
                 { tag: "field", name: "Operating", description: "The device is currently operating at the given area" },
                 {
                     tag: "field", name: "Skipped",
-                    description: "The device has skipped the given area, before or during operating at it, due to a SkipArea command, due an out of band command (e.g. from the vendor’s application), due to a vendor specific reason, such as a time limit used by the device, or due the device ending operating unsuccessfully"
+                    description: "The device has skipped the given area, before or during operating at it, due to a SkipArea command, due an out of band command (e.g. from the vendor's application), due to a vendor specific reason, such as a time limit used by the device, or due the device ending operating unsuccessfully"
                 },
                 {
                     tag: "field", name: "Completed",
@@ -577,7 +577,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "UnsupportedArea",
-                    description: "The value of at least one of the entries of the NewAreas field doesn’t match any entries in the SupportedAreas attribute."
+                    description: "The value of at least one of the entries of the NewAreas field doesn't match any entries in the SupportedAreas attribute."
                 },
                 {
                     tag: "field", name: "InvalidInMode",
@@ -585,7 +585,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "InvalidSet",
-                    description: "The set of values is invalid. For example, areas on different floors, that a robot knows it can’t reach on its own."
+                    description: "The set of values is invalid. For example, areas on different floors, that a robot knows it can't reach on its own."
                 }
             ]
         },
@@ -605,7 +605,7 @@ Resource.add({
                 },
                 {
                     tag: "field", name: "InvalidSkippedArea",
-                    description: "The SkippedArea field doesn’t match an entry in the SupportedAreas list."
+                    description: "The SkippedArea field doesn't match an entry in the SupportedAreas list."
                 }
             ]
         }

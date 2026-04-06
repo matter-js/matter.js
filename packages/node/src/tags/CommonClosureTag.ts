@@ -14,8 +14,8 @@ import { SemanticNamespace } from "../endpoint/type/SemanticNamespace.js";
  *
  * > [!NOTE]
  *
- * > This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these tags, since the
- *   tags could be used by a server certified on a previous revision of Matter.
+ * > NOTE: This namespace has been deprecated as of Matter 1.4.2. Clients SHOULD still have support for these tags,
+ *   since the tags could be used by a server certified on a previous revision of Matter.
  *
  * @see {@link MatterSpecification.v151.Namespace} § 2
  */

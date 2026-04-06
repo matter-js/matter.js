@@ -28,7 +28,7 @@ export const TlvSemtag = TlvObject({
      * MfgCode field.
      *
      * If a manufacturer specific Tag field is indicated in a list of SemanticTagStruct entries, the list shall include
-     * at least one standard tag which is not from any manufacturer’s namespace. A standard tag is a tag from a common
+     * at least one standard tag which is not from any manufacturer's namespace. A standard tag is a tag from a common
      * namespace, a derived cluster namespace, or an applicable device-specific namespace.
      *
      * If MfgCode is NULL, the NamespaceID field shall indicate a standard namespace.
@@ -40,7 +40,8 @@ export const TlvSemtag = TlvObject({
     /**
      * The NamespaceID field shall identify a namespace.
      *
-     * The common and device-specific semantic tag namespaces are listed in [StandardNamespaces].
+     * The common and device-specific semantic tag namespaces are listed in
+     * [[StandardNamespaces]](#ref_StandardNamespaces).
      *
      * @see {@link MatterSpecification.v151.Core} § 7.19.2.46.2
      */
@@ -50,7 +51,7 @@ export const TlvSemtag = TlvObject({
      * The Tag field shall be the ID of a semantic tag located within the namespace indicated by NamespaceID.
      *
      * A device may expose tags from the common or device-specific namespaces and from manufacturer-specific namespaces
-     * in a single Section 9.5.6.5, “TagList”.
+     * in a single Section 9.5.6.5, "TagList".
      *
      * @see {@link MatterSpecification.v151.Core} § 7.19.2.46.3
      */

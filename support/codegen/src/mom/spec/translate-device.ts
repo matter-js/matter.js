@@ -8,6 +8,8 @@ import { Diagnostic, Logger } from "#general";
 import { ConditionElement, DeviceClassification, DeviceTypeElement, RequirementElement } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
+import { DeviceReference, SpecReference } from "./spec-types.js";
+import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
     ConformanceCode,
     ConstraintStr,
@@ -16,9 +18,7 @@ import {
     LowerIdentifier,
     Str,
     StrWithSuperscripts,
-} from "./html-translators.js";
-import { DeviceReference, HtmlReference } from "./spec-types.js";
-import { Alias, Constant, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+} from "./translators.js";
 
 const logger = Logger.get("translate-devices");
 
@@ -29,8 +29,8 @@ const ActualClusterNames = {
 
 // The specification references to clusters are not entirely formal.  This translator converts colloquial names to the
 // actual cluster name
-const ClusterName = (el: HTMLElement) => {
-    const name = Identifier(el);
+const ClusterName = (text: string) => {
+    const name = Identifier(text);
     return (ActualClusterNames as any)[name] ?? name;
 };
 
@@ -216,8 +216,8 @@ function addClusters(device: DeviceTypeElement, deviceRef: DeviceReference) {
     const clusterRecords = translateTable("clusters", deviceRef.clusters, {
         id: Optional(Alias(Integer, "identifier", "clusterid")),
         name: Alias(ClusterName, "clustername", "cluster"),
-        element: Alias((el: HTMLElement) => {
-            const cs = LowerIdentifier(el);
+        element: Alias((text: string) => {
+            const cs = LowerIdentifier(text);
             switch (cs) {
                 case "client":
                     return RequirementElement.ElementType.ClientCluster;
@@ -331,7 +331,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
      * Given a row index and the notes array (with position info), find the instance number for that row
      * from the nearest preceding group header note.  Returns undefined when no ordinal is present.
      */
-    type NotesArray = NonNullable<NonNullable<HtmlReference["tables"]>[number]["notes"]>;
+    type NotesArray = NonNullable<NonNullable<SpecReference["tables"]>[number]["notes"]>;
     function rowInstance(rowIndex: number, notes: NotesArray): number | undefined {
         let latest: NotesArray[number] | undefined;
         for (const n of notes) {
@@ -339,7 +339,7 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
                 latest = n;
             }
         }
-        return latest ? extractInstance(latest.note.textContent ?? "") : undefined;
+        return latest ? extractInstance(latest.note) : undefined;
     }
 
     // Map from "deviceTypeId:instance" (or just "deviceTypeId") to RequirementElement
@@ -418,8 +418,8 @@ function addComposing(device: DeviceTypeElement, deviceRef: DeviceReference) {
         device: Alias(Identifier, "devicetypename"),
         clusterid: Integer,
         cluster: Alias(ClusterName, "clustername"),
-        element: Alias((el: HTMLElement) => {
-            const cs = LowerIdentifier(el);
+        element: Alias((text: string) => {
+            const cs = LowerIdentifier(text);
             return cs === "client"
                 ? RequirementElement.ElementType.ClientCluster
                 : RequirementElement.ElementType.ServerCluster;

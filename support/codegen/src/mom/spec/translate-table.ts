@@ -7,13 +7,13 @@
 import { Logger, camelize, isObject } from "#general";
 import { AnyElement, Specification } from "#model";
 import { addDocumentation } from "./add-documentation.js";
-import { Str } from "./html-translators.js";
-import { HtmlReference, Table } from "./spec-types.js";
+import { SpecReference, Table } from "./spec-types.js";
+import { Str } from "./translators.js";
 
 const logger = Logger.get("translate-table");
 
-/** Generic type of table cell "translators" such as those in html-translators */
-type Translator<T> = (el: HTMLElement) => T;
+/** Generic type of table cell "translators" */
+type Translator<T> = (text: string) => T;
 
 /** Modifier that allows a value to be undefined */
 type Optional<T> = { option: "optional"; wrapped: Alias<T> | Translator<T> };
@@ -32,7 +32,7 @@ type Constant<T> = { option: "constant"; value: T };
 export const Constant = <const T>(value: T): Constant<T> => ({ option: "constant", value });
 
 /** Process detail section associated with table record */
-type DetailTranslator = (tag: string, parentRecord: Record<string, unknown>, definition: HtmlReference) => unknown;
+type DetailTranslator = (tag: string, parentRecord: Record<string, unknown>, definition: SpecReference) => unknown;
 type Details<T extends DetailTranslator> = { option: "details"; translator: T };
 export const Details = <const T extends DetailTranslator>(translator: T): Details<T> => ({
     option: "details",
@@ -67,7 +67,7 @@ const has = (object: object, name: string) => !!Object.getOwnPropertyDescriptor(
  */
 export function translateTable<T extends TableSchema>(
     tag: string,
-    definition: HtmlReference | undefined,
+    definition: SpecReference | undefined,
     schema: T,
     table?: Table,
 ): Array<TableRecord<T>> {
@@ -217,7 +217,7 @@ export function translateRecordsToMatter<R, E extends { id?: number; name: strin
 /** Attempt to install more specific xref and details */
 function installPreciseDetails(
     tag: string,
-    definitions: HtmlReference[],
+    definitions: SpecReference[],
     records: Array<{
         name?: string;
         xref?: Specification.CrossReference;
@@ -247,7 +247,7 @@ function installPreciseDetails(
 
         // We identify the detail section associated with a row using both "name" and "title", optionally followed
         // by a suffix specific to the type of thing
-        let detail: HtmlReference | undefined;
+        let detail: SpecReference | undefined;
         let identifiedAs = "";
         for (let identifier of [(record as { title?: string }).title, record.name]) {
             if (identifier === undefined) {
@@ -347,7 +347,7 @@ enum InferredFieldType {
 }
 
 /** Examine a field in every row to infer the type of a field */
-function inferFieldType(definition: HtmlReference, name: string): InferredFieldType {
+function inferFieldType(definition: SpecReference, name: string): InferredFieldType {
     if (!definition.tables) {
         return InferredFieldType.Unknown;
     }
@@ -393,7 +393,7 @@ function inferFieldType(definition: HtmlReference, name: string): InferredFieldT
 }
 
 /** Infer the columns to use for ID and name */
-export function chooseIdentityAliases(definition: HtmlReference, preferredIds: string[], preferredNames: string[]) {
+export function chooseIdentityAliases(definition: SpecReference, preferredIds: string[], preferredNames: string[]) {
     const fields = definition.tables?.[0]?.fields;
 
     let ids: string[] | undefined;

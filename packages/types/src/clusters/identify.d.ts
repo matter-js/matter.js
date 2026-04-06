@@ -20,8 +20,10 @@ import type { MaybePromise } from "@matter/general";
  *
  * The state of this cluster may be shared on more than one endpoint on a node.
  *
- * For Example: Two endpoints on a single node, one a temperature sensor, and one a humidity sensor, may both share the
- * same cluster instance and therefore identification state (e.g. single LED on the node).
+ * > [!NOTE]
+ *
+ * > For Example: Two endpoints on a single node, one a temperature sensor, and one a humidity sensor, may both share
+ *   the same cluster instance and therefore identification state (e.g. single LED on the node).
  *
  * @see {@link MatterSpecification.v151.Cluster} § 1.2
  */

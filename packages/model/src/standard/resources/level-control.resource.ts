@@ -11,7 +11,7 @@ import { Resource } from "#models/Resource.js";
 Resource.add({
     tag: "cluster", name: "LevelControl", pics: "LVL", xref: "cluster§1.6",
     details: "This cluster provides an interface for controlling a characteristic of a device that can be set to a " +
-        "level, for example the brightness of a light or lamp, a pump’s flow rate setpoint, etc.",
+        "level, for example the brightness of a light or lamp, a pump's flow rate setpoint, etc.",
 
     children: [
         {
@@ -27,22 +27,22 @@ Resource.add({
                         "\n" +
                         "For the CurrentLevel attribute:" +
                         "\n" +
-                        "A value of 0x00 shall NOT be used." +
+                        "  - A value of 0x00 shall NOT be used." +
                         "\n" +
-                        "A value of 0x01 shall indicate the minimum level that can be attained on a device." +
+                        "  - A value of 0x01 shall indicate the minimum level that can be attained on a device." +
                         "\n" +
-                        "A value of 0xFE shall indicate the maximum level that can be attained on a device." +
+                        "  - A value of 0xFE shall indicate the maximum level that can be attained on a device." +
                         "\n" +
-                        "A value of null shall represent an undefined value." +
+                        "  - A value of null shall represent an undefined value." +
                         "\n" +
-                        "All other values are application specific gradations from the minimum to the maximum level."
+                        "  - All other values are application specific gradations from the minimum to the maximum level."
                 },
 
                 {
                     tag: "field", name: "FQ", xref: "cluster§1.6.4.3",
                     details: "> [!NOTE]" +
                         "\n" +
-                        "> The Frequency feature is provisional."
+                        "> NOTE: The Frequency feature is provisional."
                 }
             ]
         },
@@ -89,8 +89,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This value is constrained by all lighting device types to 1, and its Conformance is Mandatory. As " +
-                "such, when the Lighting feature is supported this value shall be 1."
+                "> NOTE: This value is constrained by all lighting device types to 1, and its Conformance is " +
+                "  Mandatory. As such, when the Lighting feature is supported this value shall be 1."
         },
 
         {
@@ -100,8 +100,8 @@ Resource.add({
                 "\n" +
                 "> [!NOTE]" +
                 "\n" +
-                "> This value is constrained by all lighting device types to 254, and its Conformance is Mandatory. " +
-                "As such, when the Lighting feature is supported this value shall be 254."
+                "> NOTE: This value is constrained by all lighting device types to 254, and its Conformance is " +
+                "  Mandatory. As such, when the Lighting feature is supported this value shall be 254."
         },
 
         {

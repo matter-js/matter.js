@@ -139,7 +139,7 @@ Resource.add({
                 "Upon receipt, the client shall create a new WebRTCSessionStruct populated with the values from this " +
                 "command, along with the accessing Peer Node ID and Local Fabric Index entries stored in the Secure " +
                 "Session Context as the PeerNodeID and FabricIndex values, and store it in the WebRTC Transport " +
-                "Requestor cluster’s CurrentSessions attribute." +
+                "Requestor cluster's CurrentSessions attribute." +
                 "\n" +
                 "The session establishment shall be considered failed unless a Offer command is received by the " +
                 "Requestor from the PeerEndpointID / FabricIndex within 30 seconds.",
@@ -276,12 +276,12 @@ Resource.add({
             tag: "command", name: "ProvideOfferResponse", xref: "cluster§11.5.7.4",
 
             details: "This command contains information about the session and streams created as a response to the " +
-                "requestor’s offer." +
+                "requestor's offer." +
                 "\n" +
                 "Upon receipt, the client shall create a new WebRTCSessionStruct populated with the values from this " +
                 "command, along with the accessing Peer Node ID and Local Fabric Index entries stored in the Secure " +
                 "Session Context as the PeerNodeID and FabricIndex values, and store it in the WebRTC Transport " +
-                "Requestor cluster’s CurrentSessions attribute.",
+                "Requestor cluster's CurrentSessions attribute.",
 
             children: [
                 {
@@ -312,7 +312,7 @@ Resource.add({
                 "from a remote peer. It shall have the following data fields:" +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
-                "an entry in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not " +
+                "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
                 "match the accessing fabric and the Peer Node ID entry stored in the Secure Session Context of the " +
                 "session this command was received on.",
 
@@ -338,7 +338,7 @@ Resource.add({
                 "used for STUN or TURN discovered candidates, or to indicate the end of gathering state." +
                 "\n" +
                 "This command shall respond with a response status of NOT_FOUND if the WebRTCSessionID does not match " +
-                "an entry in CurrentSessions, or if the matching entry’s associated fabric and PeerNodeID do not " +
+                "an entry in CurrentSessions, or if the matching entry's associated fabric and PeerNodeID do not " +
                 "match the accessing fabric and the Peer Node ID entry stored in the Secure Session Context of the " +
                 "session this command was received on.",
 
@@ -384,7 +384,7 @@ Resource.add({
                 {
                     tag: "field", name: "BaseKey", xref: "cluster§11.5.5.1.2",
                     details: "This field shall specify the SFrame base_key value to use for a session. The length of this key " +
-                        "depends on the selected cipher suite’s Nk value as defined in Section 4.5 Cipher Suites."
+                        "depends on the selected cipher suite's Nk value as defined in Section 4.5 Cipher Suites."
                 },
                 {
                     tag: "field", name: "Kid", xref: "cluster§11.5.5.1.3",

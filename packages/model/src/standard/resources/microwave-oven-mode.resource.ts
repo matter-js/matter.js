@@ -25,7 +25,7 @@ Resource.add({
                 "field." +
                 "\n" +
                 "The Normal and Defrost mode tags are mutually exclusive and shall NOT both be used together in a " +
-                "mode’s ModeTags."
+                "mode's ModeTags."
         },
 
         { tag: "attribute", name: "CurrentMode", xref: "cluster§8.12.5" },

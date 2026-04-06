@@ -97,7 +97,7 @@ Resource.add(
                     "  - When it increases, or" +
                     "\n" +
                     "  - When there is any increase or decrease in the estimated time remaining that was due to " +
-                    "progressing insight of the server’s control logic." +
+                    "progressing insight of the server's control logic." +
                     "\n" +
                     "Changes to this attribute merely due to the normal passage of time with no other dynamic change of " +
                     "closure state shall NOT be reported." +
@@ -113,9 +113,9 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> The MainState diagram is provided exclusively for informational purposes only and is an exemplary " +
-                    "design of the internals of a closure implementation to help illustrate the aspects of function " +
-                    "that are considered by the cluster’s normative text."
+                    "> NOTE: The MainState diagram is provided exclusively for informational purposes only and is an " +
+                    "exemplary design of the internals of a closure implementation to help illustrate the aspects of " +
+                    "function that are considered by the cluster's normative text."
             },
 
             {
@@ -144,8 +144,8 @@ Resource.add(
                     "  - The effects of MoveTo commands." +
                     "\n" +
                     "  - The effects of SetTarget and Step commands in a Closure Dimension Cluster associated with this " +
-                    "cluster, as described in Section 5.4.4, “Association Between Closure Control and Closure " +
-                    "Dimension Clusters”." +
+                    "cluster, as described in Section 5.4.4, \"Association Between Closure Control and Closure " +
+                    "Dimension Clusters\"." +
                     "\n" +
                     "  - The Stop command."
             },
@@ -211,7 +211,7 @@ Resource.add(
 
                 details: "On receipt of this command, the closure shall stop its movement as fast as the closure is able too." +
                     "\n" +
-                    "If the server’s MainState attribute has one of the following values:" +
+                    "If the server's MainState attribute has one of the following values:" +
                     "\n" +
                     "  - Moving" +
                     "\n" +
@@ -326,15 +326,15 @@ Resource.add(
                             "\n" +
                             "This Signature position depends on the closure type. Some examples include:" +
                             "\n" +
-                            "  - Gate, Garage Door → Pedestrian and pets, or one leaf only." +
+                            "  - Gate, Garage Door -> Pedestrian and pets, or one leaf only." +
                             "\n" +
-                            "  - Venetian Blind → Lowered down with flat slats." +
+                            "  - Venetian Blind -> Lowered down with flat slats." +
                             "\n" +
-                            "  - Door → Position to open for a person or someone in a wheelchair." +
+                            "  - Door -> Position to open for a person or someone in a wheelchair." +
                             "\n" +
-                            "  - Window → Position to 10% for tilt position." +
+                            "  - Window -> Position to 10% for tilt position." +
                             "\n" +
-                            "  - Roller Shutter → Closed with maximum gap between the slats." +
+                            "  - Roller Shutter -> Closed with maximum gap between the slats." +
                             "\n" +
                             "  - By default the Signature position may apply the same outcome as PartiallyOpened." +
                             "\n" +
@@ -434,7 +434,7 @@ Resource.add(
                             "When the Positioning (PS) feature flag is set, the rules for setting the value of the Position field " +
                             "are:" +
                             "\n" +
-                            "  - If the closure doesn’t know accurately its current state the value null shall be used." +
+                            "  - If the closure doesn't know accurately its current state the value null shall be used." +
                             "\n" +
                             "  - Otherwise, the most appropriate supported value shall be used." +
                             "\n" +
@@ -451,7 +451,7 @@ Resource.add(
                             "When the MotionLatching (LT) feature flag is set, the rules for setting the value of the Latch field " +
                             "are:" +
                             "\n" +
-                            "  - If the closure doesn’t know its current state, the value shall be null." +
+                            "  - If the closure doesn't know its current state, the value shall be null." +
                             "\n" +
                             "  - Else, if the closure is partially latched or not latched, the value shall be false." +
                             "\n" +
@@ -459,9 +459,9 @@ Resource.add(
                             "\n" +
                             "    > [!NOTE]" +
                             "\n" +
-                            "    > Some products exposing the MotionLatching (LT) feature might not be able to drive an actuator " +
-                            "to achieve a latched state. Such products are built with springs or similar mechanisms to " +
-                            "unlatch but require the user to latch manually."
+                            "    > NOTE: Some products exposing the MotionLatching (LT) feature might not be able to drive an " +
+                            "actuator to achieve a latched state. Such products are built with springs or similar " +
+                            "mechanisms to unlatch but require the user to latch manually."
                     },
 
                     {
@@ -471,8 +471,8 @@ Resource.add(
                             "\n" +
                             "When the Speed (SP) feature flag is set, the rules for setting the value of the Speed field are:" +
                             "\n" +
-                            "If the closure’s MainState attribute is currently either in WaitingForMotion or Moving state, the " +
-                            "closure’s most accurate current overall speed shall be used. Otherwise, the value used shall be the " +
+                            "If the closure's MainState attribute is currently either in WaitingForMotion or Moving state, the " +
+                            "closure's most accurate current overall speed shall be used. Otherwise, the value used shall be the " +
                             "most appropriate default supported speed value."
                     },
 
@@ -497,7 +497,7 @@ Resource.add(
                             "  - False if the closure does not meet these conditions and unauthorized or undetectable access is " +
                             "possible." +
                             "\n" +
-                            "  - null if the closure’s current secure state is unknown." +
+                            "  - null if the closure's current secure state is unknown." +
                             "\n" +
                             "This field provides no additional details regarding mechanical properties of the closure mechanism. " +
                             "It is intended only as supplementary information and not as a replacement for a comprehensive " +

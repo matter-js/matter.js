@@ -33,7 +33,7 @@ Resource.add({
             details: "Indicates the current price. If the current price is unknown, or cannot be determined, the value " +
                 "shall be null." +
                 "\n" +
-                "The Description and Components fields shall be omitted in this attribute’s value."
+                "The Description and Components fields shall be omitted in this attribute's value."
         },
 
         {
@@ -46,11 +46,11 @@ Resource.add({
                 "\n" +
                 "  - All entries except the last one shall have a non-null PeriodEnd." +
                 "\n" +
-                "  - For all entries except the first one, PeriodStart shall be greater than the previous entry’s " +
+                "  - For all entries except the first one, PeriodStart shall be greater than the previous entry's " +
                 "PeriodEnd." +
                 "\n" +
                 "The Description and Components fields shall be omitted from CommodityPriceStructs in this " +
-                "attribute’s value." +
+                "attribute's value." +
                 "\n" +
                 "If the PeriodEnd field is null on the value of the CurrentPrice attribute, then this list shall be " +
                 "empty."

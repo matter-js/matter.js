@@ -13,7 +13,9 @@ Resource.add(
         tag: "cluster", name: "DoorLock", pics: "DRLK", xref: "cluster§5.2",
         details: "The door lock cluster provides an interface to a generic way to secure a door. The physical object " +
             "that provides the locking functionality is abstracted from the cluster. The cluster has a small list " +
-            "of mandatory attributes and functions and a list of optional features.",
+            "of mandatory attributes and functions and a list of optional features." +
+            "\n" +
+            "!image2",
 
         children: [
             {
@@ -46,7 +48,7 @@ Resource.add(
                         tag: "field", name: "FGP", xref: "cluster§5.2.4.3",
 
                         details: "Currently the cluster only defines the metadata format for notifications when a fingerprint/ finger " +
-                            "vein credential is used to access the lock and doesn’t describe how to create fingerprint/finger " +
+                            "vein credential is used to access the lock and doesn't describe how to create fingerprint/finger " +
                             "vein credentials. If the Users feature is also supported then the User that a fingerprint/finger " +
                             "vein is associated with can also have its UserType, UserStatus and Schedule modified." +
                             "\n" +
@@ -79,7 +81,7 @@ Resource.add(
                         tag: "field", name: "FACE", xref: "cluster§5.2.4.6",
 
                         details: "Currently the cluster only defines the metadata format for notifications when a face recognition, " +
-                            "iris, or retina credential is used to access the lock and doesn’t describe how to create face " +
+                            "iris, or retina credential is used to access the lock and doesn't describe how to create face " +
                             "recognition, iris, or retina credentials. If the Users feature is also supported then the User that " +
                             "a face recognition, iris, or retina credential is associated with can also have its UserType, " +
                             "UserStatus and Schedule modified." +
@@ -130,19 +132,19 @@ Resource.add(
                         details: "Locks that support this feature differentiate between unbolting and unlocking. The Unbolt Door " +
                             "command retracts the bolt without pulling the latch. The Unlock Door command fully unlocks the door " +
                             "by retracting the bolt and briefly pulling the latch. While the latch is pulled, the lock state " +
-                            "changes to Unlatched. Locks without unbolting support don’t differentiate between unbolting and " +
+                            "changes to Unlatched. Locks without unbolting support don't differentiate between unbolting and " +
                             "unlocking and perform the same operation for both commands."
                     },
 
                     {
                         tag: "field", name: "ALIRO", xref: "cluster§5.2.4.12",
-                        details: "Locks that support this feature implement the Aliro specification as defined in [Aliro] and support " +
-                            "Matter as a method for provisioning Aliro credentials."
+                        details: "Locks that support this feature implement the Aliro specification as defined in " +
+                            "[[Aliro]](#ref_Aliro) and support Matter as a method for provisioning Aliro credentials."
                     },
                     {
                         tag: "field", name: "ALBU", xref: "cluster§5.2.4.13",
                         details: "Locks that support this feature implement the Bluetooth LE + UWB Access Control Flow as defined in " +
-                            "[Aliro]."
+                            "[[Aliro]](#ref_Aliro)."
                     }
                 ]
             },
@@ -350,7 +352,7 @@ Resource.add(
                 tag: "attribute", name: "LocalProgrammingFeatures", xref: "cluster§5.2.9.31",
 
                 details: "Indicates the local programming features that will be disabled when EnableLocalProgramming attribute " +
-                    "is set to False. If a door lock doesn’t support disabling one aspect of local programming it shall " +
+                    "is set to False. If a door lock doesn't support disabling one aspect of local programming it shall " +
                     "return CONSTRAINT_ERROR during a write operation of this attribute. If the EnableLocalProgramming " +
                     "attribute is set to True then all local programming features shall be enabled regardless of the bits " +
                     "set to 0 in this attribute." +
@@ -415,48 +417,50 @@ Resource.add(
             {
                 tag: "attribute", name: "AliroReaderVerificationKey", xref: "cluster§5.2.9.37",
 
-                details: "Indicates the verification key component of the Reader’s key pair as defined in [Aliro]. The value, " +
-                    "if not null, shall be an uncompressed elliptic curve public key as defined in section 2.3.3 of SEC " +
-                    "1." +
+                details: "Indicates the verification key component of the Reader's key pair as defined in " +
+                    "[[Aliro]](#ref_Aliro). The value, if not null, shall be an uncompressed elliptic curve public key as " +
+                    "defined in section 2.3.3 of SEC 1." +
                     "\n" +
                     "Null if no Reader key pair has been configured on the lock. See Section 5.2.10.26, " +
-                    "“SetAliroReaderConfig Command”."
+                    "\"SetAliroReaderConfig Command\"."
             },
 
             {
                 tag: "attribute", name: "AliroReaderGroupIdentifier", xref: "cluster§5.2.9.38",
-                details: "Indicates the reader_group_identifier as defined in [Aliro]." +
+                details: "Indicates the reader_group_identifier as defined in [[Aliro]](#ref_Aliro)." +
                     "\n" +
                     "Null if no reader_group_identifier has been configured on the lock. See Section 5.2.10.26, " +
-                    "“SetAliroReaderConfig Command”."
+                    "\"SetAliroReaderConfig Command\"."
             },
 
             {
                 tag: "attribute", name: "AliroReaderGroupSubIdentifier", xref: "cluster§5.2.9.39",
-                details: "Indicates the reader_group_sub_identifier as defined in [Aliro]."
+                details: "Indicates the reader_group_sub_identifier as defined in [[Aliro]](#ref_Aliro)."
             },
+
             {
                 tag: "attribute", name: "AliroExpeditedTransactionSupportedProtocolVersions",
                 xref: "cluster§5.2.9.40",
-                details: "Indicates the list of protocol versions supported for expedited transactions as defined in [Aliro]."
+                details: "Indicates the list of protocol versions supported for expedited transactions as defined in " +
+                    "[[Aliro]](#ref_Aliro)."
             },
 
             {
                 tag: "attribute", name: "AliroGroupResolvingKey", xref: "cluster§5.2.9.41",
-                details: "Indicates the Group Resolving Key as defined in [Aliro]." +
+                details: "Indicates the Group Resolving Key as defined in [[Aliro]](#ref_Aliro)." +
                     "\n" +
                     "Null if no group resolving key has been configured on the lock. See Section 5.2.10.26, " +
-                    "“SetAliroReaderConfig Command”."
+                    "\"SetAliroReaderConfig Command\"."
             },
 
             {
                 tag: "attribute", name: "AliroSupportedBleuwbProtocolVersions", xref: "cluster§5.2.9.42",
                 details: "Indicates the list of protocol versions supported for the Bluetooth LE + UWB Access Control Flow as " +
-                    "defined in [Aliro]."
+                    "defined in [[Aliro]](#ref_Aliro)."
             },
             {
                 tag: "attribute", name: "AliroBleAdvertisingVersion", xref: "cluster§5.2.9.43",
-                details: "Indicates the version of the Bluetooth LE advertisement as defined in [Aliro]."
+                details: "Indicates the version of the Bluetooth LE advertisement as defined in [[Aliro]](#ref_Aliro)."
             },
             {
                 tag: "attribute", name: "NumberOfAliroCredentialIssuerKeysSupported", xref: "cluster§5.2.9.44",
@@ -472,9 +476,9 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> The credential indices used for these two credential types are independent of each other, similar " +
-                    "to all other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 a " +
-                    "client could add a credential of type AliroEvictableEndpointKey at any index from 1 to " +
+                    "> NOTE: The credential indices used for these two credential types are independent of each other, " +
+                    "similar to all other credential types. As long as NumberOfAliroEndpointKeysSupported is at least 2 " +
+                    "a client could add a credential of type AliroEvictableEndpointKey at any index from 1 to " +
                     "NumberOfAliroEndpointKeysSupported and also add a credential of type AliroNonEvictableEndpointKey " +
                     "at the same index, and both credentials would exist on the server."
             },
@@ -510,22 +514,22 @@ Resource.add(
                     "  - If the door lock server supports the Unbolting feature and an Unlock Door command is performed, " +
                     "it shall generate a LockOperation event with LockOperationType set to Unlatch when the unlatched " +
                     "state is reached and a LockOperation event with LockOperationType set to Unlock when the lock " +
-                    "successfully completes the unlock → hold latch → release latch and return to unlock state " +
+                    "successfully completes the unlock -> hold latch -> release latch and return to unlock state " +
                     "operation." +
                     "\n" +
                     "  - If the command fails during holding or releasing the latch but after passing the unlocked state, " +
                     "the door lock server shall generate a LockOperationError event with LockOperationType set to " +
                     "Unlatch and a LockOperation event with LockOperationType set to Unlock." +
                     "\n" +
-                    "    - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
+                    "  - If it fails before reaching the unlocked state, the door lock server shall generate only a " +
                     "LockOperationError event with LockOperationType set to Unlock." +
                     "\n" +
                     "  - Upon manual actuation, a door lock server that supports the Unbolting feature:" +
                     "\n" +
-                    "    - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "  - shall generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "outside." +
                     "\n" +
-                    "    - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
+                    "  - may generate a LockOperation event of LockOperationType Unlatch when it is actuated from the " +
                     "inside.",
 
                 children: [
@@ -695,12 +699,12 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> If the attribute AutoRelockTime is supported the lock will transition to the locked state when the " +
-                    "auto relock time has expired.",
+                    "> NOTE: If the attribute AutoRelockTime is supported the lock will transition to the locked state " +
+                    "when the auto relock time has expired.",
 
                 children: [{
                     tag: "field", name: "PinCode", xref: "cluster§5.2.10.2.1",
-                    details: "See Section 5.2.10.1.1, “PINCode Field”."
+                    details: "See Section 5.2.10.1.1, \"PINCode Field\"."
                 }]
             },
 
@@ -722,7 +726,7 @@ Resource.add(
                     },
                     {
                         tag: "field", name: "PinCode", xref: "cluster§5.2.10.3.2",
-                        details: "See Section 5.2.10.1.1, “PINCode Field”."
+                        details: "See Section 5.2.10.1.1, \"PINCode Field\"."
                     }
                 ]
             },
@@ -735,9 +739,7 @@ Resource.add(
                     "The associated UserType may be changed to ScheduleRestrictedUser by the lock when a Week Day " +
                     "schedule is set." +
                     "\n" +
-                    "Return status shall be one of the following values:" +
-                    "\n" +
-                    "One or more fields violates constraints or is invalid.",
+                    "Return status shall be one of the following values:",
 
                 children: [
                     {
@@ -1068,61 +1070,6 @@ Resource.add(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
-                    "  - OperationType shall be set to Add." +
-                    "\n" +
-                    "  - UserIndex value shall be set to a user record with UserType set to Available." +
-                    "\n" +
-                    "  - UserName may be null causing new user record to use empty string for UserName otherwise UserName " +
-                    "shall be set to the value provided in the new user record." +
-                    "\n" +
-                    "  - UserUniqueID may be null causing new user record to use 0xFFFFFFFF for UserUniqueID otherwise " +
-                    "UserUniqueID shall be set to the value provided in the new user record." +
-                    "\n" +
-                    "  - UserStatus may be null causing new user record to use OccupiedEnabled for UserStatus otherwise " +
-                    "UserStatus shall be set to the value provided in the new user record." +
-                    "\n" +
-                    "  - UserType may be null causing new user record to use UnrestrictedUser for UserType otherwise " +
-                    "UserType shall be set to the value provided in the new user record." +
-                    "\n" +
-                    "  - CredentialRule may be null causing new user record to use Single for CredentialRule otherwise " +
-                    "CredentialRule shall be set to the value provided in the new user record." +
-                    "\n" +
-                    "CreatorFabricIndex and LastModifiedFabricIndex in the new user record shall be set to the accessing " +
-                    "fabric index." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully creating a new user." +
-                    "\n" +
-                    "  - OperationType shall be set to Modify." +
-                    "\n" +
-                    "  - UserIndex value shall be set for a user record with UserType NOT set to Available." +
-                    "\n" +
-                    "  - UserName shall be null if modifying a user record that was not created by the accessing fabric." +
-                    "\n" +
-                    "  - INVALID_COMMAND shall be returned if UserName is not null and the accessing fabric index doesn’t " +
-                    "match the CreatorFabricIndex in the user record otherwise UserName shall be set to the value " +
-                    "provided in the user record." +
-                    "\n" +
-                    "  - UserUniqueID shall be null if modifying the user record that was not created by the accessing " +
-                    "fabric." +
-                    "\n" +
-                    "  - INVALID_COMMAND shall be returned if UserUniqueID is not null and the accessing fabric index " +
-                    "doesn’t match the CreatorFabricIndex in the user record otherwise UserUniqueID shall be set to " +
-                    "the value provided in the user record." +
-                    "\n" +
-                    "  - UserStatus may be null causing no change to UserStatus in user record otherwise UserStatus shall " +
-                    "be set to the value provided in the user record." +
-                    "\n" +
-                    "  - UserType may be null causing no change to UserType in user record otherwise UserType shall be " +
-                    "set to the value provided in the user record." +
-                    "\n" +
-                    "  - CredentialRule may be null causing no change to CredentialRule in user record otherwise " +
-                    "CredentialRule shall be set to the value provided in the user record." +
-                    "\n" +
-                    "CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the new user " +
-                    "record shall be set to the accessing fabric index." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully modifying a user." +
-                    "\n" +
                     "Return status is a global status code or a cluster-specific status code from the Status Codes table " +
                     "and shall be one of the following values:" +
                     "\n" +
@@ -1165,7 +1112,7 @@ Resource.add(
                         tag: "field", name: "UserUniqueId", xref: "cluster§5.2.10.16.4",
 
                         details: "This field shall indicate the fabric assigned number to use for connecting this user to other users " +
-                            "on other devices from the fabric’s perspective." +
+                            "on other devices from the fabric's perspective." +
                             "\n" +
                             "If UserUniqueID is null then:" +
                             "\n" +
@@ -1277,7 +1224,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "CreatorFabricIndex", xref: "cluster§5.2.10.18.8",
-                        details: "This field shall indicate the user’s creator fabric index. CreatorFabricIndex shall be null if " +
+                        details: "This field shall indicate the user's creator fabric index. CreatorFabricIndex shall be null if " +
                             "UserStatus is set to Available or when the creator fabric cannot be determined (for example, when " +
                             "user was created outside the Interaction Model) and shall NOT be null otherwise. This value shall be " +
                             "set to 0 if the original creator fabric was deleted."
@@ -1285,7 +1232,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "LastModifiedFabricIndex", xref: "cluster§5.2.10.18.9",
-                        details: "This field shall indicate the user’s last modifier fabric index. LastModifiedFabricIndex shall be " +
+                        details: "This field shall indicate the user's last modifier fabric index. LastModifiedFabricIndex shall be " +
                             "null if UserStatus is set to Available or when the modifier fabric cannot be determined (for " +
                             "example, when user was modified outside the Interaction Model) and shall NOT be null otherwise. This " +
                             "value shall be set to 0 if the last modifier fabric was deleted."
@@ -1321,100 +1268,10 @@ Resource.add(
 
             {
                 tag: "command", name: "SetCredential", xref: "cluster§5.2.10.20",
-
                 details: "Set a credential (e.g. PIN, RFID, Fingerprint, etc.) into the lock for a new user, existing user, or " +
                     "ProgrammingUser." +
                     "\n" +
-                    "Fields used for different use cases:" +
-                    "\n" +
-                    "  - OperationType shall be set to Add." +
-                    "\n" +
-                    "  - UserIndex shall be set to null and the lock will find a user record with a UserStatus value of " +
-                    "Available and associate its UserIndex with the CredentialIndex in CredentialStruct provided." +
-                    "\n" +
-                    "  - CredentialIndex in CredentialStruct shall be for an unoccupied credential slot." +
-                    "\n" +
-                    "  - UserStatus may be null. If it is null, the new user record shall have UserStatus set to " +
-                    "    OccupiedEnabled. Otherwise the new user record shall have UserStatus set to the provided value." +
-                    "\n" +
-                    "  - UserType may be null. If it is null, the new user record shall have UserType set to " +
-                    "    UnrestrictedUser. Otherwise the new user record shall have UserType set to the provided value." +
-                    "\n" +
-                    "  - UserType shall NOT be set to ProgrammingUser for this use case." +
-                    "\n" +
-                    "CreatorFabricIndex and LastModifiedFabricIndex in new user and credential records shall be set to " +
-                    "the accessing fabric index." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully creating a new credential and a new " +
-                    "user. The UserIndex of this LockUserChange event shall be the UserIndex that was used to create the " +
-                    "user. The DataIndex of this LockUserChange event shall be the CredentialIndex that was used to " +
-                    "create the credential." +
-                    "\n" +
-                    "  - OperationType shall be set to Add." +
-                    "\n" +
-                    "  - UserIndex shall NOT be null and shall NOT already be associated with the CredentialIndex in " +
-                    "CredentialStruct provided otherwise INVALID_COMMAND status response shall be returned." +
-                    "\n" +
-                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
-                    "CreatorFabricIndex in the user record pointed to by UserIndex." +
-                    "\n" +
-                    "  - CredentialIndex in CredentialStruct provided shall be for an available credential slot." +
-                    "\n" +
-                    "  - UserStatus shall be null." +
-                    "\n" +
-                    "  - UserType shall be null." +
-                    "\n" +
-                    "CreatorFabricIndex shall NOT be changed in the user record. LastModifiedFabricIndex in the user " +
-                    "record shall be set to the accessing fabric index." +
-                    "\n" +
-                    "CreatorFabricIndex and LastModifiedFabricIndex in the new credential record shall be set to the " +
-                    "accessing fabric index." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully adding a new credential." +
-                    "\n" +
-                    "  - OperationType shall be set to Modify." +
-                    "\n" +
-                    "  - UserIndex value shall already be associated with the CredentialIndex in CredentialStruct " +
-                    "provided otherwise INVALID_COMMAND status response shall be returned." +
-                    "\n" +
-                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
-                    "CreatorFabricIndex in the user record pointed to by UserIndex." +
-                    "\n" +
-                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
-                    "CreatorFabricIndex in the credential record pointed to by the CredentialIndex field value of the " +
-                    "Credential parameter." +
-                    "\n" +
-                    "  - CredentialIndex in CredentialStruct provided shall be for an occupied credential slot" +
-                    "\n" +
-                    "  - UserStatus shall be null." +
-                    "\n" +
-                    "  - UserType shall be null." +
-                    "\n" +
-                    "CreatorFabricIndex shall NOT be changed in user and credential records. LastModifiedFabricIndex in " +
-                    "user and credential records shall be set to the accessing fabric index." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully modifying a credential." +
-                    "\n" +
-                    "  - OperationType shall be set to Modify." +
-                    "\n" +
-                    "  - UserIndex shall be null." +
-                    "\n" +
-                    "  - INVALID_COMMAND shall be returned if the accessing fabric index doesn’t match the " +
-                    "CreatorFabricIndex in the credential record pointed to by the CredentialIndex field value of the " +
-                    "Credential parameter." +
-                    "\n" +
-                    "  - CredentialType in CredentialStruct shall be set to ProgrammingPIN." +
-                    "\n" +
-                    "  - CredentialIndex in CredentialStruct shall be 0." +
-                    "\n" +
-                    "  - UserStatus shall be null." +
-                    "\n" +
-                    "  - UserType shall be set to ProgrammingUser." +
-                    "\n" +
-                    "CreatorFabricIndex shall NOT be changed in the credential record. LastModifiedFabricIndex in the " +
-                    "credential record shall be set to the accessing fabric index." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully modifying a ProgrammingUser PIN code.",
+                    "Fields used for different use cases:",
 
                 children: [
                     {
@@ -1484,11 +1341,11 @@ Resource.add(
                             "  - RESOURCE_EXHAUSTED, if OperationType is Add and the new credential cannot be added due to " +
                             "resource constraints such as:" +
                             "\n" +
-                            "    - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
+                            "  - The user referred to by UserIndex already has NumberOfCredentialsSupportedPerUser credentials " +
                             "associated." +
                             "\n" +
-                            "    - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and " +
-                            "adding it would cause the total number of credentials of those two types to exceed " +
+                            "  - The credential is of type AliroEvictableEndpointKey or AliroNonEvictableEndpointKey, and adding " +
+                            "it would cause the total number of credentials of those two types to exceed " +
                             "NumberOfAliroEndpointKeysSupported." +
                             "\n" +
                             "  - INVALID_COMMAND, if one or more fields violate constraints or are invalid." +
@@ -1548,7 +1405,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "UserIndex", xref: "cluster§5.2.10.23.2",
-                        details: "This field shall indicate the credential’s corresponding user index value if the credential exists. " +
+                        details: "This field shall indicate the credential's corresponding user index value if the credential exists. " +
                             "If CredentialType requested was ProgrammingPIN then UserIndex shall be null; otherwise, UserIndex " +
                             "shall be null if CredentialExists is set to False and shall NOT be null if CredentialExists is set " +
                             "to True."
@@ -1556,7 +1413,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "CreatorFabricIndex", xref: "cluster§5.2.10.23.3",
-                        details: "This field shall indicate the credential’s creator fabric index. CreatorFabricIndex shall be null if " +
+                        details: "This field shall indicate the credential's creator fabric index. CreatorFabricIndex shall be null if " +
                             "CredentialExists is set to False or when the creator fabric cannot be determined (for example, when " +
                             "credential was created outside the Interaction Model) and shall NOT be null otherwise. This value " +
                             "shall be set to 0 if the original creator fabric was deleted."
@@ -1564,7 +1421,7 @@ Resource.add(
 
                     {
                         tag: "field", name: "LastModifiedFabricIndex", xref: "cluster§5.2.10.23.4",
-                        details: "This field shall indicate the credential’s last modifier fabric index. LastModifiedFabricIndex shall " +
+                        details: "This field shall indicate the credential's last modifier fabric index. LastModifiedFabricIndex shall " +
                             "be null if CredentialExists is set to False or when the modifier fabric cannot be determined (for " +
                             "example, when credential was modified outside the Interaction Model) and shall NOT be null " +
                             "otherwise. This value shall be set to 0 if the last modifier fabric was deleted."
@@ -1596,8 +1453,8 @@ Resource.add(
                             "\n" +
                             "> [!NOTE]" +
                             "\n" +
-                            "> Since the Aliro credentials are public keys, there is no security risk in allowing them to be " +
-                            "  read. Possession of the credential octet string does not allow operating the lock."
+                            "> NOTE: Since the Aliro credentials are public keys, there is no security risk in allowing them to " +
+                            "be read. Possession of the credential octet string does not allow operating the lock."
                     }
                 ]
             },
@@ -1609,32 +1466,7 @@ Resource.add(
                     "\n" +
                     "Fields used for different use cases:" +
                     "\n" +
-                    "  - CredentialType in Credential structure shall be set to the credential type to be cleared." +
-                    "\n" +
-                    "  - CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
-                    "\n" +
-                    "  - CredentialIndex in Credential structure shall be set to the credential index to be cleared." +
-                    "\n" +
-                    "A LockUserChange event shall be generated after successfully clearing a credential." +
-                    "\n" +
-                    "  - CredentialType in Credential structure shall be set to the credential type to be cleared." +
-                    "\n" +
-                    "  - CredentialType in Credential structure shall NOT be set to ProgrammingPIN." +
-                    "\n" +
-                    "  - CredentialIndex in Credential structure shall be set to 0xFFFE to indicate all credentials of " +
-                    "that type shall be cleared." +
-                    "\n" +
-                    "A single LockUserChange event shall be generated after successfully clearing credentials. This event " +
-                    "shall have DataIndex set to the CredentialIndex in the Credential structure." +
-                    "\n" +
-                    "  - Credential field shall be null." +
-                    "\n" +
-                    "The ProgrammingPIN credential shall NOT be cleared." +
-                    "\n" +
-                    "For each credential type cleared, a LockUserChange event with the corresponding LockDataType shall " +
-                    "be generated. This event shall have DataIndex set to 0xFFFE." +
-                    "\n" +
-                    "For each credential cleared whose user doesn’t have another valid credential, the corresponding user " +
+                    "For each credential cleared whose user doesn't have another valid credential, the corresponding user " +
                     "record shall be reset back to default values and its UserStatus value shall be set to Available and " +
                     "UserType value shall be set to UnrestrictedUser and all schedules shall be cleared. In this case a " +
                     "LockUserChange event shall be generated for the user being cleared." +
@@ -1658,27 +1490,28 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> If the attribute AutoRelockTime is supported, the lock will transition to the locked state when " +
-                    "the auto relock time has expired.",
+                    "> NOTE: If the attribute AutoRelockTime is supported, the lock will transition to the locked state " +
+                    "when the auto relock time has expired.",
 
                 children: [{
                     tag: "field", name: "PinCode", xref: "cluster§5.2.10.25.1",
-                    details: "See Section 5.2.10.1.1, “PINCode Field”."
+                    details: "See Section 5.2.10.1.1, \"PINCode Field\"."
                 }]
             },
 
             {
                 tag: "command", name: "SetAliroReaderConfig", xref: "cluster§5.2.10.26",
-                details: "This command allows communicating an Aliro Reader configuration, as defined in [Aliro], to the lock.",
+                details: "This command allows communicating an Aliro Reader configuration, as defined in " +
+                    "[[Aliro]](#ref_Aliro), to the lock.",
 
                 children: [
                     {
                         tag: "field", name: "SigningKey", xref: "cluster§5.2.10.26.1",
-                        details: "This field shall indicate the signing key component of the Reader’s key pair."
+                        details: "This field shall indicate the signing key component of the Reader's key pair."
                     },
                     {
                         tag: "field", name: "VerificationKey", xref: "cluster§5.2.10.26.2",
-                        details: "This field shall indicate the verification key component of the Reader’s key pair. This shall be an " +
+                        details: "This field shall indicate the verification key component of the Reader's key pair. This shall be an " +
                             "uncompressed elliptic curve public key as defined in section 2.3.3 of SEC 1."
                     },
                     {
@@ -1701,9 +1534,9 @@ Resource.add(
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> Using this command will revoke the ability of all existing Aliro user devices that have the old " +
-                    "verification key to interact with the lock. This effect is not restricted to a single fabric or " +
-                    "otherwise scoped in any way."
+                    "> NOTE: Using this command will revoke the ability of all existing Aliro user devices that have the " +
+                    "old verification key to interact with the lock. This effect is not restricted to a single fabric " +
+                    "or otherwise scoped in any way."
             },
 
             {
@@ -1735,12 +1568,12 @@ Resource.add(
                 description: "For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this specification, and it is RECOMMENDED that clients carefully take this into consideration.",
                 xref: "cluster§5.2.6.3",
 
-                details: "> [!WARNING]" +
+                details: "> [!NOTE]" +
                     "\n" +
-                    "> For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT supported. A bit " +
-                    "CLEAR indicates that the operating mode IS supported. This is the inverse of most bitmaps in this " +
-                    "specification, and it is recommended that clients carefully take this into consideration. See " +
-                    "SupportedOperatingModes.",
+                    "> WARNING: For the OperatingModesBitmap, a bit SET indicates that the operating mode IS NOT " +
+                    "  supported. A bit CLEAR indicates that the operating mode IS supported. This is the inverse of most " +
+                    "bitmaps in this specification, and it is recommended that clients carefully take this into " +
+                    "  consideration. See SupportedOperatingModes.",
 
                 children: [
                     { tag: "field", name: "Normal", description: "Normal operation mode is NOT supported" },
@@ -1937,8 +1770,8 @@ Resource.add(
                             "section 2.3.3 of SEC 1." +
                             "\n" +
                             "Credentials of this type shall NOT be used to allow operating the lock. They shall be used, as " +
-                            "defined in [Aliro], to create new credentials of type AliroEvictableEndpointKey via a step-up " +
-                            "transaction." +
+                            "defined in [[Aliro]](#ref_Aliro), to create new credentials of type AliroEvictableEndpointKey via a " +
+                            "step-up transaction." +
                             "\n" +
                             "When performing the step-up transaction, the lock shall request the data element with identifier " +
                             "\"matter1\", and shall attempt to create a new credential of type AliroEvictableEndpointKey if and " +
@@ -2122,14 +1955,14 @@ Resource.add(
                     "The table below shows the operating mode and which interfaces are enabled, if supported, for each " +
                     "mode." +
                     "\n" +
-                    "* Interface Operational: Yes, No or N/A" +
+                    "^* Interface Operational: Yes, No or N/A" +
                     "\n" +
                     "> [!NOTE]" +
                     "\n" +
-                    "> For modes that disable the remote interface, the door lock shall respond to Lock, Unlock, Toggle, " +
-                    "and Unlock with Timeout commands with a response status Failure and not take the action requested " +
-                    "by those commands. The door lock shall NOT disable the radio or otherwise unbind or leave the " +
-                    "  network. It shall still respond to all other commands and requests.",
+                    "> NOTE: For modes that disable the remote interface, the door lock shall respond to Lock, Unlock, " +
+                    "Toggle, and Unlock with Timeout commands with a response status Failure and not take the action " +
+                    "requested by those commands. The door lock shall NOT disable the radio or otherwise unbind or " +
+                    "leave the network. It shall still respond to all other commands and requests.",
 
                 children: [
                     {

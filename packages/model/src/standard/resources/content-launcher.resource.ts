@@ -82,7 +82,7 @@ Resource.add({
                 {
                     tag: "field", name: "PlaybackPreferences", xref: "cluster§6.7.7.1.4",
 
-                    details: "This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition " +
+                    details: "This field, if present, shall indicate the user's preferred Text/AudioTracks and playbackPosition " +
                         "for the media, sent from the client to the server. If the server does not find an available track " +
                         "for the title being played exactly matching a Track requested here, in the list of available tracks, " +
                         "it may default to picking another track that closely matches the requested track. Alternately, it " +
@@ -145,7 +145,7 @@ Resource.add({
                 {
                     tag: "field", name: "PlaybackPreferences", xref: "cluster§6.7.7.2.4",
 
-                    details: "This field, if present, shall indicate the user’s preferred Text/AudioTracks and playbackPosition " +
+                    details: "This field, if present, shall indicate the user's preferred Text/AudioTracks and playbackPosition " +
                         "for the media, sent from the client to the server. If the server does not find an available track " +
                         "for the title being played exactly matching a Track requested here, in the list of available tracks, " +
                         "it may default to picking another track that closely matches the requested track. Alternately, it " +
@@ -372,7 +372,7 @@ Resource.add({
         {
             tag: "datatype", name: "StyleInformationStruct", xref: "cluster§6.7.5.9",
             details: "This object defines style information which can be used by content providers to change the Media " +
-                "Player’s style related properties.",
+                "Player's style related properties.",
 
             children: [
                 {
@@ -460,14 +460,14 @@ Resource.add({
 
                 {
                     tag: "field", name: "TextTrack", xref: "cluster§6.7.5.11.2",
-                    details: "This field shall indicate the user’s preferred Text Track. A value of null shall indicate that the " +
+                    details: "This field shall indicate the user's preferred Text Track. A value of null shall indicate that the " +
                         "user did not specify a preferred Text Track on the client. In such a case, the decision to display " +
                         "and select a Text Track is up to the server."
                 },
 
                 {
                     tag: "field", name: "AudioTracks", xref: "cluster§6.7.5.11.3",
-                    details: "This field shall indicate the list of the user’s preferred Audio Tracks. If the list contains " +
+                    details: "This field shall indicate the list of the user's preferred Audio Tracks. If the list contains " +
                         "multiple values, each AudioTrack must also specify a unique audioOutputIndex to play the track on. A " +
                         "value of null shall indicate that the user did not specify a preferred Audio Track on the client. In " +
                         "such a case, the decision to play and select an Audio Track is up to the server."

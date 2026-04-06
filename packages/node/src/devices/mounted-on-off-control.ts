@@ -30,8 +30,8 @@ import { Identity } from "@matter/general";
  *
  * > [!NOTE]
  *
- * > Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add the
- *   subset device type On/Off Plug-in Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
+ * > NOTE: Since this device type was added in Matter 1.4, for endpoints using this device type it is recommended to add
+ *   the subset device type On/Off Plug-in Unit to the DeviceTypeList of the Descriptor cluster on the same endpoint for
  *   backward compatibility with existing clients. See On/Off Plug-in Unit client guidance for additional information,
  *   regarding the inclusion of these two device types.
  *

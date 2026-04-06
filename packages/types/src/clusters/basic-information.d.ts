@@ -50,7 +50,7 @@ export declare namespace BasicInformation {
     export interface BaseAttributes {
         /**
          * This attribute shall be set to the revision number of the Data Model against which the Node is certified. The
-         * value of this attribute shall be one of the valid values listed in Section 7.1.1, “Revision History”.
+         * value of this attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.1
          */
@@ -98,9 +98,9 @@ export declare namespace BasicInformation {
          * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special
          * area of geographic interest in which the Node is located at the time of the attribute being set. This
          * attribute shall be set during initial commissioning (unless already set) and may be updated by further
-         * reconfigurations. This attribute may affect some regulatory aspects of the Node’s operation, such as radio
+         * reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, such as radio
          * transmission power levels in given spectrum allocation bands if technologies where this is applicable are
-         * used. The Location’s region code shall be interpreted in a case-insensitive manner. If the Node cannot
+         * used. The Location's region code shall be interpreted in a case-insensitive manner. If the Node cannot
          * understand the location code with which it was configured, or the location code has not yet been configured,
          * it shall configure itself in a region-agnostic manner as determined by the vendor, avoiding region-specific
          * assumptions as much as is practical. The special value XX shall indicate that region-agnostic mode is used.
@@ -129,7 +129,7 @@ export declare namespace BasicInformation {
         /**
          * This attribute shall contain the current version number for the software running on this Node. A larger value
          * of SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section
-         * 11.20.3.3, “Availability of Software Images”). Nodes may query this field to determine the currently running
+         * 11.20.3.3, "Availability of Software Images"). Nodes may query this field to determine the currently running
          * version of software on another given Node.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.10
@@ -204,8 +204,8 @@ export declare namespace BasicInformation {
         specificationVersion: number;
 
         /**
-         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, “Invoke Request
-         * Action”) that the Node is able to process. Note that since this attribute may change over time, both
+         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, "Invoke Request
+         * Action") that the Node is able to process. Note that since this attribute may change over time, both
          * increasing and decreasing, as software versions change for a given Node, clients SHOULD take care not to
          * assume forever unchanging values and SHOULD NOT cache this value permanently at Commissioning time.
          *
@@ -274,7 +274,7 @@ export declare namespace BasicInformation {
         /**
          * This attribute shall allow a local Node configuration to be disabled. When this attribute is set to True the
          * Node shall disable the ability to configure the Node through an on-Node user interface. The value of the
-         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user’s ability to
+         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user's ability to
          * trigger a factory reset on the Node.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.17
@@ -309,12 +309,12 @@ export declare namespace BasicInformation {
          *
          * > [!NOTE]
          *
-         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
+         * > NOTE: The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
          *
          * > [!NOTE]
          *
-         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-         *   Device Identifier mechanism.
+         * > NOTE: This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the
+         *   Rotating Device Identifier mechanism.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.19
          */
@@ -337,7 +337,7 @@ export declare namespace BasicInformation {
     export interface Attributes {
         /**
          * This attribute shall be set to the revision number of the Data Model against which the Node is certified. The
-         * value of this attribute shall be one of the valid values listed in Section 7.1.1, “Revision History”.
+         * value of this attribute shall be one of the valid values listed in Section 7.1.1, "Revision History".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.1
          */
@@ -385,9 +385,9 @@ export declare namespace BasicInformation {
          * This attribute shall be an ISO 3166-1 alpha-2 code to represent the country, dependent territory, or special
          * area of geographic interest in which the Node is located at the time of the attribute being set. This
          * attribute shall be set during initial commissioning (unless already set) and may be updated by further
-         * reconfigurations. This attribute may affect some regulatory aspects of the Node’s operation, such as radio
+         * reconfigurations. This attribute may affect some regulatory aspects of the Node's operation, such as radio
          * transmission power levels in given spectrum allocation bands if technologies where this is applicable are
-         * used. The Location’s region code shall be interpreted in a case-insensitive manner. If the Node cannot
+         * used. The Location's region code shall be interpreted in a case-insensitive manner. If the Node cannot
          * understand the location code with which it was configured, or the location code has not yet been configured,
          * it shall configure itself in a region-agnostic manner as determined by the vendor, avoiding region-specific
          * assumptions as much as is practical. The special value XX shall indicate that region-agnostic mode is used.
@@ -416,7 +416,7 @@ export declare namespace BasicInformation {
         /**
          * This attribute shall contain the current version number for the software running on this Node. A larger value
          * of SoftwareVersion is newer than a lower value, from the perspective of software updates (see Section
-         * 11.20.3.3, “Availability of Software Images”). Nodes may query this field to determine the currently running
+         * 11.20.3.3, "Availability of Software Images"). Nodes may query this field to determine the currently running
          * version of software on another given Node.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.10
@@ -491,8 +491,8 @@ export declare namespace BasicInformation {
         specificationVersion: number;
 
         /**
-         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, “Invoke Request
-         * Action”) that the Node is able to process. Note that since this attribute may change over time, both
+         * Indicates the maximum number of elements in a single InvokeRequests list (see Section 8.8.2, "Invoke Request
+         * Action") that the Node is able to process. Note that since this attribute may change over time, both
          * increasing and decreasing, as software versions change for a given Node, clients SHOULD take care not to
          * assume forever unchanging values and SHOULD NOT cache this value permanently at Commissioning time.
          *
@@ -561,7 +561,7 @@ export declare namespace BasicInformation {
         /**
          * This attribute shall allow a local Node configuration to be disabled. When this attribute is set to True the
          * Node shall disable the ability to configure the Node through an on-Node user interface. The value of the
-         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user’s ability to
+         * LocalConfigDisabled attribute shall NOT in any way modify, disable, or otherwise affect the user's ability to
          * trigger a factory reset on the Node.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.17
@@ -596,12 +596,12 @@ export declare namespace BasicInformation {
          *
          * > [!NOTE]
          *
-         * > The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
+         * > NOTE: The conformance of the UniqueID attribute was optional in cluster revisions prior to revision 4.
          *
          * > [!NOTE]
          *
-         * > This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the Rotating
-         *   Device Identifier mechanism.
+         * > NOTE: This UniqueID attribute shall NOT be the same as the Persistent Unique ID which is used in the
+         *   Rotating Device Identifier mechanism.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.5.19
          */
@@ -725,8 +725,8 @@ export declare namespace BasicInformation {
          * This field shall indicate the actual minimum number of concurrent CASE sessions that are supported per
          * fabric.
          *
-         * This value shall NOT be smaller than the required minimum indicated in Section 4.14.2.8, “Minimal Number of
-         * CASE Sessions”.
+         * This value shall NOT be smaller than the required minimum indicated in Section 4.14.2.8, "Minimal Number of
+         * CASE Sessions".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.4.4.1
          */
@@ -735,8 +735,8 @@ export declare namespace BasicInformation {
         /**
          * This field shall indicate the actual minimum number of concurrent subscriptions supported per fabric.
          *
-         * This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, “Subscribe
-         * Transaction”.
+         * This value shall NOT be smaller than the required minimum indicated in Section 8.5.1, "Subscribe
+         * Transaction".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.1.4.4.2
          */
@@ -744,7 +744,7 @@ export declare namespace BasicInformation {
     };
 
     /**
-     * This structure provides a description of the product’s appearance.
+     * This structure provides a description of the product's appearance.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.1.4.3
      */

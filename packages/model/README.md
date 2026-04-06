@@ -93,6 +93,16 @@ cd matter.js/support/codegen
 npm run generate-spec
 ```
 
+The generator expects a markdown spec tree as input — a directory containing subdirectories
+(`main/`, `appclusters/`, `device_library/`, `standard_namespaces/`) with `_index.md` files:
+
+```sh
+npm run generate-spec -- --path ~/matter-spec/1.5.1/markdown
+```
+
+You can also set the `MATTER_SPECIFICATION_PATH` environment variable or omit `--path` to use the
+default location (`~/Dropbox/matter/<version>`).
+
 Details we extract from the specification include standard element names, types and detailed documentation including
 cross references to specification documents. We also extract DSL-based definitions of Matter concepts such as
 conformance, constraints, etc.

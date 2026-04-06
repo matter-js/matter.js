@@ -20,7 +20,7 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * The Ecosystem Information Cluster provides extended device information for all the logical devices represented by a
  * Bridged Node. The Ecosystem Information Cluster presents the view of device name and location metadata for
  * presentation by a client of the cluster to a user. This cluster is intended to support Fabric Synchronization and be
- * present on an endpoint with the BridgedNode device type listed in the DeviceTypeList of the endpoint’s Descriptor
+ * present on an endpoint with the BridgedNode device type listed in the DeviceTypeList of the endpoint's Descriptor
  * cluster.
  *
  * This augments the Bridged Device Basic Information Cluster in the following ways:
@@ -37,7 +37,7 @@ import type { DeviceTypeId } from "../datatype/DeviceTypeId.js";
  * A client SHOULD use the information provided by the Ecosystem Information Cluster to help the user organize and
  * interact with their devices. Some examples may include:
  *
- *   - Directly organizing and labeling the devices in a client’s user interface.
+ *   - Directly organizing and labeling the devices in a client's user interface.
  *
  *   - Providing hints in the user interface, which can assist the user in organizing and labeling their devices.
  *
@@ -132,7 +132,7 @@ export declare namespace EcosystemInformation {
         constructor(values?: Partial<EcosystemDevice>);
 
         /**
-         * This field shall indicate the device’s name, which is provided externally if the user consents. (For example,
+         * This field shall indicate the device's name, which is provided externally if the user consents. (For example,
          * provided by the user in an ecosystem specific interface.)
          *
          * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.1
@@ -158,7 +158,7 @@ export declare namespace EcosystemInformation {
 
         /**
          * This field shall indicate the endpoint this EcosystemDeviceStruct is associated with on the original device
-         * represented by this bridge’s Bridged Node. If this bridge is receiving the device from another bridge, then
+         * represented by this bridge's Bridged Node. If this bridge is receiving the device from another bridge, then
          * the OriginalEndpoint field value would be the same on both bridges. This field shall be present if the
          * original device is a Matter device. If present, this field shall be set to a valid endpoint on the original
          * device.
@@ -190,10 +190,10 @@ export declare namespace EcosystemInformation {
          *
          * > [!NOTE]
          *
-         * > If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one of the
-         *   updates will be missed. This is considered an acceptable limitation to reduce the complexity of the design.
-         *   Since this is meant to be provided from user input, it is unlikely these signals would be happening at one
-         *   time.
+         * > NOTE: If multiple server instances update the UniqueLocationIDs field at the same time, it is possible one
+         *   of the updates will be missed. This is considered an acceptable limitation to reduce the complexity of the
+         *   design. Since this is meant to be provided from user input, it is unlikely these signals would be happening
+         *   at one time.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.17.4.2.7
          */
@@ -238,8 +238,7 @@ export declare namespace EcosystemInformation {
         /**
          * This field shall indicate the location (e.g. living room, driveway) and associated metadata that is provided
          * externally if the user consents. (For example, provided by the user in an ecosystem specific interface.)
-         *
-         * "Location" in this context is typically used by the user’s grouping into rooms, areas or other logical
+         * "Location" in this context is typically used by the user's grouping into rooms, areas or other logical
          * groupings of how devices are used. So a device might be part of multiple such "Locations"s.
          *
          * @see {@link MatterSpecification.v151.Core} § 9.17.4.3.2

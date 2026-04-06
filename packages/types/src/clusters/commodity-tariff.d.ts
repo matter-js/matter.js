@@ -128,7 +128,7 @@ export declare namespace CommodityTariff {
         individualDays: Day[] | null;
 
         /**
-         * Indicates the current day’s day entries.
+         * Indicates the current day's day entries.
          *
          * If the tariff is not active or CurrentDay information is not available, this attribute shall be null.
          *
@@ -137,7 +137,7 @@ export declare namespace CommodityTariff {
         currentDay: Day | null;
 
         /**
-         * Indicates the next day’s day entries.
+         * Indicates the next day's day entries.
          *
          * If the tariff is not active or NextDay information is not available, this attribute shall be null.
          *
@@ -326,7 +326,7 @@ export declare namespace CommodityTariff {
         individualDays: Day[] | null;
 
         /**
-         * Indicates the current day’s day entries.
+         * Indicates the current day's day entries.
          *
          * If the tariff is not active or CurrentDay information is not available, this attribute shall be null.
          *
@@ -335,7 +335,7 @@ export declare namespace CommodityTariff {
         currentDay: Day | null;
 
         /**
-         * Indicates the next day’s day entries.
+         * Indicates the next day's day entries.
          *
          * If the tariff is not active or NextDay information is not available, this attribute shall be null.
          *
@@ -566,20 +566,20 @@ export declare namespace CommodityTariff {
          *   1. If this identifier is included in the DayEntryIDs associated with a DayPatternStruct, then the
          *      identifier shall be unique to the combination of:
          *
-         *     a. the StartTime
+         *   1. the StartTime
          *
-         *     b. the Duration, if indicated
+         *   2. the Duration, if indicated
          *
-         *     c. the DaysOfWeek field in the containing DayPatternStruct
+         *   3. the DaysOfWeek field in the containing DayPatternStruct
          *
          *   2. Otherwise, if this identifier is included in the DayEntryIDs associated with a DayStruct, then the
          *      identifier shall be unique to the combination of:
          *
-         *     a. the StartTime
+         *   1. the StartTime
          *
-         *     b. the Duration, if indicated
+         *   2. the Duration, if indicated
          *
-         *     c. the Date field in the containing DayStruct
+         *   3. the Date field in the containing DayStruct
          *
          * Once an identifier has been used for a given combination above, it shall never be used for any other
          * combination of these values.
@@ -710,9 +710,9 @@ export declare namespace CommodityTariff {
      *
      * > [!NOTE]
      *
-     * > A 'Calendar Period', while normally considered to be a 3 or 6 month period, could be used for other arbitrary
-     *   periods e.g. monthly or quarterly. The minimum resolution is 1 day, although a week would normally be the
-     *   smallest interval.
+     * > NOTE: A 'Calendar Period', while normally considered to be a 3 or 6 month period, could be used for other
+     *   arbitrary periods e.g. monthly or quarterly. The minimum resolution is 1 day, although a week would normally be
+     *   the smallest interval.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.9
      */
@@ -782,7 +782,7 @@ export declare namespace CommodityTariff {
          * This list shall NOT contain two DayEntryIDs for DayEntryStructs with the same value of the StartTime field.
          *
          * If the Randomization feature is supported, every DayEntryStruct whose DayEntryID is included in this field
-         * shall have its StartTime field set to a value less than the following DayEntryStruct’s StartTime field minus
+         * shall have its StartTime field set to a value less than the following DayEntryStruct's StartTime field minus
          * the calculated value of its RandomizationOffset field. In other words, it should not be possible for a random
          * offset to cause a day entry to begin before the preceding day entry.
          *
@@ -848,17 +848,18 @@ export declare namespace CommodityTariff {
          *
          * > [!NOTE]
          *
-         * > When a meter enters into a Friendly Credit Period with a usable positive credit balance, the consumer will
-         *   be allowed to consume energy for the duration of the Friendly Credit Period, regardless of their credit
-         *   status while in that period. If, however, the consumer had already run out of credit and supply was
+         * > NOTE: When a meter enters into a Friendly Credit Period with a usable positive credit balance, the consumer
+         *   will be allowed to consume energy for the duration of the Friendly Credit Period, regardless of their
+         *   credit status while in that period. If, however, the consumer had already run out of credit and supply was
          *   interrupted before entering into the Friendly Credit Period, they will not be allowed to reconnect without
          *   first adding suitable additional credit.
          *
          * > [!NOTE]
          *
-         * > At the end of the Friendly Credit Period, the normal delivery rules connected with the accounting functions
-         *   of the meter will be resumed, and if the meter’s credit balance has dropped below the disablement threshold
-         *   during the Friendly Credit Period, then the meter will disconnect upon resuming normal delivery rules
+         * > NOTE: At the end of the Friendly Credit Period, the normal delivery rules connected with the accounting
+         *   functions of the meter will be resumed, and if the meter’s credit balance has dropped below the disablement
+         *   threshold during the Friendly Credit Period, then the meter will disconnect upon resuming normal delivery
+         *   rules
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.12.5.16.3
          */

@@ -405,12 +405,12 @@ Resource.add(
                     },
                     {
                         tag: "field", name: "Lift", description: "Lift operational state.", xref: "cluster§5.3.5.3.2",
-                        details: "These bits shall indicate in which direction the covering’s lift is currently moving or if it has " +
+                        details: "These bits shall indicate in which direction the covering's lift is currently moving or if it has " +
                             "stopped."
                     },
                     {
                         tag: "field", name: "Tilt", description: "Tilt operational state.", xref: "cluster§5.3.5.3.3",
-                        details: "These bits shall indicate in which direction the covering’s tilt is currently moving or if it has " +
+                        details: "These bits shall indicate in which direction the covering's tilt is currently moving or if it has " +
                             "stopped."
                     }
                 ]

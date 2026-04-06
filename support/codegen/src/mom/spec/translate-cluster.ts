@@ -17,6 +17,10 @@ import {
 } from "#model";
 import { camelize } from "../../util/string.js";
 import { addDocumentation } from "./add-documentation.js";
+import { repairConformance } from "./repairs/aspect-repairs.js";
+import { ClusterReference, SpecReference, Table } from "./spec-types.js";
+import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
+import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
 import {
     CompactStr,
     ConformanceCode,
@@ -26,11 +30,7 @@ import {
     Str,
     StrWithSuperscripts,
     UpperIdentifier,
-} from "./html-translators.js";
-import { repairConformance } from "./repairs/aspect-repairs.js";
-import { ClusterReference, HtmlReference, Table } from "./spec-types.js";
-import { accessModifierOf, translateDatatype, translateFields, translateValueChildren } from "./translate-datatype.js";
-import { Alias, Details, Optional, translateRecordsToMatter, translateTable } from "./translate-table.js";
+} from "./translators.js";
 
 const logger = Logger.get("translate-cluster");
 
@@ -324,7 +324,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
         const commands = translateRecordsToMatter("command", records, r => {
             let direction: CommandElement.Direction | undefined;
 
-            if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i)) {
+            if (r.direction?.match(/client[^⇐]*⇐[^⇐]*server/i) || r.direction?.match(/client\s*<=\s*server/i)) {
                 direction = CommandElement.Direction.Response;
             } else if (r.direction?.match(/client.*server/i)) {
                 direction = CommandElement.Direction.Request;
@@ -429,7 +429,7 @@ function translateInvokable(definition: ClusterReference, children: Array<Cluste
     //
     // So I think it's safe to say it's a spec bug and probably should have just handled with override, but keeping in
     // as a precaution since I put in the effort to implement
-    function extractAccessModifier(_tag: string, _parentRecord: Record<string, unknown>, definition: HtmlReference) {
+    function extractAccessModifier(_tag: string, _parentRecord: Record<string, unknown>, definition: SpecReference) {
         return accessModifierOf(definition);
     }
 }

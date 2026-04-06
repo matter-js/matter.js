@@ -200,7 +200,7 @@ export declare namespace RefrigeratorAlarm {
         constructor(values?: Partial<Alarm> | number);
 
         /**
-         * The cabinet’s door has been open for a vendor defined amount of time.
+         * The cabinet's door has been open for a vendor defined amount of time.
          */
         doorOpen?: boolean;
     };

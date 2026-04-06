@@ -159,7 +159,7 @@ export declare namespace PowerTopology {
 
         /**
          * This field shall indicate a friendly name for the node, to be used when the client does not have access to
-         * the node’s fabric.
+         * the node's fabric.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.8.5.1.3
          */

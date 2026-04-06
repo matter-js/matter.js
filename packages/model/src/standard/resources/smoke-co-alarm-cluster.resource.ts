@@ -40,11 +40,11 @@ Resource.add({
 
         {
             tag: "attribute", name: "SmokeState", xref: "cluster§2.11.6.2",
-            details: "Indicates whether the device’s smoke sensor is currently triggering a smoke alarm."
+            details: "Indicates whether the device's smoke sensor is currently triggering a smoke alarm."
         },
         {
             tag: "attribute", name: "CoState", xref: "cluster§2.11.6.3",
-            details: "Indicates whether the device’s CO sensor is currently triggering a CO alarm."
+            details: "Indicates whether the device's CO sensor is currently triggering a CO alarm."
         },
 
         {
@@ -52,7 +52,7 @@ Resource.add({
             details: "Indicates whether the power resource fault detection mechanism is currently triggered at the device. " +
                 "If the detection mechanism is triggered, this attribute shall be set to Warning or Critical, " +
                 "otherwise it shall be set to Normal. The battery state shall also be reflected in the Power Source " +
-                "cluster representing the device’s battery using the appropriate supported attributes and events."
+                "cluster representing the device's battery using the appropriate supported attributes and events."
         },
 
         {

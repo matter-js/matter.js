@@ -58,7 +58,7 @@ export declare namespace PowerSource {
         /**
          * Indicates the relative preference with which the Node will select this source to provide power. A source with
          * a lower order shall be selected by the Node to provide power before any other source with a higher order, if
-         * the lower order source is available (see Section 11.7.7.1, “Status Attribute”).
+         * the lower order source is available (see Section 11.7.7.1, "Status Attribute").
          *
          * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
          *
@@ -90,30 +90,36 @@ export declare namespace PowerSource {
          * The above rules allow that some endpoints can have an unknown power source, and therefore would not be
          * indicated by any instance of this cluster.
          *
-         * ### Legacy Implementations
+         * > [!NOTE]
          *
-         * Legacy implementations of this cluster before revision 2, before this attribute was defined, would have
-         * implemented this cluster on an application endpoint without indicating it in EndpointList (since that
-         * attribute did not exist in revision 1), because it represented a power source for the endpoint, not the
-         * entire node.
+         * > Legacy Implementations Legacy implementations of this cluster before revision 2, before this attribute was
+         *   defined, would have implemented this cluster on an application endpoint without indicating it in
+         *   EndpointList (since that attribute did not exist in revision 1), because it represented a power source for
+         *   the endpoint, not the entire node. For example: Bridge implementations support endpoints for bridged
+         *   devices that have different power sources. Such implementations followed device type requirements and
+         *   semantics outside of this cluster, because this attribute did not exist. Future updates of such a cluster
+         *   instance on the same endpoint, would allow that same endpoint to be an entry in the EndpointList attribute.
+         *   Therefore it is valid to list the endpoint upon which the cluster instance exists.
          *
-         * For example: Bridge implementations support endpoints for bridged devices that have different power sources.
+         * ### Empty list examples
          *
-         * Such implementations followed device type requirements and semantics outside of this cluster, because this
-         * attribute did not exist.
+         * : Typically, there is one power source for the node.
          *
-         * Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be an entry
-         * in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the cluster instance
-         * exists.
+         * Also common is mains power for the node with battery backup power for the node.
          *
-         * Typically, there is one power source for the node. Also common is mains power for the node with battery
-         * backup power for the node. In both these common cases, for each cluster instance described, the list is
-         * empty.
+         * In both these common cases, for each cluster instance described, the list is empty.
          *
-         * A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
-         * battery back up source with Order as 1, which means this list is empty for the Power Source cluster
-         * associated with the mains power, because it indicates the entire node, but the Power Source cluster instance
-         * associated with the battery backup would list the endpoints that have a battery backup.
+         * ### Populated list example
+         *
+         * : A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
+         * battery back up source with Order as 1,
+         *
+         * which means this list is empty for the Power Source cluster associated with the mains power,
+         *
+         * because it indicates the entire node,
+         *
+         * but the Power Source cluster instance associated with the battery backup would list the endpoints that have a
+         * battery backup.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.7.7.32
          */
@@ -160,7 +166,7 @@ export declare namespace PowerSource {
         wiredAssessedCurrent?: number | null;
 
         /**
-         * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV (millivolts),
+         * Indicates the nominal voltage, printed as part of the Node's regulatory compliance label in mV (millivolts),
          * expected to be provided by the hard-wired source.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.7.7.8
@@ -168,7 +174,7 @@ export declare namespace PowerSource {
         wiredNominalVoltage?: number;
 
         /**
-         * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA (milliamps),
+         * Indicates the maximum current, printed as part of the Node's regulatory compliance label in mA (milliamps),
          * expected to be provided by the hard-wired source.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.7.7.9
@@ -427,7 +433,7 @@ export declare namespace PowerSource {
         /**
          * Indicates the relative preference with which the Node will select this source to provide power. A source with
          * a lower order shall be selected by the Node to provide power before any other source with a higher order, if
-         * the lower order source is available (see Section 11.7.7.1, “Status Attribute”).
+         * the lower order source is available (see Section 11.7.7.1, "Status Attribute").
          *
          * Note, Order is read-only and therefore NOT intended to allow clients control over power source selection.
          *
@@ -459,30 +465,36 @@ export declare namespace PowerSource {
          * The above rules allow that some endpoints can have an unknown power source, and therefore would not be
          * indicated by any instance of this cluster.
          *
-         * ### Legacy Implementations
+         * > [!NOTE]
          *
-         * Legacy implementations of this cluster before revision 2, before this attribute was defined, would have
-         * implemented this cluster on an application endpoint without indicating it in EndpointList (since that
-         * attribute did not exist in revision 1), because it represented a power source for the endpoint, not the
-         * entire node.
+         * > Legacy Implementations Legacy implementations of this cluster before revision 2, before this attribute was
+         *   defined, would have implemented this cluster on an application endpoint without indicating it in
+         *   EndpointList (since that attribute did not exist in revision 1), because it represented a power source for
+         *   the endpoint, not the entire node. For example: Bridge implementations support endpoints for bridged
+         *   devices that have different power sources. Such implementations followed device type requirements and
+         *   semantics outside of this cluster, because this attribute did not exist. Future updates of such a cluster
+         *   instance on the same endpoint, would allow that same endpoint to be an entry in the EndpointList attribute.
+         *   Therefore it is valid to list the endpoint upon which the cluster instance exists.
          *
-         * For example: Bridge implementations support endpoints for bridged devices that have different power sources.
+         * ### Empty list examples
          *
-         * Such implementations followed device type requirements and semantics outside of this cluster, because this
-         * attribute did not exist.
+         * : Typically, there is one power source for the node.
          *
-         * Future updates of such a cluster instance on the same endpoint, would allow that same endpoint to be an entry
-         * in the EndpointList attribute. Therefore it is valid to list the endpoint upon which the cluster instance
-         * exists.
+         * Also common is mains power for the node with battery backup power for the node.
          *
-         * Typically, there is one power source for the node. Also common is mains power for the node with battery
-         * backup power for the node. In both these common cases, for each cluster instance described, the list is
-         * empty.
+         * In both these common cases, for each cluster instance described, the list is empty.
          *
-         * A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
-         * battery back up source with Order as 1, which means this list is empty for the Power Source cluster
-         * associated with the mains power, because it indicates the entire node, but the Power Source cluster instance
-         * associated with the battery backup would list the endpoints that have a battery backup.
+         * ### Populated list example
+         *
+         * : A node has a mains power source with Order as 0 (zero), but some application endpoints (not all) have a
+         * battery back up source with Order as 1,
+         *
+         * which means this list is empty for the Power Source cluster associated with the mains power,
+         *
+         * because it indicates the entire node,
+         *
+         * but the Power Source cluster instance associated with the battery backup would list the endpoints that have a
+         * battery backup.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.7.7.32
          */
@@ -524,7 +536,7 @@ export declare namespace PowerSource {
         wiredAssessedCurrent: number | null;
 
         /**
-         * Indicates the nominal voltage, printed as part of the Node’s regulatory compliance label in mV (millivolts),
+         * Indicates the nominal voltage, printed as part of the Node's regulatory compliance label in mV (millivolts),
          * expected to be provided by the hard-wired source.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.7.7.8
@@ -532,7 +544,7 @@ export declare namespace PowerSource {
         wiredNominalVoltage: number;
 
         /**
-         * Indicates the maximum current, printed as part of the Node’s regulatory compliance label in mA (milliamps),
+         * Indicates the maximum current, printed as part of the Node's regulatory compliance label in mA (milliamps),
          * expected to be provided by the hard-wired source.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.7.7.9

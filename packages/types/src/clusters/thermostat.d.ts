@@ -18,6 +18,8 @@ import type { Status } from "../globals/Status.js";
  *
  * This cluster provides an interface to the functionality of a thermostat.
  *
+ * !thermostat devices
+ *
  * @see {@link MatterSpecification.v151.Cluster} § 4.3
  */
 export declare namespace Thermostat {
@@ -52,10 +54,9 @@ export declare namespace Thermostat {
          *
          *   - If the LTNE feature is not supported:
          *
-         *     - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report
-         *       null.
+         *   - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report null.
          *
-         *     - If the LocalTemperatureCalibration is valid, the attribute shall report that value.
+         *   - If the LocalTemperatureCalibration is valid, the attribute shall report that value.
          *
          *   - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
          *     LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report null.
@@ -253,7 +254,7 @@ export declare namespace Thermostat {
          * UnoccupiedHeatingSetpoint attributes at which the Thermostat server will operate in emergency heat mode.
          *
          * If the difference between the Calculated Local Temperature and OccupiedCoolingSetpoint or
-         * UnoccupiedCoolingSetpoint is greater than or equal to the EmergencyHeatDelta and the Thermostat server’s
+         * UnoccupiedCoolingSetpoint is greater than or equal to the EmergencyHeatDelta and the Thermostat server's
          * SystemMode attribute is in a heating-related mode, then the Thermostat server shall immediately switch to the
          * SystemMode attribute value that provides the highest stage of heating (e.g., emergency heat) and continue
          * operating in that running state until the OccupiedHeatingSetpoint value is reached. For example:
@@ -264,11 +265,11 @@ export declare namespace Thermostat {
          *
          *   - EmergencyHeatDelta = 2.0°C
          *
-         * ⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
+         * => OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
          *
-         * ⇒ 16°C - 10°C ≥? 2°C
+         *   - => 16°C - 10°C ≥? 2°C
          *
-         * ⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode
+         * => TRUE >>> Thermostat server changes its SystemMode to operate in 2^nd stage or emergency heat mode
          *
          * The purpose of this attribute is to provide Thermostat clients the ability to configure rapid heating when a
          * setpoint is of a specified amount greater than the measured temperature. This allows the heated space to be
@@ -510,7 +511,7 @@ export declare namespace Thermostat {
          * Indicates the offset the Thermostat server shall make to the measured temperature (locally or remotely) to
          * adjust the Calculated Local Temperature prior to using, displaying or reporting it.
          *
-         * The purpose of this attribute is to adjust the calibration of the Thermostat server per the user’s
+         * The purpose of this attribute is to adjust the calibration of the Thermostat server per the user's
          * preferences (e.g., to match if there are multiple servers displaying different values for the same HVAC area)
          * or compensate for variability amongst temperature sensors.
          *
@@ -520,8 +521,8 @@ export declare namespace Thermostat {
          *
          * > [!NOTE]
          *
-         * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a range of
-         *   -2.5°C to 2.5°C.
+         * > NOTE: Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
+         *   range of -2.5°C to 2.5°C.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.9.10
          */
@@ -593,13 +594,13 @@ export declare namespace Thermostat {
          *
          * > [!NOTE]
          *
-         * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a range of
-         *   0°C to 2.5°C.
+         * > NOTE: Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
+         *   range of 0°C to 2.5°C.
          *
          * > [!NOTE]
          *
-         * > For backwards compatibility, this attribute is optionally writeable. However any writes to this attribute
-         *   shall be silently ignored.
+         * > NOTE: For backwards compatibility, this attribute is optionally writeable. However any writes to this
+         *   attribute shall be silently ignored.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.9.19
          */
@@ -607,7 +608,7 @@ export declare namespace Thermostat {
 
         /**
          * Indicates the running mode of the thermostat. This attribute uses the same values as SystemModeEnum but can
-         * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat’s
+         * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat's
          * system mode is in auto mode.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.9.23
@@ -653,24 +654,24 @@ export declare namespace Thermostat {
          *   1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and the device
          *      shall create a new unique value for the PresetHandle field.
          *
-         *     a. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
          *
          *   2. If the PresetHandle field is not null, the PresetStruct shall be treated as a modification of an
          *      existing preset.
          *
-         *     a. If the value of the PresetHandle field does not match any of the existing presets, a response with the
-         *        status code NOT_FOUND shall be returned.
+         *   1. If the value of the PresetHandle field does not match any of the existing presets, a response with the
+         *      status code NOT_FOUND shall be returned.
          *
-         *     b. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   2. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, a response
+         *      with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     c. If the BuiltIn field is true, and the PresetStruct in the current value with a matching PresetHandle
-         *        field has a BuiltIn field set to false, a response with the status code CONSTRAINT_ERROR shall be
-         *        returned.
+         *   3. If the BuiltIn field is true, and the PresetStruct in the current value with a matching PresetHandle
+         *      field has a BuiltIn field set to false, a response with the status code CONSTRAINT_ERROR shall be
+         *      returned.
          *
-         *     d. If the BuiltIn field is false, and the PresetStruct in the current value with a matching PresetHandle
-         *        field has a BuiltIn field set to true, a response with the status code CONSTRAINT_ERROR shall be
-         *        returned.
+         *   4. If the BuiltIn field is false, and the PresetStruct in the current value with a matching PresetHandle
+         *      field has a BuiltIn field set to true, a response with the status code CONSTRAINT_ERROR shall be
+         *      returned.
          *
          *   3. If the specified PresetScenarioEnum value does not exist in PresetTypes, a response with the status code
          *      CONSTRAINT_ERROR shall be returned.
@@ -683,38 +684,37 @@ export declare namespace Thermostat {
          *      RESOURCE_EXHAUSTED shall be returned.
          *
          *   6. If appending the received PresetStruct to the pending list of Presets would cause the total number of
-         *      pending presets whose PresetScenario field matches the appended preset’s PresetScenario field to exceed
+         *      pending presets whose PresetScenario field matches the appended preset's PresetScenario field to exceed
          *      the value of the NumberOfPresets field on the PresetTypeStruct whose PresetScenario matches the appended
-         *      preset’s PresetScenario field, a response with the status code RESOURCE_EXHAUSTED shall be returned.
+         *      preset's PresetScenario field, a response with the status code RESOURCE_EXHAUSTED shall be returned.
          *
          *   7. Otherwise, the write shall be pended until receipt of a commit request, and the status code SUCCESS
          *      shall be returned.
          *
-         *     a. If the BuiltIn field is null:
+         *   1. If the BuiltIn field is null:
          *
-         *       i. If there is a PresetStruct in the current value with a matching PresetHandle field, the BuiltIn
-         *          field on the pending PresetStruct shall be set to the value of the BuiltIn on the matching
-         *          PresetStruct.
+         *   1. If there is a PresetStruct in the current value with a matching PresetHandle field, the BuiltIn field on
+         *      the pending PresetStruct shall be set to the value of the BuiltIn on the matching PresetStruct.
          *
-         *       ii. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false.
+         *   2. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false.
          *
          * On an attempt to commit, the status of this attribute shall be determined as follows:
          *
          *   1. For all existing presets:
          *
-         *     a. If, after applying all pending changes, the updated value of the Presets attribute would not contain a
-         *        PresetStruct with a matching PresetHandle field, indicating the removal of the PresetStruct, the
-         *        server shall check for invalid removal of the PresetStruct:
+         *   1. If, after applying all pending changes, the updated value of the Presets attribute would not contain a
+         *      PresetStruct with a matching PresetHandle field, indicating the removal of the PresetStruct, the server
+         *      shall check for invalid removal of the PresetStruct:
          *
-         *       i. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be
-         *          CONSTRAINT_ERROR.
+         *   1. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be
+         *      CONSTRAINT_ERROR.
          *
-         *       ii. If the MSCH feature is supported and the removed PresetHandle would be referenced by any
-         *           PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of the
-         *           Schedules attribute, the attribute status shall be INVALID_IN_STATE.
+         *   2. If the MSCH feature is supported and the removed PresetHandle would be referenced by any PresetHandle on
+         *      any ScheduleTransitionStruct on any ScheduleStruct in the updated value of the Schedules attribute, the
+         *      attribute status shall be INVALID_IN_STATE.
          *
-         *       iii. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the
-         *            attribute status shall be INVALID_IN_STATE.
+         *   3. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the attribute
+         *      status shall be INVALID_IN_STATE.
          *
          *   2. Otherwise, the attribute status shall be SUCCESS.
          *
@@ -777,105 +777,105 @@ export declare namespace Thermostat {
          *
          *   1. For all schedules in the write request:
          *
-         *     a. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added schedule, and the
-         *        device shall create a new unique value for the ScheduleHandle field.
+         *   1. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added schedule, and the
+         *      device shall create a new unique value for the ScheduleHandle field.
          *
-         *       i. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     b. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a
-         *        modification of an existing schedule.
+         *   2. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a
+         *      modification of an existing schedule.
          *
-         *       i. If the value of the ScheduleHandle field does not match any of the existing schedules, a response
-         *          with the status code NOT_FOUND shall be returned.
+         *   1. If the value of the ScheduleHandle field does not match any of the existing schedules, a response with
+         *      the status code NOT_FOUND shall be returned.
          *
-         *       ii. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching
-         *           ScheduleHandle field has a BuiltIn field set to false, a response with the status code
-         *           CONSTRAINT_ERROR shall be returned.
+         *   2. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching ScheduleHandle
+         *      field has a BuiltIn field set to false, a response with the status code CONSTRAINT_ERROR shall be
+         *      returned.
          *
-         *       iii. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching
-         *            ScheduleHandle field has a BuiltIn field set to true, a response with the status code
-         *            CONSTRAINT_ERROR shall be returned.
+         *   3. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching
+         *      ScheduleHandle field has a BuiltIn field set to true, a response with the status code CONSTRAINT_ERROR
+         *      shall be returned.
          *
-         *     c. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code
-         *        CONSTRAINT_ERROR shall be returned.
+         *   3. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code
+         *      CONSTRAINT_ERROR shall be returned.
          *
-         *     d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the status
-         *        code RESOURCE_EXHAUSTED shall be returned.
+         *   4. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the status
+         *      code RESOURCE_EXHAUSTED shall be returned.
          *
-         *     e. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
-         *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a
-         *        response with the status code RESOURCE_EXHAUSTED shall be returned.
+         *   5. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
+         *      transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a response
+         *      with the status code RESOURCE_EXHAUSTED shall be returned.
          *
-         *     f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
-         *        SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   6. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
+         *      SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     g. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
-         *        would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field,
-         *        a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   7. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
+         *      would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field, a
+         *      response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     h. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit set, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   8. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit set, a
+         *      response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *       i. For all transitions in all schedules in the write request:
+         *   9. For all transitions in all schedules in the write request:
          *
-         *       i. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the
-         *          SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit set, a
-         *          response with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the SystemMode
+         *      field on the encompassing ScheduleStruct does not have the SupportsPresets bit set, a response with the
+         *      status code CONSTRAINT_ERROR shall be returned.
          *
-         *     j. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
-         *        would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field,
-         *        a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   10. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
+         *       would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field,
+         *       a response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *       i. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the SystemMode
-         *          field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a response
-         *          with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the SystemMode
+         *      field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a response with
+         *      the status code CONSTRAINT_ERROR shall be returned.
          *
-         *       ii. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct matching the
-         *           value of the SystemMode field on the encompassing ScheduleStruct does not have the SupportsOff bit
-         *           set, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   2. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct matching the value
+         *      of the SystemMode field on the encompassing ScheduleStruct does not have the SupportsOff bit set, a
+         *      response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     k. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
-         *        SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   11. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
+         *       SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
+         *       response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     l. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
-         *        SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   12. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
+         *       SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
+         *       response with the status code CONSTRAINT_ERROR shall be returned.
          *
          *   2. If appending the received ScheduleStruct to the pending list of Schedules would cause the total number
          *      of pending schedules to exceed the value of the NumberOfSchedules attribute, a response with the status
          *      code RESOURCE_EXHAUSTED shall be returned.
          *
          *   3. If appending the received ScheduleStruct to the pending list of Schedules would cause the total number
-         *      of pending schedules whose SystemMode field matches the appended schedule’s SystemMode field to exceed
+         *      of pending schedules whose SystemMode field matches the appended schedule's SystemMode field to exceed
          *      the value of the NumberOfSchedules field on the ScheduleTypeStruct whose SystemMode field matches the
-         *      appended schedule’s SystemMode field, a response with the status code RESOURCE_EXHAUSTED shall be
+         *      appended schedule's SystemMode field, a response with the status code RESOURCE_EXHAUSTED shall be
          *      returned.
          *
          *   4. Otherwise, the write shall be pended until receipt of a commit request, and the attribute status shall
          *      be SUCCESS.
          *
-         *     a. If the BuiltIn field is null:
+         *   1. If the BuiltIn field is null:
          *
-         *       i. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the BuiltIn
-         *          field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the matching
-         *          ScheduleStruct.
+         *   1. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the BuiltIn
+         *      field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the matching
+         *      ScheduleStruct.
          *
-         *       ii. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false.
+         *   2. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false.
          *
          * On an attempt to commit, the status of this attribute shall be determined as follows:
          *
          *   1. For all existing schedules:
          *
-         *     a. If, after applying all pending changes, the updated value of the Schedules attribute would not contain
-         *        a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of the ScheduleStruct,
-         *        the server shall check for invalid removal of the ScheduleStruct:
+         *   1. If, after applying all pending changes, the updated value of the Schedules attribute would not contain a
+         *      ScheduleStruct with a matching ScheduleHandle field, indicating the removal of the ScheduleStruct, the
+         *      server shall check for invalid removal of the ScheduleStruct:
          *
-         *       i. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be
-         *          CONSTRAINT_ERROR.
+         *   1. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be
+         *      CONSTRAINT_ERROR.
          *
-         *       ii. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, the
-         *           attribute status shall be INVALID_IN_STATE.
+         *   2. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, the attribute
+         *      status shall be INVALID_IN_STATE.
          *
          *   2. Otherwise, the attribute status shall be SUCCESS.
          *
@@ -896,10 +896,9 @@ export declare namespace Thermostat {
          *
          *   - If the LTNE feature is not supported:
          *
-         *     - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report
-         *       null.
+         *   - If the LocalTemperatureCalibration is invalid or currently unavailable, the attribute shall report null.
          *
-         *     - If the LocalTemperatureCalibration is valid, the attribute shall report that value.
+         *   - If the LocalTemperatureCalibration is valid, the attribute shall report that value.
          *
          *   - Otherwise, if the LTNE feature is supported, there is no feedback externally available for the
          *     LocalTemperatureCalibration. In that case, the LocalTemperature attribute shall always report null.
@@ -1097,7 +1096,7 @@ export declare namespace Thermostat {
          * UnoccupiedHeatingSetpoint attributes at which the Thermostat server will operate in emergency heat mode.
          *
          * If the difference between the Calculated Local Temperature and OccupiedCoolingSetpoint or
-         * UnoccupiedCoolingSetpoint is greater than or equal to the EmergencyHeatDelta and the Thermostat server’s
+         * UnoccupiedCoolingSetpoint is greater than or equal to the EmergencyHeatDelta and the Thermostat server's
          * SystemMode attribute is in a heating-related mode, then the Thermostat server shall immediately switch to the
          * SystemMode attribute value that provides the highest stage of heating (e.g., emergency heat) and continue
          * operating in that running state until the OccupiedHeatingSetpoint value is reached. For example:
@@ -1108,11 +1107,11 @@ export declare namespace Thermostat {
          *
          *   - EmergencyHeatDelta = 2.0°C
          *
-         * ⇒ OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
+         * => OccupiedHeatingSetpoint - Calculated Local Temperature ≥? EmergencyHeatDelta
          *
-         * ⇒ 16°C - 10°C ≥? 2°C
+         *   - => 16°C - 10°C ≥? 2°C
          *
-         * ⇒ TRUE >>> Thermostat server changes its SystemMode to operate in 2nd stage or emergency heat mode
+         * => TRUE >>> Thermostat server changes its SystemMode to operate in 2^nd stage or emergency heat mode
          *
          * The purpose of this attribute is to provide Thermostat clients the ability to configure rapid heating when a
          * setpoint is of a specified amount greater than the measured temperature. This allows the heated space to be
@@ -1334,7 +1333,7 @@ export declare namespace Thermostat {
          * Indicates the offset the Thermostat server shall make to the measured temperature (locally or remotely) to
          * adjust the Calculated Local Temperature prior to using, displaying or reporting it.
          *
-         * The purpose of this attribute is to adjust the calibration of the Thermostat server per the user’s
+         * The purpose of this attribute is to adjust the calibration of the Thermostat server per the user's
          * preferences (e.g., to match if there are multiple servers displaying different values for the same HVAC area)
          * or compensate for variability amongst temperature sensors.
          *
@@ -1344,8 +1343,8 @@ export declare namespace Thermostat {
          *
          * > [!NOTE]
          *
-         * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a range of
-         *   -2.5°C to 2.5°C.
+         * > NOTE: Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
+         *   range of -2.5°C to 2.5°C.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.9.10
          */
@@ -1402,13 +1401,13 @@ export declare namespace Thermostat {
          *
          * > [!NOTE]
          *
-         * > Prior to revision 8 of this cluster specification the value of this attribute was constrained to a range of
-         *   0°C to 2.5°C.
+         * > NOTE: Prior to revision 8 of this cluster specification the value of this attribute was constrained to a
+         *   range of 0°C to 2.5°C.
          *
          * > [!NOTE]
          *
-         * > For backwards compatibility, this attribute is optionally writeable. However any writes to this attribute
-         *   shall be silently ignored.
+         * > NOTE: For backwards compatibility, this attribute is optionally writeable. However any writes to this
+         *   attribute shall be silently ignored.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.9.19
          */
@@ -1416,7 +1415,7 @@ export declare namespace Thermostat {
 
         /**
          * Indicates the running mode of the thermostat. This attribute uses the same values as SystemModeEnum but can
-         * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat’s
+         * only be Off, Cool or Heat. This attribute is intended to provide additional information when the thermostat's
          * system mode is in auto mode.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.9.23
@@ -1457,24 +1456,24 @@ export declare namespace Thermostat {
          *   1. If the PresetHandle field is null, the PresetStruct shall be treated as an added preset, and the device
          *      shall create a new unique value for the PresetHandle field.
          *
-         *     a. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
          *
          *   2. If the PresetHandle field is not null, the PresetStruct shall be treated as a modification of an
          *      existing preset.
          *
-         *     a. If the value of the PresetHandle field does not match any of the existing presets, a response with the
-         *        status code NOT_FOUND shall be returned.
+         *   1. If the value of the PresetHandle field does not match any of the existing presets, a response with the
+         *      status code NOT_FOUND shall be returned.
          *
-         *     b. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   2. If the value of the PresetHandle field is duplicated on multiple presets in the updated list, a response
+         *      with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     c. If the BuiltIn field is true, and the PresetStruct in the current value with a matching PresetHandle
-         *        field has a BuiltIn field set to false, a response with the status code CONSTRAINT_ERROR shall be
-         *        returned.
+         *   3. If the BuiltIn field is true, and the PresetStruct in the current value with a matching PresetHandle
+         *      field has a BuiltIn field set to false, a response with the status code CONSTRAINT_ERROR shall be
+         *      returned.
          *
-         *     d. If the BuiltIn field is false, and the PresetStruct in the current value with a matching PresetHandle
-         *        field has a BuiltIn field set to true, a response with the status code CONSTRAINT_ERROR shall be
-         *        returned.
+         *   4. If the BuiltIn field is false, and the PresetStruct in the current value with a matching PresetHandle
+         *      field has a BuiltIn field set to true, a response with the status code CONSTRAINT_ERROR shall be
+         *      returned.
          *
          *   3. If the specified PresetScenarioEnum value does not exist in PresetTypes, a response with the status code
          *      CONSTRAINT_ERROR shall be returned.
@@ -1487,38 +1486,37 @@ export declare namespace Thermostat {
          *      RESOURCE_EXHAUSTED shall be returned.
          *
          *   6. If appending the received PresetStruct to the pending list of Presets would cause the total number of
-         *      pending presets whose PresetScenario field matches the appended preset’s PresetScenario field to exceed
+         *      pending presets whose PresetScenario field matches the appended preset's PresetScenario field to exceed
          *      the value of the NumberOfPresets field on the PresetTypeStruct whose PresetScenario matches the appended
-         *      preset’s PresetScenario field, a response with the status code RESOURCE_EXHAUSTED shall be returned.
+         *      preset's PresetScenario field, a response with the status code RESOURCE_EXHAUSTED shall be returned.
          *
          *   7. Otherwise, the write shall be pended until receipt of a commit request, and the status code SUCCESS
          *      shall be returned.
          *
-         *     a. If the BuiltIn field is null:
+         *   1. If the BuiltIn field is null:
          *
-         *       i. If there is a PresetStruct in the current value with a matching PresetHandle field, the BuiltIn
-         *          field on the pending PresetStruct shall be set to the value of the BuiltIn on the matching
-         *          PresetStruct.
+         *   1. If there is a PresetStruct in the current value with a matching PresetHandle field, the BuiltIn field on
+         *      the pending PresetStruct shall be set to the value of the BuiltIn on the matching PresetStruct.
          *
-         *       ii. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false.
+         *   2. Otherwise, the BuiltIn field on the pending PresetStruct shall be set to false.
          *
          * On an attempt to commit, the status of this attribute shall be determined as follows:
          *
          *   1. For all existing presets:
          *
-         *     a. If, after applying all pending changes, the updated value of the Presets attribute would not contain a
-         *        PresetStruct with a matching PresetHandle field, indicating the removal of the PresetStruct, the
-         *        server shall check for invalid removal of the PresetStruct:
+         *   1. If, after applying all pending changes, the updated value of the Presets attribute would not contain a
+         *      PresetStruct with a matching PresetHandle field, indicating the removal of the PresetStruct, the server
+         *      shall check for invalid removal of the PresetStruct:
          *
-         *       i. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be
-         *          CONSTRAINT_ERROR.
+         *   1. If the BuiltIn field is true on the removed PresetStruct, the attribute status shall be
+         *      CONSTRAINT_ERROR.
          *
-         *       ii. If the MSCH feature is supported and the removed PresetHandle would be referenced by any
-         *           PresetHandle on any ScheduleTransitionStruct on any ScheduleStruct in the updated value of the
-         *           Schedules attribute, the attribute status shall be INVALID_IN_STATE.
+         *   2. If the MSCH feature is supported and the removed PresetHandle would be referenced by any PresetHandle on
+         *      any ScheduleTransitionStruct on any ScheduleStruct in the updated value of the Schedules attribute, the
+         *      attribute status shall be INVALID_IN_STATE.
          *
-         *       iii. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the
-         *            attribute status shall be INVALID_IN_STATE.
+         *   3. If the removed PresetHandle is equal to the value of the ActivePresetHandle attribute, the attribute
+         *      status shall be INVALID_IN_STATE.
          *
          *   2. Otherwise, the attribute status shall be SUCCESS.
          *
@@ -1576,105 +1574,105 @@ export declare namespace Thermostat {
          *
          *   1. For all schedules in the write request:
          *
-         *     a. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added schedule, and the
-         *        device shall create a new unique value for the ScheduleHandle field.
+         *   1. If the ScheduleHandle field is null, the ScheduleStruct shall be treated as an added schedule, and the
+         *      device shall create a new unique value for the ScheduleHandle field.
          *
-         *       i. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the BuiltIn field is true, a response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     b. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a
-         *        modification of an existing schedule.
+         *   2. Otherwise, if the ScheduleHandle field is not null, the ScheduleStruct shall be treated as a
+         *      modification of an existing schedule.
          *
-         *       i. If the value of the ScheduleHandle field does not match any of the existing schedules, a response
-         *          with the status code NOT_FOUND shall be returned.
+         *   1. If the value of the ScheduleHandle field does not match any of the existing schedules, a response with
+         *      the status code NOT_FOUND shall be returned.
          *
-         *       ii. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching
-         *           ScheduleHandle field has a BuiltIn field set to false, a response with the status code
-         *           CONSTRAINT_ERROR shall be returned.
+         *   2. If the BuiltIn field is true, and the ScheduleStruct in the current value with a matching ScheduleHandle
+         *      field has a BuiltIn field set to false, a response with the status code CONSTRAINT_ERROR shall be
+         *      returned.
          *
-         *       iii. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching
-         *            ScheduleHandle field has a BuiltIn field set to true, a response with the status code
-         *            CONSTRAINT_ERROR shall be returned.
+         *   3. If the BuiltIn field is false, and the ScheduleStruct in the current value with a matching
+         *      ScheduleHandle field has a BuiltIn field set to true, a response with the status code CONSTRAINT_ERROR
+         *      shall be returned.
          *
-         *     c. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code
-         *        CONSTRAINT_ERROR shall be returned.
+         *   3. If the specified SystemMode does not exist in ScheduleTypes, a response with the status code
+         *      CONSTRAINT_ERROR shall be returned.
          *
-         *     d. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the status
-         *        code RESOURCE_EXHAUSTED shall be returned.
+         *   4. If the number of transitions exceeds the NumberOfScheduleTransitions value, a response with the status
+         *      code RESOURCE_EXHAUSTED shall be returned.
          *
-         *     e. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
-         *        transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a
-         *        response with the status code RESOURCE_EXHAUSTED shall be returned.
+         *   5. If the value of the NumberOfScheduleTransitionPerDay attribute is not null, and the number of
+         *      transitions on any single day of the week exceeds the NumberOfScheduleTransitionPerDay value, a response
+         *      with the status code RESOURCE_EXHAUSTED shall be returned.
          *
-         *     f. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
-         *        SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   6. If the PresetHandle field is present, but the associated ScheduleTypeStruct does not have the
+         *      SupportsPresets bit set, a response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     g. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
-         *        would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field,
-         *        a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   7. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
+         *      would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field, a
+         *      response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     h. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit set, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   8. If the Name is set, but the associated ScheduleTypeStruct does not have the SupportsNames bit set, a
+         *      response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *       i. For all transitions in all schedules in the write request:
+         *   9. For all transitions in all schedules in the write request:
          *
-         *       i. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the
-         *          SystemMode field on the encompassing ScheduleStruct does not have the SupportsPresets bit set, a
-         *          response with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the PresetHandle field is present, but the ScheduleTypeStruct matching the value of the SystemMode
+         *      field on the encompassing ScheduleStruct does not have the SupportsPresets bit set, a response with the
+         *      status code CONSTRAINT_ERROR shall be returned.
          *
-         *     j. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
-         *        would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field,
-         *        a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   10. If the PresetHandle field is present, but after applying all pending changes, the Presets attribute
+         *       would not contain a PresetStruct whose PresetHandle field matches the value of the PresetHandle field,
+         *       a response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *       i. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the SystemMode
-         *          field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a response
-         *          with the status code CONSTRAINT_ERROR shall be returned.
+         *   1. If the SystemMode field is present, but the ScheduleTypeStruct matching the value of the SystemMode
+         *      field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a response with
+         *      the status code CONSTRAINT_ERROR shall be returned.
          *
-         *       ii. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct matching the
-         *           value of the SystemMode field on the encompassing ScheduleStruct does not have the SupportsOff bit
-         *           set, a response with the status code CONSTRAINT_ERROR shall be returned.
+         *   2. If the SystemMode field is has a value of SystemModeOff, but the ScheduleTypeStruct matching the value
+         *      of the SystemMode field on the encompassing ScheduleStruct does not have the SupportsOff bit set, a
+         *      response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     k. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
-         *        SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   11. If the HeatingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
+         *       SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
+         *       response with the status code CONSTRAINT_ERROR shall be returned.
          *
-         *     l. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
-         *        SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
-         *        response with the status code CONSTRAINT_ERROR shall be returned.
+         *   12. If the CoolingSetpoint field is present, but the ScheduleTypeStruct matching the value of the
+         *       SystemMode field on the encompassing ScheduleStruct does not have the SupportsSetpoints bit set, a
+         *       response with the status code CONSTRAINT_ERROR shall be returned.
          *
          *   2. If appending the received ScheduleStruct to the pending list of Schedules would cause the total number
          *      of pending schedules to exceed the value of the NumberOfSchedules attribute, a response with the status
          *      code RESOURCE_EXHAUSTED shall be returned.
          *
          *   3. If appending the received ScheduleStruct to the pending list of Schedules would cause the total number
-         *      of pending schedules whose SystemMode field matches the appended schedule’s SystemMode field to exceed
+         *      of pending schedules whose SystemMode field matches the appended schedule's SystemMode field to exceed
          *      the value of the NumberOfSchedules field on the ScheduleTypeStruct whose SystemMode field matches the
-         *      appended schedule’s SystemMode field, a response with the status code RESOURCE_EXHAUSTED shall be
+         *      appended schedule's SystemMode field, a response with the status code RESOURCE_EXHAUSTED shall be
          *      returned.
          *
          *   4. Otherwise, the write shall be pended until receipt of a commit request, and the attribute status shall
          *      be SUCCESS.
          *
-         *     a. If the BuiltIn field is null:
+         *   1. If the BuiltIn field is null:
          *
-         *       i. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the BuiltIn
-         *          field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the matching
-         *          ScheduleStruct.
+         *   1. If there is a ScheduleStruct in the current value with a matching ScheduleHandle field, the BuiltIn
+         *      field on the pending ScheduleStruct shall be set to the value of the BuiltIn on the matching
+         *      ScheduleStruct.
          *
-         *       ii. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false.
+         *   2. Otherwise, the BuiltIn field on the pending ScheduleStruct shall be set to false.
          *
          * On an attempt to commit, the status of this attribute shall be determined as follows:
          *
          *   1. For all existing schedules:
          *
-         *     a. If, after applying all pending changes, the updated value of the Schedules attribute would not contain
-         *        a ScheduleStruct with a matching ScheduleHandle field, indicating the removal of the ScheduleStruct,
-         *        the server shall check for invalid removal of the ScheduleStruct:
+         *   1. If, after applying all pending changes, the updated value of the Schedules attribute would not contain a
+         *      ScheduleStruct with a matching ScheduleHandle field, indicating the removal of the ScheduleStruct, the
+         *      server shall check for invalid removal of the ScheduleStruct:
          *
-         *       i. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be
-         *          CONSTRAINT_ERROR.
+         *   1. If the BuiltIn field is true on the removed ScheduleStruct, the attribute status shall be
+         *      CONSTRAINT_ERROR.
          *
-         *       ii. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, the
-         *           attribute status shall be INVALID_IN_STATE.
+         *   2. If the removed ScheduleHandle is equal to the value of the ActiveScheduleHandle attribute, the attribute
+         *      status shall be INVALID_IN_STATE.
          *
          *   2. Otherwise, the attribute status shall be SUCCESS.
          *
@@ -1828,13 +1826,11 @@ export declare namespace Thermostat {
     /**
      * > [!NOTE]
      *
-     * > A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be able to
+     * > NOTE: A thermostat indicating it supports CoolingAndHeating (or CoolingAndHeatingWithReheat) SHOULD be able to
      *   request heating or cooling on demand and will usually support the Auto SystemMode.
      *
-     * > [!NOTE]
-     *
-     * > Systems which support cooling or heating, requiring external intervention to change modes or where the whole
-     *   building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
+     * Systems which support cooling or heating, requiring external intervention to change modes or where the whole
+     * building must be in the same mode, SHOULD report CoolingOnly or HeatingOnly based on the current capability.
      *
      * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.15
      */
@@ -1895,7 +1891,7 @@ export declare namespace Thermostat {
         Heat = 4,
 
         /**
-         * 2nd stage heating is in use to achieve desired temperature
+         * 2^nd stage heating is in use to achieve desired temperature
          */
         EmergencyHeat = 5,
 
@@ -1968,22 +1964,22 @@ export declare namespace Thermostat {
         fan?: boolean;
 
         /**
-         * Heat 2nd Stage On
+         * Heat 2^nd Stage On
          */
         heatStage2?: boolean;
 
         /**
-         * Cool 2nd Stage On
+         * Cool 2^nd Stage On
          */
         coolStage2?: boolean;
 
         /**
-         * Fan 2nd Stage On
+         * Fan 2^nd Stage On
          */
         fanStage2?: boolean;
 
         /**
-         * Fan 3rd Stage On
+         * Fan 3^rd Stage On
          */
         fanStage3?: boolean;
     };
@@ -2622,7 +2618,7 @@ export declare namespace Thermostat {
         /**
          * The thermostat-controlled area is occupied
          *
-         * This value shall indicate the preset for periods when the thermostat’s temperature-controlled area is
+         * This value shall indicate the preset for periods when the thermostat's temperature-controlled area is
          * occupied. It is intended for thermostats that can automatically determine occupancy.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.16.2
@@ -2632,7 +2628,7 @@ export declare namespace Thermostat {
         /**
          * The thermostat-controlled area is unoccupied
          *
-         * This value shall indicate the preset for periods when the thermostat’s temperature-controlled area is
+         * This value shall indicate the preset for periods when the thermostat's temperature-controlled area is
          * unoccupied. It is intended for thermostats that can automatically determine occupancy.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.16.3
@@ -2740,11 +2736,11 @@ export declare namespace Thermostat {
      *
      *   2. If either the HeatingSetpoint or CoolingSetpoint is provided, then it shall be used
      *
-     *     a. If the SystemMode field is provided, the HeatingSetpoint and CoolingSetpoint fields shall be interpreted
-     *        using the SystemMode field
+     *   1. If the SystemMode field is provided, the HeatingSetpoint and CoolingSetpoint fields shall be interpreted
+     *      using the SystemMode field
      *
-     *     b. If the SystemMode field is not provided, the HeatingSetpoint and CoolingSetpoint fields shall be
-     *        interpreted using the SystemMode field on the parent ScheduleStruct
+     *   2. If the SystemMode field is not provided, the HeatingSetpoint and CoolingSetpoint fields shall be interpreted
+     *      using the SystemMode field on the parent ScheduleStruct
      *
      *   3. If neither the PresetHandle field or any Setpoint field is provided, then the PresetHandle field on the
      *      parent ScheduleStruct shall be used to determine the active PresetStruct
@@ -2825,7 +2821,7 @@ export declare namespace Thermostat {
         /**
          * This shall specify the default mode to which the thermostat will switch for this transition, overriding the
          * default for the schedule. The only valid values for this field shall be Auto, Heat, Cool and Off. This field
-         * shall only be included when the required system mode differs from the schedule’s default SystemMode.
+         * shall only be included when the required system mode differs from the schedule's default SystemMode.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 4.3.8.26.4
          */

@@ -48,8 +48,8 @@ export declare namespace ThreadNetworkDiagnostics {
      */
     export interface BaseAttributes {
         /**
-         * Indicates the 802.15.4 channel number configured on the Node’s Thread interface (that is, the Active
-         * Operational Dataset’s current Channel value). A value of null shall indicate that the Thread interface is not
+         * Indicates the 802.15.4 channel number configured on the Node's Thread interface (that is, the Active
+         * Operational Dataset's current Channel value). A value of null shall indicate that the Thread interface is not
          * currently configured or operational.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.6.1
@@ -608,8 +608,8 @@ export declare namespace ThreadNetworkDiagnostics {
      */
     export interface Attributes {
         /**
-         * Indicates the 802.15.4 channel number configured on the Node’s Thread interface (that is, the Active
-         * Operational Dataset’s current Channel value). A value of null shall indicate that the Thread interface is not
+         * Indicates the 802.15.4 channel number configured on the Node's Thread interface (that is, the Active
+         * Operational Dataset's current Channel value). A value of null shall indicate that the Thread interface is not
          * currently configured or operational.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.6.1
@@ -1173,7 +1173,7 @@ export declare namespace ThreadNetworkDiagnostics {
      */
     export interface BaseEvents {
         /**
-         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Thread network has changed.
+         * The ConnectionStatus Event shall indicate that a Node's connection status to a Thread network has changed.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.8.2
          */
@@ -1196,7 +1196,7 @@ export declare namespace ThreadNetworkDiagnostics {
      */
     export interface Events {
         /**
-         * The ConnectionStatus Event shall indicate that a Node’s connection status to a Thread network has changed.
+         * The ConnectionStatus Event shall indicate that a Node's connection status to a Thread network has changed.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.8.2
          */
@@ -1356,7 +1356,7 @@ export declare namespace ThreadNetworkDiagnostics {
 
         /**
          * This field SHOULD specify the average RSSI across all received frames from the neighboring Node since the
-         * receiving Node’s last reboot. If there is no known received frames this field SHOULD have the value of null.
+         * receiving Node's last reboot. If there is no known received frames this field SHOULD have the value of null.
          * This field shall have the units of dBm, having the range -128 dBm to 0 dBm.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.5.4.7
@@ -1559,7 +1559,7 @@ export declare namespace ThreadNetworkDiagnostics {
         masterKeyPresent: boolean;
 
         /**
-         * This field shall be True if the Node has the Thread network’s name, else False.
+         * This field shall be True if the Node has the Thread network's name, else False.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.5.7.4
          */
@@ -1650,7 +1650,7 @@ export declare namespace ThreadNetworkDiagnostics {
     }
 
     /**
-     * The ConnectionStatus Event shall indicate that a Node’s connection status to a Thread network has changed.
+     * The ConnectionStatus Event shall indicate that a Node's connection status to a Thread network has changed.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.14.8.2
      */
@@ -1668,8 +1668,8 @@ export declare namespace ThreadNetworkDiagnostics {
         constructor(values?: Partial<NetworkFaultChangeEvent>);
 
         /**
-         * This field shall represent the set of faults currently detected, as per Section 11.14.5.1, “NetworkFaultEnum
-         * Type”.
+         * This field shall represent the set of faults currently detected, as per Section 11.14.5.1, "NetworkFaultEnum
+         * Type".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.8.1.1
          */
@@ -1677,7 +1677,7 @@ export declare namespace ThreadNetworkDiagnostics {
 
         /**
          * This field shall represent the set of faults detected prior to this change event, as per Section 11.14.5.1,
-         * “NetworkFaultEnum Type”.
+         * "NetworkFaultEnum Type".
          *
          * @see {@link MatterSpecification.v151.Core} § 11.14.8.1.2
          */

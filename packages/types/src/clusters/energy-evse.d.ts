@@ -83,8 +83,8 @@ export declare namespace EnergyEvse {
          *
          * > [!NOTE]
          *
-         * > SessionEnding is not really a state but a transition. However, the transition period may take a few seconds
-         *   and is useful for some clean up purposes.
+         * > NOTE: SessionEnding is not really a state but a transition. However, the transition period may take a few
+         *   seconds and is useful for some clean up purposes.
          *
          * The Fault state is used to indicate that the FaultState attribute is not NoError.
          *
@@ -155,15 +155,11 @@ export declare namespace EnergyEvse {
          * The attribute can be initially set using the EnableCharging command or by adjusting the
          * UserMaximumChargeCurrent attribute.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
-         *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumChargeCurrent field in the EnableCharging command
-         *
-         *   - UserMaximumChargeCurrent attribute
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumChargeCurrent field
+         *   in the EnableCharging command - UserMaximumChargeCurrent attribute
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.8
          */
@@ -192,8 +188,7 @@ export declare namespace EnergyEvse {
          *
          * This attribute value shall be limited by the EVSE to be in the range of:
          *
-         * MinimumChargeCurrent <= UserMaximumChargeCurrent <= MaximumChargeCurrent where MinimumChargeCurrent and
-         * MaximumChargeCurrent are the values received in the EnableCharging command.
+         * where MinimumChargeCurrent and MaximumChargeCurrent are the values received in the EnableCharging command.
          *
          * Its default value SHOULD be initialized to the same as the CircuitCapacity attribute. This value shall be
          * persisted across reboots to ensure it does not cause charging issues during temporary power failures.
@@ -242,13 +237,11 @@ export declare namespace EnergyEvse {
          *
          * This attribute can be set using the EnableDischarging command.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
-         *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumDischargeCurrent field in the EnableDischarging command
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumDischargeCurrent
+         *   field in the EnableDischarging command
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.9
          */
@@ -322,17 +315,13 @@ export declare namespace EnergyEvse {
          * A null value indicates that the EV efficiency is unknown and the NextChargeRequiredEnergy attribute cannot be
          * converted from Wh to miles or km.
          *
-         * To convert from Wh into Range:
+         * > [!NOTE]
          *
-         * AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) AddedRange (Miles) = AddedEnergy (Wh)
-         * x ApproxEVEfficiency (km/kWh x 1000) x 0.6213
-         *
-         * Example:
-         *
-         * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000
-         *
-         * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x
-         * ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles
+         * > To convert from Wh into Range: AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000)
+         *   AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x 0.6213 Example:
+         *   ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000 AddedRange (km) =
+         *   10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x
+         *   1000) x 0.6213 = 29.82 Miles
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.16
          */
@@ -393,8 +382,8 @@ export declare namespace EnergyEvse {
          *
          * > [!NOTE]
          *
-         * > SessionEnding is not really a state but a transition. However, the transition period may take a few seconds
-         *   and is useful for some clean up purposes.
+         * > NOTE: SessionEnding is not really a state but a transition. However, the transition period may take a few
+         *   seconds and is useful for some clean up purposes.
          *
          * The Fault state is used to indicate that the FaultState attribute is not NoError.
          *
@@ -465,15 +454,11 @@ export declare namespace EnergyEvse {
          * The attribute can be initially set using the EnableCharging command or by adjusting the
          * UserMaximumChargeCurrent attribute.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
-         *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumChargeCurrent field in the EnableCharging command
-         *
-         *   - UserMaximumChargeCurrent attribute
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumChargeCurrent field
+         *   in the EnableCharging command - UserMaximumChargeCurrent attribute
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.8
          */
@@ -502,8 +487,7 @@ export declare namespace EnergyEvse {
          *
          * This attribute value shall be limited by the EVSE to be in the range of:
          *
-         * MinimumChargeCurrent <= UserMaximumChargeCurrent <= MaximumChargeCurrent where MinimumChargeCurrent and
-         * MaximumChargeCurrent are the values received in the EnableCharging command.
+         * where MinimumChargeCurrent and MaximumChargeCurrent are the values received in the EnableCharging command.
          *
          * Its default value SHOULD be initialized to the same as the CircuitCapacity attribute. This value shall be
          * persisted across reboots to ensure it does not cause charging issues during temporary power failures.
@@ -547,13 +531,11 @@ export declare namespace EnergyEvse {
          *
          * This attribute can be set using the EnableDischarging command.
          *
-         * This attribute value shall be the minimum of:
+         * > [!NOTE]
          *
-         *   - CircuitCapacity - Electrician’s installation setting
-         *
-         *   - CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in)
-         *
-         *   - MaximumDischargeCurrent field in the EnableDischarging command
+         * > This attribute value shall be the minimum of: - CircuitCapacity - Electrician's installation setting -
+         *   CableAssemblyCurrentLimit (detected by the EVSE when the cable is plugged in) - MaximumDischargeCurrent
+         *   field in the EnableDischarging command
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.9
          */
@@ -622,17 +604,13 @@ export declare namespace EnergyEvse {
          * A null value indicates that the EV efficiency is unknown and the NextChargeRequiredEnergy attribute cannot be
          * converted from Wh to miles or km.
          *
-         * To convert from Wh into Range:
+         * > [!NOTE]
          *
-         * AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) AddedRange (Miles) = AddedEnergy (Wh)
-         * x ApproxEVEfficiency (km/kWh x 1000) x 0.6213
-         *
-         * Example:
-         *
-         * ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000
-         *
-         * AddedRange (km) = 10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x
-         * ApproxEVEfficiency (km/kWh x 1000) x 0.6213 = 29.82 Miles
+         * > To convert from Wh into Range: AddedRange (km) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000)
+         *   AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x 1000) x 0.6213 Example:
+         *   ApproxEVEfficiency (km/kWh x 1000): 4800 (i.e. 4.8km/kWh x 1000) AddedEnergy (Wh): 10,000 AddedRange (km) =
+         *   10,000 x 4800 / 1,000,000 = 48 km AddedRange (Miles) = AddedEnergy (Wh) x ApproxEVEfficiency (km/kWh x
+         *   1000) x 0.6213 = 29.82 Miles
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.8.16
          */
@@ -897,7 +875,7 @@ export declare namespace EnergyEvse {
          * ChargingPreferences (PREF)
          *
          * Since some EVSEs cannot obtain the SoC from the vehicle, some EV charging solutions allow the consumer to
-         * specify a daily charging target (for adding energy to the EV’s battery). This feature allows the consumer to
+         * specify a daily charging target (for adding energy to the EV's battery). This feature allows the consumer to
          * specify how many miles or km of additional range they need for their typical daily commute. This range
          * requirement can be converted into a daily energy demand with a target charging completion time.
          *
@@ -908,7 +886,7 @@ export declare namespace EnergyEvse {
          * An EVSE device which includes a Device Energy Management device with the Device Energy Management cluster PFR
          * (PowerForecastReporting) feature can use the charging preferences information to produce its power forecast.
          *
-         * EVSE devices that support the Device Energy Management cluster’s FA feature can have their charging profiles
+         * EVSE devices that support the Device Energy Management cluster's FA feature can have their charging profiles
          * set by a controller device such as an EMS. For example, if the EVSE advertises a simple power forecast which
          * allows the EMS to adjust over a wide range of power and time durations, then the EVSE may allow the EMS to
          * propose a revised optimized forecast (which is the charging profile). For example, a solar PV ESA may also
@@ -1173,7 +1151,7 @@ export declare namespace EnergyEvse {
          * The EVSE current limit can be advertised to an EV in 0.6A steps.
          *
          * The value of the MinimumChargeCurrent attribute shall be set to the value of this field (see Section 9.3.8.7,
-         * “MinimumChargeCurrent Attribute” for further details).
+         * "MinimumChargeCurrent Attribute" for further details).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.9.2.2
          */
@@ -1553,11 +1531,11 @@ export declare namespace EnergyEvse {
      * The optimization strategy is not defined here, however in simple terms, the AddedEnergy requirement can be
      * fulfilled by knowing the charging Power (W) and the time needed to charge.
      *
-     * To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600
+     * > [!NOTE]
      *
-     * Therefore: ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W)
-     *
-     * To compute the charging time: Charging StartTime = TargetTimeMinutesPastMidnight - ChargingTime
+     * > To compute the Charging Time: Required Energy (Wh) = Power (W) x ChargingTime (s) / 3600 Therefore:
+     *   ChargingTime (s) = (3600 x RequiredEnergy (wH)) / Power (W) To compute the charging time: Charging StartTime =
+     *   TargetTimeMinutesPastMidnight - ChargingTime
      *
      * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6
      */
@@ -1633,9 +1611,9 @@ export declare namespace EnergyEvse {
          *
          * > [!NOTE]
          *
-         * > If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy value to
-         *   the Battery Capacity of the vehicle, since the EV may also require energy for heating and cooling of the
-         *   battery during charging, or for heating or cooling the cabin.
+         * > NOTE: If the EVSE can obtain the Battery Capacity of the vehicle, it SHOULD NOT limit this AddedEnergy
+         *   value to the Battery Capacity of the vehicle, since the EV may also require energy for heating and cooling
+         *   of the battery during charging, or for heating or cooling the cabin.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.3.7.6.3
          */

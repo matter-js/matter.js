@@ -201,7 +201,7 @@ export declare namespace ScenesManagement {
         constructor(values?: Partial<SceneInfo>);
 
         /**
-         * This field shall indicate the number of scenes currently used in the server’s Scene Table on the endpoint
+         * This field shall indicate the number of scenes currently used in the server's Scene Table on the endpoint
          * where the Scenes Management cluster appears.
          *
          * This only includes the count for the associated fabric.
@@ -754,8 +754,8 @@ export declare namespace ScenesManagement {
         /**
          * This field shall be present for all instances in a given ExtensionFieldSetStruct.
          *
-         * Which Value* field is used shall be determined based on the data type of the attribute indicated by
-         * AttributeID, as described in the Value* Fields subsection.
+         * Which Value field is used shall be determined based on the data type of the attribute indicated by
+         * AttributeID, as described in the Value Fields subsection.
          *
          * The AttributeID field shall NOT refer to an attribute without the Scenes ("S") designation in the Quality
          * column of the cluster specification.

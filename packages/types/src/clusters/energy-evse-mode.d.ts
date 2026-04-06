@@ -186,7 +186,7 @@ export declare namespace EnergyEvseMode {
          *     green leaf.
          *
          *   - A mode that includes a LowNoise tag may be used by the client when the user wishes for a lower level of
-         *     audible sound, less likely to disturb the household’s activities.
+         *     audible sound, less likely to disturb the household's activities.
          *
          *   - A mode that includes a LowEnergy tag (standard, defined in this cluster specification) and also a
          *     Delicate tag (standard, defined in the namespace of a Laundry Mode derived cluster).
@@ -260,7 +260,7 @@ export declare namespace EnergyEvseMode {
 
         /**
          * While in modes with this tag, and once enabled with the EnableCharging command, the EVSE will attempt to
-         * automatically start charging based on the user’s charging targets (for example, set based on a Time of Use
+         * automatically start charging based on the user's charging targets (for example, set based on a Time of Use
          * tariff to charge at the cheapest times of the day).
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.4.7.1.2
@@ -283,9 +283,9 @@ export declare namespace EnergyEvseMode {
          *
          * > [!NOTE]
          *
-         * > being in a mode with this tag set or not does not affect the handling of the EnableDischarging command by
-         *   the Energy EVSE cluster, but once enabled, only modes with this tag enable the discharging to actually
-         *   occur.
+         * > NOTE: being in a mode with this tag set or not does not affect the handling of the EnableDischarging
+         *   command by the Energy EVSE cluster, but once enabled, only modes with this tag enable the discharging to
+         *   actually occur.
          *
          * @see {@link MatterSpecification.v151.Cluster} § 9.4.7.1.4
          */
@@ -302,9 +302,9 @@ export declare namespace EnergyEvseMode {
 
         /**
          * If the MfgCode field exists, the Value field shall be in the manufacturer-specific value range (see Section
-         * 1.10.8, “Mode Namespace”).
+         * 1.10.8, "Mode Namespace").
          *
-         * This field shall indicate the manufacturer’s VendorID and it shall determine the meaning of the Value field.
+         * This field shall indicate the manufacturer's VendorID and it shall determine the meaning of the Value field.
          *
          * The same manufacturer code and mode tag value in separate cluster instances are part of the same namespace
          * and have the same meaning. For example: a manufacturer tag meaning "pinch" can be used both in a cluster

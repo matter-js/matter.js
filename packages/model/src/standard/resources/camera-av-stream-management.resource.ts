@@ -875,7 +875,7 @@ Resource.add({
                 {
                     tag: "field", name: "RequiresEncodedPixels", xref: "cluster§11.2.6.9.4",
                     details: "This field shall indicate if this entry requires using any resources from the available " +
-                        "MaxEncodedPixelRate. If true, clients need to include this entry’s Resolution and MaxFrameRate in " +
+                        "MaxEncodedPixelRate. If true, clients need to include this entry's Resolution and MaxFrameRate in " +
                         "the calculation for determining overall stream allocation resources."
                 },
 
@@ -1130,7 +1130,7 @@ Resource.add({
                 {
                     tag: "field", name: "UtcTime", xref: "cluster§11.2.6.14.1",
                     details: "This field shall represent the UTC time that this metadata belongs to. The field is sourced from the " +
-                        "Time Synchronization cluster’s UTCTime attribute." +
+                        "Time Synchronization cluster's UTCTime attribute." +
                         "\n" +
                         "If null, the device has no current source of wall clock time."
                 },

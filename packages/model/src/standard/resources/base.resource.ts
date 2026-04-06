@@ -12,6 +12,14 @@ Resource.add({
     tag: "deviceType", name: "Base", xref: "device§1.1",
 
     children: [
+        { tag: "condition", name: "Ethernet", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "WiFi", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Thread", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Tcp", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Udp", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "Ip", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "IPv4", xref: "device§1.1.3.1" },
+        { tag: "condition", name: "IPv6", xref: "device§1.1.3.1" },
         {
             tag: "condition", name: "LanguageLocale",
             description: "The node supports localization for conveying text to the user",

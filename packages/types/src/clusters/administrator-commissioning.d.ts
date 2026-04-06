@@ -22,8 +22,8 @@ import type { Status } from "../globals/Status.js";
  * and Responses needed for this purpose.
  *
  * There are two methods of commissioning, Basic Commissioning which may be supported and is described in Section 5.6.2,
- * “Basic Commissioning Method (BCM)” and Enhanced Commissioning which shall be supported and is described in Section
- * 5.6.3, “Enhanced Commissioning Method (ECM)”.
+ * "Basic Commissioning Method (BCM)" and Enhanced Commissioning which shall be supported and is described in Section
+ * 5.6.3, "Enhanced Commissioning Method (ECM)".
  *
  * For the management of Operational Credentials and Trusted Root Certificates, the Operational Credentials cluster is
  * used.
@@ -79,7 +79,7 @@ export declare namespace AdministratorCommissioning {
          *
          * > [!NOTE]
          *
-         * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
+         * > NOTE: An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
          *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
          *   commissioning.
          *
@@ -130,7 +130,7 @@ export declare namespace AdministratorCommissioning {
          *
          * > [!NOTE]
          *
-         * > An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
+         * > NOTE: An initial commissioning window is not opened using either the OpenCommissioningWindow command or the
          *   OpenBasicCommissioningWindow command, and therefore this attribute shall be set to WindowNotOpen on initial
          *   commissioning.
          *
@@ -178,15 +178,15 @@ export declare namespace AdministratorCommissioning {
          *
          * When the OpenCommissioningWindow command expires or commissioning completes, the Node shall remove the
          * Passcode by deleting the PAKE passcode verifier as well as stop publishing the DNS-SD record corresponding to
-         * this command as described in Section 4.3.1, “Commissionable Node Discovery”. The commissioning into a new
-         * Fabric completes when the Node successfully receives a Section 11.10.7.6, “CommissioningComplete” command,
-         * see Section 5.5, “Commissioning Flows”.
+         * this command as described in Section 4.3.1, "Commissionable Node Discovery". The commissioning into a new
+         * Fabric completes when the Node successfully receives a Section 11.10.7.6, "CommissioningComplete" command,
+         * see Section 5.5, "Commissioning Flows".
          *
          * The parameters for OpenCommissioningWindow command are as follows:
          *
          * A current Administrator may invoke this command to put a node in commissioning mode for the next
          * Administrator. On completion, the command shall return a cluster specific status code from the Section
-         * 11.19.6, “Status Codes” below reflecting success or reasons for failure of the operation. The new
+         * 11.19.6, "Status Codes" below reflecting success or reasons for failure of the operation. The new
          * Administrator shall discover the Node on the IP network using DNS-based Service Discovery (DNS-SD) for
          * commissioning.
          *
@@ -208,37 +208,8 @@ export declare namespace AdministratorCommissioning {
 
         /**
          * This command is used by a current Administrator to instruct a Node to revoke any active Section 11.19.8.1,
-         * “OpenCommissioningWindow” or Section 11.19.8.2, “OpenBasicCommissioningWindow” command. This is an idempotent
+         * "OpenCommissioningWindow" or Section 11.19.8.2, "OpenBasicCommissioningWindow" command. This is an idempotent
          * command.
-         *
-         * ### Effect on Receipt
-         *
-         *   1. The Node shall perform the following actions regardless of current commissioning window state:
-         *
-         *     a. The Node shall (for ECM) delete the temporary PAKEPasscodeVerifier and associated data
-         *
-         *     b. The Node shall terminate any open PASE sessions or PASE sessions in the process of being established
-         *
-         *     c. The Node shall immediately expire any fail-safe held by an open PASE session and perform the cleanup
-         *        steps outlined in Section 11.10.7.2.2, “Behavior on expiry of Fail-Safe timer”
-         *
-         *   2. If the commissioning window was NOT open at the time of receipt, the Node shall return a cluster
-         *      specific status code of WindowNotOpen.
-         *
-         *   3. If the commissioning window was open at the time of receipt, the Node shall perform the following
-         *      additional actions:
-         *
-         *     a. The Node shall stop accepting new incoming PASE session establishment messages
-         *
-         *     b. The Node shall stop publishing the DNS-SD records associated with the advertising it was doing due to
-         *        the open commissioning window. See Section 4.3.1, “Commissionable Node Discovery”
-         *
-         *     c. The Node shall expire the commissioning window and set the WindowStatus attribute to WindowNotOpen
-         *
-         *       > [!NOTE]
-         *
-         *       > If this command is issued over the PASE connection, the caller shall NOT expect to receive a response
-         *         due to the termination of the PASE session during command execution.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.19.8.3
          */
@@ -265,7 +236,7 @@ export declare namespace AdministratorCommissioning {
          * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
          *
          * The commissioning into a new Fabric completes when the Node successfully receives a Section 11.10.7.6,
-         * “CommissioningComplete” command, see Section 5.5, “Commissioning Flows”. The new Administrator shall discover
+         * "CommissioningComplete" command, see Section 5.5, "Commissioning Flows". The new Administrator shall discover
          * the Node on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.19.8.2
@@ -328,14 +299,14 @@ export declare namespace AdministratorCommissioning {
      *
      * When the OpenCommissioningWindow command expires or commissioning completes, the Node shall remove the Passcode
      * by deleting the PAKE passcode verifier as well as stop publishing the DNS-SD record corresponding to this command
-     * as described in Section 4.3.1, “Commissionable Node Discovery”. The commissioning into a new Fabric completes
-     * when the Node successfully receives a Section 11.10.7.6, “CommissioningComplete” command, see Section 5.5,
-     * “Commissioning Flows”.
+     * as described in Section 4.3.1, "Commissionable Node Discovery". The commissioning into a new Fabric completes
+     * when the Node successfully receives a Section 11.10.7.6, "CommissioningComplete" command, see Section 5.5,
+     * "Commissioning Flows".
      *
      * The parameters for OpenCommissioningWindow command are as follows:
      *
      * A current Administrator may invoke this command to put a node in commissioning mode for the next Administrator.
-     * On completion, the command shall return a cluster specific status code from the Section 11.19.6, “Status Codes”
+     * On completion, the command shall return a cluster specific status code from the Section 11.19.6, "Status Codes"
      * below reflecting success or reasons for failure of the operation. The new Administrator shall discover the Node
      * on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.
      *
@@ -358,8 +329,8 @@ export declare namespace AdministratorCommissioning {
 
         /**
          * This field shall specify the time in seconds during which commissioning session establishment is allowed by
-         * the Node. This timeout value shall follow guidance as specified in the initial Section 5.4.2.3, “Announcement
-         * Duration”. The CommissioningTimeout applies only to cessation of any announcements and to accepting of new
+         * the Node. This timeout value shall follow guidance as specified in the initial Section 5.4.2.3, "Announcement
+         * Duration". The CommissioningTimeout applies only to cessation of any announcements and to accepting of new
          * commissioning sessions; it does not apply to abortion of connections, i.e., a commissioning session SHOULD
          * NOT abort prematurely upon expiration of this timeout.
          *
@@ -368,8 +339,8 @@ export declare namespace AdministratorCommissioning {
         commissioningTimeout: number;
 
         /**
-         * This field shall specify an ephemeral PAKE passcode verifier (see Section 3.10, “Password-Authenticated Key
-         * Exchange (PAKE)”) computed by the existing Administrator to be used for this commissioning. The field is
+         * This field shall specify an ephemeral PAKE passcode verifier (see Section 3.10, "Password-Authenticated Key
+         * Exchange (PAKE)") computed by the existing Administrator to be used for this commissioning. The field is
          * concatenation of two values (w0 || L) shall be (CRYPTO_GROUP_SIZE_BYTES +
          * CRYPTO_PUBLIC_KEY_SIZE_BYTES)-octets long as detailed in Crypto_PAKEValues_Responder. It shall be derived
          * from an ephemeral passcode (See PAKE). It shall be deleted by the Node at the end of commissioning or
@@ -382,7 +353,7 @@ export declare namespace AdministratorCommissioning {
 
         /**
          * This field shall be used by the Node as the long discriminator for DNS-SD advertisement (see Section 4.3.1.5,
-         * “TXT key for discriminator (D)”) for discovery by the new Administrator. The new Administrator can find and
+         * "TXT key for discriminator (D)") for discovery by the new Administrator. The new Administrator can find and
          * filter DNS-SD records by long discriminator to locate and initiate commissioning with the appropriate Node.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.3
@@ -391,10 +362,10 @@ export declare namespace AdministratorCommissioning {
 
         /**
          * This field shall be used by the Node as the PAKE iteration count associated with the ephemeral PAKE passcode
-         * verifier to be used for this commissioning, which shall be sent by the Node to the new Administrator’s
-         * software as response to the Section 4.14.1.2.3, “PBKDFParamRequest” during PASE negotiation. The permitted
-         * range of values shall match the range specified in Section 3.9, “Password-Based Key Derivation Function
-         * (PBKDF)”, within the definition of the Crypto_PBKDFParameterSet.
+         * verifier to be used for this commissioning, which shall be sent by the Node to the new Administrator's
+         * software as response to the Section 4.14.1.2.3, "PBKDFParamRequest" during PASE negotiation. The permitted
+         * range of values shall match the range specified in Section 3.9, "Password-Based Key Derivation Function
+         * (PBKDF)", within the definition of the Crypto_PBKDFParameterSet.
          *
          * @see {@link MatterSpecification.v151.Core} § 11.19.8.1.4
          */
@@ -402,14 +373,14 @@ export declare namespace AdministratorCommissioning {
 
         /**
          * This field shall be used by the Node as the PAKE Salt associated with the ephemeral PAKE passcode verifier to
-         * be used for this commissioning, which shall be sent by the Node to the new Administrator’s software as
-         * response to the Section 4.14.1.2.3, “PBKDFParamRequest” during PASE negotiation. The constraints on the value
-         * shall match those specified in Section 3.9, “Password-Based Key Derivation Function (PBKDF)”, within the
+         * be used for this commissioning, which shall be sent by the Node to the new Administrator's software as
+         * response to the Section 4.14.1.2.3, "PBKDFParamRequest" during PASE negotiation. The constraints on the value
+         * shall match those specified in Section 3.9, "Password-Based Key Derivation Function (PBKDF)", within the
          * definition of the Crypto_PBKDFParameterSet.
          *
-         * When a Node receives the Section 11.19.8.1, “OpenCommissioningWindow” command, it shall begin advertising on
-         * DNS-SD as described in Section 4.3.1, “Commissionable Node Discovery” and for a time period as described in
-         * Section 11.19.8.1.1, “CommissioningTimeout”.
+         * When a Node receives the Section 11.19.8.1, "OpenCommissioningWindow" command, it shall begin advertising on
+         * DNS-SD as described in Section 4.3.1, "Commissionable Node Discovery" and for a time period as described in
+         * Section 11.19.8.1.1, "CommissioningTimeout".
          *
          * When the command is received by a ICD, it shall enter into active mode. The ICD shall remain in Active Mode
          * as long as one of these conditions is met:
@@ -439,7 +410,7 @@ export declare namespace AdministratorCommissioning {
      * In case of any other parameter error, this command shall fail with a status code of COMMAND_INVALID.
      *
      * The commissioning into a new Fabric completes when the Node successfully receives a Section 11.10.7.6,
-     * “CommissioningComplete” command, see Section 5.5, “Commissioning Flows”. The new Administrator shall discover the
+     * "CommissioningComplete" command, see Section 5.5, "Commissioning Flows". The new Administrator shall discover the
      * Node on the IP network using DNS-based Service Discovery (DNS-SD) for commissioning.
      *
      * @see {@link MatterSpecification.v151.Core} § 11.19.8.2
@@ -449,12 +420,12 @@ export declare namespace AdministratorCommissioning {
 
         /**
          * This field shall specify the time in seconds during which commissioning session establishment is allowed by
-         * the Node. This timeout shall follow guidance as specified in the initial Section 5.4.2.3, “Announcement
-         * Duration”.
+         * the Node. This timeout shall follow guidance as specified in the initial Section 5.4.2.3, "Announcement
+         * Duration".
          *
-         * When a Node receives the Section 11.19.8.2, “OpenBasicCommissioningWindow” command, it shall begin
-         * advertising on DNS-SD as described in Section 4.3.1, “Commissionable Node Discovery” and for a time period as
-         * described in Section 11.19.8.2.1, “CommissioningTimeout”. When the command is received by a ICD, it shall
+         * When a Node receives the Section 11.19.8.2, "OpenBasicCommissioningWindow" command, it shall begin
+         * advertising on DNS-SD as described in Section 4.3.1, "Commissionable Node Discovery" and for a time period as
+         * described in Section 11.19.8.2.1, "CommissioningTimeout". When the command is received by a ICD, it shall
          * enter into active mode. The ICD shall remain in Active Mode as long as one of these conditions is met:
          *
          *   - A commissioning window is open.
