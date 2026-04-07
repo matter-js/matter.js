@@ -253,11 +253,15 @@ export class ClientInteraction<
             return false;
         }
 
+        logger.info("Probe", Mark.OUTBOUND, messenger.exchange.via);
+
         try {
             await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
             for await (const _report of messenger.readDataReports({ abort }));
+            logger.info("Probe", Mark.INBOUND, messenger.exchange.via, messenger.exchange.diagnostics, "(success)");
             return true;
         } catch {
+            logger.info("Probe", Mark.INBOUND, messenger.exchange.via, messenger.exchange.diagnostics, "(failed)");
             return false;
         } finally {
             await messenger.close();
