@@ -50,7 +50,7 @@ describe("ClientNode", () => {
         await MockTime.resolve(
             expect(
                 controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(1) }),
-            ).rejectedWith("No device could be commissioned"),
+            ).rejectedWith("No commissionable device was discovered"),
         );
     });
 
