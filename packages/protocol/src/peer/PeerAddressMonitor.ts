@@ -154,6 +154,10 @@ export class PeerAddressMonitor {
 
         // Current address unreachable — try discovered addresses on the still-alive session
         for (const address of discoveredAddresses) {
+            if (this.#abort.aborted) {
+                return;
+            }
+
             if (
                 await interaction.probe({
                     network: probeNetwork.id,
@@ -175,6 +179,10 @@ export class PeerAddressMonitor {
         }
 
         this.#resetBackoff();
+
+        if (this.#abort.aborted) {
+            return;
+        }
 
         // No address works — close the session so normal reconnection takes over
         logger.info(via, "All probes failed, closing session");
