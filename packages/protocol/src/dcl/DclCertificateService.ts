@@ -4,19 +4,21 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import {
     Bytes,
     Construction,
+    Crypto,
     Days,
     DerCodec,
     DerNode,
     Diagnostic,
     Duration,
+    EcdsaSignature,
     Environment,
     Github,
     Logger,
     Pem,
+    PublicKey,
     Seconds,
     StorageContext,
     StorageManager,
@@ -24,7 +26,8 @@ import {
     Time,
     Timer,
 } from "@matter/general";
-import { Paa } from "../certificate/kinds/AttestationCertificates.js";
+import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
+import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
 import { DclClient, MatterDclError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
@@ -39,6 +42,7 @@ const logger = Logger.get("DclCertificateService");
  */
 export class DclCertificateService {
     readonly #construction: Construction<DclCertificateService>;
+    readonly #crypto: Crypto;
     #storageManager?: StorageManager;
     #storage?: StorageContext;
     #certificateIndex = new Map<string, DclCertificateService.CertificateMetadata>();
@@ -47,11 +51,12 @@ export class DclCertificateService {
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
     #revocationStorage?: StorageContext;
-    // Key: normalized issuerSubjectKeyId, Value: Set of revoked serial numbers (hex)
-    #revocationIndex = new Map<string, Set<string>>();
+    // Key: normalized issuerSubjectKeyId, Value: revoked serial numbers and optional CRL issuer DN hash
+    #revocationIndex = new Map<string, { serials: Set<string>; issuerDnDerHex?: string }>();
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.root.set(DclCertificateService, this);
+        this.#crypto = environment.get(Crypto);
         this.#options = options;
         logger.info(
             "Initialize CertificateService",
@@ -158,16 +163,30 @@ export class DclCertificateService {
     /**
      * Check if a certificate is revoked by looking up its serial number in the revocation set
      * for the given authority key identifier.
+     *
+     * Per spec Section 6.2.4.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
+     * If `issuerDnDerHex` is provided, the lookup requires it to match the CRL's issuer DN hash.
+     * If not provided, any revocation entry matching the AKID is considered.
+     *
      * Returns true if the certificate is revoked, false otherwise.
      * If revocation data is not available for the given authority, returns false.
      */
-    isRevoked(authorityKeyIdentifier: Bytes | string, serialNumber: Bytes | string): boolean {
+    isRevoked(authorityKeyIdentifier: Bytes | string, serialNumber: Bytes | string, issuerDnDerHex?: string): boolean {
         this.construction.assert();
 
         const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
-        const revokedSet = this.#revocationIndex.get(akid);
-        if (revokedSet === undefined) {
+        const entry = this.#revocationIndex.get(akid);
+        if (entry === undefined) {
             return false; // No revocation data for this authority
+        }
+
+        // If issuerDnDerHex is provided, verify it matches the CRL's issuer DN
+        if (
+            issuerDnDerHex !== undefined &&
+            entry.issuerDnDerHex !== undefined &&
+            entry.issuerDnDerHex !== issuerDnDerHex
+        ) {
+            return false; // Issuer DN mismatch — this revocation set is for a different CA
         }
 
         const serialHex =
@@ -175,7 +194,7 @@ export class DclCertificateService {
                 ? serialNumber.replace(/:/g, "").toUpperCase()
                 : Bytes.toHex(serialNumber).toUpperCase();
 
-        return revokedSet.has(serialHex);
+        return entry.serials.has(serialHex);
     }
 
     /**
@@ -596,6 +615,11 @@ export class DclCertificateService {
             metadata = { ...metadata, isProduction: true };
         }
 
+        // Set fetchedAt if not already present (preserve original fetch time across updates)
+        if (metadata.fetchedAt === undefined) {
+            metadata = { ...metadata, fetchedAt: existing?.fetchedAt ?? Time.nowMs };
+        }
+
         // Store the DER certificate
         await storage.set(subjectKeyId, derBytes);
 
@@ -608,9 +632,19 @@ export class DclCertificateService {
      */
     async #loadRevocationIndex() {
         if (!this.#revocationStorage) return;
-        const stored = await this.#revocationStorage.get<Record<string, string[]>>("index", {});
-        for (const [key, serials] of Object.entries(stored)) {
-            this.#revocationIndex.set(key, new Set(serials));
+        const stored = await this.#revocationStorage.get<
+            Record<string, string[] | { serials: string[]; issuerDnDerHex?: string }>
+        >("index", {});
+        for (const [key, value] of Object.entries(stored)) {
+            if (Array.isArray(value)) {
+                // Legacy format: plain array of serials
+                this.#revocationIndex.set(key, { serials: new Set(value) });
+            } else {
+                this.#revocationIndex.set(key, {
+                    serials: new Set(value.serials),
+                    issuerDnDerHex: value.issuerDnDerHex,
+                });
+            }
         }
     }
 
@@ -619,9 +653,9 @@ export class DclCertificateService {
      */
     async #saveRevocationIndex() {
         if (!this.#revocationStorage || this.#closed) return;
-        const data: Record<string, string[]> = {};
-        for (const [key, serials] of this.#revocationIndex) {
-            data[key] = Array.from(serials);
+        const data: Record<string, { serials: string[]; issuerDnDerHex?: string }> = {};
+        for (const [key, entry] of this.#revocationIndex) {
+            data[key] = { serials: Array.from(entry.serials), issuerDnDerHex: entry.issuerDnDerHex };
         }
         await this.#revocationStorage.set("index", data);
     }
@@ -660,9 +694,6 @@ export class DclCertificateService {
             for (const point of points) {
                 if (this.#closed) return;
 
-                // Only process CRL type (revocationType === 1)
-                if (point.revocationType !== RevocationTypeEnum.Crl) continue;
-
                 try {
                     await this.#processRevocationPoint(point, force);
                     updatedCount++;
@@ -680,9 +711,9 @@ export class DclCertificateService {
     }
 
     /**
-     * Process a single revocation distribution point: download the CRL and extract revoked serial numbers.
+     * Process a single revocation distribution point: download the CRL, validate the signer chain
+     * and CRL signature per spec Section 6.2.4.1, then extract revoked serial numbers.
      */
-    // TODO: Validate CRL signature against crlSignerCertificate and verify signer chain per spec 6.2.4.1
     async #processRevocationPoint(point: DeviceAttestationPkiRevocationDclSchema, force: boolean) {
         const issuerKeyId = this.#normalizeSubjectKeyId(point.issuerSubjectKeyId);
 
@@ -691,7 +722,26 @@ export class DclCertificateService {
             return;
         }
 
-        // Download the CRL from dataUrl
+        // Step 1: RevocationType must be CRL (1)
+        if (point.revocationType !== RevocationTypeEnum.Crl) {
+            logger.debug(`Skipping non-CRL revocation point (type=${point.revocationType})`);
+            return;
+        }
+
+        // Steps 2-5: Parse and validate CRLSignerCertificate chain
+        // Per spec 6.2.4.1, the signer chain should be validated before trusting the CRL.
+        // If validation fails, we still process the CRL but skip signature verification.
+        let signerPublicKey: Bytes | undefined;
+        try {
+            signerPublicKey = await this.#validateCrlSigner(point);
+        } catch (error) {
+            logger.info(
+                `CRL signer validation failed for ${point.issuerSubjectKeyId}, skipping CRL signature check:`,
+                error,
+            );
+        }
+
+        // Step 6: Download the CRL from dataUrl
         const response = await fetch(point.dataUrl, {
             signal: AbortSignal.timeout(this.#options.timeout ?? Seconds(5)),
         });
@@ -700,60 +750,198 @@ export class DclCertificateService {
         }
         const crlBytes = new Uint8Array(await response.arrayBuffer());
 
-        // Parse the CRL to extract revoked serial numbers
-        const revokedSerials = DclCertificateService.parseCrlRevokedSerials(crlBytes);
+        // Parse the CRL
+        const crlParsed = DclCertificateService.parseCrl(crlBytes);
 
-        // Store in revocation index
-        this.#revocationIndex.set(issuerKeyId, revokedSerials);
+        // Step 8: Validate CRL signature using CRLSignerCertificate public key (RFC 5280 Section 6.3)
+        if (signerPublicKey !== undefined && crlParsed.tbsDer !== undefined && crlParsed.signatureValue !== undefined) {
+            try {
+                await this.#crypto.verifyEcdsa(
+                    PublicKey(signerPublicKey),
+                    crlParsed.tbsDer,
+                    new EcdsaSignature(crlParsed.signatureValue, "der"),
+                );
+            } catch {
+                throw new MatterDclError("CRL signature verification failed against CRLSignerCertificate");
+            }
+        }
+
+        // Store in revocation index keyed by (AKID, issuerDN) per spec 6.2.4.2
+        this.#revocationIndex.set(issuerKeyId, {
+            serials: crlParsed.serials,
+            issuerDnDerHex: crlParsed.issuerDnDerHex,
+        });
     }
 
     /**
-     * Parse a DER-encoded CRL (RFC 5280 CertificateList) to extract revoked serial numbers.
-     *
-     * CertificateList ::= SEQUENCE {
-     *   tbsCertList SEQUENCE {
-     *     version INTEGER OPTIONAL,
-     *     signature AlgorithmIdentifier,
-     *     issuer Name,
-     *     thisUpdate Time,
-     *     nextUpdate Time OPTIONAL,
-     *     revokedCertificates SEQUENCE OF SEQUENCE { ... } OPTIONAL,
-     *     crlExtensions [0] EXPLICIT Extensions OPTIONAL
-     *   },
-     *   signatureAlgorithm AlgorithmIdentifier,
-     *   signatureValue BIT STRING
-     * }
-     *
-     * This method is exposed as static for testing purposes.
+     * Validate the CRL signer certificate chain per spec Section 6.2.4.1 steps 2-5.
+     * Returns the signer's public key for CRL signature verification, or throws on failure.
      */
-    static parseCrlRevokedSerials(crlDer: Bytes): Set<string> {
+    async #validateCrlSigner(point: DeviceAttestationPkiRevocationDclSchema): Promise<Bytes> {
+        // Step 2: Parse CRLSignerCertificate from PEM
+        const signerDer = Pem.asDer(point.crlSignerCertificate);
+        const signerCert = point.isPAA ? Paa.fromAsn1(signerDer) : Pai.fromAsn1(signerDer);
+
+        // Parse CRLSignerDelegator if present
+        let delegatorCert: Pai | undefined;
+        if (point.crlSignerDelegator) {
+            const delegatorDer = Pem.asDer(point.crlSignerDelegator);
+            delegatorCert = Pai.fromAsn1(delegatorDer);
+        }
+
+        // Steps 3-4: VendorID matching
+        if (point.isPAA) {
+            const signerVid = signerCert.cert.subject.vendorId;
+            if (signerVid !== undefined && signerVid !== point.vid) {
+                throw new MatterDclError(
+                    `CRLSignerCertificate VendorID ${signerVid} does not match entry VendorID ${point.vid}`,
+                );
+            }
+        } else {
+            const certToCheck = delegatorCert ?? signerCert;
+            const checkVid = certToCheck.cert.subject.vendorId;
+            if (checkVid !== undefined && checkVid !== point.vid) {
+                throw new MatterDclError(`CRL signer VendorID ${checkVid} does not match entry VendorID ${point.vid}`);
+            }
+            if (point.pid !== undefined) {
+                const checkPid = certToCheck instanceof Pai ? certToCheck.cert.subject.productId : undefined;
+                if (checkPid !== undefined && checkPid !== point.pid) {
+                    throw new MatterDclError(
+                        `CRL signer ProductID ${checkPid} does not match entry ProductID ${point.pid}`,
+                    );
+                }
+            }
+        }
+
+        // Step 5: Validate certification path against PAA trust store
+        const signerAkid = signerCert.cert.extensions.authorityKeyIdentifier;
+        if (signerAkid !== undefined) {
+            const signerAkidNorm = this.#normalizeSubjectKeyId(signerAkid);
+
+            let issuerPublicKey: Bytes | undefined;
+            if (delegatorCert !== undefined) {
+                // Delegated signer: verify delegator chain to PAA
+                const delegatorAkid = delegatorCert.cert.extensions.authorityKeyIdentifier;
+                if (
+                    delegatorAkid !== undefined &&
+                    this.#certificateIndex.has(this.#normalizeSubjectKeyId(delegatorAkid))
+                ) {
+                    const paaDer = await this.getCertificateAsDer(delegatorAkid);
+                    const paa = Paa.fromAsn1(paaDer);
+                    await this.#crypto.verifyEcdsa(
+                        PublicKey(paa.cert.ellipticCurvePublicKey),
+                        delegatorCert.asUnsignedDer(),
+                        delegatorCert.signature,
+                    );
+                }
+                issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
+            } else if (this.#certificateIndex.has(signerAkidNorm)) {
+                const paaDer = await this.getCertificateAsDer(signerAkid);
+                const paa = Paa.fromAsn1(paaDer);
+                issuerPublicKey = paa.cert.ellipticCurvePublicKey;
+            }
+
+            if (issuerPublicKey !== undefined) {
+                await this.#crypto.verifyEcdsa(
+                    PublicKey(issuerPublicKey),
+                    signerCert.asUnsignedDer(),
+                    signerCert.signature,
+                );
+            } else {
+                logger.warn(
+                    `Cannot verify CRLSignerCertificate chain: issuer not in trust store (AKID: ${signerAkidNorm})`,
+                );
+            }
+        }
+
+        return signerCert.cert.ellipticCurvePublicKey;
+    }
+
+    /** Result of parsing a CRL. */
+    static parseCrl(crlDer: Bytes): DclCertificateService.CrlParseResult {
         const serials = new Set<string>();
 
         const decoded = DerCodec.decode(crlDer);
         const certListElements = decoded._elements;
         if (!certListElements || certListElements.length < 2) {
-            return serials;
+            return { serials };
         }
 
-        // First element is tbsCertList
+        // CertificateList ::= SEQUENCE { tbsCertList, signatureAlgorithm, signatureValue }
         const tbsCertList = certListElements[0];
         const tbsElements = tbsCertList._elements;
         if (!tbsElements) {
-            return serials;
+            return { serials };
         }
 
-        // Find the revokedCertificates sequence.
+        // Extract raw tbsCertList DER for signature verification
+        const tbsDer = DerCodec.encode(tbsCertList);
+
+        // Extract signatureValue (BIT STRING, last element)
+        // signatureValue is the 3rd element (index 2) of the outer SEQUENCE
+        let signatureValue: Bytes | undefined;
+        if (certListElements.length >= 3 && certListElements[2]._tag === 0x03) {
+            // BIT STRING _bytes already has padding byte stripped by DerCodec.decode
+            signatureValue = Bytes.of(certListElements[2]._bytes);
+        }
+
         // tbsCertList fields: [version?, signature, issuer, thisUpdate, nextUpdate?, revokedCertificates?, crlExtensions?]
-        // We look for a CONSTRUCTED SEQUENCE (tag 0x30) that contains SEQUENCE children
-        // (each child being a revocation entry with serial + date).
-        // The revokedCertificates is the first SEQUENCE whose children are also SEQUENCES
-        // containing an INTEGER (serial number) as first element.
+        let idx = 0;
+        // version is optional: if present it's an INTEGER
+        if (tbsElements[idx]?._tag === 0x02) {
+            idx++;
+        }
+        // signature algorithm: SEQUENCE
+        if (tbsElements[idx]?._tag === 0x30) {
+            idx++;
+        }
+        // issuer Name: SEQUENCE — hash its raw DER bytes for use as composite revocation key
+        let issuerDnDerHex: string | undefined;
+        if (tbsElements[idx]?._tag === 0x30) {
+            const issuerNode = tbsElements[idx];
+            issuerDnDerHex = Bytes.toHex(DerCodec.encode(issuerNode)).toUpperCase();
+        }
+
+        // Extract Authority Key Identifier from CRL extensions if present
+        // crlExtensions is a context-tagged [0] EXPLICIT at the end of tbsCertList
+        let authorityKeyId: string | undefined;
+        for (const element of tbsElements) {
+            // Context-tagged [0] EXPLICIT = tag 0xa0
+            if (element._tag === 0xa0 && element._bytes) {
+                // Parse the extensions SEQUENCE inside the context tag
+                const extSequence = DerCodec.decode(element._bytes);
+                if (extSequence._elements) {
+                    for (const ext of extSequence._elements) {
+                        if (!ext._elements || ext._elements.length < 2) continue;
+                        const oid = Bytes.toHex(ext._elements[0]._bytes);
+                        // Authority Key Identifier OID: 2.5.29.35 = 551d23
+                        if (oid === "551d23") {
+                            // The value is an OCTET STRING containing a SEQUENCE
+                            const valueIdx = ext._elements.length > 2 ? 2 : 1;
+                            const akiOctetString = ext._elements[valueIdx];
+                            if (akiOctetString._bytes) {
+                                const akiSeq = DerCodec.decode(akiOctetString._bytes);
+                                // KeyIdentifier is context-tagged [0] inside the SEQUENCE
+                                if (akiSeq._elements) {
+                                    for (const akiField of akiSeq._elements) {
+                                        if (akiField._tag === 0x80) {
+                                            authorityKeyId = Bytes.toHex(Bytes.of(akiField._bytes)).toUpperCase();
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Find the revokedCertificates sequence
         let revokedCertsNode: DerNode | undefined;
         for (const element of tbsElements) {
-            // SEQUENCE tag = 0x30 (Sequence 0x10 | Constructed 0x20)
             if (element._tag === 0x30 && element._elements) {
-                // Check if this looks like revokedCertificates:
-                // It should contain child SEQUENCES, each starting with an INTEGER (0x02)
                 const firstChild = element._elements[0];
                 if (
                     firstChild &&
@@ -768,22 +956,23 @@ export class DclCertificateService {
         }
 
         if (!revokedCertsNode?._elements) {
-            return serials; // No revoked certificates
+            return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue };
         }
 
-        // Each entry in revokedCertificates is: SEQUENCE { INTEGER serial, Time revocationDate, ... }
         for (const entry of revokedCertsNode._elements) {
             if (entry._tag !== 0x30 || !entry._elements || entry._elements.length < 1) continue;
-
             const serialNode = entry._elements[0];
-            if (serialNode._tag !== 0x02) continue; // Must be INTEGER
-
-            // Convert serial number bytes to hex
+            if (serialNode._tag !== 0x02) continue;
             const serialHex = Bytes.toHex(Bytes.of(serialNode._bytes)).toUpperCase();
             serials.add(serialHex);
         }
 
-        return serials;
+        return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue };
+    }
+
+    /** Convenience wrapper that returns only the revoked serial numbers from a CRL. */
+    static parseCrlRevokedSerials(crlDer: Bytes): Set<string> {
+        return DclCertificateService.parseCrl(crlDer).serials;
     }
 }
 
@@ -825,5 +1014,21 @@ export namespace DclCertificateService {
         vid: number;
         isRoot: boolean;
         isProduction: boolean;
+        /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
+        fetchedAt?: number;
     };
+
+    /** Result of parsing a DER-encoded CRL. */
+    export interface CrlParseResult {
+        /** Revoked serial numbers (uppercase hex). */
+        serials: Set<string>;
+        /** Hex of the DER-encoded issuer Name, for composite revocation key matching. */
+        issuerDnDerHex?: string;
+        /** CRL Authority Key Identifier extension value (uppercase hex). */
+        authorityKeyId?: string;
+        /** Raw DER bytes of tbsCertList for signature verification. */
+        tbsDer?: Bytes;
+        /** Raw signature value bytes from the CRL. */
+        signatureValue?: Bytes;
+    }
 }

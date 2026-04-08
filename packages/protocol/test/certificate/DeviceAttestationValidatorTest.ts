@@ -6,13 +6,18 @@
 
 import { AttestationCertificateManager } from "#certificate/AttestationCertificateManager.js";
 import { TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
-import { DeviceAttestationError, DeviceAttestationValidator } from "#certificate/DeviceAttestationValidator.js";
+import {
+    DeviceAttestationCheck,
+    DeviceAttestationError,
+    DeviceAttestationValidator,
+} from "#certificate/DeviceAttestationValidator.js";
 import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
 import { CertificationDeclaration, testCdSignerInfo } from "#certificate/kinds/CertificationDeclaration.js";
 import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
     Bytes,
+    Crypto,
     Environment,
     MockFetch,
     MockStorageService,
@@ -89,6 +94,7 @@ describe("DeviceAttestationValidator", () => {
         environment = new Environment("test");
 
         new MockStorageService(environment);
+        environment.set(Crypto, crypto);
 
         MockTime.reset();
         service = undefined;
@@ -166,7 +172,7 @@ describe("DeviceAttestationValidator", () => {
                         isPAA: false,
                         label: "test-revocation",
                         crlSignerDelegator: "",
-                        crlSignerCertificate: "test-cert",
+                        crlSignerCertificate: pemEncode(paiDer),
                         issuerSubjectKeyID: issuerSkidWithColons,
                         dataURL: "https://example.com/test.crl",
                         dataFileSize: "",
@@ -594,6 +600,124 @@ describe("DeviceAttestationValidator", () => {
 
             // Should not throw - no revocation data means we skip the check
             await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+        });
+    });
+
+    describe("findings model", () => {
+        it("returns findings alongside dacPublicKey on successful validation", async () => {
+            const dclService = await setupDclService();
+
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            expect(result.dacPublicKey).to.not.be.undefined;
+            expect(result.findings).to.be.an("array");
+        });
+
+        it("returns RevocationCheckSkipped warning when no revocation data is available", async () => {
+            const dclService = await setupDclService();
+
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const revocationFinding = result.findings.find(
+                f => f.type === DeviceAttestationCheck.RevocationCheckSkipped,
+            );
+            expect(revocationFinding).to.not.be.undefined;
+            expect(revocationFinding!.level).to.equal("warning");
+        });
+
+        it("returns CdSignerVerificationSkipped warning when no cdSignerPublicKeys provided", async () => {
+            const dclService = await setupDclService();
+
+            const result = await DeviceAttestationValidator.validate(
+                buildContext(dclService, { cdSignerPublicKeys: undefined }),
+                buildData(),
+            );
+
+            const cdFinding = result.findings.find(f => f.type === DeviceAttestationCheck.CdSignerVerificationSkipped);
+            expect(cdFinding).to.not.be.undefined;
+            expect(cdFinding!.level).to.equal("warning");
+        });
+
+        it("still throws DeviceAttestationError for hard failures", async () => {
+            const dclService = await setupDclService();
+            const wrongNonce = crypto.randomBytes(32);
+
+            await expect(
+                DeviceAttestationValidator.validate(
+                    buildContext(dclService),
+                    buildData({ attestationNonce: wrongNonce }),
+                ),
+            ).to.be.rejectedWith(DeviceAttestationError);
+        });
+    });
+
+    describe("certification_type findings", () => {
+        it("returns CertificationTypeProvisional warning for provisional CD (type=1)", async () => {
+            const dclService = await setupDclService();
+
+            // Generate a provisional CD
+            const provisionalCd = await CertificationDeclaration.generate(crypto, vendorId, productId, true);
+            const { attestationElements, attestationSignature } = await buildAttestationWithCd(provisionalCd);
+
+            const result = await DeviceAttestationValidator.validate(
+                buildContext(dclService),
+                buildData({ attestationElements, attestationSignature }),
+            );
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.CertificationTypeProvisional);
+            expect(finding).to.not.be.undefined;
+            expect(finding!.level).to.equal("warning");
+            expect(finding!.message).to.include("provisional");
+        });
+
+        it("returns CertificationTypeTest info for test CD (type=0)", async () => {
+            const dclService = await setupDclService();
+
+            // Default CD is type=0 (test)
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.CertificationTypeTest);
+            expect(finding).to.not.be.undefined;
+            expect(finding!.level).to.equal("info");
+            expect(finding!.message).to.include("test");
+        });
+    });
+
+    describe("time-based PAA trust store check", () => {
+        it("returns PaaTrustStoreTimeMismatch info when PAA was fetched after DAC notBefore", async () => {
+            const dclService = await setupDclService();
+
+            // Manually update the PAA metadata to have a fetchedAt far in the future
+            const paiAkid = Pai.fromAsn1(paiDer).cert.extensions.authorityKeyIdentifier;
+            const paaMetadata = dclService.getCertificate(paiAkid);
+            expect(paaMetadata).to.not.be.undefined;
+
+            // Set fetchedAt to a time well after DAC's notBefore (year 2099)
+            // Matter epoch: 2000-01-01, so DAC notBefore is typically ~now in Matter seconds
+            paaMetadata!.fetchedAt = new Date("2099-01-01").getTime();
+
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.PaaTrustStoreTimeMismatch);
+            expect(finding).to.not.be.undefined;
+            expect(finding!.level).to.equal("info");
+            expect(finding!.message).to.include("PAA was fetched at");
+        });
+
+        it("does not report PaaTrustStoreTimeMismatch when PAA was fetched before DAC notBefore", async () => {
+            const dclService = await setupDclService();
+
+            const paiAkid = Pai.fromAsn1(paiDer).cert.extensions.authorityKeyIdentifier;
+            const paaMetadata = dclService.getCertificate(paiAkid);
+            expect(paaMetadata).to.not.be.undefined;
+
+            // Set fetchedAt to epoch (well before any DAC notBefore)
+            paaMetadata!.fetchedAt = 0;
+
+            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
+
+            const finding = result.findings.find(f => f.type === DeviceAttestationCheck.PaaTrustStoreTimeMismatch);
+            expect(finding).to.be.undefined;
         });
     });
 });

@@ -6,7 +6,17 @@
 
 import { TestCert_PAA_FFF1_Cert, TestCert_PAA_NoVID_Cert } from "#certificate/ChipPAAuthorities.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
-import { Bytes, Days, Environment, Minutes, MockFetch, MockStorageService, StorageService } from "@matter/general";
+import {
+    Bytes,
+    Crypto,
+    Days,
+    Environment,
+    Minutes,
+    MockFetch,
+    MockStorageService,
+    StandardCrypto,
+    StorageService,
+} from "@matter/general";
 import { buildTestCrl, pemEncode } from "../certificate/TestHelpers.js";
 
 // Mock DCL responses - using colon format as returned by real DCL API
@@ -89,6 +99,7 @@ describe("DclCertificateService", () => {
         environment = new Environment("test");
 
         new MockStorageService(environment);
+        environment.set(Crypto, new StandardCrypto());
 
         // Default empty revocation response for all tests
         fetchMock.addResponse("/dcl/pki/revocation-points", {
@@ -1250,6 +1261,31 @@ describe("DclCertificateService", () => {
             expect(serials.size).to.equal(0);
         });
 
+        it("parseCrl returns serials and issuerDnDerHex", () => {
+            const crl = buildTestCrl(["01AB", "02CD"]);
+            const result = DclCertificateService.parseCrl(crl);
+
+            expect(result.serials.size).to.equal(2);
+            expect(result.serials.has("01AB")).to.be.true;
+            expect(result.serials.has("02CD")).to.be.true;
+            // issuerDnDerHex should be present (hex of DER-encoded issuer Name)
+            expect(result.issuerDnDerHex).to.be.a("string");
+            expect(result.issuerDnDerHex!.length).to.be.greaterThan(0);
+        });
+
+        it("parseCrl returns tbsDer and signatureValue for signature verification", () => {
+            const crl = buildTestCrl(["AABB"]);
+            const result = DclCertificateService.parseCrl(crl);
+
+            // tbsDer is the raw DER of the tbsCertList for signature verification
+            expect(result.tbsDer).to.not.be.undefined;
+            expect(Bytes.of(result.tbsDer!).length).to.be.greaterThan(0);
+
+            // signatureValue is the CRL signature
+            expect(result.signatureValue).to.not.be.undefined;
+            expect(Bytes.of(result.signatureValue!).length).to.be.greaterThan(0);
+        });
+
         it("isRevoked returns false when no revocation data exists", async () => {
             fetchMock.addResponse("/dcl/pki/root-certificates", mockDclRootCertificateList);
             fetchMock.addResponse(
@@ -1294,7 +1330,7 @@ describe("DclCertificateService", () => {
                         isPAA: true,
                         label: "test-label",
                         crlSignerDelegator: "",
-                        crlSignerCertificate: "test-cert",
+                        crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
                         issuerSubjectKeyID: issuerSkid,
                         dataURL: "https://example.com/test.crl",
                         dataFileSize: "",
@@ -1343,7 +1379,7 @@ describe("DclCertificateService", () => {
                         isPAA: true,
                         label: "test-label",
                         crlSignerDelegator: "",
-                        crlSignerCertificate: "test-cert",
+                        crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
                         issuerSubjectKeyID: issuerSkid,
                         dataURL: "https://example.com/persist-test.crl",
                         dataFileSize: "",
@@ -1398,7 +1434,7 @@ describe("DclCertificateService", () => {
                         isPAA: true,
                         label: "test-label",
                         crlSignerDelegator: "",
-                        crlSignerCertificate: "test-cert",
+                        crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
                         issuerSubjectKeyID: issuerSkid,
                         dataURL: "https://example.com/bytes-test.crl",
                         dataFileSize: "",
@@ -1444,7 +1480,7 @@ describe("DclCertificateService", () => {
                         isPAA: true,
                         label: "test-label",
                         crlSignerDelegator: "",
-                        crlSignerCertificate: "test-cert",
+                        crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
                         issuerSubjectKeyID: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD",
                         dataURL: "https://example.com/should-not-be-fetched.crl",
                         dataFileSize: "",
@@ -1489,7 +1525,7 @@ describe("DclCertificateService", () => {
                         isPAA: true,
                         label: "test-label",
                         crlSignerDelegator: "",
-                        crlSignerCertificate: "test-cert",
+                        crlSignerCertificate: pemEncode(TestCert_PAA_NoVID_Cert),
                         issuerSubjectKeyID: "AA:BB:CC:DD:EE:FF:00:11:22:33:44:55:66:77:88:99:AA:BB:CC:DD",
                         dataURL: "https://example.com/broken.crl",
                         dataFileSize: "",

@@ -17,7 +17,12 @@ import {
 } from "@matter/general";
 import { TypeFromBitmapSchema, VendorId } from "@matter/types";
 import { assertCertificateDerSize } from "./common.js";
-import { CertificationDeclaration as CertificationDeclarationDef } from "./definitions/certification-declaration.js";
+import {
+    CertificationDeclaration as CertificationDeclarationDef,
+    CertificationType,
+} from "./definitions/certification-declaration.js";
+
+export { CertificationType };
 
 // This is the private key from Appendix F of the Matter 1.1 Core Specification.
 // The specification specifies it in PEM format:
@@ -178,7 +183,7 @@ export class CertificationDeclaration {
                 securityLevel: 0,
                 securityInformation: 0,
                 versionNumber: 1,
-                certificationType: provisional ? 1 : 0, // 0 = Test, 1 = Provisional/In certification, 2 = official
+                certificationType: provisional ? CertificationType.Provisional : CertificationType.Test,
             },
             TestCMS_SignerSubjectKeyIdentifier,
         );

@@ -836,8 +836,8 @@ export namespace CommissioningClient {
         caseAuthenticatedTags?: CaseAuthenticatedTag[];
 
         /**
-         * Controls behavior when device attestation validation fails.
-         * See ControllerCommissioningFlowOptions.onAttestationFailure for details.
+         * Controls behavior when device attestation produces findings.
+         * See {@link ControllerCommissioningFlowOptions.onAttestationFailure} for details.
          */
         onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
 

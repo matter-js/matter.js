@@ -53,8 +53,8 @@ import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-
 import { TimeSynchronizationCluster } from "@matter/types/clusters/time-synchronization";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import {
+    AttestationFinding,
     DeviceAttestationError,
-    DeviceAttestationFailure,
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
 import { Dac } from "../certificate/kinds/AttestationCertificates.js";
@@ -112,11 +112,14 @@ export type ControllerCommissioningFlowOptions = {
     otaUpdateProviderLocation?: OtaProviderLocation;
 
     /**
-     * Controls behavior when device attestation validation fails.
-     * - false: always reject
+     * Controls behavior when device attestation produces findings (errors, warnings, or informational).
+     * - false: reject on any finding
      * - true: always accept with info logging
-     * - callback: custom decision logic, return true to proceed, false to reject
+     * - callback: receives AttestationFinding[], return true to proceed, false to reject
      * - undefined: accept with warning logging (backward compatibility)
+     *
+     * Errors (chain invalid, signature bad, revoked) stop validation immediately and call with a single
+     * error finding. Warnings/info (provisional CD, skipped checks) are collected and presented at the end.
      *
      * TODO: Make required in next breaking version and remove undefined backward-compatible accept
      */
@@ -1037,38 +1040,50 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // Resolve attestation failure policy
-        let resolveFailure: (failure: DeviceAttestationFailure, reason: string) => MaybePromise<boolean>;
+        // Resolve attestation findings policy
+        let resolveFindings: (findings: AttestationFinding[]) => MaybePromise<boolean>;
 
         switch (this.commissioningOptions.onAttestationFailure) {
             case undefined:
                 // TODO: Remove backward-compatible accept in next breaking version
-                resolveFailure = (failure, reason) => {
-                    logger.warn("Attestation failed but accepted for backward compatibility:", failure, reason);
+                resolveFindings = findings => {
+                    for (const f of findings) {
+                        logger.warn("Attestation finding accepted for backward compatibility:", f.type, f.message);
+                    }
                     return true;
                 };
                 break;
 
             case true:
-                resolveFailure = (failure, reason) => {
-                    logger.info("Attestation failed but accepted by policy:", failure, reason);
+                resolveFindings = findings => {
+                    for (const f of findings) {
+                        logger.info("Attestation finding accepted by policy:", f.type, f.message);
+                    }
                     return true;
                 };
                 break;
 
             case false:
-                resolveFailure = (failure, reason) => {
-                    logger.info("Attestation failed, rejecting:", failure, reason);
+                resolveFindings = findings => {
+                    for (const f of findings) {
+                        logger.info("Attestation finding, rejecting:", f.type, f.message);
+                    }
                     return false;
                 };
                 break;
 
             default:
-                resolveFailure = this.commissioningOptions.onAttestationFailure;
+                resolveFindings = this.commissioningOptions.onAttestationFailure;
                 break;
         }
 
-        const { dclCertificateService } = this.commissioningOptions;
+        const { dclCertificateService, paseSession } = this.commissioningOptions;
+
+        if (paseSession === undefined) {
+            throw new CommissioningError(
+                "PASE session is required for attestation validation but was not provided in commissioning options",
+            );
+        }
 
         if (dclCertificateService === undefined) {
             const policy = this.commissioningOptions.onAttestationFailure;
@@ -1092,7 +1107,7 @@ export class ControllerCommissioningFlow {
                     {
                         crypto: this.fabric.crypto,
                         dclCertificateService,
-                        attestationChallenge: this.commissioningOptions.paseSession!.attestationChallengeKey,
+                        attestationChallenge: paseSession!.attestationChallengeKey,
                     },
                     {
                         dac: deviceAttestation,
@@ -1105,9 +1120,25 @@ export class ControllerCommissioningFlow {
                     },
                 );
                 this.#dacPublicKey = result.dacPublicKey;
+
+                // If validation succeeded but produced warnings/info, consult the policy
+                if (result.findings.length > 0) {
+                    const proceed = await resolveFindings(result.findings);
+                    if (!proceed) {
+                        throw new CommissioningError(
+                            `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
+                        );
+                    }
+                }
             } catch (error) {
                 if (error instanceof DeviceAttestationError) {
-                    const proceed = await resolveFailure(error.failure, error.message);
+                    // Hard error — wrap as single finding and consult policy
+                    const errorFinding: AttestationFinding = {
+                        level: "error",
+                        type: error.failure,
+                        message: error.message,
+                    };
+                    const proceed = await resolveFindings([errorFinding]);
                     if (!proceed) {
                         throw error;
                     }

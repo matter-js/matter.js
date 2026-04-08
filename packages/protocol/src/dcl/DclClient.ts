@@ -16,8 +16,8 @@ import {
     DclPkiRootCertificateSubjectReference,
     DclVendorInfo,
 } from "#dcl/DclRestApiTypes.js";
-import { DeviceAttestationPkiRevocationDclSchema, VendorId } from "@matter/types";
 import { Duration, Logger, MatterError, Seconds } from "@matter/general";
+import { DeviceAttestationPkiRevocationDclSchema, VendorId } from "@matter/types";
 
 const logger = new Logger("DclClient");
 

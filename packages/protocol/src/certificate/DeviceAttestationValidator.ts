@@ -5,17 +5,17 @@
  */
 
 import { Bytes, Crypto, EcdsaSignature, Logger, MaybePromise, PublicKey } from "@matter/general";
-import { VendorId } from "@matter/types";
+import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
-import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
+import { CertificationDeclaration, CertificationType } from "./kinds/CertificationDeclaration.js";
 
 const logger = Logger.get("DeviceAttestationValidator");
 
-/** Reasons a device attestation validation can fail. */
-export enum DeviceAttestationFailure {
+/** Reasons a device attestation validation can fail or produce warnings. */
+export enum DeviceAttestationCheck {
     PaaNotTrusted = "PaaNotTrusted",
     CertificateChainInvalid = "CertificateChainInvalid",
     CertificateExpired = "CertificateExpired",
@@ -26,12 +26,30 @@ export enum DeviceAttestationFailure {
     CertificationDeclarationFieldMismatch = "CertificationDeclarationFieldMismatch",
     CertificateRevoked = "CertificateRevoked",
     FirmwareInfoMismatch = "FirmwareInfoMismatch",
+    CertificationTypeProvisional = "CertificationTypeProvisional",
+    CertificationTypeTest = "CertificationTypeTest",
+    CertificateIdNotVerified = "CertificateIdNotVerified",
+    CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
+    RevocationCheckSkipped = "RevocationCheckSkipped",
+    PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
 }
 
-/** Error thrown when device attestation validation fails. */
+/** A single finding from the attestation validation process. */
+export interface AttestationFinding {
+    /** Severity: "error" stops validation immediately, "warning"/"info" are collected. */
+    level: "error" | "warning" | "info";
+
+    /** The specific check that produced this finding. */
+    type: DeviceAttestationCheck;
+
+    /** Human-readable description. */
+    message: string;
+}
+
+/** Error thrown when device attestation validation encounters a hard failure. */
 export class DeviceAttestationError extends CommissioningError {
     constructor(
-        readonly failure: DeviceAttestationFailure,
+        readonly failure: DeviceAttestationCheck,
         message: string,
     ) {
         super(message);
@@ -66,15 +84,31 @@ export namespace DeviceAttestationValidator {
         productId: number;
     }
 
-    export type OnAttestationFailure =
-        | boolean
-        | ((failure: DeviceAttestationFailure, reason: string) => MaybePromise<boolean>);
+    /** Result of a successful validation, including any non-fatal findings. */
+    export interface ValidationResult {
+        dacPublicKey: ReturnType<typeof PublicKey>;
+        findings: AttestationFinding[];
+    }
 
-    export async function validate(
-        context: Context,
-        data: DeviceAttestationData,
-    ): Promise<{ dacPublicKey: ReturnType<typeof PublicKey> }> {
+    /**
+     * Controls behavior when attestation findings occur.
+     * - `true`: always proceed (warnings/info are logged)
+     * - `false`: reject on any finding (error, warning, or info)
+     * - `undefined`: backward-compatible accept with logging
+     * - function: receives all findings, returns whether to proceed
+     */
+    export type OnAttestationFailure = boolean | ((findings: AttestationFinding[]) => MaybePromise<boolean>);
+
+    /**
+     * Validates device attestation per Matter spec Section 6.2.3.1.
+     *
+     * Errors (hard failures like invalid signatures, chain errors) throw immediately via
+     * {@link DeviceAttestationError}. Warnings and info findings are collected and returned
+     * in the result for the caller to evaluate.
+     */
+    export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
         const { crypto, dclCertificateService } = context;
+        const findings: AttestationFinding[] = [];
 
         // Step 1: Parse DAC and PAI from DER
         const dac = Dac.fromAsn1(data.dac);
@@ -85,9 +119,27 @@ export namespace DeviceAttestationValidator {
         const paaMetadata = dclCertificateService.getCertificate(paiAkid);
         if (paaMetadata === undefined) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.PaaNotTrusted,
+                DeviceAttestationCheck.PaaNotTrusted,
                 `PAA not found in trust store for authority key identifier ${Bytes.toHex(paiAkid)}`,
             );
+        }
+
+        // Step 2b: Time-based trust store check (SHOULD per spec 6.2.3.1)
+        // The trust store SHOULD include at least the PAA certificates present at the DAC's notBefore.
+        // If we fetched the PAA after the DAC was issued, it might not have been in DCL at that time.
+        if (paaMetadata.fetchedAt !== undefined) {
+            // DAC notBefore is Matter epoch seconds; fetchedAt is Unix epoch ms
+            const dacNotBeforeUnixMs = (dac.cert.notBefore + MATTER_EPOCH_OFFSET_S) * 1000;
+            if (paaMetadata.fetchedAt > dacNotBeforeUnixMs) {
+                findings.push({
+                    level: "info",
+                    type: DeviceAttestationCheck.PaaTrustStoreTimeMismatch,
+                    message:
+                        `PAA was fetched at ${new Date(paaMetadata.fetchedAt).toISOString()} ` +
+                        `which is after DAC notBefore ${new Date(dacNotBeforeUnixMs).toISOString()}; ` +
+                        `cannot confirm PAA was in DCL when DAC was issued`,
+                });
+            }
         }
 
         // Step 3: Certificate chain signature verification
@@ -100,7 +152,7 @@ export namespace DeviceAttestationValidator {
             await crypto.verifyEcdsa(PublicKey(paa.cert.ellipticCurvePublicKey), pai.asUnsignedDer(), pai.signature);
         } catch (error) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificateChainInvalid,
+                DeviceAttestationCheck.CertificateChainInvalid,
                 `PAI signature verification failed: ${error}`,
             );
         }
@@ -110,7 +162,7 @@ export namespace DeviceAttestationValidator {
             await crypto.verifyEcdsa(PublicKey(pai.cert.ellipticCurvePublicKey), dac.asUnsignedDer(), dac.signature);
         } catch (error) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificateChainInvalid,
+                DeviceAttestationCheck.CertificateChainInvalid,
                 `DAC signature verification failed: ${error}`,
             );
         }
@@ -123,13 +175,13 @@ export namespace DeviceAttestationValidator {
         // PAI must be valid at DAC's notBefore
         if (dacNotBefore < pai.cert.notBefore) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificateExpired,
+                DeviceAttestationCheck.CertificateExpired,
                 `DAC notBefore (${dacNotBefore}) is before PAI notBefore (${pai.cert.notBefore})`,
             );
         }
         if (pai.cert.notAfter !== 0 && dacNotBefore > pai.cert.notAfter) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificateExpired,
+                DeviceAttestationCheck.CertificateExpired,
                 `DAC notBefore (${dacNotBefore}) is after PAI notAfter (${pai.cert.notAfter})`,
             );
         }
@@ -137,13 +189,13 @@ export namespace DeviceAttestationValidator {
         // PAA must be valid at DAC's notBefore
         if (dacNotBefore < paa.cert.notBefore) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificateExpired,
+                DeviceAttestationCheck.CertificateExpired,
                 `DAC notBefore (${dacNotBefore}) is before PAA notBefore (${paa.cert.notBefore})`,
             );
         }
         if (paa.cert.notAfter !== 0 && dacNotBefore > paa.cert.notAfter) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificateExpired,
+                DeviceAttestationCheck.CertificateExpired,
                 `DAC notBefore (${dacNotBefore}) is after PAA notAfter (${paa.cert.notAfter})`,
             );
         }
@@ -152,7 +204,7 @@ export namespace DeviceAttestationValidator {
         // DAC vendorId must match PAI vendorId
         if (dac.cert.subject.vendorId !== pai.cert.subject.vendorId) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.VendorIdMismatch,
+                DeviceAttestationCheck.VendorIdMismatch,
                 `DAC vendorId ${dac.cert.subject.vendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
             );
         }
@@ -161,21 +213,29 @@ export namespace DeviceAttestationValidator {
         const paaVendorId = paa.cert.subject.vendorId;
         if (paaVendorId !== undefined && paaVendorId !== pai.cert.subject.vendorId) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.VendorIdMismatch,
+                DeviceAttestationCheck.VendorIdMismatch,
                 `PAA vendorId ${paaVendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
             );
         }
 
         // Step 5: Revocation check
+        // Note: issuerDnDerHex is not passed to isRevoked() because our cert parser
+        // doesn't retain raw issuer DER bytes. The AKID-only lookup is sufficient in
+        // practice since AKIDs are derived from the issuer's public key hash.
+        // TODO: Pass issuerDnDerHex once Certificate parser retains raw issuer DER
         if (!dclCertificateService.hasRevocationData) {
-            logger.warn("No revocation data available; skipping revocation check (per spec Section 6.2.4.2)");
+            findings.push({
+                level: "warning",
+                type: DeviceAttestationCheck.RevocationCheckSkipped,
+                message: "No revocation data available; skipping revocation check (per spec Section 6.2.4.2)",
+            });
         } else {
             // Check DAC revocation
             const dacSerialNumber = dac.cert.serialNumber;
             const dacAkid = dac.cert.extensions.authorityKeyIdentifier;
             if (dclCertificateService.isRevoked(dacAkid, dacSerialNumber)) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificateRevoked,
+                    DeviceAttestationCheck.CertificateRevoked,
                     "Device Attestation Certificate has been revoked",
                 );
             }
@@ -184,7 +244,7 @@ export namespace DeviceAttestationValidator {
             const paiSerialNumber = pai.cert.serialNumber;
             if (dclCertificateService.isRevoked(paiAkid, paiSerialNumber)) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificateRevoked,
+                    DeviceAttestationCheck.CertificateRevoked,
                     "Product Attestation Intermediate certificate has been revoked",
                 );
             }
@@ -194,15 +254,13 @@ export namespace DeviceAttestationValidator {
         const attestationInfo = TlvAttestation.decode(data.attestationElements);
         if (!Bytes.areEqual(attestationInfo.attestationNonce, data.attestationNonce)) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.AttestationNonceMismatch,
+                DeviceAttestationCheck.AttestationNonceMismatch,
                 "AttestationNonce in response does not match the nonce sent to the device",
             );
         }
 
         // Step 7: Attestation Signature verification
         // The device signs [attestationElements, attestationChallenge] concatenated.
-        // See DeviceCertification.ts where signEcdsa(privateKey, [data, session.attestationChallengeKey]) is used.
-        // signEcdsa internally concatenates the array elements via Bytes.concat.
         const dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
         try {
             await crypto.verifyEcdsa(
@@ -212,7 +270,7 @@ export namespace DeviceAttestationValidator {
             );
         } catch {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.AttestationSignatureInvalid,
+                DeviceAttestationCheck.AttestationSignatureInvalid,
                 "Attestation signature verification failed against DAC public key",
             );
         }
@@ -228,27 +286,52 @@ export namespace DeviceAttestationValidator {
                     await crypto.verifyEcdsa(cdSignerPublicKey, cd.signedData, cd.signature);
                 } catch {
                     throw new DeviceAttestationError(
-                        DeviceAttestationFailure.CertificationDeclarationSignatureInvalid,
+                        DeviceAttestationCheck.CertificationDeclarationSignatureInvalid,
                         "Certification Declaration signature verification failed",
                     );
                 }
             } else {
-                logger.warn(
-                    `CD signer SKID ${cdSignerSkidHex} not found in cdSignerPublicKeys map; skipping CD signature verification`,
-                );
+                findings.push({
+                    level: "warning",
+                    type: DeviceAttestationCheck.CdSignerVerificationSkipped,
+                    message: `CD signer SKID ${cdSignerSkidHex} not found in cdSignerPublicKeys map; skipping CD signature verification`,
+                });
             }
         } else {
             // TODO: Fetch CD signer certificate from DCL by cd.signerSubjectKeyId
-            logger.warn("No cdSignerPublicKeys provided in context; skipping CD signature verification");
+            findings.push({
+                level: "warning",
+                type: DeviceAttestationCheck.CdSignerVerificationSkipped,
+                message: "No cdSignerPublicKeys provided in context; skipping CD signature verification",
+            });
         }
 
         // Step 9: Certification Declaration field validation (Matter spec Section 6.2.3.1)
         const cdContent = cd.content;
 
+        // certification_type check (Matter 1.5.1): log and surface provisional/test CDs
+        const certType = cdContent.certificationType;
+        if (certType === CertificationType.Provisional) {
+            findings.push({
+                level: "warning",
+                type: DeviceAttestationCheck.CertificationTypeProvisional,
+                message: "Certification Declaration has certification_type=1 (provisional)",
+            });
+        } else if (certType === CertificationType.Test) {
+            findings.push({
+                level: "info",
+                type: DeviceAttestationCheck.CertificationTypeTest,
+                message: "Certification Declaration has certification_type=0 (test)",
+            });
+        }
+
+        // TODO: certificate_id SHOULD be checked against DCL DeviceSoftwareCompliance (spec 6.2.3.1)
+        // Not yet implemented — will emit CertificateIdNotVerified finding once DCL lookup is available.
+
         // vendor_id SHALL match BasicInformation VendorID
         if (cdContent.vendorId !== data.vendorId) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                 `CD vendor_id ${cdContent.vendorId} does not match BasicInformation VendorID ${data.vendorId}`,
             );
         }
@@ -256,7 +339,7 @@ export namespace DeviceAttestationValidator {
         // product_id_array SHALL contain BasicInformation ProductID
         if (!cdContent.produceIdArray.includes(data.productId)) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                 `CD product_id_array does not contain BasicInformation ProductID ${data.productId}`,
             );
         }
@@ -266,7 +349,7 @@ export namespace DeviceAttestationValidator {
         const hasDacOriginPid = cdContent.dacOriginProductId !== undefined;
         if (hasDacOriginVid !== hasDacOriginPid) {
             throw new DeviceAttestationError(
-                DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                 "CD has only one of dac_origin_vendor_id and dac_origin_product_id",
             );
         }
@@ -275,27 +358,27 @@ export namespace DeviceAttestationValidator {
             // If BOTH dac_origin fields present: validate against dac_origin values
             if (dac.cert.subject.vendorId !== cdContent.dacOriginVendorId) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "DAC vendorId does not match CD dac_origin_vendor_id",
                 );
             }
             if (pai.cert.subject.vendorId !== cdContent.dacOriginVendorId) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "PAI vendorId does not match CD dac_origin_vendor_id",
                 );
             }
             const dacProductId = dac.cert.subject.productId;
             if (dacProductId !== undefined && dacProductId !== cdContent.dacOriginProductId) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "DAC productId does not match CD dac_origin_product_id",
                 );
             }
             const paiProductId = pai.cert.subject.productId;
             if (paiProductId !== undefined && paiProductId !== cdContent.dacOriginProductId) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "PAI productId does not match CD dac_origin_product_id",
                 );
             }
@@ -303,27 +386,27 @@ export namespace DeviceAttestationValidator {
             // NEITHER dac_origin fields: validate against vendor_id / product_id_array
             if (dac.cert.subject.vendorId !== cdContent.vendorId) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "DAC vendorId does not match CD vendor_id",
                 );
             }
             if (pai.cert.subject.vendorId !== cdContent.vendorId) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "PAI vendorId does not match CD vendor_id",
                 );
             }
             const dacProductId = dac.cert.subject.productId;
             if (dacProductId !== undefined && !cdContent.produceIdArray.includes(dacProductId)) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "DAC productId not found in CD product_id_array",
                 );
             }
             const paiProductId = pai.cert.subject.productId;
             if (paiProductId !== undefined && !cdContent.produceIdArray.includes(paiProductId)) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "PAI productId not found in CD product_id_array",
                 );
             }
@@ -335,17 +418,30 @@ export namespace DeviceAttestationValidator {
             const found = cdContent.authorizedPaaList.some(entry => Bytes.areEqual(entry, paaSki));
             if (!found) {
                 throw new DeviceAttestationError(
-                    DeviceAttestationFailure.CertificationDeclarationFieldMismatch,
+                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
                     "PAA subject key identifier not in CD authorized_paa_list",
                 );
             }
         }
 
-        // Step 10: Firmware information (log warning if present but validation not yet supported)
+        // Step 10: Firmware information (warning if present but validation not yet supported)
         if (attestationInfo.firmwareInfo !== undefined && Bytes.of(attestationInfo.firmwareInfo).length > 0) {
-            logger.warn("Firmware information present in attestation elements but validation is not yet supported");
+            findings.push({
+                level: "info",
+                type: DeviceAttestationCheck.FirmwareInfoMismatch,
+                message: "Firmware information present in attestation elements but validation is not yet supported",
+            });
         }
 
-        return { dacPublicKey: PublicKey(dac.cert.ellipticCurvePublicKey) };
+        // Log all findings
+        for (const finding of findings) {
+            if (finding.level === "warning") {
+                logger.warn(finding.message);
+            } else if (finding.level === "info") {
+                logger.info(finding.message);
+            }
+        }
+
+        return { dacPublicKey, findings };
     }
 }

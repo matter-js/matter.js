@@ -32,14 +32,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import { Specification } from "@matter/model";
-import {
-    ControllerCommissioner,
-    DeviceAttestationFailure,
-    FabricAuthority,
-    FabricManager,
-    PeerSet,
-    Val,
-} from "@matter/protocol";
+import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -922,9 +915,7 @@ describe("ClientNode", () => {
                         passcode,
                         discriminator,
                         timeout: Seconds(90),
-                        onAttestationFailure: (_failure: DeviceAttestationFailure, _reason: string) => {
-                            return true;
-                        },
+                        onAttestationFailure: () => true,
                     }),
                     { macrotasks: true },
                 ),
