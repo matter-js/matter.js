@@ -31,9 +31,26 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
     }
 
     async onNewExchange(exchange: MessageExchange) {
+        // During shutdown, reject immediately so the remote device can clean up its subscription state
+        if (this.#subscriptions.isBlocked) {
+            const messenger = new IncomingInteractionClientMessenger(exchange);
+            await sendInvalid(messenger);
+            return;
+        }
+
+        // Track this read so blockNewActivity() can await its completion
+        using _reading = this.#subscriptions.beginReading();
+
+        await this.#handleExchange(exchange);
+    }
+
+    async #handleExchange(exchange: MessageExchange) {
         const messenger = new IncomingInteractionClientMessenger(exchange);
-        // Read the initial report
-        const reports = messenger.readDataReports();
+        const abort = this.#subscriptions.readingAbortSignal;
+
+        // Read the initial report — the abort signal lets us terminate promptly during shutdown instead of
+        // waiting for the full (potentially multi-chunk) data report to complete
+        const reports = messenger.readDataReports({ abort });
 
         const initialIteration = await reports.next();
         if (initialIteration.done) {
@@ -45,7 +62,7 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         const { subscriptionId } = initialReport;
         if (subscriptionId === undefined) {
             logger.debug(exchange.via, "Ignoring unsolicited data report with no subscription ID");
-            await sendInvalid(messenger, undefined);
+            await sendInvalid(messenger);
             return;
         }
 
@@ -89,6 +106,12 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                     for await (const _chunk of reports);
                 }
             }
+        } catch (error) {
+            if (this.#subscriptions.readingAbortSignal.aborted) {
+                logger.debug(exchange.via, "Data report processing aborted during shutdown");
+                return;
+            }
+            throw error;
         } finally {
             subscription.isReading = false;
             subscription.timeoutAt = undefined;
