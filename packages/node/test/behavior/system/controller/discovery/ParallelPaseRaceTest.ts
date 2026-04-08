@@ -632,9 +632,7 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
 
         // onComplete aborts remaining stagger sleeps.  Since the abort signal is set,
         // the stagger guard skips the factories — only the first (immediately started) attempt runs.
-        const error = await expect(
-            MockTime.resolve(harness.onComplete()),
-        ).to.be.rejectedWith(MatterAggregateError);
+        const error = await expect(MockTime.resolve(harness.onComplete())).to.be.rejectedWith(MatterAggregateError);
         expect(error.errors).length(1);
         expect(error.errors[0].message).equals("attempt 0 failed");
         expect(harness.startedCount).equals(1);
