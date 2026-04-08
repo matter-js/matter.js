@@ -258,10 +258,32 @@ export class ClientInteraction<
         try {
             await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
             for await (const _report of messenger.readDataReports({ abort }));
-            logger.info("Probe", Mark.INBOUND, messenger.exchange.via, messenger.exchange.diagnostics, "(success)");
+            logger.info(
+                "Probe",
+                Mark.INBOUND,
+                messenger.exchange.via,
+                messenger.exchange.diagnostics,
+                Diagnostic.weak("(success)"),
+            );
             return true;
         } catch {
-            logger.info("Probe", Mark.INBOUND, messenger.exchange.via, messenger.exchange.diagnostics, "(failed)");
+            if (abort.aborted) {
+                logger.debug(
+                    "Probe",
+                    Mark.INBOUND,
+                    messenger.exchange.via,
+                    messenger.exchange.diagnostics,
+                    Diagnostic.weak("(aborted)"),
+                );
+            } else {
+                logger.info(
+                    "Probe",
+                    Mark.INBOUND,
+                    messenger.exchange.via,
+                    messenger.exchange.diagnostics,
+                    Diagnostic.weak("(failed)"),
+                );
+            }
             return false;
         } finally {
             await messenger.close();
