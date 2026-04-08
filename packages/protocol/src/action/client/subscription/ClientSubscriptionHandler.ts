@@ -169,7 +169,7 @@ async function* processReports(
         if (reportSubscriptionId === undefined) {
             logger.debug(messenger.exchange.via, "Ignoring data report with missing subscription id");
             await sendInvalid(messenger, reportSubscriptionId);
-            continue;
+            return;
         }
 
         if (reportSubscriptionId !== subscriptionId) {
@@ -181,7 +181,7 @@ async function* processReports(
                 Subscription.idStrOf(subscriptionId),
             );
             await sendInvalid(messenger, reportSubscriptionId);
-            continue;
+            return;
         }
 
         yield InputChunk(report, leftOverData);
