@@ -110,7 +110,7 @@ export namespace DeviceAttestationValidator {
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
         const { crypto, dclCertificateService } = context;
-        const findings: AttestationFinding[] = [];
+        const findings = new Array<AttestationFinding>();
 
         // Step 1: Parse DAC and PAI from DER
         const dac = Dac.fromAsn1(data.dac);

@@ -26,7 +26,7 @@ import {
     StandardCrypto,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
-import { buildTestCrl, pemEncode } from "./TestHelpers.js";
+import { pemEncode, setupDclFetchMock } from "./TestHelpers.js";
 
 describe("DeviceAttestationValidator", () => {
     const crypto = new StandardCrypto();
@@ -109,88 +109,13 @@ describe("DeviceAttestationValidator", () => {
 
     /**
      * Set up DclCertificateService with a PAA cert in its trust store.
-     * Uses MockFetch to simulate DCL API responses.
-     * Optionally includes revocation data for the specified issuer SKID and serial numbers.
+     * Delegates to shared setupDclFetchMock for DCL API mocking.
      */
     async function setupDclService(
         paaCert: Bytes = TestCert_PAA_NoVID_Cert,
         revocation?: { issuerSkid: string; revokedSerials: string[] },
     ) {
-        const paa = Paa.fromAsn1(paaCert);
-        const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
-        const skidWithColons = skid
-            .match(/.{1,2}/g)!
-            .join(":")
-            .toUpperCase();
-        const vid = paa.cert.subject.vendorId ?? 0;
-        const subject = Bytes.toBase64(Bytes.fromString("test-subject"));
-
-        fetchMock.addResponse("/dcl/pki/root-certificates", {
-            approvedRootCertificates: {
-                schemaVersion: 0,
-                certs: [{ subject, subjectKeyId: skidWithColons }],
-            },
-        });
-        fetchMock.addResponse(
-            `/dcl/pki/certificates/${encodeURIComponent(subject)}/${encodeURIComponent(skidWithColons)}`,
-            {
-                approvedCertificates: {
-                    subject,
-                    subjectKeyId: skidWithColons,
-                    schemaVersion: 0,
-                    certs: [
-                        {
-                            pemCert: pemEncode(paaCert),
-                            serialNumber: Bytes.toHex(paa.cert.serialNumber),
-                            subject,
-                            subjectAsText: `CN=${paa.cert.subject.commonName}`,
-                            subjectKeyId: skidWithColons,
-                            isRoot: true,
-                            owner: "cosmos1...",
-                            approvals: {} as any,
-                            rejects: {} as any,
-                            vid,
-                            schemaVersion: 0,
-                        },
-                    ],
-                },
-            },
-        );
-
-        if (revocation) {
-            const issuerSkidWithColons = revocation.issuerSkid
-                .match(/.{1,2}/g)!
-                .join(":")
-                .toUpperCase();
-            const testCrl = buildTestCrl(revocation.revokedSerials);
-
-            fetchMock.addResponse("/dcl/pki/revocation-points", {
-                PkiRevocationDistributionPoint: [
-                    {
-                        vid: 0xfff1,
-                        pid: 0,
-                        isPAA: false,
-                        label: "test-revocation",
-                        crlSignerDelegator: "",
-                        crlSignerCertificate: pemEncode(paiDer),
-                        issuerSubjectKeyID: issuerSkidWithColons,
-                        dataURL: "https://example.com/test.crl",
-                        dataFileSize: "",
-                        dataDigest: "",
-                        dataDigestType: 0,
-                        revocationType: 1,
-                        schemaVersion: 0,
-                    },
-                ],
-            });
-            fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
-        } else {
-            // Default empty revocation response
-            fetchMock.addResponse("/dcl/pki/revocation-points", {
-                PkiRevocationDistributionPoint: [],
-            });
-        }
-
+        setupDclFetchMock(fetchMock, paaCert, revocation && { ...revocation, signerCertPem: pemEncode(paiDer) });
         fetchMock.install();
 
         service = new DclCertificateService(environment, { updateInterval: null });

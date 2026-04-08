@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, MockCrypto, MockFetch, Seconds } from "@matter/general";
+import { Bytes, Crypto, MockCrypto, MockFetch, Pem, Seconds } from "@matter/general";
 import {
     AttestationFinding,
     DclCertificateService,
@@ -15,17 +15,12 @@ import {
 } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
 
-/**
- * Encode DER bytes as PEM (inlined from protocol test helpers since this is in the node package).
- */
-function pemEncode(der: Bytes): string {
-    const base64 = Bytes.toBase64(der);
-    const lines: string[] = ["-----BEGIN CERTIFICATE-----"];
-    for (let i = 0; i < base64.length; i += 64) {
-        lines.push(base64.slice(i, i + 64));
-    }
-    lines.push("-----END CERTIFICATE-----");
-    return lines.join("\n");
+/** Format a hex SKID string with colon separators (e.g., "AABB" → "AA:BB"). */
+function formatSkidWithColons(hexSkid: string): string {
+    return hexSkid
+        .match(/.{1,2}/g)!
+        .join(":")
+        .toUpperCase();
 }
 
 /**
@@ -35,10 +30,7 @@ function pemEncode(der: Bytes): string {
 function setupDclFetchMock(fetchMock: MockFetch, paaCert: Bytes) {
     const paa = Paa.fromAsn1(paaCert);
     const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
-    const skidWithColons = skid
-        .match(/.{1,2}/g)!
-        .join(":")
-        .toUpperCase();
+    const skidWithColons = formatSkidWithColons(skid);
     const vid = paa.cert.subject.vendorId ?? 0;
     const subject = Bytes.toBase64(Bytes.fromString("test-subject"));
 
@@ -57,7 +49,7 @@ function setupDclFetchMock(fetchMock: MockFetch, paaCert: Bytes) {
                 schemaVersion: 0,
                 certs: [
                     {
-                        pemCert: pemEncode(paaCert),
+                        pemCert: Pem.encode(paaCert),
                         serialNumber: Bytes.toHex(paa.cert.serialNumber),
                         subject,
                         subjectAsText: `CN=${paa.cert.subject.commonName}`,
@@ -173,7 +165,7 @@ describe("device attestation during commissioning", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
             let callbackInvoked = false;
-            let receivedFindings: AttestationFinding[] = [];
+            let receivedFindings = new Array<AttestationFinding>();
 
             const { passcode, discriminator } = device.state.commissioning;
             await MockTime.resolve(
@@ -212,7 +204,7 @@ describe("device attestation during commissioning", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
             let callbackInvoked = false;
-            let receivedFindings: AttestationFinding[] = [];
+            let receivedFindings = new Array<AttestationFinding>();
 
             const { passcode, discriminator } = device.state.commissioning;
             await expect(
@@ -303,7 +295,7 @@ describe("device attestation during commissioning", () => {
             const deviceCrypto = device.env.get(Crypto) as MockCrypto;
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
-            let receivedFindings: AttestationFinding[] = [];
+            let receivedFindings = new Array<AttestationFinding>();
 
             const { passcode, discriminator } = device.state.commissioning;
             await MockTime.resolve(
@@ -400,7 +392,7 @@ describe("device attestation during commissioning", () => {
             const deviceCrypto = device.env.get(Crypto) as MockCrypto;
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
-            let receivedFindings: AttestationFinding[] = [];
+            let receivedFindings = new Array<AttestationFinding>();
 
             const { passcode, discriminator } = device.state.commissioning;
             await expect(
@@ -445,7 +437,7 @@ describe("device attestation during commissioning", () => {
             const deviceCrypto = device.env.get(Crypto) as MockCrypto;
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
-            let receivedFindings: AttestationFinding[] = [];
+            let receivedFindings = new Array<AttestationFinding>();
 
             const { passcode, discriminator } = device.state.commissioning;
             await MockTime.resolve(

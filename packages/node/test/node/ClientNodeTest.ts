@@ -821,8 +821,6 @@ describe("ClientNode", () => {
         //  all subscriptions ended and such
     });
 
-    // Device attestation commissioning tests are in ClientAttestationTest.ts
-
     describe("orphaned peer cleanup", () => {
         it("uncommissioned node from incomplete commissioning persists across restart", async () => {
             // *** SETUP ***
