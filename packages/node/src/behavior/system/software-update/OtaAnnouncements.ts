@@ -13,6 +13,8 @@ import type { ClientNode } from "#node/ClientNode.js";
 import { Node } from "#node/Node.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
+    causedBy,
+    ClosedError,
     Duration,
     Hours,
     isDeepEqual,
@@ -177,7 +179,7 @@ export class OtaAnnouncements {
         // Check and update the default OTA provider entry and add/update it
         if (
             existingOtaProviderRecord === undefined ||
-            !isDeepEqual(consideredOtaProviderRecord, consideredOtaProviderRecord)
+            !isDeepEqual(consideredOtaProviderRecord, existingOtaProviderRecord)
         ) {
             try {
                 // Fabric scoped attribute, so we just overwrite our value
@@ -277,10 +279,16 @@ export class OtaAnnouncements {
             });
         } catch (error) {
             MatterError.accept(error);
-            logger.error(
-                `Failed to notify node ${peerAddress.toString()}/ep${endpoint.number} about available OTA update:`,
-                error,
-            );
+            if (causedBy(error, ClosedError)) {
+                logger.debug(
+                    `Node ${PeerAddress(peerAddress)}/ep${endpoint.number} closed connection during OTA announcement, will retry later`,
+                );
+            } else {
+                logger.info(
+                    `Failed to notify node ${PeerAddress(peerAddress)}/ep${endpoint.number} about available OTA update:`,
+                    error,
+                );
+            }
         }
     }
 

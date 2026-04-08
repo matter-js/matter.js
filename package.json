@@ -81,8 +81,8 @@
     },
     "devDependencies": {
         "c8": "^11.0.0",
-        "oxlint": "^1.57.0",
-        "oxlint-tsgolint": "^0.18.1",
+        "oxlint": "^1.58.0",
+        "oxlint-tsgolint": "^0.20.0",
         "prettier": "^3.8.0",
         "prettier-plugin-organize-imports": "^4.3.0",
         "semver": "^7.7.4",

@@ -241,6 +241,10 @@ const DEFAULT_FAILSAFE_TIME = Minutes.one;
 /** When we execute longer actions like network connections or reconnection, we need to keep the BTP session alive */
 const BTP_IDLE_ALIVE_INTERVAL = Seconds(25);
 
+/** Devices may report very low scan/connect timeouts that are not enough in practice */
+const MIN_NETWORK_SCAN_TIMEOUT_SECONDS = 60;
+const MIN_NETWORK_CONNECT_TIMEOUT_SECONDS = 60;
+
 const RootEndpointNumber = EndpointNumber(0);
 
 /**
@@ -1408,7 +1412,7 @@ export class ControllerCommissioningFlow {
         const ssid = Bytes.fromString(this.commissioningOptions.wifiNetwork.wifiSsid);
         const credentials = Bytes.fromString(this.commissioningOptions.wifiNetwork.wifiCredentials);
 
-        const [scanMaxTimeSeconds, connectMaxTimeSeconds] = await this.#readConcreteAttributeValues(
+        const [rawScanMaxTimeSeconds, rawConnectMaxTimeSeconds] = await this.#readConcreteAttributeValues(
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
@@ -1417,6 +1421,10 @@ export class ControllerCommissioningFlow {
                 }),
             ),
         );
+
+        // Enforce minimum 60s for scan/connect timeouts regardless of what the device reports
+        const scanMaxTimeSeconds = Math.max(rawScanMaxTimeSeconds ?? 0, MIN_NETWORK_SCAN_TIMEOUT_SECONDS);
+        const connectMaxTimeSeconds = Math.max(rawConnectMaxTimeSeconds ?? 0, MIN_NETWORK_CONNECT_TIMEOUT_SECONDS);
 
         // Only Scan when the device supports concurrent connections
         if (this.collectedCommissioningData.supportsConcurrentConnection !== false) {
@@ -1585,7 +1593,7 @@ export class ControllerCommissioningFlow {
         }
 
         logger.debug("Configuring Thread network ...");
-        const [scanMaxTimeSeconds, connectMaxTimeSeconds] = await this.#readConcreteAttributeValues(
+        const [rawScanMaxTimeSeconds, rawConnectMaxTimeSeconds] = await this.#readConcreteAttributeValues(
             Read(
                 Read.Attribute({
                     endpoint: RootEndpointNumber,
@@ -1594,6 +1602,10 @@ export class ControllerCommissioningFlow {
                 }),
             ),
         );
+
+        // Enforce minimum 60s for scan/connect timeouts regardless of what the device reports
+        const scanMaxTimeSeconds = Math.max(rawScanMaxTimeSeconds ?? 0, MIN_NETWORK_SCAN_TIMEOUT_SECONDS);
+        const connectMaxTimeSeconds = Math.max(rawConnectMaxTimeSeconds ?? 0, MIN_NETWORK_CONNECT_TIMEOUT_SECONDS);
 
         if (!this.commissioningOptions.threadNetwork?.networkName) {
             logger.info("Thread network name is not configured. Skip scanning for it.");
