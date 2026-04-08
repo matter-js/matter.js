@@ -515,6 +515,7 @@ export class NobleBleChannel extends BleChannel<Bytes> {
         }
 
         const handshakeResponse = await handshakeResponseReceivedPromise;
+        characteristicC2ForSubscribe.removeListener("data", handshakeHandler);
 
         const btpSession = await BtpSessionHandler.createAsCentral(
             new Uint8Array(handshakeResponse),
