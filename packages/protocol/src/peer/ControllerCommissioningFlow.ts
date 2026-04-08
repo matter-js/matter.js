@@ -54,6 +54,7 @@ import { TimeSynchronizationCluster } from "@matter/types/clusters/time-synchron
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import {
     AttestationFinding,
+    DeviceAttestationCheck,
     DeviceAttestationError,
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
@@ -1090,17 +1091,18 @@ export class ControllerCommissioningFlow {
         }
 
         if (dclCertificateService === undefined) {
-            const policy = this.commissioningOptions.onAttestationFailure;
-            if (policy === false || typeof policy === "function") {
-                throw new CommissioningError(
-                    "Device attestation validation requested but DclCertificateService is not available. " +
-                        "Register DclCertificateService in the environment or set onAttestationFailure to true/undefined.",
-                );
+            // DCL service not available — route through findings so the callback can decide
+            const unavailableFinding: AttestationFinding = {
+                level: "error",
+                type: DeviceAttestationCheck.DclServiceUnavailable,
+                message:
+                    "DclCertificateService is not available; device attestation cannot be verified. " +
+                    "Register DclCertificateService in the environment for full attestation checks.",
+            };
+            const proceed = await resolveFindings([unavailableFinding]);
+            if (!proceed) {
+                throw new CommissioningError(unavailableFinding.message);
             }
-            logger.warn(
-                "DclCertificateService not available; skipping device attestation validation. " +
-                    "Set up DclCertificateService in the environment for full attestation checks.",
-            );
 
             // Still need to extract DAC public key for CSR signature verification
             const dac = Dac.fromAsn1(deviceAttestation);

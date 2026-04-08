@@ -32,6 +32,7 @@ export enum DeviceAttestationCheck {
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
     RevocationCheckSkipped = "RevocationCheckSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
+    DclServiceUnavailable = "DclServiceUnavailable",
 }
 
 /** A single finding from the attestation validation process. */

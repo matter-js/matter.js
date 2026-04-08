@@ -12,3 +12,4 @@ isolated-*.log
 .matter-test.json
 /.caude/
 .claude/
+docs/plans/

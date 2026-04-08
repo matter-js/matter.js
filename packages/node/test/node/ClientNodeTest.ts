@@ -898,9 +898,9 @@ describe("ClientNode", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = false;
         });
 
-        it("rejects commissioning with custom onAttestationFailure callback when no DclCertificateService", async () => {
-            // A custom callback requires attestation validation, so without DclCertificateService
-            // commissioning should fail.
+        it("commissions with custom onAttestationFailure callback that accepts when no DclCertificateService", async () => {
+            // A custom callback that returns true should allow commissioning even without
+            // DclCertificateService — the "unavailable" finding is routed through the callback.
             await using site = new MockSite();
             const { controller, device } = await site.addUncommissionedPair();
 
@@ -909,19 +909,20 @@ describe("ClientNode", () => {
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
             const { passcode, discriminator } = device.state.commissioning;
-            await expect(
-                MockTime.resolve(
-                    controller.peers.commission({
-                        passcode,
-                        discriminator,
-                        timeout: Seconds(90),
-                        onAttestationFailure: () => true,
-                    }),
-                    { macrotasks: true },
-                ),
-            ).to.be.rejectedWith(/DclCertificateService is not available/);
+            await MockTime.resolve(
+                controller.peers.commission({
+                    passcode,
+                    discriminator,
+                    timeout: Seconds(90),
+                    onAttestationFailure: () => true,
+                }),
+                { macrotasks: true },
+            );
 
             controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            expect(device.state.commissioning.commissioned).equals(true);
+            expect(controller.peers.size).equals(1);
         });
     });
 
