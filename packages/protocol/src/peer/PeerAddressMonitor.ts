@@ -15,6 +15,7 @@ import {
     Timestamp,
 } from "@matter/general";
 import type { Peer } from "./Peer.js";
+import { PeerUnresponsiveError } from "./PeerCommunicationError.js";
 
 const logger = Logger.get("PeerAddressMonitor");
 
@@ -143,16 +144,39 @@ export class PeerAddressMonitor {
         const network = this.#peer.network;
         const probeNetwork = network.probeAddress ?? network;
 
-        // Probe the current address — maybe mDNS is just stale and the address still works
-        if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort })) {
-            const nextCooldown = this.#advanceBackoff();
-            logger.debug(via, `Probe succeeded, keeping session (next cooldown: ${Duration.format(nextCooldown)})`);
+        // Probe the current address — suppress peer-loss so the session stays alive for follow-up probes
+        if (await interaction.probe({ network: probeNetwork.id, abort: this.#abort, suppressPeerLoss: true })) {
+            this.#advanceBackoff();
             return;
         }
 
-        // Probe failed — session is dead.  Normal reconnection will use the new discovered addresses.
-        logger.info(via, "Probe failed, reconnection will use discovered addresses");
+        // Current address unreachable — try discovered addresses on the still-alive session
+        for (const address of discoveredAddresses) {
+            if (
+                await interaction.probe({
+                    network: probeNetwork.id,
+                    abort: this.#abort,
+                    addressOverride: address,
+                    suppressPeerLoss: true,
+                })
+            ) {
+                logger.info(
+                    via,
+                    "Discovered address reachable, migrating session to",
+                    Diagnostic.strong(ServerAddress.urlFor(address)),
+                );
+                session.channel.networkAddress = address;
+                interaction.subscriptions.closeForPeer(this.#peer.address);
+                this.#resetBackoff();
+                return;
+            }
+        }
+
         this.#resetBackoff();
+
+        // No address works — close the session so normal reconnection takes over
+        logger.info(via, "All probes failed, closing session");
+        await session.handlePeerLoss({ cause: new PeerUnresponsiveError() });
     }
 
     /** Current cooldown duration based on Fibonacci position. */
