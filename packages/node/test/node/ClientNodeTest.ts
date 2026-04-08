@@ -32,7 +32,15 @@ import {
     Timestamp,
 } from "@matter/general";
 import { Specification } from "@matter/model";
-import { ControllerCommissioner, FabricAuthority, FabricManager, PeerSet, Val } from "@matter/protocol";
+import {
+    AttestationFinding,
+    ControllerCommissioner,
+    DeviceAttestationCheck,
+    FabricAuthority,
+    FabricManager,
+    PeerSet,
+    Val,
+} from "@matter/protocol";
 import { FabricIndex } from "@matter/types";
 import { WindowCovering } from "@matter/types/clusters/window-covering";
 import { MyBehavior } from "../behavior/cluster/cluster-behavior-test-util.js";
@@ -908,13 +916,20 @@ describe("ClientNode", () => {
             const deviceCrypto = device.env.get(Crypto) as MockCrypto;
             controllerCrypto.entropic = deviceCrypto.entropic = true;
 
+            let callbackInvoked = false;
+            let receivedFindings: AttestationFinding[] = [];
+
             const { passcode, discriminator } = device.state.commissioning;
             await MockTime.resolve(
                 controller.peers.commission({
                     passcode,
                     discriminator,
                     timeout: Seconds(90),
-                    onAttestationFailure: () => true,
+                    onAttestationFailure: findings => {
+                        callbackInvoked = true;
+                        receivedFindings = findings;
+                        return true;
+                    },
                 }),
                 { macrotasks: true },
             );
@@ -923,6 +938,50 @@ describe("ClientNode", () => {
 
             expect(device.state.commissioning.commissioned).equals(true);
             expect(controller.peers.size).equals(1);
+
+            // Verify the callback was invoked with a DclServiceUnavailable finding
+            expect(callbackInvoked).equals(true);
+            expect(receivedFindings).to.have.length(1);
+            expect(receivedFindings[0].type).equals(DeviceAttestationCheck.DclServiceUnavailable);
+            expect(receivedFindings[0].level).equals("error");
+        });
+
+        it("rejects commissioning with custom onAttestationFailure callback that rejects", async () => {
+            // A custom callback that returns false should reject commissioning.
+            await using site = new MockSite();
+            const { controller, device } = await site.addUncommissionedPair();
+
+            const controllerCrypto = controller.env.get(Crypto) as MockCrypto;
+            const deviceCrypto = device.env.get(Crypto) as MockCrypto;
+            controllerCrypto.entropic = deviceCrypto.entropic = true;
+
+            let callbackInvoked = false;
+            let receivedFindings: AttestationFinding[] = [];
+
+            const { passcode, discriminator } = device.state.commissioning;
+            await expect(
+                MockTime.resolve(
+                    controller.peers.commission({
+                        passcode,
+                        discriminator,
+                        timeout: Seconds(90),
+                        onAttestationFailure: findings => {
+                            callbackInvoked = true;
+                            receivedFindings = findings;
+                            return false;
+                        },
+                    }),
+                    { macrotasks: true },
+                ),
+            ).to.be.rejectedWith(/DclCertificateService is not available/);
+
+            controllerCrypto.entropic = deviceCrypto.entropic = false;
+
+            // Verify the callback was invoked with the correct finding before rejection
+            expect(callbackInvoked).equals(true);
+            expect(receivedFindings).to.have.length(1);
+            expect(receivedFindings[0].type).equals(DeviceAttestationCheck.DclServiceUnavailable);
+            expect(receivedFindings[0].level).equals("error");
         });
     });
 
