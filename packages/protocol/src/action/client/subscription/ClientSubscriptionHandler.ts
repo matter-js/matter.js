@@ -41,7 +41,17 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
         // Track this read so blockNewActivity() can await its completion
         using _reading = this.#subscriptions.beginReading();
 
-        await this.#handleExchange(exchange);
+        try {
+            await this.#handleExchange(exchange);
+        } catch (error) {
+            // During shutdown the abort signal terminates reads at any point — initial read, chunked reports,
+            // or inside the updated() callback.  Suppress the resulting error cleanly.
+            if (this.#subscriptions.readingAbortSignal.aborted) {
+                logger.debug(exchange.via, "Data report processing aborted during shutdown");
+                return;
+            }
+            throw error;
+        }
     }
 
     async #handleExchange(exchange: MessageExchange) {
@@ -106,12 +116,6 @@ export class ClientSubscriptionHandler implements ProtocolHandler {
                     for await (const _chunk of reports);
                 }
             }
-        } catch (error) {
-            if (this.#subscriptions.readingAbortSignal.aborted) {
-                logger.debug(exchange.via, "Data report processing aborted during shutdown");
-                return;
-            }
-            throw error;
         } finally {
             subscription.isReading = false;
             subscription.timeoutAt = undefined;
