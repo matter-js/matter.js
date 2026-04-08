@@ -10,7 +10,8 @@ import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { CommissioningError } from "../peer/CommissioningError.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
-import { CertificationDeclaration, CertificationType } from "./kinds/CertificationDeclaration.js";
+import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
+import { CertificationType } from "./kinds/definitions/certification-declaration.js";
 
 const logger = Logger.get("DeviceAttestationValidator");
 

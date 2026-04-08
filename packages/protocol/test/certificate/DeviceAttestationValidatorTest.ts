@@ -12,7 +12,7 @@ import {
     DeviceAttestationValidator,
 } from "#certificate/DeviceAttestationValidator.js";
 import { Dac, Paa, Pai } from "#certificate/kinds/AttestationCertificates.js";
-import { CertificationDeclaration, testCdSignerInfo } from "#certificate/kinds/CertificationDeclaration.js";
+import { CertificationDeclaration } from "#certificate/kinds/CertificationDeclaration.js";
 import { TlvAttestation } from "#common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "#dcl/DclCertificateService.js";
 import {
@@ -38,7 +38,7 @@ describe("DeviceAttestationValidator", () => {
     const attestationNonce = crypto.randomBytes(32);
 
     // CD signer info for tests
-    const cdSigner = testCdSignerInfo();
+    const cdSigner = CertificationDeclaration.testSignerInfo();
     const cdSignerPublicKeys = new Map<string, PublicKey>([
         [Bytes.toHex(cdSigner.subjectKeyId), PublicKey(cdSigner.publicKey)],
     ]);
