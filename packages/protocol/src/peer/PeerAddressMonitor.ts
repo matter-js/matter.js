@@ -25,8 +25,10 @@ const logger = Logger.get("PeerAddressMonitor");
  *
  * When the peer's {@link IpService} reports changes, call {@link schedule} to start the debounce timer.
  * After stabilization, if the session's current IP is no longer in the discovered set, an empty-read
- * probe verifies the address is still reachable.  If the probe fails, normal reconnection picks up the
- * new discovered addresses.
+ * probe verifies the address is still reachable.  If the current address probe fails, discovered
+ * alternative addresses are probed in turn.  If one responds, the session channel is migrated in-place
+ * and subscriptions are re-established.  If all probes fail, the session is closed so normal
+ * reconnection takes over.
  *
  * Repeated probes for the same address use a Fibonacci-like backoff so persistent mDNS churn doesn't
  * flood the network.

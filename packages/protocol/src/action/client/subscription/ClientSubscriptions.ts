@@ -71,6 +71,7 @@ export class ClientSubscriptions implements Lifetime.Owner {
             for (const subscription of [...forPeer.values()]) {
                 subscription.close();
             }
+            this.resetTimer();
         }
     }
 
