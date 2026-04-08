@@ -168,8 +168,6 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
                 detail = "No commissionable device was discovered";
             } else if (this.#attemptErrors.length > 0) {
                 detail = `${this.failureMessage} (${this.#attemptErrors.length} of ${this.#startedCount} started attempt(s) failed, ${this.#attemptCount} discovered)`;
-            } else if (this.#startedCount === 0) {
-                detail = `${this.failureMessage} (${this.#attemptCount} device(s) discovered but none started before timeout)`;
             } else {
                 detail = `${this.failureMessage} (${this.#startedCount} attempt(s) started of ${this.#attemptCount} discovered, all canceled or timed out)`;
             }

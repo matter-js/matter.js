@@ -589,8 +589,9 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
         await MockTime.yield3();
         expect(harness.isStopped()).equals(true);
 
-        // The abort signal resolves the stagger sleep, but paseWon is true so the
-        // factory is skipped.  Advance time and yield to let the promise chain settle.
+        // The abort signal resolves the stagger sleep, and the stagger guard sees
+        // abort.signal.aborted so the factory is skipped.  Advance time and yield to
+        // let the promise chain settle.
         await MockTime.resolve(MockTime.advance(6000));
         expect(harness.factoryCallOrder).deep.equals([0]);
         expect(harness.startedCount).equals(1);
