@@ -59,8 +59,14 @@ export class DeviceAttestationError extends CommissioningError {
 export namespace DeviceAttestationValidator {
     export interface Context {
         crypto: Crypto;
-        dclCertificateService: DclCertificateService;
         attestationChallenge: Bytes;
+
+        /**
+         * DclCertificateService for PAA trust store, chain validation, and revocation checks.
+         * When absent, DCL-dependent checks are skipped (PAA lookup, chain verification,
+         * revocation) but local checks still run (nonce, signature, VendorID, CD fields).
+         */
+        dclCertificateService?: DclCertificateService;
 
         /**
          * Optional map of known CD signer public keys, keyed by subject key identifier hex (lowercase).
@@ -102,9 +108,12 @@ export namespace DeviceAttestationValidator {
     /**
      * Validates device attestation per Matter spec Section 6.2.3.1.
      *
-     * Errors (hard failures like invalid signatures, chain errors) throw immediately via
-     * {@link DeviceAttestationError}. Warnings and info findings are collected and returned
-     * in the result for the caller to evaluate.
+     * Local checks (nonce, signature, VendorID, CD fields) always run. DCL-dependent checks
+     * (PAA trust store, chain verification, revocation) only run when dclCertificateService
+     * is provided.
+     *
+     * Errors (hard failures) throw immediately via {@link DeviceAttestationError}.
+     * Warnings and info findings are collected and returned for the caller to evaluate.
      */
     export async function validate(context: Context, data: DeviceAttestationData): Promise<ValidationResult> {
         const { crypto, dclCertificateService } = context;
@@ -114,140 +123,14 @@ export namespace DeviceAttestationValidator {
         const dac = Dac.fromAsn1(data.dac);
         const pai = Pai.fromAsn1(data.pai);
 
-        // Step 2: PAA Trust Store lookup - find PAA by PAI's authority key identifier
-        const paiAkid = pai.cert.extensions.authorityKeyIdentifier;
-        const paaMetadata = dclCertificateService.getCertificate(paiAkid);
-        if (paaMetadata === undefined) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.PaaNotTrusted,
-                `PAA not found in trust store for authority key identifier ${Bytes.toHex(paiAkid)}`,
-            );
-        }
+        // === Local checks (always run, no DCL needed) ===
 
-        // Step 2b: Time-based trust store check (SHOULD per spec 6.2.3.1)
-        // The trust store SHOULD include at least the PAA certificates present at the DAC's notBefore.
-        // If we fetched the PAA after the DAC was issued, it might not have been in DCL at that time.
-        if (paaMetadata.fetchedAt !== undefined) {
-            // DAC notBefore is Matter epoch seconds; fetchedAt is Unix epoch ms
-            const dacNotBeforeUnixMs = (dac.cert.notBefore + MATTER_EPOCH_OFFSET_S) * 1000;
-            if (paaMetadata.fetchedAt > dacNotBeforeUnixMs) {
-                findings.push({
-                    level: "info",
-                    type: DeviceAttestationCheck.PaaTrustStoreTimeMismatch,
-                    message:
-                        `PAA was fetched at ${new Date(paaMetadata.fetchedAt).toISOString()} ` +
-                        `which is after DAC notBefore ${new Date(dacNotBeforeUnixMs).toISOString()}; ` +
-                        `cannot confirm PAA was in DCL when DAC was issued`,
-                });
-            }
-        }
-
-        // Step 3: Certificate chain signature verification
-        // Get PAA certificate DER bytes from storage and parse
-        const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid);
-        const paa = Paa.fromAsn1(paaDer);
-
-        // Verify PAI is signed by PAA
-        try {
-            await crypto.verifyEcdsa(PublicKey(paa.cert.ellipticCurvePublicKey), pai.asUnsignedDer(), pai.signature);
-        } catch (error) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificateChainInvalid,
-                `PAI signature verification failed: ${error}`,
-            );
-        }
-
-        // Verify DAC is signed by PAI
-        try {
-            await crypto.verifyEcdsa(PublicKey(pai.cert.ellipticCurvePublicKey), dac.asUnsignedDer(), dac.signature);
-        } catch (error) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificateChainInvalid,
-                `DAC signature verification failed: ${error}`,
-            );
-        }
-
-        // Step 3b: Certificate validity - validate chain at DAC's notBefore timestamp
-        // Per Matter spec Section 6.2.3.1: chain validation SHALL be performed with respect
-        // to the notBefore timestamp of the DAC. A notAfter value of 0 means infinite validity.
-        const dacNotBefore = dac.cert.notBefore;
-
-        // PAI must be valid at DAC's notBefore
-        if (dacNotBefore < pai.cert.notBefore) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificateExpired,
-                `DAC notBefore (${dacNotBefore}) is before PAI notBefore (${pai.cert.notBefore})`,
-            );
-        }
-        if (pai.cert.notAfter !== 0 && dacNotBefore > pai.cert.notAfter) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificateExpired,
-                `DAC notBefore (${dacNotBefore}) is after PAI notAfter (${pai.cert.notAfter})`,
-            );
-        }
-
-        // PAA must be valid at DAC's notBefore
-        if (dacNotBefore < paa.cert.notBefore) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificateExpired,
-                `DAC notBefore (${dacNotBefore}) is before PAA notBefore (${paa.cert.notBefore})`,
-            );
-        }
-        if (paa.cert.notAfter !== 0 && dacNotBefore > paa.cert.notAfter) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.CertificateExpired,
-                `DAC notBefore (${dacNotBefore}) is after PAA notAfter (${paa.cert.notAfter})`,
-            );
-        }
-
-        // Step 4: VendorID matching
-        // DAC vendorId must match PAI vendorId
+        // Step 4 (local part): VendorID matching — DAC vendorId must match PAI vendorId
         if (dac.cert.subject.vendorId !== pai.cert.subject.vendorId) {
             throw new DeviceAttestationError(
                 DeviceAttestationCheck.VendorIdMismatch,
                 `DAC vendorId ${dac.cert.subject.vendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
             );
-        }
-
-        // If PAA has a vendorId, it must match PAI vendorId
-        const paaVendorId = paa.cert.subject.vendorId;
-        if (paaVendorId !== undefined && paaVendorId !== pai.cert.subject.vendorId) {
-            throw new DeviceAttestationError(
-                DeviceAttestationCheck.VendorIdMismatch,
-                `PAA vendorId ${paaVendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
-            );
-        }
-
-        // Step 5: Revocation check
-        // Note: issuerDnDerHex is not passed to isRevoked() because our cert parser
-        // doesn't retain raw issuer DER bytes. The AKID-only lookup is sufficient in
-        // practice since AKIDs are derived from the issuer's public key hash.
-        // TODO: Pass issuerDnDerHex once Certificate parser retains raw issuer DER
-        if (!dclCertificateService.hasRevocationData) {
-            findings.push({
-                level: "warning",
-                type: DeviceAttestationCheck.RevocationCheckSkipped,
-                message: "No revocation data available; skipping revocation check (per spec Section 6.2.4.2)",
-            });
-        } else {
-            // Check DAC revocation
-            const dacSerialNumber = dac.cert.serialNumber;
-            const dacAkid = dac.cert.extensions.authorityKeyIdentifier;
-            if (dclCertificateService.isRevoked(dacAkid, dacSerialNumber)) {
-                throw new DeviceAttestationError(
-                    DeviceAttestationCheck.CertificateRevoked,
-                    "Device Attestation Certificate has been revoked",
-                );
-            }
-
-            // Check PAI revocation
-            const paiSerialNumber = pai.cert.serialNumber;
-            if (dclCertificateService.isRevoked(paiAkid, paiSerialNumber)) {
-                throw new DeviceAttestationError(
-                    DeviceAttestationCheck.CertificateRevoked,
-                    "Product Attestation Intermediate certificate has been revoked",
-                );
-            }
         }
 
         // Step 6: AttestationNonce match
@@ -260,7 +143,6 @@ export namespace DeviceAttestationValidator {
         }
 
         // Step 7: Attestation Signature verification
-        // The device signs [attestationElements, attestationChallenge] concatenated.
         const dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
         try {
             await crypto.verifyEcdsa(
@@ -274,6 +156,141 @@ export namespace DeviceAttestationValidator {
                 "Attestation signature verification failed against DAC public key",
             );
         }
+
+        // === DCL-dependent checks (only when dclCertificateService is available) ===
+
+        let paa: Paa | undefined;
+
+        if (dclCertificateService === undefined) {
+            findings.push({
+                level: "warning",
+                type: DeviceAttestationCheck.DclServiceUnavailable,
+                message:
+                    "DclCertificateService not available; skipping PAA trust store, chain, and revocation checks. " +
+                    "Register DclCertificateService in the environment for full attestation.",
+            });
+        } else {
+            // Step 2: PAA Trust Store lookup
+            const paiAkid = pai.cert.extensions.authorityKeyIdentifier;
+            const paaMetadata = dclCertificateService.getCertificate(paiAkid);
+            if (paaMetadata === undefined) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.PaaNotTrusted,
+                    `PAA not found in trust store for authority key identifier ${Bytes.toHex(paiAkid)}`,
+                );
+            }
+
+            // Step 2b: Time-based trust store check (SHOULD per spec 6.2.3.1)
+            if (paaMetadata.fetchedAt !== undefined) {
+                const dacNotBeforeUnixMs = (dac.cert.notBefore + MATTER_EPOCH_OFFSET_S) * 1000;
+                if (paaMetadata.fetchedAt > dacNotBeforeUnixMs) {
+                    findings.push({
+                        level: "info",
+                        type: DeviceAttestationCheck.PaaTrustStoreTimeMismatch,
+                        message:
+                            `PAA was fetched at ${new Date(paaMetadata.fetchedAt).toISOString()} ` +
+                            `which is after DAC notBefore ${new Date(dacNotBeforeUnixMs).toISOString()}; ` +
+                            `cannot confirm PAA was in DCL when DAC was issued`,
+                    });
+                }
+            }
+
+            // Step 3: Certificate chain signature verification
+            const paaDer = await dclCertificateService.getCertificateAsDer(paiAkid);
+            paa = Paa.fromAsn1(paaDer);
+
+            try {
+                await crypto.verifyEcdsa(
+                    PublicKey(paa.cert.ellipticCurvePublicKey),
+                    pai.asUnsignedDer(),
+                    pai.signature,
+                );
+            } catch (error) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateChainInvalid,
+                    `PAI signature verification failed: ${error}`,
+                );
+            }
+
+            try {
+                await crypto.verifyEcdsa(
+                    PublicKey(pai.cert.ellipticCurvePublicKey),
+                    dac.asUnsignedDer(),
+                    dac.signature,
+                );
+            } catch (error) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateChainInvalid,
+                    `DAC signature verification failed: ${error}`,
+                );
+            }
+
+            // Step 3b: Certificate validity at DAC's notBefore timestamp
+            const dacNotBefore = dac.cert.notBefore;
+
+            if (dacNotBefore < pai.cert.notBefore) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateExpired,
+                    `DAC notBefore (${dacNotBefore}) is before PAI notBefore (${pai.cert.notBefore})`,
+                );
+            }
+            if (pai.cert.notAfter !== 0 && dacNotBefore > pai.cert.notAfter) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateExpired,
+                    `DAC notBefore (${dacNotBefore}) is after PAI notAfter (${pai.cert.notAfter})`,
+                );
+            }
+            if (dacNotBefore < paa.cert.notBefore) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateExpired,
+                    `DAC notBefore (${dacNotBefore}) is before PAA notBefore (${paa.cert.notBefore})`,
+                );
+            }
+            if (paa.cert.notAfter !== 0 && dacNotBefore > paa.cert.notAfter) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateExpired,
+                    `DAC notBefore (${dacNotBefore}) is after PAA notAfter (${paa.cert.notAfter})`,
+                );
+            }
+
+            // Step 4 (DCL part): PAA VendorID matching
+            const paaVendorId = paa.cert.subject.vendorId;
+            if (paaVendorId !== undefined && paaVendorId !== pai.cert.subject.vendorId) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.VendorIdMismatch,
+                    `PAA vendorId ${paaVendorId} does not match PAI vendorId ${pai.cert.subject.vendorId}`,
+                );
+            }
+
+            // Step 5: Revocation check
+            // TODO: Pass issuerDnDerHex once Certificate parser retains raw issuer DER
+            if (!dclCertificateService.hasRevocationData) {
+                findings.push({
+                    level: "warning",
+                    type: DeviceAttestationCheck.RevocationCheckSkipped,
+                    message: "No revocation data available; skipping revocation check (per spec Section 6.2.4.2)",
+                });
+            } else {
+                const dacSerialNumber = dac.cert.serialNumber;
+                const dacAkid = dac.cert.extensions.authorityKeyIdentifier;
+                if (dclCertificateService.isRevoked(dacAkid, dacSerialNumber)) {
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.CertificateRevoked,
+                        "Device Attestation Certificate has been revoked",
+                    );
+                }
+
+                const paiSerialNumber = pai.cert.serialNumber;
+                if (dclCertificateService.isRevoked(paiAkid, paiSerialNumber)) {
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.CertificateRevoked,
+                        "Product Attestation Intermediate certificate has been revoked",
+                    );
+                }
+            }
+        }
+
+        // === Remaining local checks (CD validation) ===
 
         // Step 8: Certification Declaration signature verification
         const cd = CertificationDeclaration.parse(attestationInfo.declaration);
@@ -412,15 +429,23 @@ export namespace DeviceAttestationValidator {
             }
         }
 
-        // If authorizedPaaList is present, PAA's SKI must be in it
+        // authorized_paa_list needs PAA from DCL
         if (cdContent.authorizedPaaList !== undefined) {
-            const paaSki = paa.cert.extensions.subjectKeyIdentifier;
-            const found = cdContent.authorizedPaaList.some(entry => Bytes.areEqual(entry, paaSki));
-            if (!found) {
-                throw new DeviceAttestationError(
-                    DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
-                    "PAA subject key identifier not in CD authorized_paa_list",
-                );
+            if (paa !== undefined) {
+                const paaSki = paa.cert.extensions.subjectKeyIdentifier;
+                const found = cdContent.authorizedPaaList.some(entry => Bytes.areEqual(entry, paaSki));
+                if (!found) {
+                    throw new DeviceAttestationError(
+                        DeviceAttestationCheck.CertificationDeclarationFieldMismatch,
+                        "PAA subject key identifier not in CD authorized_paa_list",
+                    );
+                }
+            } else {
+                findings.push({
+                    level: "warning",
+                    type: DeviceAttestationCheck.DclServiceUnavailable,
+                    message: "CD has authorized_paa_list but cannot verify without DCL service",
+                });
             }
         }
 

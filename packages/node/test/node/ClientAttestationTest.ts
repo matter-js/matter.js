@@ -254,16 +254,20 @@ describe("device attestation during commissioning", () => {
         it("rejects with onAttestationFailure=false", () =>
             runAttestationTest({
                 onAttestationFailure: false,
-                expectRejection: /DclCertificateService is not available/,
+                expectRejection: /finding\(s\) and was rejected by policy/,
             }));
 
-        it("custom callback receives DclServiceUnavailable finding and accepts", () =>
+        it("custom callback receives DclServiceUnavailable warning and other findings", () =>
             runAttestationTest({
                 onAttestationFailure: () => true,
                 assertFindings: findings => {
-                    expect(findings).to.have.length(1);
-                    expect(findings[0].type).equals(DeviceAttestationCheck.DclServiceUnavailable);
-                    expect(findings[0].level).equals("error");
+                    // Local checks run even without DCL — we get warning + info findings
+                    const types = findings.map(f => f.type);
+                    expect(types).to.include(DeviceAttestationCheck.DclServiceUnavailable);
+                    expect(types).to.include(DeviceAttestationCheck.CertificationTypeTest);
+
+                    const dclFinding = findings.find(f => f.type === DeviceAttestationCheck.DclServiceUnavailable);
+                    expect(dclFinding!.level).equals("warning");
                 },
                 assertResult: (device, peers) => {
                     expect(device.state.commissioning.commissioned).equals(true);
@@ -271,14 +275,13 @@ describe("device attestation during commissioning", () => {
                 },
             }));
 
-        it("custom callback receives DclServiceUnavailable finding and rejects", () =>
+        it("custom callback receives findings and rejects", () =>
             runAttestationTest({
                 onAttestationFailure: () => false,
-                expectRejection: /DclCertificateService is not available/,
+                expectRejection: /finding\(s\) and was rejected by policy/,
                 assertFindings: findings => {
-                    expect(findings).to.have.length(1);
-                    expect(findings[0].type).equals(DeviceAttestationCheck.DclServiceUnavailable);
-                    expect(findings[0].level).equals("error");
+                    const types = findings.map(f => f.type);
+                    expect(types).to.include(DeviceAttestationCheck.DclServiceUnavailable);
                 },
             }));
     });

@@ -54,7 +54,6 @@ import { TimeSynchronization } from "@matter/types/clusters/time-synchronization
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import {
     AttestationFinding,
-    DeviceAttestationCheck,
     DeviceAttestationError,
     DeviceAttestationValidator,
 } from "../certificate/DeviceAttestationValidator.js";
@@ -1045,62 +1044,47 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        const attestation = this.commissioningOptions.attestation;
+        const { attestation } = this.commissioningOptions;
 
-        if (attestation.dclCertificateService === undefined) {
-            // DCL service not available — route through findings so the callback can decide
-            const unavailableFinding: AttestationFinding = {
-                level: "error",
-                type: DeviceAttestationCheck.DclServiceUnavailable,
-                message:
-                    "DclCertificateService is not available; device attestation cannot be verified. " +
-                    "Register DclCertificateService in the environment for full attestation checks.",
-            };
-            const proceed = await this.#resolveAttestationFindings([unavailableFinding]);
-            if (!proceed) {
-                throw new CommissioningError(unavailableFinding.message);
-            }
-        } else {
-            try {
-                const result = await DeviceAttestationValidator.validate(
-                    {
-                        crypto: this.fabric.crypto,
-                        dclCertificateService: attestation.dclCertificateService,
-                        attestationChallenge: attestation.challengeKey,
-                    },
-                    {
-                        dac: deviceAttestation,
-                        pai: productAttestation,
-                        attestationElements,
-                        attestationSignature,
-                        attestationNonce,
-                        vendorId: this.collectedCommissioningData.vendorId!,
-                        productId: this.collectedCommissioningData.productId!,
-                    },
-                );
+        try {
+            const result = await DeviceAttestationValidator.validate(
+                {
+                    crypto: this.fabric.crypto,
+                    dclCertificateService: attestation.dclCertificateService,
+                    attestationChallenge: attestation.challengeKey,
+                },
+                {
+                    dac: deviceAttestation,
+                    pai: productAttestation,
+                    attestationElements,
+                    attestationSignature,
+                    attestationNonce,
+                    vendorId: this.collectedCommissioningData.vendorId!,
+                    productId: this.collectedCommissioningData.productId!,
+                },
+            );
 
-                if (result.findings.length > 0) {
-                    const proceed = await this.#resolveAttestationFindings(result.findings);
-                    if (!proceed) {
-                        throw new CommissioningError(
-                            `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
-                        );
-                    }
+            if (result.findings.length > 0) {
+                const proceed = await this.#resolveAttestationFindings(result.findings);
+                if (!proceed) {
+                    throw new CommissioningError(
+                        `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
+                    );
                 }
-            } catch (error) {
-                if (error instanceof DeviceAttestationError) {
-                    const errorFinding: AttestationFinding = {
-                        level: "error",
-                        type: error.failure,
-                        message: error.message,
-                    };
-                    const proceed = await this.#resolveAttestationFindings([errorFinding]);
-                    if (!proceed) {
-                        throw error;
-                    }
-                } else {
+            }
+        } catch (error) {
+            if (error instanceof DeviceAttestationError) {
+                const errorFinding: AttestationFinding = {
+                    level: "error",
+                    type: error.failure,
+                    message: error.message,
+                };
+                const proceed = await this.#resolveAttestationFindings([errorFinding]);
+                if (!proceed) {
                     throw error;
                 }
+            } else {
+                throw error;
             }
         }
 
