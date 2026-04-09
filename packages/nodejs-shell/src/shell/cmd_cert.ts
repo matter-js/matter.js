@@ -148,6 +148,74 @@ export default function commands(theNode: MatterNode) {
                         const count = (await theNode.certificateService()).certificates.length;
                         console.log(`Total certificates in storage: ${count}`);
                     },
+                )
+                .command(
+                    "revocations",
+                    "List all revocation entries (issuer → revoked serial numbers)",
+                    () => {},
+                    async () => {
+                        await theNode.start();
+                        const service = await theNode.certificateService();
+
+                        if (!service.hasRevocationData) {
+                            console.log("No revocation data available. Run 'cert update' to fetch from DCL.");
+                            return;
+                        }
+
+                        const entries = service.revocationEntries;
+                        console.log(`\nFound ${entries.length} revocation entrie(s):\n`);
+
+                        for (const entry of entries) {
+                            console.log(`Issuer Key ID: ${entry.issuerKeyId}`);
+                            if (entry.revokedSerials.length === 0) {
+                                console.log("  No revoked serials");
+                            } else {
+                                console.log(`  Revoked serials (${entry.revokedSerials.length}):`);
+                                for (const serial of entry.revokedSerials) {
+                                    console.log(`    ${serial}`);
+                                }
+                            }
+                            console.log("");
+                        }
+                    },
+                )
+                .command(
+                    "check-revoked <issuer-key-id> <serial-number>",
+                    "Check if a certificate is revoked",
+                    yargs => {
+                        return yargs
+                            .positional("issuer-key-id", {
+                                describe: "Authority Key Identifier of the issuer (hex, with or without colons)",
+                                type: "string",
+                                demandOption: true,
+                            })
+                            .positional("serial-number", {
+                                describe: "Serial number of the certificate to check (hex)",
+                                type: "string",
+                                demandOption: true,
+                            });
+                    },
+                    async argv => {
+                        const { issuerKeyId, serialNumber } = argv;
+                        await theNode.start();
+                        const service = await theNode.certificateService();
+
+                        if (!service.hasRevocationData) {
+                            console.log("No revocation data available. Run 'cert update' to fetch from DCL.");
+                            return;
+                        }
+
+                        const revoked = service.isRevoked(issuerKeyId, serialNumber);
+                        if (revoked) {
+                            console.log(
+                                `REVOKED: Certificate with serial ${serialNumber} (issuer ${issuerKeyId}) is revoked.`,
+                            );
+                        } else {
+                            console.log(
+                                `OK: Certificate with serial ${serialNumber} (issuer ${issuerKeyId}) is not revoked.`,
+                            );
+                        }
+                    },
                 ),
         handler: async (argv: any) => {
             argv.unhandled = true;

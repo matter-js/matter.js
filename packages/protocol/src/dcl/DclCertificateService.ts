@@ -205,6 +205,20 @@ export class DclCertificateService {
         return this.#revocationIndex.size > 0;
     }
 
+    /** Returns a snapshot of all revocation entries for browsing/diagnostics. */
+    get revocationEntries(): Array<{ issuerKeyId: string; revokedSerials: string[]; issuerDnDerHex?: string }> {
+        this.construction.assert();
+        const result = new Array<{ issuerKeyId: string; revokedSerials: string[]; issuerDnDerHex?: string }>();
+        for (const [key, entry] of this.#revocationIndex) {
+            result.push({
+                issuerKeyId: key,
+                revokedSerials: Array.from(entry.serials),
+                issuerDnDerHex: entry.issuerDnDerHex,
+            });
+        }
+        return result;
+    }
+
     /**
      * Get certificate metadata by subject key identifier, fetching from DCL if not in local storage. Returns
      * undefined if not found.
@@ -652,7 +666,9 @@ export class DclCertificateService {
      * Save the revocation index to storage.
      */
     async #saveRevocationIndex() {
-        if (!this.#revocationStorage || this.#closed) return;
+        if (!this.#revocationStorage || this.#closed) {
+            return;
+        }
         const data: Record<string, { serials: string[]; issuerDnDerHex?: string }> = {};
         for (const [key, entry] of this.#revocationIndex) {
             data[key] = { serials: Array.from(entry.serials), issuerDnDerHex: entry.issuerDnDerHex };
@@ -685,7 +701,9 @@ export class DclCertificateService {
 
             let updatedCount = 0;
             for (const point of points) {
-                if (this.#closed) return;
+                if (this.#closed) {
+                    return;
+                }
 
                 try {
                     await this.#processRevocationPoint(point, force);
@@ -1007,6 +1025,7 @@ export namespace DclCertificateService {
         vid: number;
         isRoot: boolean;
         isProduction: boolean;
+
         /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
         fetchedAt?: number;
     };
@@ -1015,12 +1034,16 @@ export namespace DclCertificateService {
     export interface CrlParseResult {
         /** Revoked serial numbers (uppercase hex). */
         serials: Set<string>;
+
         /** Hex of the DER-encoded issuer Name, for composite revocation key matching. */
         issuerDnDerHex?: string;
+
         /** CRL Authority Key Identifier extension value (uppercase hex). */
         authorityKeyId?: string;
+
         /** Raw DER bytes of tbsCertList for signature verification. */
         tbsDer?: Bytes;
+
         /** Raw signature value bytes from the CRL. */
         signatureValue?: Bytes;
     }
