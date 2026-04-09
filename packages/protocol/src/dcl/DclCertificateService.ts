@@ -51,8 +51,11 @@ export class DclCertificateService {
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
     #revocationStorage?: StorageContext;
-    // Key: normalized issuerSubjectKeyId, Value: revoked serial numbers and optional CRL issuer DN hash
-    #revocationIndex = new Map<string, { serials: Set<string>; issuerDnDerHex?: string }>();
+    // Key: normalized issuerSubjectKeyId
+    #revocationIndex = new Map<
+        string,
+        { serials: Set<string>; issuerDnDerHex?: string; fetchedAt: number; nextUpdateMs?: number }
+    >();
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.root.set(DclCertificateService, this);
@@ -206,14 +209,25 @@ export class DclCertificateService {
     }
 
     /** Returns a snapshot of all revocation entries for browsing/diagnostics. */
-    get revocationEntries(): Array<{ issuerKeyId: string; revokedSerials: string[]; issuerDnDerHex?: string }> {
+    get revocationEntries(): Array<{
+        issuerKeyId: string;
+        revokedSerials: string[];
+        fetchedAt: number;
+        nextUpdateMs?: number;
+    }> {
         this.construction.assert();
-        const result = new Array<{ issuerKeyId: string; revokedSerials: string[]; issuerDnDerHex?: string }>();
+        const result = new Array<{
+            issuerKeyId: string;
+            revokedSerials: string[];
+            fetchedAt: number;
+            nextUpdateMs?: number;
+        }>();
         for (const [key, entry] of this.#revocationIndex) {
             result.push({
                 issuerKeyId: key,
                 revokedSerials: Array.from(entry.serials),
-                issuerDnDerHex: entry.issuerDnDerHex,
+                fetchedAt: entry.fetchedAt,
+                nextUpdateMs: entry.nextUpdateMs,
             });
         }
         return result;
@@ -647,16 +661,21 @@ export class DclCertificateService {
     async #loadRevocationIndex() {
         if (!this.#revocationStorage) return;
         const stored = await this.#revocationStorage.get<
-            Record<string, string[] | { serials: string[]; issuerDnDerHex?: string }>
+            Record<
+                string,
+                string[] | { serials: string[]; issuerDnDerHex?: string; fetchedAt?: number; nextUpdateMs?: number }
+            >
         >("index", {});
         for (const [key, value] of Object.entries(stored)) {
             if (Array.isArray(value)) {
                 // Legacy format: plain array of serials
-                this.#revocationIndex.set(key, { serials: new Set(value) });
+                this.#revocationIndex.set(key, { serials: new Set(value), fetchedAt: 0 });
             } else {
                 this.#revocationIndex.set(key, {
                     serials: new Set(value.serials),
                     issuerDnDerHex: value.issuerDnDerHex,
+                    fetchedAt: value.fetchedAt ?? 0,
+                    nextUpdateMs: value.nextUpdateMs,
                 });
             }
         }
@@ -669,9 +688,17 @@ export class DclCertificateService {
         if (!this.#revocationStorage || this.#closed) {
             return;
         }
-        const data: Record<string, { serials: string[]; issuerDnDerHex?: string }> = {};
+        const data: Record<
+            string,
+            { serials: string[]; issuerDnDerHex?: string; fetchedAt: number; nextUpdateMs?: number }
+        > = {};
         for (const [key, entry] of this.#revocationIndex) {
-            data[key] = { serials: Array.from(entry.serials), issuerDnDerHex: entry.issuerDnDerHex };
+            data[key] = {
+                serials: Array.from(entry.serials),
+                issuerDnDerHex: entry.issuerDnDerHex,
+                fetchedAt: entry.fetchedAt,
+                nextUpdateMs: entry.nextUpdateMs,
+            };
         }
         await this.#revocationStorage.set("index", data);
     }
@@ -728,9 +755,20 @@ export class DclCertificateService {
     async #processRevocationPoint(point: DeviceAttestationPkiRevocationDclSchema, force: boolean) {
         const issuerKeyId = this.#normalizeSubjectKeyId(point.issuerSubjectKeyId);
 
-        // Skip if already processed (unless force)
-        if (!force && this.#revocationIndex.has(issuerKeyId)) {
-            return;
+        // Skip if fresh enough (unless force). Re-fetch if CRL's nextUpdate has expired
+        // or if the entry was fetched more than 7 days ago.
+        if (!force) {
+            const existing = this.#revocationIndex.get(issuerKeyId);
+            if (existing !== undefined) {
+                const now = Time.nowMs;
+                const maxAge = Days(7);
+                const expired =
+                    (existing.nextUpdateMs !== undefined && now > existing.nextUpdateMs) ||
+                    now - existing.fetchedAt > maxAge;
+                if (!expired) {
+                    return;
+                }
+            }
         }
 
         // Step 1: RevocationType must be CRL (1)
@@ -746,7 +784,7 @@ export class DclCertificateService {
         try {
             signerPublicKey = await this.#validateCrlSigner(point);
         } catch (error) {
-            logger.info(
+            logger.error(
                 `CRL signer validation failed for ${point.issuerSubjectKeyId}, skipping CRL signature check:`,
                 error,
             );
@@ -781,6 +819,8 @@ export class DclCertificateService {
         this.#revocationIndex.set(issuerKeyId, {
             serials: crlParsed.serials,
             issuerDnDerHex: crlParsed.issuerDnDerHex,
+            fetchedAt: Time.nowMs,
+            nextUpdateMs: crlParsed.nextUpdateMs,
         });
     }
 
@@ -911,6 +951,39 @@ export class DclCertificateService {
         if (tbsElements[idx]?._tag === 0x30) {
             const issuerNode = tbsElements[idx];
             issuerDnDerHex = Bytes.toHex(DerCodec.encode(issuerNode)).toUpperCase();
+            idx++;
+        }
+
+        // thisUpdate: UTCTime (0x17) or GeneralizedTime (0x18) — skip
+        if (tbsElements[idx]?._tag === 0x17 || tbsElements[idx]?._tag === 0x18) {
+            idx++;
+        }
+
+        // nextUpdate: UTCTime (0x17) or GeneralizedTime (0x18) — parse if present
+        let nextUpdateMs: number | undefined;
+        if (tbsElements[idx]?._tag === 0x17 || tbsElements[idx]?._tag === 0x18) {
+            try {
+                const dateStr = Bytes.toString(tbsElements[idx]._bytes);
+                // UTCTime: YYMMDDHHMMSSZ, GeneralizedTime: YYYYMMDDHHMMSSZ
+                let year: number;
+                let rest: string;
+                if (tbsElements[idx]._tag === 0x17) {
+                    const yy = parseInt(dateStr.slice(0, 2));
+                    year = yy >= 50 ? 1900 + yy : 2000 + yy;
+                    rest = dateStr.slice(2);
+                } else {
+                    year = parseInt(dateStr.slice(0, 4));
+                    rest = dateStr.slice(4);
+                }
+                const month = parseInt(rest.slice(0, 2)) - 1;
+                const day = parseInt(rest.slice(2, 4));
+                const hour = parseInt(rest.slice(4, 6));
+                const min = parseInt(rest.slice(6, 8));
+                const sec = parseInt(rest.slice(8, 10));
+                nextUpdateMs = Date.UTC(year, month, day, hour, min, sec);
+            } catch {
+                // Ignore parse errors for nextUpdate
+            }
         }
 
         // Extract Authority Key Identifier from CRL extensions if present
@@ -967,7 +1040,7 @@ export class DclCertificateService {
         }
 
         if (!revokedCertsNode?._elements) {
-            return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue };
+            return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue, nextUpdateMs };
         }
 
         for (const entry of revokedCertsNode._elements) {
@@ -978,7 +1051,7 @@ export class DclCertificateService {
             serials.add(serialHex);
         }
 
-        return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue };
+        return { serials, issuerDnDerHex, authorityKeyId, tbsDer, signatureValue, nextUpdateMs };
     }
 
     /** Convenience wrapper that returns only the revoked serial numbers from a CRL. */
@@ -1046,5 +1119,8 @@ export namespace DclCertificateService {
 
         /** Raw signature value bytes from the CRL. */
         signatureValue?: Bytes;
+
+        /** Unix epoch ms of the CRL's nextUpdate field, if present. */
+        nextUpdateMs?: number;
     }
 }
