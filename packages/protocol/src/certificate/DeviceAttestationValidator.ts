@@ -426,14 +426,13 @@ export namespace DeviceAttestationValidator {
             }
         }
 
-        // Step 10: Firmware information (warning if present but validation not yet supported)
-        if (attestationInfo.firmwareInfo !== undefined && Bytes.of(attestationInfo.firmwareInfo).length > 0) {
-            findings.push({
-                level: "info",
-                type: DeviceAttestationCheck.FirmwareInfoMismatch,
-                message: "Firmware information present in attestation elements but validation is not yet supported",
-            });
-        }
+        // Step 10: Firmware information (spec 6.3.2)
+        // Commissioners MAY validate firmware_information against DCL DeviceSoftwareCompliance
+        // to confirm the firmware is authorized and not revoked. The bytes are compared as an
+        // opaque value against the expected firmware info for this CD's certificate_id + version.
+        // TODO: When DCL DeviceSoftwareCompliance API is implemented (same as certificate_id),
+        //       compare attestationInfo.firmwareInfo bytes against expected value and emit a
+        //       FirmwareInfoMismatch warning finding on mismatch. Validation is MAY per spec.
 
         // Log all findings
         for (const finding of findings) {
