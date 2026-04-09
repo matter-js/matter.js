@@ -207,6 +207,13 @@ describe("CommissionableMdnsScanner", () => {
                         ttl: Seconds(120),
                         value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
                     },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
                 ],
                 additionalRecords: [],
             });
@@ -268,6 +275,13 @@ describe("CommissionableMdnsScanner", () => {
                         recordClass: DnsRecordClass.IN,
                         ttl: Seconds(120),
                         value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
                     },
                 ],
                 additionalRecords: [],
@@ -344,6 +358,13 @@ describe("CommissionableMdnsScanner", () => {
                         recordClass: DnsRecordClass.IN as const,
                         ttl: Seconds(2),
                         value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A as const,
+                        recordClass: DnsRecordClass.IN as const,
+                        ttl: Seconds(2),
+                        value: SERVER_IPv4,
                     },
                 ],
                 additionalRecords: [] as DnsRecord[],
@@ -517,6 +538,96 @@ describe("CommissionableMdnsScanner", () => {
 
             const noResults = scanner.getDiscoveredCommissionableDevices({ longDiscriminator: 1234 });
             expect(noResults.length).equals(0);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("defers delivery until A/AAAA records arrive", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x08) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const found: CommissionableDevice[] = [];
+            const identifier = { longDiscriminator: 3840 };
+            const discoveryPromise = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                device => found.push(device),
+                Seconds(10),
+            );
+
+            // Send SRV+TXT without A/AAAA records
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device should not be delivered yet — no addresses
+            expect(found.length).equals(0);
+            expect(scanner.getDiscoveredCommissionableDevices(identifier).length).equals(0);
+
+            // Send A record in a follow-up response alongside a filtered record so DnssdNames
+            // processes it (the iterative second pass requires at least one filtered record to trigger).
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: `_matterc._udp.local`,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: `${INSTANCE_ID}._matterc._udp.local`,
+                    },
+                ],
+                additionalRecords: [
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+            });
+            await MockTime.advance(10);
+
+            // Now the device should be delivered
+            expect(found.length).equals(1);
+            expect(found[0].deviceIdentifier).equals(INSTANCE_ID);
+            expect(found[0].addresses.length).greaterThan(0);
+
+            // getDiscoveredCommissionableDevices should also return it now
+            expect(scanner.getDiscoveredCommissionableDevices(identifier).length).equals(1);
+
+            scanner.cancelCommissionableDeviceDiscovery(identifier);
+            await MockTime.resolve(discoveryPromise);
         } finally {
             await scanner.close();
             await clientNames.close();
