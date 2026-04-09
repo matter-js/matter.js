@@ -529,6 +529,7 @@ export class LegacyControllerCommandHandler extends CommandHandler {
                 nodeId: data.nodeId,
                 regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.IndoorOutdoor,
                 regulatoryCountryCode: "XX",
+                onAttestationFailure: true, // Test controller always accepts attestation findings
             },
             discovery: {
                 knownAddress,

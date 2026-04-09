@@ -291,6 +291,41 @@ export default function commands(theNode: MatterNode) {
                                 async argv => doDclTestCertificates(theNode, { action: "set", ...argv }),
                             );
                     },
+                )
+
+                // Strict Certificate Validation
+                .command(
+                    "strict-attestation",
+                    "Manage strict device attestation validation during commissioning",
+                    yargs => {
+                        return yargs
+                            .command(
+                                "* [action]",
+                                "Get, set, or delete the strict attestation setting",
+                                yargs => {
+                                    return yargs.positional("action", {
+                                        describe: "get/delete",
+                                        choices: ["get", "delete"] as const,
+                                        default: "get",
+                                        type: "string",
+                                    });
+                                },
+                                async argv => doStrictAttestation(theNode, argv),
+                            )
+                            .command(
+                                "set <value>",
+                                "Enable or disable strict attestation validation",
+                                yargs => {
+                                    return yargs.positional("value", {
+                                        describe: "Enable strict attestation (true/false)",
+                                        type: "string",
+                                        choices: ["true", "false"] as const,
+                                        demandOption: true,
+                                    });
+                                },
+                                async argv => doStrictAttestation(theNode, { action: "set", ...argv }),
+                            );
+                    },
                 ),
         handler: async (argv: any) => {
             argv.unhandled = true;
@@ -570,6 +605,41 @@ async function doDclTestCertificates(
             console.log(
                 `DCL test certificates setting reset to default (disabled). Please restart the shell for the changes to take effect.`,
             );
+            break;
+    }
+}
+
+async function doStrictAttestation(
+    theNode: MatterNode,
+    args: {
+        action: string;
+        value?: string;
+    },
+) {
+    const { action, value } = args;
+    switch (action) {
+        case "get": {
+            const strict = await theNode.Store.get<boolean>("StrictAttestationValidation", false);
+            console.log(
+                `Strict attestation: ${strict ? "enabled (reject on errors, allow warnings/info)" : "disabled (accept all findings)"}`,
+            );
+            break;
+        }
+        case "set": {
+            if (value === undefined) {
+                console.log(`Cannot change strict attestation setting: New value not provided`);
+                return;
+            }
+            const newValue = value === "true";
+            await theNode.Store.set("StrictAttestationValidation", newValue);
+            console.log(
+                `Strict attestation: ${newValue ? "enabled (reject on errors, allow warnings/info)" : "disabled (accept all findings)"}`,
+            );
+            break;
+        }
+        case "delete":
+            await theNode.Store.delete("StrictAttestationValidation");
+            console.log(`Strict attestation setting reset to default (disabled).`);
             break;
     }
 }
