@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, MockCrypto, MockFetch, Pem, Seconds } from "@matter/general";
+import { Bytes, Crypto, DerCodec, DerType, MockCrypto, MockFetch, ObjectId, Pem, Seconds } from "@matter/general";
 import {
     AttestationFinding,
     DclCertificateService,
@@ -13,8 +13,35 @@ import {
     Paa,
     TestCert_PAA_FFF1_Cert,
     TestCert_PAA_NoVID_Cert,
+    TestCert_PAA_NoVID_SKID,
 } from "@matter/protocol";
 import { MockSite } from "./mock-site.js";
+
+/** Build a minimal DER-encoded CRL with the given revoked serial numbers (hex strings). */
+function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
+    const entries: Record<string, any> = {};
+    for (let i = 0; i < revokedSerialHexes.length; i++) {
+        entries[`e${i}`] = {
+            serial: { _tag: DerType.Integer, _bytes: Bytes.fromHex(revokedSerialHexes[i]) },
+            date: { _tag: DerType.UtcDate, _bytes: Bytes.fromString("250101000000Z") },
+        } as any;
+    }
+    const sig = { _objectId: ObjectId("2a8648ce3d040302") };
+    const tbs: Record<string, any> = {
+        version: { _tag: DerType.Integer, _bytes: Uint8Array.of(1) },
+        signature: sig,
+        issuer: { cn: ["Test Issuer"] },
+        thisUpdate: { _tag: DerType.UtcDate, _bytes: Bytes.fromString("250101000000Z") },
+    };
+    if (revokedSerialHexes.length > 0) tbs.revokedCertificates = entries;
+    return Bytes.of(
+        DerCodec.encode({
+            tbs,
+            sig2: sig,
+            sigVal: { _tag: DerType.BitString, _bytes: new Uint8Array(32), _padding: 0 },
+        } as any),
+    );
+}
 
 /** Format a hex SKID string with colon separators (e.g., "AABB" → "AA:BB"). */
 function formatSkidWithColons(hexSkid: string): string {
@@ -24,8 +51,12 @@ function formatSkidWithColons(hexSkid: string): string {
         .toUpperCase();
 }
 
-/** Set up MockFetch with DCL API responses for a given PAA certificate. */
-function setupDclFetchMock(fetchMock: MockFetch, paaCert: Bytes) {
+/** Set up MockFetch with DCL API responses for a PAA certificate and optional revocation data. */
+function setupDclFetchMock(
+    fetchMock: MockFetch,
+    paaCert: Bytes,
+    revocation?: { issuerSkid: string; revokedSerials: string[]; signerCertPem: string },
+) {
     const paa = Paa.fromAsn1(paaCert);
     const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
     const skidWithColons = formatSkidWithColons(skid);
@@ -60,7 +91,33 @@ function setupDclFetchMock(fetchMock: MockFetch, paaCert: Bytes) {
             },
         },
     );
-    fetchMock.addResponse("/dcl/pki/revocation-points", { PkiRevocationDistributionPoint: [] });
+    if (revocation !== undefined) {
+        const issuerSkidWithColons = formatSkidWithColons(revocation.issuerSkid);
+        fetchMock.addResponse("/dcl/pki/revocation-points", {
+            PkiRevocationDistributionPoint: [
+                {
+                    vid: 0xfff1,
+                    pid: 0,
+                    isPAA: false,
+                    label: "test-revocation",
+                    crlSignerDelegator: "",
+                    crlSignerCertificate: revocation.signerCertPem,
+                    issuerSubjectKeyID: issuerSkidWithColons,
+                    dataURL: "https://example.com/test.crl",
+                    dataFileSize: "",
+                    dataDigest: "",
+                    dataDigestType: 0,
+                    revocationType: 1,
+                    schemaVersion: 0,
+                },
+            ],
+        });
+        fetchMock.addResponse("https://example.com/test.crl", buildTestCrl(revocation.revokedSerials), {
+            binary: true,
+        });
+    } else {
+        fetchMock.addResponse("/dcl/pki/revocation-points", { PkiRevocationDistributionPoint: [] });
+    }
 }
 
 /**
@@ -84,6 +141,9 @@ interface AttestationTestOptions {
         device: { state: { commissioning: { commissioned: boolean } } },
         controllerPeerCount: number,
     ) => void;
+
+    /** Called after site + DCL setup but before commissioning. Use to add revocation mocks. */
+    setupBeforeCommission?: (context: { fetchMock: MockFetch }) => void | Promise<void>;
 }
 
 /**
@@ -95,13 +155,18 @@ async function runAttestationTest(options: AttestationTestOptions) {
     let dclService: DclCertificateService | undefined;
 
     try {
-        if (options.dclPaaCert !== undefined) {
+        if (options.dclPaaCert !== undefined && options.setupBeforeCommission === undefined) {
             setupDclFetchMock(fetchMock, options.dclPaaCert);
             fetchMock.install();
         }
 
         await using site = new MockSite();
         const { controller, device } = await site.addUncommissionedPair();
+
+        // setupBeforeCommission sets up its own DCL mocks (e.g., with revocation data)
+        if (options.setupBeforeCommission !== undefined) {
+            await options.setupBeforeCommission({ fetchMock });
+        }
 
         if (options.dclPaaCert !== undefined) {
             dclService = new DclCertificateService(controller.env, { updateInterval: null });
@@ -275,6 +340,58 @@ describe("device attestation during commissioning", () => {
                     expect(findings).to.have.length(1);
                     expect(findings[0].type).equals(DeviceAttestationCheck.PaaNotTrusted);
                     expect(findings[0].level).equals("error");
+                },
+                assertResult: (device, peers) => {
+                    expect(device.state.commissioning.commissioned).equals(true);
+                    expect(peers).equals(1);
+                },
+            }));
+    });
+
+    describe("certificate revocation", () => {
+        // PAI revocation is testable because the PAI's AKID = PAA SKID (well-known)
+        // and PAI serial is deterministic (0000000000000001).
+        // DAC revocation requires the PAI SKID which is random per device instance,
+        // so it's covered by unit tests in DeviceAttestationValidatorTest instead.
+
+        it("rejects when PAI serial is in revocation list", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                onAttestationFailure: () => false,
+                expectRejection: /revoked/i,
+                setupBeforeCommission: ({ fetchMock }) => {
+                    const paaSkid = Bytes.toHex(TestCert_PAA_NoVID_SKID).toUpperCase();
+                    // PAI serial is 01 (from toHex(BigInt(1)) in AttestationCertificateManager)
+                    setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
+                        issuerSkid: paaSkid,
+                        revokedSerials: ["01"],
+                        signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
+                    });
+                    fetchMock.install();
+                },
+                assertFindings: findings => {
+                    expect(findings).to.have.length(1);
+                    expect(findings[0].type).equals(DeviceAttestationCheck.CertificateRevoked);
+                    expect(findings[0].level).equals("error");
+                },
+            }));
+
+        it("passes when revocation list has different serial numbers", () =>
+            runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                onAttestationFailure: () => true,
+                setupBeforeCommission: ({ fetchMock }) => {
+                    const paaSkid = Bytes.toHex(TestCert_PAA_NoVID_SKID).toUpperCase();
+                    setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
+                        issuerSkid: paaSkid,
+                        revokedSerials: ["DEADBEEF", "CAFEBABE"],
+                        signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
+                    });
+                    fetchMock.install();
+                },
+                assertFindings: findings => {
+                    const revoked = findings.find(f => f.type === DeviceAttestationCheck.CertificateRevoked);
+                    expect(revoked).to.be.undefined;
                 },
                 assertResult: (device, peers) => {
                     expect(device.state.commissioning.commissioned).equals(true);

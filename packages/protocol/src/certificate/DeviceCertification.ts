@@ -78,8 +78,6 @@ export class DeviceCertification {
     }
 
     #validateCertification(product: ProductDescription) {
-        // Access private fields directly since this is called during construction
-        // (before construction completes, so #assertInitialized() would fail)
         const certificate = this.#certificate;
         const intermediateCertificate = this.#intermediateCertificate;
         if (certificate === undefined || intermediateCertificate === undefined) {
