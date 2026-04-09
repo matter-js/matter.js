@@ -147,14 +147,17 @@ export class DclCertificateService {
      */
     async getCertificateAsDer(subjectKeyId: Bytes | string) {
         this.construction.assert();
+        return this.#getCertificateDer(subjectKeyId);
+    }
 
+    /** Internal DER retrieval without construction assert (safe during init). */
+    async #getCertificateDer(subjectKeyId: Bytes | string) {
         const normalizedId = this.#normalizeSubjectKeyId(subjectKeyId);
         const metadata = this.#certificateIndex.get(normalizedId);
         if (!metadata) {
             throw new MatterDclError(`Certificate not found`, Diagnostic.dict({ skid: normalizedId }));
         }
 
-        // Retrieve DER certificate from storage
         const derBytes = await this.#storage!.get<Bytes>(normalizedId);
         if (!derBytes || derBytes.byteLength === 0) {
             throw new MatterDclError(`Certificate data not found in storage`, Diagnostic.dict({ skid: normalizedId }));
@@ -899,7 +902,7 @@ export class DclCertificateService {
                 ) {
                     throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
                 }
-                const paaDer = await this.getCertificateAsDer(delegatorAkid);
+                const paaDer = await this.#getCertificateDer(delegatorAkid);
                 const paa = Paa.fromAsn1(paaDer);
                 await this.#crypto.verifyEcdsa(
                     PublicKey(paa.cert.ellipticCurvePublicKey),
@@ -908,7 +911,7 @@ export class DclCertificateService {
                 );
                 issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
             } else if (this.#certificateIndex.has(signerAkidNorm)) {
-                const paaDer = await this.getCertificateAsDer(signerAkid);
+                const paaDer = await this.#getCertificateDer(signerAkid);
                 const paa = Paa.fromAsn1(paaDer);
                 issuerPublicKey = paa.cert.ellipticCurvePublicKey;
             }
