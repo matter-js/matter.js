@@ -22,6 +22,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @matter/node
     - Feature: (@adeepn) Added `DclBehavior` for centralized DCL configuration via environment variables (`MATTER_DCL_*`), config files, or programmatic setup
     - Feature: `CommissioningClient.BaseCommissioningOptions` now accepts `wifiNetwork`, `threadNetwork`, `regulatoryLocation`, and `regulatoryCountryCode` for passing network credentials and regulatory configuration during commissioning
+    - Feature: `onAttestationFailure` commissioning option for controlling attestation validation policy (true/false/callback with typed findings)
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands and arbitrary JS values
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
@@ -33,6 +34,7 @@ The main work (all changes without a GitHub username in brackets in the below li
 
 - @matter/nodejs-shell
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
+    - Feature: `cert revocations` and `cert check-revoked` commands for browsing and checking certificate revocation data
 
 - @matter/types
     - Breaking: We have removed the deprecated device type definitions in DeviceTypes that have not received updates since Matter 1.1
@@ -47,6 +49,12 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: matter.js now responds immediately to IP changes advertised via MDNS
     - Feature: (@adeepn) `DclConfig` is now an interface with namespace defaults instead of a singleton; `DclClient` accepts `DclConfig` for configurable endpoints
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
+    - Feature: Device attestation validation during commissioning per Matter spec 6.2.3.1 — certificate chain verification, attestation signature/nonce, Certification Declaration validation, and certificate revocation checks via CRL
+    - Feature: Attestation findings model with typed error/warning/info levels and configurable policy callback for custom commissioning decisions
+    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL, validates signer chain against trusted PAAs, verifies CRL signature and integrity, tracks freshness via nextUpdate and 7-day TTL
+    - Feature: `CertificationDeclaration.parse()` for CMS/PKCS#7 signed CD extraction and signature verification
+    - Enhancement: Attestation local checks (nonce, signature, VendorID, CD fields) run even without `DclCertificateService`; DCL-dependent checks (PAA trust, chain, revocation) require it
+    - Enhancement: Server-side `DeviceCertification` validates DAC/PAI VendorID and ProductID against product description at startup
     - Enhancement: Enhances the strategy when multiple devices were discovered for the same commissioning target
     - Enhancement: When multiple IP addresses are available for a device during commissioning, all are tried in parallel for faster connection
     - Enhancement: An `AbortSignal` can now be passed to cancel an in-progress commissioning attempt; the PASE layer sends `InvalidParameter` to avoid a 60-second device lockout
