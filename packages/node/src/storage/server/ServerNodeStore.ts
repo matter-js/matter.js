@@ -118,7 +118,9 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     override async bdxStore(): Promise<BlobStorageDriver> {
         if (!this.#bdxHandle) {
             const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
-            const blobNamespace = root ? new DatafileRoot(root.directory.directory("bdx")) : `${this.#nodeId}-bdx`;
+            const blobNamespace = root
+                ? new DatafileRoot(root.directory.directory(`${this.#nodeId}-bdx`))
+                : `${this.#nodeId}-bdx`;
             this.#bdxHandle = await this.#env.get(StorageService).openBlobStorage(blobNamespace);
         }
         return this.#bdxHandle.driver;

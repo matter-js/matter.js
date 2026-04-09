@@ -61,6 +61,9 @@ export class DirectoryBlobStorageDriver extends BlobStorageDriver {
         return new Blob([Bytes.exclusive(bytes)]);
     }
 
+    // TODO: writes go directly to the final file via the File abstraction's streaming support.
+    // Not atomic — a crash mid-write leaves a partial file.  Hardening with write-to-tmp + rename
+    // would require bypassing File.write() to get a temp path in the same directory.
     async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
         validateKey(key);
 
@@ -132,13 +135,19 @@ export class DirectoryBlobStorageDriver extends BlobStorageDriver {
     }
 }
 
-/** Reject keys that could escape the storage directory via path traversal. */
+/** Reject keys that could escape the storage directory, collide with metadata, or become invisible. */
 function validateKey(key: string) {
     if (!key.length) {
         throw new StorageError("Key must not be empty");
     }
     if (key.includes("/") || key.includes("\\") || key === ".." || key.startsWith("../") || key.includes("/../")) {
         throw new StorageError(`Key "${key}" contains path traversal characters`);
+    }
+    if (BaseStorageDriver.RESERVED_FILENAMES.has(key)) {
+        throw new StorageError(`Key "${key}" is a reserved filename`);
+    }
+    if (key.endsWith(".tmp")) {
+        throw new StorageError(`Key "${key}" must not end with ".tmp" (reserved for atomic writes)`);
     }
 }
 

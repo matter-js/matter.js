@@ -210,6 +210,15 @@ function buildStorageKey(contexts: string[], key: string): string {
     if (!key.length) {
         throw new StorageError("Key must not be an empty string.");
     }
+    if (key.includes(".")) {
+        throw new StorageError(`Key "${key}" must not contain "." (would be misinterpreted as context separator)`);
+    }
+    if (key.endsWith(".tmp")) {
+        throw new StorageError(`Key "${key}" must not end with ".tmp" (reserved for atomic writes)`);
+    }
+    if (BaseStorageDriver.RESERVED_FILENAMES.has(key)) {
+        throw new StorageError(`Key "${key}" is a reserved filename`);
+    }
     const contextKey = getContextBaseKey(contexts);
     const rawName = contextKey.length ? `${contextKey}.${key}` : key;
     return encodeURIComponent(rawName)
