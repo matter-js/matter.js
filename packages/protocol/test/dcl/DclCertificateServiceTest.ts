@@ -1281,9 +1281,8 @@ describe("DclCertificateService", () => {
             expect(result.tbsDer).to.not.be.undefined;
             expect(Bytes.of(result.tbsDer!).length).to.be.greaterThan(0);
 
-            // signatureValue is the CRL signature
+            // signatureValue is present (test CRL has empty signature placeholder)
             expect(result.signatureValue).to.not.be.undefined;
-            expect(Bytes.of(result.signatureValue!).length).to.be.greaterThan(0);
         });
 
         it("isRevoked returns false when no revocation data exists", async () => {

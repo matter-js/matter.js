@@ -38,7 +38,7 @@ function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
         DerCodec.encode({
             tbs,
             sig2: sig,
-            sigVal: { _tag: DerType.BitString, _bytes: new Uint8Array(32), _padding: 0 },
+            sigVal: { _tag: DerType.BitString, _bytes: new Uint8Array(0), _padding: 0 },
         } as any),
     );
 }

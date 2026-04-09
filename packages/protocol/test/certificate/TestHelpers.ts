@@ -157,7 +157,7 @@ export function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
         signatureAlgorithm,
         signatureValue: {
             _tag: DerType.BitString,
-            _bytes: new Uint8Array(32),
+            _bytes: new Uint8Array(0),
             _padding: 0,
         },
     };
