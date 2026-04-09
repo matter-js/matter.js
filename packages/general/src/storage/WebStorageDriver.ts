@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes, fromJson, toJson } from "./StringifyTools.js";
 
@@ -79,14 +78,6 @@ export class WebStorageDriver extends StorageDriver {
         const value = await this.#storage.getItem(this.buildStorageKey(contexts, key));
         if (value === null) return undefined;
         return fromJson(value) as T;
-    }
-
-    async openBlob(_contexts: string[], _key: string): Promise<Blob> {
-        throw new StorageError("Blob storage is not supported by WebStorageDriver.");
-    }
-
-    async writeBlobFromStream(_contexts: string[], _key: string, _stream: ReadableStream<Bytes>): Promise<void> {
-        throw new StorageError("Blob storage is not supported by WebStorageDriver.");
     }
 
     set(contexts: string[], key: string, value: SupportedStorageTypes): Promise<void>;

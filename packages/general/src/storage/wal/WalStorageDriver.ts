@@ -8,7 +8,6 @@ import { Logger } from "#log/Logger.js";
 import type { Duration } from "#time/Duration.js";
 import { Hours } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
-import { Bytes } from "#util/Bytes.js";
 import { Gzip } from "#util/Gzip.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import type { Directory } from "../../fs/Directory.js";
@@ -20,7 +19,6 @@ import {
     type WalCommitId,
     compareCommitIds,
     compressedSegmentFilename,
-    encodeContextKey,
     parseSegmentFilename,
     segmentFilename,
 } from "./WalCommit.js";
@@ -305,53 +303,6 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
         );
     }
 
-    // --- Blobs (not transactional, stored as separate files) ---
-
-    async openBlob(contexts: string[], key: string): Promise<Blob> {
-        this.#assertInitialized();
-        const blobPath = this.#blobPath(contexts, key);
-        const file = this.#storageDir.directory("blobs").file(blobPath);
-        if (!(await file.exists())) {
-            return new Blob([]);
-        }
-        const bytes = await file.readAllBytes();
-        return new Blob([Bytes.exclusive(bytes)]);
-    }
-
-    async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
-        this.#assertInitialized();
-        const blobPath = this.#blobPath(contexts, key);
-        const blobsDir = this.#storageDir.directory("blobs");
-        await blobsDir.mkdir();
-
-        // Ensure parent directories exist
-        const parts = blobPath.split("/");
-        let dir = blobsDir;
-        for (let i = 0; i < parts.length - 1; i++) {
-            dir = dir.directory(parts[i]);
-            await dir.mkdir();
-        }
-
-        const file = blobsDir.file(blobPath);
-        const reader = stream.getReader();
-        const chunks: Uint8Array[] = [];
-        let length = 0;
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const data = Bytes.of(value);
-            chunks.push(data);
-            length += data.length;
-        }
-        const combined = new Uint8Array(length);
-        let offset = 0;
-        for (const chunk of chunks) {
-            combined.set(chunk, offset);
-            offset += chunk.length;
-        }
-        await file.write(combined);
-    }
-
     // --- Internal ---
 
     async #loadCache(): Promise<StoreData> {
@@ -524,10 +475,6 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             }
         }
         return contexts.join(".");
-    }
-
-    #blobPath(contexts: string[], key: string): string {
-        return encodeContextKey(contexts) + "/" + key;
     }
 
     #assertInitialized(): void {

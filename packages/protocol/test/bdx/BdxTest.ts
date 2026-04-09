@@ -10,9 +10,22 @@ import {
     Flow,
 } from "#bdx/index.js";
 import { PersistedFileDesignator } from "#bdx/PersistedFileDesignator.js";
-import { Bytes, StandardCrypto } from "@matter/general";
+import { ScopedStorage } from "#bdx/ScopedStorage.js";
+import { Bytes, MemoryBlobStorageDriver, StandardCrypto } from "@matter/general";
 import { BdxMessageType, BdxStatusCode, GeneralStatusCode, SecureMessageType } from "@matter/types";
 import { bdxTransfer } from "./bdx-helpers.js";
+
+/** Write raw bytes into blob storage under a ScopedStorage's context hierarchy using synchronous set. */
+function writeBlob(storage: ScopedStorage, key: string, data: Bytes) {
+    const driver = storage.blobDriver as MemoryBlobStorageDriver;
+    driver.setBytes(storage.baseContexts, key, Bytes.of(data));
+}
+
+/** Read blob bytes from a ScopedStorage via the MemoryBlobStorageDriver. */
+function readBlob(storage: ScopedStorage, key: string): Uint8Array | undefined {
+    const driver = storage.blobDriver as MemoryBlobStorageDriver;
+    return driver.getBytes(storage.baseContexts, key);
+}
 
 describe("BdxTest", () => {
     const crypto = new StandardCrypto(); // For random data generation
@@ -24,9 +37,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
@@ -83,7 +96,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(2);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -94,9 +107,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -161,7 +174,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[4].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[4].data.blockCounter).equals(2);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -173,10 +186,10 @@ describe("BdxTest", () => {
                 let fd: PersistedFileDesignator;
                 let transferFd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data2", clientStorage);
                         transferFd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data2", data);
+                        writeBlob(clientStorage, "data2", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -222,7 +235,7 @@ describe("BdxTest", () => {
 
                         // No need to test all details again because tested with former test already
 
-                        const receivedData = await serverStorage.context.get(transferFd.blobName);
+                        const receivedData = readBlob(serverStorage, transferFd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -234,10 +247,10 @@ describe("BdxTest", () => {
                 let fd: PersistedFileDesignator;
                 let transferFd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
                         transferFd = new PersistedFileDesignator("data2", clientStorage);
-                        serverStorage.context.set("data2", data);
+                        writeBlob(serverStorage, "data2", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, {
@@ -300,7 +313,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[3].data.blockCounter).equals(2);
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -311,9 +324,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        serverStorage.context.set("data", data);
+                        writeBlob(serverStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, {
@@ -379,7 +392,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[4].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[4].data.blockCounter).equals(2);
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -390,9 +403,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        serverStorage.context.set("data", data);
+                        writeBlob(serverStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
@@ -436,7 +449,7 @@ describe("BdxTest", () => {
 
                         // No need to test details here again
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -449,9 +462,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
@@ -500,7 +513,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(1);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -511,9 +524,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -571,7 +584,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[3].data.blockCounter).equals(1);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -582,9 +595,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        serverStorage.context.set("data", data);
+                        writeBlob(serverStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
@@ -644,7 +657,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[3].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[3].data.blockCounter).equals(2);
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -655,9 +668,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        serverStorage.context.set("data", data);
+                        writeBlob(serverStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, {
@@ -723,7 +736,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[4].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[4].data.blockCounter).equals(2);
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -736,9 +749,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
@@ -780,7 +793,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[1].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[1].data.blockCounter).equals(0);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -791,9 +804,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -844,7 +857,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(0);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -855,9 +868,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        serverStorage.context.set("data", data);
+                        writeBlob(serverStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
@@ -903,7 +916,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[1].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[1].data.blockCounter).equals(0);
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -914,9 +927,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, serverStorage, messenger) => {
+                    prepare: async (clientStorage, serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        serverStorage.context.set("data", data);
+                        writeBlob(serverStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asReceiver(messenger, {
@@ -968,7 +981,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(clientExchangeData[2].data.blockCounter).equals(0);
 
-                        const receivedData = await clientStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(clientStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(data);
                     },
                 });
@@ -981,9 +994,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd, senderMaxLength: 100 }),
@@ -1011,7 +1024,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[1].data.blockCounter).equals(0);
                         expect(clientExchangeData[1].data.data.length).equals(100);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(Bytes.of(data).slice(0, 100));
                     },
                 });
@@ -1022,9 +1035,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -1076,7 +1089,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(0);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(Bytes.of(data).slice(0, 100));
                     },
                 });
@@ -1087,9 +1100,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -1121,7 +1134,7 @@ describe("BdxTest", () => {
                         expect(clientExchangeData[1].data.blockCounter).equals(0);
                         expect(clientExchangeData[1].data.data.length).equals(100);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(Bytes.of(data).slice(50, 150));
                     },
                 });
@@ -1132,9 +1145,9 @@ describe("BdxTest", () => {
 
                 let fd: PersistedFileDesignator;
                 await bdxTransfer({
-                    prepare: (clientStorage, _serverStorage, messenger) => {
+                    prepare: async (clientStorage, _serverStorage, messenger) => {
                         fd = new PersistedFileDesignator("data", clientStorage);
-                        clientStorage.context.set("data", data);
+                        writeBlob(clientStorage, "data", data);
 
                         return {
                             bdxClient: BdxClient.asSender(messenger, {
@@ -1187,7 +1200,7 @@ describe("BdxTest", () => {
                         expect(serverExchangeData[2].type).equals(BdxMessageType.BlockAckEof);
                         expect(serverExchangeData[2].data.blockCounter).equals(0);
 
-                        const receivedData = await serverStorage.context.get(fd.blobName);
+                        const receivedData = readBlob(serverStorage, fd.blobName);
                         expect(receivedData).to.deep.equal(Bytes.of(data).slice(50, 150));
                     },
                 });
@@ -1201,9 +1214,9 @@ describe("BdxTest", () => {
 
             let fd: PersistedFileDesignator;
             await bdxTransfer({
-                prepare: (clientStorage, _serverStorage, messenger) => {
+                prepare: async (clientStorage, _serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
-                    clientStorage.context.set("data", data);
+                    writeBlob(clientStorage, "data", data);
 
                     return {
                         bdxClient: BdxClient.asSender(messenger, {
@@ -1224,7 +1237,7 @@ describe("BdxTest", () => {
                     expect(serverExchangeData[0].data.generalStatus).equals(GeneralStatusCode.Failure);
                     expect(serverExchangeData[0].data.protocolStatus).equals(BdxStatusCode.TransferMethodNotSupported);
 
-                    expect(serverStorage.context.has(fd.text)).equals(false);
+                    expect(serverStorage.blobDriver.has(serverStorage.baseContexts, fd.text)).equals(false);
                 },
             });
         });
@@ -1232,7 +1245,7 @@ describe("BdxTest", () => {
         it("Unknown FileDesignator", async () => {
             let fd: PersistedFileDesignator;
             await bdxTransfer({
-                prepare: (clientStorage, _serverStorage, messenger) => {
+                prepare: async (clientStorage, _serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
                     return {
                         bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
@@ -1255,9 +1268,9 @@ describe("BdxTest", () => {
 
             let fd: PersistedFileDesignator;
             await bdxTransfer({
-                prepare: (clientStorage, serverStorage, messenger) => {
+                prepare: async (clientStorage, serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
-                    serverStorage.context.set("data", data);
+                    writeBlob(serverStorage, "data", data);
 
                     return {
                         bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
@@ -1276,7 +1289,7 @@ describe("BdxTest", () => {
                     expect(clientError instanceof BdxStatusResponseError).equals(true);
                     expect(clientError.protocolStatusCode).equals(BdxStatusCode.LengthTooLarge);
 
-                    expect(clientStorage.context.has(fd.text)).equals(false);
+                    expect(clientStorage.blobDriver.has(clientStorage.baseContexts, fd.text)).equals(false);
                 },
             });
         });
@@ -1286,9 +1299,9 @@ describe("BdxTest", () => {
 
             let fd: PersistedFileDesignator;
             await bdxTransfer({
-                prepare: (clientStorage, serverStorage, messenger) => {
+                prepare: async (clientStorage, serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
-                    serverStorage.context.set("data", data);
+                    writeBlob(serverStorage, "data", data);
 
                     return {
                         bdxClient: BdxClient.asReceiver(messenger, { fileDesignator: fd }),
@@ -1308,7 +1321,7 @@ describe("BdxTest", () => {
                     expect(clientError instanceof BdxStatusResponseError).equals(true);
                     expect(clientError.protocolStatusCode).equals(BdxStatusCode.LengthTooLarge);
 
-                    expect(clientStorage.context.has(fd.text)).equals(false);
+                    expect(clientStorage.blobDriver.has(clientStorage.baseContexts, fd.text)).equals(false);
                 },
             });
         });
@@ -1318,9 +1331,9 @@ describe("BdxTest", () => {
 
             let fd: PersistedFileDesignator;
             await bdxTransfer({
-                prepare: (clientStorage, _serverStorage, messenger) => {
+                prepare: async (clientStorage, _serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
-                    clientStorage.context.set("data", data);
+                    writeBlob(clientStorage, "data", data);
 
                     return {
                         bdxClient: BdxClient.asSender(messenger, { fileDesignator: fd }),
@@ -1343,7 +1356,7 @@ describe("BdxTest", () => {
                     expect(serverExchangeData[1].data.generalStatus).equals(GeneralStatusCode.Failure);
                     expect(serverExchangeData[1].data.protocolStatus).equals(BdxStatusCode.BadBlockCounter);
 
-                    expect(serverStorage.context.has(fd.text)).equals(false);
+                    expect(serverStorage.blobDriver.has(serverStorage.baseContexts, fd.text)).equals(false);
                 },
             });
         });
@@ -1353,9 +1366,9 @@ describe("BdxTest", () => {
 
             let fd: PersistedFileDesignator;
             await bdxTransfer({
-                prepare: (clientStorage, _serverStorage, messenger) => {
+                prepare: async (clientStorage, _serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
-                    clientStorage.context.set("data", data);
+                    writeBlob(clientStorage, "data", data);
 
                     return {
                         bdxClient: BdxClient.asSender(messenger, {
@@ -1441,7 +1454,7 @@ describe("BdxTest", () => {
                     expect(clientExchangeData[3].data.generalStatus).equals(GeneralStatusCode.Failure);
                     expect(clientExchangeData[3].data.protocolStatus).equals(BdxStatusCode.LengthTooShort);
 
-                    expect(serverStorage.context.has(fd.text)).equals(false);
+                    expect(serverStorage.blobDriver.has(serverStorage.baseContexts, fd.text)).equals(false);
                 },
             });
         });
@@ -1454,9 +1467,9 @@ describe("BdxTest", () => {
             let fd: PersistedFileDesignator;
             let bdxClientRef: BdxClient;
             await bdxTransfer({
-                prepare: (clientStorage, _serverStorage, messenger) => {
+                prepare: async (clientStorage, _serverStorage, messenger) => {
                     fd = new PersistedFileDesignator("data", clientStorage);
-                    clientStorage.context.set("data", data);
+                    writeBlob(clientStorage, "data", data);
 
                     const bdxClient = BdxClient.asSender(messenger, { fileDesignator: fd });
                     bdxClientRef = bdxClient;

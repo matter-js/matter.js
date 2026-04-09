@@ -8,6 +8,7 @@ import { InternalError } from "#MatterError.js";
 import { MaybePromise } from "#util/Promises.js";
 import { Environment } from "../environment/Environment.js";
 import type { DataNamespace } from "./DataNamespace.js";
+import { MemoryBlobStorageDriver } from "./MemoryBlobStorageDriver.js";
 import { MemoryStorageDriver } from "./MemoryStorageDriver.js";
 import { StorageDriver } from "./StorageDriver.js";
 import { StorageManager } from "./StorageManager.js";
@@ -27,6 +28,13 @@ export class MockStorageService extends StorageService {
     constructor(environment: Environment, opener?: (namespace: string) => MaybePromise<StorageDriver>) {
         super(environment);
         this.#opener = opener;
+
+        // Register MemoryBlobStorageDriver so openBlobStorage works in tests
+        this.registerBlobDriver({
+            id: MemoryBlobStorageDriver.id,
+            create: () => new MemoryBlobStorageDriver(),
+        });
+        this.defaultBlobDriver = MemoryBlobStorageDriver.id;
     }
 
     /**

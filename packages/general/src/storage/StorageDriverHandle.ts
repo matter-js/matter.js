@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
 import { CloneableStorage, StorageDriver } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -87,14 +86,6 @@ export class StorageDriverHandle extends StorageDriver {
 
     override has(contexts: string[], key: string): MaybePromise<boolean> {
         return this.#driver.has(contexts, key);
-    }
-
-    override openBlob(contexts: string[], key: string): MaybePromise<Blob> {
-        return this.#driver.openBlob(contexts, key);
-    }
-
-    override writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): MaybePromise<void> {
-        return this.#driver.writeBlobFromStream(contexts, key, stream);
     }
 
     override begin(): MaybePromise<StorageDriver.Transaction> {

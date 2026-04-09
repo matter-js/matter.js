@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Bytes } from "#util/Bytes.js";
 import type { MaybePromise } from "#util/Promises.js";
 import { StorageTransaction } from "../StorageTransaction.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
@@ -179,14 +178,6 @@ export class WalTransaction extends StorageTransaction {
             return baseContexts.then(applyBuffered);
         }
         return applyBuffered(baseContexts as string[]);
-    }
-
-    override openBlob(contexts: string[], key: string): MaybePromise<Blob> {
-        return this.storage.openBlob(contexts, key);
-    }
-
-    override writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): MaybePromise<void> {
-        return this.storage.writeBlobFromStream(contexts, key, stream);
     }
 
     override async commit(): Promise<void> {

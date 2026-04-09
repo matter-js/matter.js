@@ -8,6 +8,8 @@ import { Endpoint } from "#endpoint/Endpoint.js";
 import type { ServerNode } from "#node/ServerNode.js";
 import {
     asyncNew,
+    type BlobStorageDriver,
+    type BlobStorageHandle,
     DatafileRoot,
     Destructable,
     Diagnostic,
@@ -36,6 +38,7 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     #endpointStores: ServerEndpointStores;
     #storageManager?: StorageManager;
     #clientStores?: ClientNodeStores;
+    #bdxHandle?: BlobStorageHandle;
 
     constructor(environment: Environment, nodeId: string) {
         super({
@@ -64,6 +67,7 @@ export class ServerNodeStore extends NodeStore implements Destructable {
     async close() {
         await this.construction.close(async () => {
             await this.#clientStores?.close();
+            await this.#bdxHandle?.close();
             await this.#storageManager?.close();
             await this.#env.get(StorageService).close(this.#nodeId);
             this.#logChange("Closed");
@@ -106,6 +110,18 @@ export class ServerNodeStore extends NodeStore implements Destructable {
 
     storeForEndpoint(endpoint: Endpoint) {
         return this.#endpointStores.storeForEndpoint(endpoint);
+    }
+
+    /**
+     * Lazily opens and returns the BDX blob storage driver using a dedicated namespace.
+     */
+    override async bdxStore(): Promise<BlobStorageDriver> {
+        if (!this.#bdxHandle) {
+            const root = this.#env.has(DatafileRoot) ? this.#env.get(DatafileRoot) : undefined;
+            const blobNamespace = root ? new DatafileRoot(root.directory.directory("bdx")) : `${this.#nodeId}-bdx`;
+            this.#bdxHandle = await this.#env.get(StorageService).openBlobStorage(blobNamespace);
+        }
+        return this.#bdxHandle.driver;
     }
 
     erase() {
