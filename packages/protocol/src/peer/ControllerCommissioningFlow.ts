@@ -134,9 +134,8 @@ export type ControllerCommissioningFlowOptions = {
     dclCertificateService?: DclCertificateService;
 
     /**
-     * The PASE session used for commissioning.
-     * Provides the attestation challenge key needed to verify attestation and CSR signatures.
-     * Injected by ControllerCommissioner.
+     * The PASE session for attestation/CSR signature verification.
+     * Injected by ControllerCommissioner — not a user-facing option.
      */
     paseSession?: NodeSession;
 };
@@ -1083,12 +1082,6 @@ export class ControllerCommissioningFlow {
         }
 
         const { dclCertificateService, paseSession } = this.commissioningOptions;
-
-        if (paseSession === undefined) {
-            throw new CommissioningError(
-                "PASE session is required for attestation validation but was not provided in commissioning options",
-            );
-        }
 
         if (dclCertificateService === undefined) {
             // DCL service not available — route through findings so the callback can decide

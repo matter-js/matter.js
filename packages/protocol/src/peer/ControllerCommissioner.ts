@@ -480,12 +480,10 @@ export class ControllerCommissioner {
             caseConnectionTiming,
         } = options;
 
-        // Inject DclCertificateService from the environment if available and not already provided
-        const dclCertificateService =
-            options.dclCertificateService ??
-            (this.#context.environment.has(DclCertificateService)
-                ? this.#context.environment.get(DclCertificateService)
-                : undefined);
+        // Look up DclCertificateService from environment if available
+        const dclCertificateService = this.#context.environment.has(DclCertificateService)
+            ? this.#context.environment.get(DclCertificateService)
+            : undefined;
 
         const commissioningOptions = {
             regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Most restrictive default if not specified
