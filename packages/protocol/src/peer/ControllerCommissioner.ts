@@ -6,6 +6,7 @@
 
 import { ClientInteraction } from "#action/client/ClientInteraction.js";
 import { CertificateAuthority } from "#certificate/CertificateAuthority.js";
+import { DeviceAttestationValidator } from "#certificate/DeviceAttestationValidator.js";
 import { CommissionableDevice, DiscoveryData, DiscoveryDataDiagnostics } from "#common/Scanner.js";
 import { Fabric } from "#fabric/Fabric.js";
 import { CommissioningConnection } from "#peer/CommissioningConnection.js";
@@ -57,6 +58,9 @@ const logger = Logger.get("ControllerCommissioner");
  * General commissioning options.
  */
 export interface CommissioningOptions extends Partial<ControllerCommissioningFlowOptions> {
+    /** Controls behavior when device attestation produces findings. */
+    onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
+
     /** The fabric into which to commission. */
     fabric: Fabric;
 
@@ -480,16 +484,10 @@ export class ControllerCommissioner {
             caseConnectionTiming,
         } = options;
 
-        // Look up DclCertificateService from environment if available
-        const dclCertificateService = this.#context.environment.has(DclCertificateService)
-            ? this.#context.environment.get(DclCertificateService)
-            : undefined;
-
         const commissioningOptions = {
             regulatoryLocation: GeneralCommissioning.RegulatoryLocationType.Outdoor, // Most restrictive default if not specified
             regulatoryCountryCode: "XX",
             ...options,
-            dclCertificateService,
         };
 
         // TODO: Create the fabric only when needed before commissioning (to do when refactoring MatterController away)
@@ -538,7 +536,16 @@ export class ControllerCommissioner {
             }),
             this.#context.ca,
             fabric,
-            { ...commissioningOptions, paseSession: ephemeralSession },
+            {
+                ...commissioningOptions,
+                attestation: {
+                    challengeKey: ephemeralSession.attestationChallengeKey,
+                    dclCertificateService: this.#context.environment.has(DclCertificateService)
+                        ? this.#context.environment.get(DclCertificateService)
+                        : undefined,
+                    onFailure: options.onAttestationFailure,
+                },
+            },
             async (address, supportsConcurrentConnections) => {
                 if (!supportsConcurrentConnections) {
                     /*

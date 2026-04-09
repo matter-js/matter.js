@@ -50,7 +50,7 @@ import { GeneralCommissioning } from "@matter/types/clusters/general-commissioni
 import { NetworkCommissioning } from "@matter/types/clusters/network-commissioning";
 import { OperationalCredentials } from "@matter/types/clusters/operational-credentials";
 import { OtaSoftwareUpdateRequestor } from "@matter/types/clusters/ota-software-update-requestor";
-import { TimeSynchronizationCluster } from "@matter/types/clusters/time-synchronization";
+import { TimeSynchronization } from "@matter/types/clusters/time-synchronization";
 import { CertificateAuthority } from "../certificate/CertificateAuthority.js";
 import {
     AttestationFinding,
@@ -63,7 +63,6 @@ import { ClusterClientObj } from "../cluster/client/ClusterClientTypes.js";
 import { TlvCertSigningRequest } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
 import { Fabric } from "../fabric/Fabric.js";
-import type { NodeSession } from "../session/NodeSession.js";
 import { CommissioningError } from "./CommissioningError.js";
 import { PeerAddress } from "./PeerAddress.js";
 
@@ -113,31 +112,35 @@ export type ControllerCommissioningFlowOptions = {
     otaUpdateProviderLocation?: OtaProviderLocation;
 
     /**
-     * Controls behavior when device attestation produces findings (errors, warnings, or informational).
-     * - false: reject on any finding
-     * - true: always accept with info logging
-     * - callback: receives AttestationFinding[], return true to proceed, false to reject
-     * - undefined: accept with warning logging (backward compatibility)
-     *
-     * Errors (chain invalid, signature bad, revoked) stop validation immediately and call with a single
-     * error finding. Warnings/info (provisional CD, skipped checks) are collected and presented at the end.
-     *
-     * TODO: Make required in next breaking version and remove undefined backward-compatible accept
+     * Attestation validation settings. Injected by ControllerCommissioner — the only user-facing
+     * part is `onFailure` which is forwarded from CommissioningClient options.
      */
-    onAttestationFailure?: DeviceAttestationValidator.OnAttestationFailure;
+    attestation: {
+        /** Attestation challenge key from the PASE session, used to verify attestation and CSR signatures. */
+        challengeKey: Bytes;
 
-    /**
-     * DclCertificateService for PAA trust store lookup and revocation checks during device attestation.
-     * If not provided, attestation validation is skipped with a warning.
-     * This is typically injected by the ControllerCommissioner from the environment.
-     */
-    dclCertificateService?: DclCertificateService;
+        /** DclCertificateService for PAA trust store and revocation checks. Looked up from environment. */
+        dclCertificateService?: DclCertificateService;
 
-    /**
-     * The PASE session for attestation/CSR signature verification.
-     * Injected by ControllerCommissioner — not a user-facing option.
-     */
-    paseSession?: NodeSession;
+        /**
+         * Controls behavior when attestation produces findings.
+         * - `false`: reject on any finding
+         * - `true`: always accept with info logging
+         * - callback: receives `AttestationFinding[]`, return `true` to proceed, `false` to reject
+         * - `undefined`: accept with warning logging (backward compatibility)
+         *
+         * The callback receives either:
+         * - A single error-level finding for hard failures (invalid chain, bad signature, revoked
+         *   certificate, untrusted PAA, DCL service unavailable). The commissioner must decide
+         *   whether to proceed despite the failure.
+         * - One or more warning/info-level findings after successful validation (e.g. provisional
+         *   CD, test CD, skipped CD signer verification, no revocation data). These are
+         *   informational and the commissioner can inspect them for detailed decisions.
+         *
+         * TODO: Make required in next breaking version and remove undefined backward-compatible accept
+         */
+        onFailure?: DeviceAttestationValidator.OnAttestationFailure;
+    };
 };
 
 /** Types representation of a general commissioning response. */
@@ -982,9 +985,7 @@ export class ControllerCommissioningFlow {
     async #synchronizeTime() {
         if (
             this.collectedCommissioningData.rootServerList !== undefined &&
-            this.collectedCommissioningData.rootServerList.find(
-                clusterId => clusterId === TimeSynchronizationCluster.id,
-            )
+            this.collectedCommissioningData.rootServerList.find(clusterId => clusterId === TimeSynchronization.id)
         ) {
             logger.debug("TimeSynchronization cluster is supported");
             // TODO: implement
@@ -1044,9 +1045,9 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        const { dclCertificateService, paseSession } = this.commissioningOptions;
+        const attestation = this.commissioningOptions.attestation;
 
-        if (dclCertificateService === undefined) {
+        if (attestation.dclCertificateService === undefined) {
             // DCL service not available — route through findings so the callback can decide
             const unavailableFinding: AttestationFinding = {
                 level: "error",
@@ -1059,17 +1060,13 @@ export class ControllerCommissioningFlow {
             if (!proceed) {
                 throw new CommissioningError(unavailableFinding.message);
             }
-
-            // Still need to extract DAC public key for CSR signature verification
-            const dac = Dac.fromAsn1(deviceAttestation);
-            this.#dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
         } else {
             try {
                 const result = await DeviceAttestationValidator.validate(
                     {
                         crypto: this.fabric.crypto,
-                        dclCertificateService,
-                        attestationChallenge: paseSession!.attestationChallengeKey,
+                        dclCertificateService: attestation.dclCertificateService,
+                        attestationChallenge: attestation.challengeKey,
                     },
                     {
                         dac: deviceAttestation,
@@ -1081,9 +1078,7 @@ export class ControllerCommissioningFlow {
                         productId: this.collectedCommissioningData.productId!,
                     },
                 );
-                this.#dacPublicKey = result.dacPublicKey;
 
-                // If validation succeeded but produced warnings/info, consult the policy
                 if (result.findings.length > 0) {
                     const proceed = await this.#resolveAttestationFindings(result.findings);
                     if (!proceed) {
@@ -1094,7 +1089,6 @@ export class ControllerCommissioningFlow {
                 }
             } catch (error) {
                 if (error instanceof DeviceAttestationError) {
-                    // Hard error — wrap as single finding and consult policy
                     const errorFinding: AttestationFinding = {
                         level: "error",
                         type: error.failure,
@@ -1104,14 +1098,14 @@ export class ControllerCommissioningFlow {
                     if (!proceed) {
                         throw error;
                     }
-                    // Even on failure, extract DAC public key for CSR verification
-                    const dac = Dac.fromAsn1(deviceAttestation);
-                    this.#dacPublicKey = PublicKey(dac.cert.ellipticCurvePublicKey);
                 } else {
                     throw error;
                 }
             }
         }
+
+        // Extract DAC public key for CSR signature verification in #certificates()
+        this.#dacPublicKey = PublicKey(Dac.fromAsn1(deviceAttestation).cert.ellipticCurvePublicKey);
 
         return {
             code: CommissioningStepResultCode.Success,
@@ -1119,25 +1113,9 @@ export class ControllerCommissioningFlow {
         };
     }
 
-    /**
-     * Step 11-13
-     * 11: Following the Device Attestation Procedure yielding a decision to proceed with commissioning, the Commissioner
-     *     SHALL request operational CSR from Commissionee using the CSRRequest command (see Section 11.17.6.5,
-     *     “CSRRequest Command”). The CSRRequest command will cause the generation of a new operational key pair at the
-     *     Commissionee.
-     * 12: Commissioner SHALL generate or otherwise obtain an Operational Certificate containing Operational ID after
-     *     receiving the CSRResponse command from the Commissionee (see Section 11.17.6.5, “CSRRequest Command”), using
-     *     implementation-specific means.
-     * 13: Commissioner SHALL install operational credentials (see Figure 40, “Node Operational Credentials
-     *     flow”) on the Commissionee using the AddTrustedRootCertificate and AddNOC commands,
-     *     and SHALL use the UpdateFabricLabel command to set a string that the user can recognize and
-     *     relate to this Commissioner/Administrator.
-     *     The AdminVendorId field of the AddNOC command SHALL be set to a value for which the Vendor Schema in
-     *     DCL contains the name and other information of the Commissioner’s manufacturer.
-     */
     /** Resolve attestation findings according to the configured policy. */
     #resolveAttestationFindings(findings: AttestationFinding[]): MaybePromise<boolean> {
-        const policy = this.commissioningOptions.onAttestationFailure;
+        const policy = this.commissioningOptions.attestation.onFailure;
 
         if (typeof policy === "function") {
             return policy(findings);
@@ -1161,6 +1139,24 @@ export class ControllerCommissioningFlow {
         return policy !== false;
     }
 
+    // TODO consider Distributed Compliance Ledger Info about Commissioning Flow
+
+    /**
+     * Step 11-13
+     * 11: Following the Device Attestation Procedure yielding a decision to proceed with commissioning, the Commissioner
+     *     SHALL request operational CSR from Commissionee using the CSRRequest command (see Section 11.17.6.5,
+     *     “CSRRequest Command”). The CSRRequest command will cause the generation of a new operational key pair at the
+     *     Commissionee.
+     * 12: Commissioner SHALL generate or otherwise obtain an Operational Certificate containing Operational ID after
+     *     receiving the CSRResponse command from the Commissionee (see Section 11.17.6.5, “CSRRequest Command”), using
+     *     implementation-specific means.
+     * 13: Commissioner SHALL install operational credentials (see Figure 40, “Node Operational Credentials
+     *     flow”) on the Commissionee using the AddTrustedRootCertificate and AddNOC commands,
+     *     and SHALL use the UpdateFabricLabel command to set a string that the user can recognize and
+     *     relate to this Commissioner/Administrator.
+     *     The AdminVendorId field of the AddNOC command SHALL be set to a value for which the Vendor Schema in
+     *     DCL contains the name and other information of the Commissioner’s manufacturer.
+     */
     async #certificates() {
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {
@@ -1183,7 +1179,7 @@ export class ControllerCommissioningFlow {
             try {
                 await this.fabric.crypto.verifyEcdsa(
                     this.#dacPublicKey,
-                    Bytes.concat(nocsrElements, this.commissioningOptions.paseSession!.attestationChallengeKey),
+                    Bytes.concat(nocsrElements, this.commissioningOptions.attestation!.challengeKey),
                     new EcdsaSignature(csrSignature),
                 );
             } catch {
