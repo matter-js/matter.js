@@ -231,7 +231,7 @@ function configureStorage(env: Environment) {
 
                 async create(namespace: DataNamespace) {
                     const { SqliteBlobStorageDriver } = await import("#storage/sqlite/index.js");
-                    return SqliteBlobStorageDriver.create(namespace);
+                    return new SqliteBlobStorageDriver({ namespaceOrPath: namespace });
                 },
             });
 

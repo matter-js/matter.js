@@ -356,8 +356,15 @@ export class StorageService {
             }
             detectedKind = descriptor.kind;
         } else if (await dir.exists()) {
-            // Directory exists but no driver.json → legacy blob data (from WAL blobs/ dir)
-            detectedKind = "file";
+            // Directory exists but no driver.json → detect layout from directory contents
+            const blobsSubDir = dir.directory("blobs");
+            if (await blobsSubDir.exists()) {
+                // Has a blobs/ subdirectory → WAL blob layout
+                detectedKind = "wal";
+            } else {
+                // Flat files → legacy file driver blob layout
+                detectedKind = "file";
+            }
         }
 
         const targetKind = this.#configuredBlobDriver ?? detectedKind ?? this.#defaultBlobDriver;

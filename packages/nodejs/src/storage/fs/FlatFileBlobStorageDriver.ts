@@ -167,7 +167,13 @@ export class FlatFileBlobStorageDriver extends BlobStorageDriver {
             if (BaseStorageDriver.RESERVED_FILENAMES.has(file) || file.endsWith(".tmp")) {
                 continue;
             }
-            const decoded = decodeURIComponent(file);
+            let decoded: string;
+            try {
+                decoded = decodeURIComponent(file);
+            } catch {
+                // Skip files with malformed percent-encoding (manual edits, partial writes, etc.)
+                continue;
+            }
             if (!decoded.startsWith(prefixDot)) {
                 continue;
             }

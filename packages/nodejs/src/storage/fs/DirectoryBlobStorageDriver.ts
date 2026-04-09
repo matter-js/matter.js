@@ -67,7 +67,7 @@ export class DirectoryBlobStorageDriver extends BlobStorageDriver {
         // Ensure all parent directories exist
         let dir = this.#rootDir;
         for (const ctx of contexts) {
-            if (ctx === ".." || ctx === "." || !ctx.length) {
+            if (ctx === ".." || ctx === "." || !ctx.length || ctx.includes("\\")) {
                 throw new StorageError(`Context segment "${ctx}" is not allowed`);
             }
             dir = dir.directory(encodeContextSegment(ctx));
@@ -118,7 +118,7 @@ export class DirectoryBlobStorageDriver extends BlobStorageDriver {
     #contextDir(contexts: string[]): Directory {
         let dir: Directory = this.#rootDir;
         for (const ctx of contexts) {
-            if (ctx === ".." || ctx === "." || !ctx.length) {
+            if (ctx === ".." || ctx === "." || !ctx.length || ctx.includes("\\")) {
                 throw new StorageError(`Context segment "${ctx}" is not allowed`);
             }
             dir = dir.directory(encodeContextSegment(ctx));
