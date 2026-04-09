@@ -1044,43 +1044,6 @@ export class ControllerCommissioningFlow {
             },
         );
 
-        // Resolve attestation findings policy
-        let resolveFindings: (findings: AttestationFinding[]) => MaybePromise<boolean>;
-
-        switch (this.commissioningOptions.onAttestationFailure) {
-            case undefined:
-                // TODO: Remove backward-compatible accept in next breaking version
-                resolveFindings = findings => {
-                    for (const f of findings) {
-                        logger.warn("Attestation finding accepted for backward compatibility:", f.type, f.message);
-                    }
-                    return true;
-                };
-                break;
-
-            case true:
-                resolveFindings = findings => {
-                    for (const f of findings) {
-                        logger.info("Attestation finding accepted by policy:", f.type, f.message);
-                    }
-                    return true;
-                };
-                break;
-
-            case false:
-                resolveFindings = findings => {
-                    for (const f of findings) {
-                        logger.info("Attestation finding, rejecting:", f.type, f.message);
-                    }
-                    return false;
-                };
-                break;
-
-            default:
-                resolveFindings = this.commissioningOptions.onAttestationFailure;
-                break;
-        }
-
         const { dclCertificateService, paseSession } = this.commissioningOptions;
 
         if (dclCertificateService === undefined) {
@@ -1092,7 +1055,7 @@ export class ControllerCommissioningFlow {
                     "DclCertificateService is not available; device attestation cannot be verified. " +
                     "Register DclCertificateService in the environment for full attestation checks.",
             };
-            const proceed = await resolveFindings([unavailableFinding]);
+            const proceed = await this.#resolveAttestationFindings([unavailableFinding]);
             if (!proceed) {
                 throw new CommissioningError(unavailableFinding.message);
             }
@@ -1122,7 +1085,7 @@ export class ControllerCommissioningFlow {
 
                 // If validation succeeded but produced warnings/info, consult the policy
                 if (result.findings.length > 0) {
-                    const proceed = await resolveFindings(result.findings);
+                    const proceed = await this.#resolveAttestationFindings(result.findings);
                     if (!proceed) {
                         throw new CommissioningError(
                             `Device attestation produced ${result.findings.length} finding(s) and was rejected by policy`,
@@ -1137,7 +1100,7 @@ export class ControllerCommissioningFlow {
                         type: error.failure,
                         message: error.message,
                     };
-                    const proceed = await resolveFindings([errorFinding]);
+                    const proceed = await this.#resolveAttestationFindings([errorFinding]);
                     if (!proceed) {
                         throw error;
                     }
@@ -1172,6 +1135,32 @@ export class ControllerCommissioningFlow {
      *     The AdminVendorId field of the AddNOC command SHALL be set to a value for which the Vendor Schema in
      *     DCL contains the name and other information of the Commissioner’s manufacturer.
      */
+    /** Resolve attestation findings according to the configured policy. */
+    #resolveAttestationFindings(findings: AttestationFinding[]): MaybePromise<boolean> {
+        const policy = this.commissioningOptions.onAttestationFailure;
+
+        if (typeof policy === "function") {
+            return policy(findings);
+        }
+
+        for (const f of findings) {
+            switch (policy) {
+                case undefined:
+                    // TODO: Remove backward-compatible accept in next breaking version
+                    logger.warn("Attestation finding accepted for backward compatibility:", f.type, f.message);
+                    break;
+                case true:
+                    logger.info("Attestation finding accepted by policy:", f.type, f.message);
+                    break;
+                case false:
+                    logger.info("Attestation finding, rejecting:", f.type, f.message);
+                    break;
+            }
+        }
+
+        return policy !== false;
+    }
+
     async #certificates() {
         const { nocsrElements, attestationSignature: csrSignature } = await this.#invokeCommand(
             {

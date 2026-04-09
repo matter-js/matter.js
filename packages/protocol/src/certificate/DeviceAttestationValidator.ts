@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Crypto, EcdsaSignature, Logger, MaybePromise, PublicKey } from "@matter/general";
+import { Bytes, Crypto, EcdsaSignature, MaybePromise, PublicKey } from "@matter/general";
 import { MATTER_EPOCH_OFFSET_S, VendorId } from "@matter/types";
 import { TlvAttestation } from "../common/OperationalCredentialsTypes.js";
 import { DclCertificateService } from "../dcl/DclCertificateService.js";
@@ -12,8 +12,6 @@ import { CommissioningError } from "../peer/CommissioningError.js";
 import { Dac, Paa, Pai } from "./kinds/AttestationCertificates.js";
 import { CertificationDeclaration } from "./kinds/CertificationDeclaration.js";
 import { CertificationType } from "./kinds/definitions/certification-declaration.js";
-
-const logger = Logger.get("DeviceAttestationValidator");
 
 /** Reasons a device attestation validation can fail or produce warnings. */
 export enum DeviceAttestationCheck {
@@ -433,15 +431,6 @@ export namespace DeviceAttestationValidator {
         // TODO: When DCL DeviceSoftwareCompliance API is implemented (same as certificate_id),
         //       compare attestationInfo.firmwareInfo bytes against expected value and emit a
         //       FirmwareInfoMismatch warning finding on mismatch. Validation is MAY per spec.
-
-        // Log all findings
-        for (const finding of findings) {
-            if (finding.level === "warning") {
-                logger.warn(finding.message);
-            } else if (finding.level === "info") {
-                logger.info(finding.message);
-            }
-        }
 
         return { dacPublicKey, findings };
     }
