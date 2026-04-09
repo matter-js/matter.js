@@ -799,6 +799,26 @@ export class DclCertificateService {
         }
         const crlBytes = new Uint8Array(await response.arrayBuffer());
 
+        // Verify CRL integrity against DCL metadata if available
+        if (point.dataFileSize !== undefined) {
+            const expectedSize =
+                typeof point.dataFileSize === "bigint" ? Number(point.dataFileSize) : point.dataFileSize;
+            if (expectedSize > 0 && crlBytes.length !== expectedSize) {
+                throw new MatterDclError(`CRL size mismatch: expected ${expectedSize} bytes, got ${crlBytes.length}`);
+            }
+        }
+        if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
+            // dataDigestType 1 = SHA-256 (most common, per spec interoperability list)
+            if (point.dataDigestType === 1) {
+                const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes));
+                if (actualDigest !== point.dataDigest) {
+                    throw new MatterDclError(`CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`);
+                }
+            } else {
+                logger.info(`Skipping CRL digest verification: unsupported digest type ${point.dataDigestType}`);
+            }
+        }
+
         // Parse the CRL
         const crlParsed = DclCertificateService.parseCrl(crlBytes);
 
@@ -871,20 +891,21 @@ export class DclCertificateService {
 
             let issuerPublicKey: Bytes | undefined;
             if (delegatorCert !== undefined) {
-                // Delegated signer: verify delegator chain to PAA
+                // Delegated signer: verify delegator is signed by a trusted PAA
                 const delegatorAkid = delegatorCert.cert.extensions.authorityKeyIdentifier;
                 if (
-                    delegatorAkid !== undefined &&
-                    this.#certificateIndex.has(this.#normalizeSubjectKeyId(delegatorAkid))
+                    delegatorAkid === undefined ||
+                    !this.#certificateIndex.has(this.#normalizeSubjectKeyId(delegatorAkid))
                 ) {
-                    const paaDer = await this.getCertificateAsDer(delegatorAkid);
-                    const paa = Paa.fromAsn1(paaDer);
-                    await this.#crypto.verifyEcdsa(
-                        PublicKey(paa.cert.ellipticCurvePublicKey),
-                        delegatorCert.asUnsignedDer(),
-                        delegatorCert.signature,
-                    );
+                    throw new MatterDclError("CRLSignerDelegator chain cannot be anchored to trusted PAA");
                 }
+                const paaDer = await this.getCertificateAsDer(delegatorAkid);
+                const paa = Paa.fromAsn1(paaDer);
+                await this.#crypto.verifyEcdsa(
+                    PublicKey(paa.cert.ellipticCurvePublicKey),
+                    delegatorCert.asUnsignedDer(),
+                    delegatorCert.signature,
+                );
                 issuerPublicKey = delegatorCert.cert.ellipticCurvePublicKey;
             } else if (this.#certificateIndex.has(signerAkidNorm)) {
                 const paaDer = await this.getCertificateAsDer(signerAkid);
@@ -892,17 +913,17 @@ export class DclCertificateService {
                 issuerPublicKey = paa.cert.ellipticCurvePublicKey;
             }
 
-            if (issuerPublicKey !== undefined) {
-                await this.#crypto.verifyEcdsa(
-                    PublicKey(issuerPublicKey),
-                    signerCert.asUnsignedDer(),
-                    signerCert.signature,
-                );
-            } else {
-                logger.warn(
-                    `Cannot verify CRLSignerCertificate chain: issuer not in trust store (AKID: ${signerAkidNorm})`,
+            if (issuerPublicKey === undefined) {
+                throw new MatterDclError(
+                    `CRLSignerCertificate chain cannot be anchored to trusted PAA (AKID: ${signerAkidNorm})`,
                 );
             }
+
+            await this.#crypto.verifyEcdsa(
+                PublicKey(issuerPublicKey),
+                signerCert.asUnsignedDer(),
+                signerCert.signature,
+            );
         }
 
         return signerCert.cert.ellipticCurvePublicKey;
