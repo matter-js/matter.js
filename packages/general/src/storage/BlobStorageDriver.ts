@@ -6,8 +6,10 @@
 
 import { Bytes } from "#util/Bytes.js";
 import type { Directory } from "../fs/Directory.js";
+import { ImplementationError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
 import { BaseStorageDriver, type StorageType } from "./BaseStorageDriver.js";
+import { DatafileRoot } from "./DatafileRoot.js";
 import type { DataNamespace } from "./DataNamespace.js";
 
 /**
@@ -19,6 +21,42 @@ export abstract class BlobStorageDriver extends BaseStorageDriver {
 
     abstract openBlob(contexts: string[], key: string): MaybePromise<Blob>;
     abstract writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): MaybePromise<void>;
+}
+
+/**
+ * {@link BlobStorageDriver} subclass for drivers backed by the filesystem.
+ *
+ * Manages a {@link DatafileRoot.Lock} that is acquired during {@link initialize} and released during {@link close}.
+ * Filesystem-specific blob drivers should extend this instead of {@link BlobStorageDriver} directly.
+ */
+export abstract class FilesystemBlobStorageDriver extends BlobStorageDriver {
+    readonly #root?: DatafileRoot;
+    #lock?: DatafileRoot.Lock;
+
+    constructor(namespace?: DataNamespace) {
+        super();
+        if (namespace !== undefined) {
+            if (!(namespace instanceof DatafileRoot)) {
+                throw new ImplementationError("Filesystem blob storage driver requires a DatafileRoot namespace");
+            }
+            this.#root = namespace;
+        }
+    }
+
+    get root(): DatafileRoot | undefined {
+        return this.#root;
+    }
+
+    async initialize() {
+        if (this.#root) {
+            this.#lock = await this.#root.lock();
+        }
+    }
+
+    async close() {
+        await this.#lock?.close();
+        this.#lock = undefined;
+    }
 }
 
 export namespace BlobStorageDriver {

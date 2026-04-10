@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BlobStorageDriver, type Bytes, type DataNamespace, DatafileRoot } from "@matter/general";
+import { type Bytes, type DataNamespace, DatafileRoot, FilesystemBlobStorageDriver } from "@matter/general";
 import { resolve } from "node:path";
 
 import { platformDatabaseCreator } from "./SqlitePlatform.js";
@@ -27,7 +27,7 @@ type BlobStoreType = {
  * Uses a dedicated `blobstore` table (separate from the KV `kvstore` table)
  * but can share the same `.db` file.
  */
-export class SqliteBlobStorageDriver extends BlobStorageDriver {
+export class SqliteBlobStorageDriver extends FilesystemBlobStorageDriver {
     static readonly id = "sqlite";
     public static readonly memoryPath = ":memory:";
     public static readonly defaultTableName = "blobstore";
@@ -71,9 +71,9 @@ export class SqliteBlobStorageDriver extends BlobStorageDriver {
         namespaceOrPath?: DataNamespace | string | null;
         tableName?: string;
     }) {
-        super();
-
         const namespaceOrPath = args?.namespaceOrPath;
+        // Pass DataNamespace for filesystem locking; string/null → no locking (e.g. :memory:)
+        super(typeof namespaceOrPath === "string" || namespaceOrPath == null ? undefined : namespaceOrPath);
 
         this.#dbPath =
             typeof namespaceOrPath === "string"
@@ -162,15 +162,17 @@ export class SqliteBlobStorageDriver extends BlobStorageDriver {
         if (this.#isInitialized) {
             throw new SqliteStorageDriverError("initialize", this.#tableName, "Storage already initialized!");
         }
+        await super.initialize();
         if (!this.#databaseCreator) {
             this.#openDatabase(await platformDatabaseCreator());
         }
         this.#isInitialized = true;
     }
 
-    override close() {
+    override async close() {
         this.#isInitialized = false;
         this.#database.close();
+        await super.close();
     }
 
     override openBlob(contexts: string[], key: string): Blob {

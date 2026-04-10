@@ -8,9 +8,8 @@ import {
     BaseStorageDriver,
     BlobStorageDriver,
     Bytes,
-    DatafileRoot,
     type DataNamespace,
-    ImplementationError,
+    FilesystemBlobStorageDriver,
     StorageError,
 } from "@matter/general";
 import { createWriteStream, existsSync, openAsBlob } from "node:fs";
@@ -24,7 +23,7 @@ import { join } from "node:path";
  * segments and key joined by `.`.  Example: contexts `["bin", "fff1", "8000"]` with key `"prod"`
  * becomes the file `bin.fff1.8000.prod` (percent-encoded).
  */
-export class FlatFileBlobStorageDriver extends BlobStorageDriver {
+export class FlatFileBlobStorageDriver extends FilesystemBlobStorageDriver {
     static readonly id = "file";
 
     static create(namespace: DataNamespace, _descriptor: BlobStorageDriver.Descriptor): FlatFileBlobStorageDriver {
@@ -35,24 +34,23 @@ export class FlatFileBlobStorageDriver extends BlobStorageDriver {
     #initialized = false;
 
     constructor(namespace: DataNamespace) {
-        super();
-        if (!(namespace instanceof DatafileRoot)) {
-            throw new ImplementationError("FlatFileBlobStorageDriver requires a DatafileRoot namespace");
-        }
-        this.#path = namespace.directory.path;
+        super(namespace);
+        this.#path = this.root!.directory.path;
     }
 
     get initialized() {
         return this.#initialized;
     }
 
-    async initialize() {
+    override async initialize() {
+        await super.initialize();
         await mkdir(this.#path, { recursive: true });
         this.#initialized = true;
     }
 
-    async close() {
+    override async close() {
         this.#initialized = false;
+        await super.close();
     }
 
     async openBlob(contexts: string[], key: string): Promise<Blob> {
