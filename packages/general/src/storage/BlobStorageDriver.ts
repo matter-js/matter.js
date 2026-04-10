@@ -48,6 +48,9 @@ export abstract class FilesystemBlobStorageDriver extends BlobStorageDriver {
     }
 
     async initialize() {
+        if (this.#lock) {
+            throw new ImplementationError("Filesystem blob storage driver is already initialized");
+        }
         if (this.#root) {
             this.#lock = await this.#root.lock();
         }
