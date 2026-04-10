@@ -18,9 +18,9 @@ if (supportsSqlite()) {
             await storage.initialize();
         });
 
-        afterEach(() => {
+        afterEach(async () => {
             if (storage.initialized) {
-                storage.close();
+                await storage.close();
             }
         });
 
