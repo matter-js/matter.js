@@ -19,21 +19,15 @@ export function createNodeJsDatabase(path: string): DatabaseLike {
     const db = new DatabaseSync(path);
 
     // Cast needed: node:sqlite's StatementSync doesn't satisfy DatabaseLike's generic prepare signature
-    const prepare = db.prepare.bind(db) as DatabaseLike["prepare"];
-
     if (path === ":memory:") {
-        return {
-            prepare,
-            exec: db.exec.bind(db),
-            close: db.close.bind(db),
-        };
+        return db as unknown as DatabaseLike;
     }
 
     db.exec("PRAGMA journal_mode = WAL");
     db.exec("PRAGMA synchronous = NORMAL");
 
     return {
-        prepare,
+        prepare: db.prepare.bind(db) as DatabaseLike["prepare"],
         exec: db.exec.bind(db),
         close: () => {
             try {

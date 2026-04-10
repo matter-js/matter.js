@@ -24,11 +24,7 @@ export function createBunDatabase(path: string): DatabaseLike {
     });
 
     if (path === ":memory:") {
-        return {
-            prepare: db.prepare.bind(db),
-            exec: db.exec.bind(db),
-            close: db.close.bind(db),
-        };
+        return db;
     }
 
     db.exec("PRAGMA journal_mode = WAL");
