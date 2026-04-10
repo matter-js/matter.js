@@ -18,7 +18,7 @@ import {
 import { MockSite } from "./mock-site.js";
 
 /** Build a minimal DER-encoded CRL with the given revoked serial numbers (hex strings). */
-function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
+function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Uint8Array {
     const entries: Record<string, any> = {};
     for (let i = 0; i < revokedSerialHexes.length; i++) {
         entries[`e${i}`] = {
@@ -30,7 +30,7 @@ function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
     const tbs: Record<string, any> = {
         version: { _tag: DerType.Integer, _bytes: Uint8Array.of(1) },
         signature: sig,
-        issuer: { cn: ["Test Issuer"] },
+        issuer: issuerDnDer !== undefined ? DerCodec.decode(issuerDnDer) : { cn: ["Test Issuer"] },
         thisUpdate: { _tag: DerType.UtcDate, _bytes: Bytes.fromString("250101000000Z") },
     };
     if (revokedSerialHexes.length > 0) tbs.revokedCertificates = entries;
@@ -55,7 +55,7 @@ function formatSkidWithColons(hexSkid: string): string {
 function setupDclFetchMock(
     fetchMock: MockFetch,
     paaCert: Bytes,
-    revocation?: { issuerSkid: string; revokedSerials: string[]; signerCertPem: string },
+    revocation?: { issuerSkid: string; revokedSerials: string[]; signerCertPem: string; issuerDnDer?: Bytes },
 ) {
     const paa = Paa.fromAsn1(paaCert);
     const skid = Bytes.toHex(paa.cert.extensions.subjectKeyIdentifier).toUpperCase();
@@ -92,31 +92,35 @@ function setupDclFetchMock(
         },
     );
     if (revocation !== undefined) {
-        const issuerSkidWithColons = formatSkidWithColons(revocation.issuerSkid);
-        fetchMock.addResponse("/dcl/pki/revocation-points", {
-            PkiRevocationDistributionPoint: [
-                {
-                    vid: 0xfff1,
-                    pid: 0,
-                    isPAA: false,
-                    label: "test-revocation",
-                    crlSignerDelegator: "",
-                    crlSignerCertificate: revocation.signerCertPem,
-                    issuerSubjectKeyID: issuerSkidWithColons,
-                    dataURL: "https://example.com/test.crl",
-                    dataFileSize: "",
-                    dataDigest: "",
-                    dataDigestType: 0,
-                    revocationType: 1,
-                    schemaVersion: 0,
-                },
-            ],
+        const normalizedSkid = revocation.issuerSkid.replace(/:/g, "").toUpperCase();
+        fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
+            pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                issuerSubjectKeyID: normalizedSkid,
+                points: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: false,
+                        label: "test-revocation",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: revocation.signerCertPem,
+                        issuerSubjectKeyID: normalizedSkid,
+                        dataURL: "https://example.com/test.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+                schemaVersion: 0,
+            },
         });
-        fetchMock.addResponse("https://example.com/test.crl", buildTestCrl(revocation.revokedSerials), {
-            binary: true,
-        });
-    } else {
-        fetchMock.addResponse("/dcl/pki/revocation-points", { PkiRevocationDistributionPoint: [] });
+        fetchMock.addResponse(
+            "https://example.com/test.crl",
+            buildTestCrl(revocation.revokedSerials, revocation.issuerDnDer),
+            { binary: true },
+        );
     }
 }
 
@@ -304,7 +308,6 @@ describe("device attestation during commissioning", () => {
                     const types = findings.map(f => f.type);
                     expect(types).to.include(DeviceAttestationCheck.CertificationTypeTest);
                     expect(types).to.include(DeviceAttestationCheck.CdSignerVerificationSkipped);
-                    expect(types).to.include(DeviceAttestationCheck.RevocationCheckSkipped);
 
                     const certType = findings.find(f => f.type === DeviceAttestationCheck.CertificationTypeTest);
                     expect(certType!.level).equals("info");
@@ -364,11 +367,14 @@ describe("device attestation during commissioning", () => {
                 expectRejection: /revoked/i,
                 setupBeforeCommission: ({ fetchMock }) => {
                     const paaSkid = Bytes.toHex(TestCert_PAA_NoVID_SKID).toUpperCase();
+                    // PAI's issuer DN = PAA's subject DN. For the self-signed PAA, issuerDer = subjectDer.
+                    const paa = Paa.fromAsn1(TestCert_PAA_NoVID_Cert);
                     // PAI serial is 01 (from toHex(BigInt(1)) in AttestationCertificateManager)
                     setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
                         issuerSkid: paaSkid,
                         revokedSerials: ["01"],
                         signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
+                        issuerDnDer: paa.cert.issuerDer,
                     });
                     fetchMock.install();
                 },
@@ -401,5 +407,35 @@ describe("device attestation during commissioning", () => {
                     expect(peers).equals(1);
                 },
             }));
+
+        it("dynamically fetches revocation data from DCL during commissioning", () => {
+            let capturedFetchMock: MockFetch | undefined;
+            const paaSkid = Bytes.toHex(TestCert_PAA_NoVID_SKID).toUpperCase();
+
+            return runAttestationTest({
+                dclPaaCert: TestCert_PAA_NoVID_Cert,
+                onAttestationFailure: () => true,
+                setupBeforeCommission: ({ fetchMock }) => {
+                    capturedFetchMock = fetchMock;
+                    setupDclFetchMock(fetchMock, TestCert_PAA_NoVID_Cert, {
+                        issuerSkid: paaSkid,
+                        revokedSerials: [],
+                        signerCertPem: Pem.encode(TestCert_PAA_NoVID_Cert),
+                    });
+                    fetchMock.install();
+                },
+                assertResult: () => {
+                    // Verify that the by-issuer revocation endpoint was called on-demand during commissioning
+                    const callLog = capturedFetchMock!.getCallLog();
+                    const revocationCalls = callLog.filter(call =>
+                        call.url.includes(`/dcl/pki/revocation-points/${paaSkid}`),
+                    );
+                    expect(revocationCalls.length).to.be.greaterThan(
+                        0,
+                        "Expected on-demand DCL revocation lookup during commissioning",
+                    );
+                },
+            });
+        });
     });
 });

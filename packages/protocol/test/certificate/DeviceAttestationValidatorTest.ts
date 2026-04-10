@@ -113,7 +113,7 @@ describe("DeviceAttestationValidator", () => {
      */
     async function setupDclService(
         paaCert: Bytes = TestCert_PAA_NoVID_Cert,
-        revocation?: { issuerSkid: string; revokedSerials: string[] },
+        revocation?: { issuerSkid: string; revokedSerials: string[]; issuerDnDer?: Bytes },
     ) {
         setupDclFetchMock(fetchMock, paaCert, revocation && { ...revocation, signerCertPem: pemEncode(paiDer) });
         fetchMock.install();
@@ -469,7 +469,7 @@ describe("DeviceAttestationValidator", () => {
 
     describe("certificate revocation checks", () => {
         it("throws CertificateRevoked when DAC serial is in revocation list", async () => {
-            // Parse DAC to get its serial number and authority key identifier
+            // Parse DAC to get its serial number, authority key identifier, and issuer DN
             const dac = Dac.fromAsn1(dacDer);
             const dacSerial = Bytes.toHex(dac.cert.serialNumber).toUpperCase();
             const dacAkid = Bytes.toHex(dac.cert.extensions.authorityKeyIdentifier).toUpperCase();
@@ -478,6 +478,7 @@ describe("DeviceAttestationValidator", () => {
             const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, {
                 issuerSkid: dacAkid,
                 revokedSerials: [dacSerial],
+                issuerDnDer: dac.cert.issuerDer,
             });
 
             await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
@@ -487,7 +488,7 @@ describe("DeviceAttestationValidator", () => {
         });
 
         it("throws CertificateRevoked when PAI serial is in revocation list", async () => {
-            // Parse PAI to get its serial number and authority key identifier
+            // Parse PAI to get its serial number, authority key identifier, and issuer DN
             const pai = Pai.fromAsn1(paiDer);
             const paiSerial = Bytes.toHex(pai.cert.serialNumber).toUpperCase();
             const paiAkid = Bytes.toHex(pai.cert.extensions.authorityKeyIdentifier).toUpperCase();
@@ -496,6 +497,7 @@ describe("DeviceAttestationValidator", () => {
             const dclService = await setupDclService(TestCert_PAA_NoVID_Cert, {
                 issuerSkid: paiAkid,
                 revokedSerials: [paiSerial],
+                issuerDnDer: pai.cert.issuerDer,
             });
 
             await expect(DeviceAttestationValidator.validate(buildContext(dclService), buildData())).to.be.rejectedWith(
@@ -536,18 +538,6 @@ describe("DeviceAttestationValidator", () => {
 
             expect(result.dacPublicKey).to.not.be.undefined;
             expect(result.findings).to.be.an("array");
-        });
-
-        it("returns RevocationCheckSkipped warning when no revocation data is available", async () => {
-            const dclService = await setupDclService();
-
-            const result = await DeviceAttestationValidator.validate(buildContext(dclService), buildData());
-
-            const revocationFinding = result.findings.find(
-                f => f.type === DeviceAttestationCheck.RevocationCheckSkipped,
-            );
-            expect(revocationFinding).to.not.be.undefined;
-            expect(revocationFinding!.level).to.equal("warning");
         });
 
         it("returns CdSignerVerificationSkipped warning when no cdSignerPublicKeys provided", async () => {

@@ -29,7 +29,6 @@ export enum DeviceAttestationCheck {
     CertificationTypeTest = "CertificationTypeTest",
     CertificateIdNotVerified = "CertificateIdNotVerified",
     CdSignerVerificationSkipped = "CdSignerVerificationSkipped",
-    RevocationCheckSkipped = "RevocationCheckSkipped",
     PaaTrustStoreTimeMismatch = "PaaTrustStoreTimeMismatch",
     DclServiceUnavailable = "DclServiceUnavailable",
 }
@@ -262,31 +261,27 @@ export namespace DeviceAttestationValidator {
                 );
             }
 
-            // Step 5: Revocation check
-            // TODO: Pass issuerDnDerHex once Certificate parser retains raw issuer DER
-            if (!dclCertificateService.hasRevocationData) {
-                findings.push({
-                    level: "warning",
-                    type: DeviceAttestationCheck.RevocationCheckSkipped,
-                    message: "No revocation data available; skipping revocation check (per spec Section 6.2.4.2)",
-                });
-            } else {
-                const dacSerialNumber = dac.cert.serialNumber;
-                const dacAkid = dac.cert.extensions.authorityKeyIdentifier;
-                if (dclCertificateService.isRevoked(dacAkid, dacSerialNumber)) {
-                    throw new DeviceAttestationError(
-                        DeviceAttestationCheck.CertificateRevoked,
-                        "Device Attestation Certificate has been revoked",
-                    );
-                }
+            // Step 5: Revocation check — composite key is (AKID, IssuerDN) per spec 6.2.4.2
+            const dacIssuerDnHex = dac.cert.issuerDer ? Bytes.toHex(dac.cert.issuerDer).toUpperCase() : undefined;
+            if (
+                await dclCertificateService.isRevoked(
+                    dac.cert.extensions.authorityKeyIdentifier,
+                    dac.cert.serialNumber,
+                    dacIssuerDnHex,
+                )
+            ) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateRevoked,
+                    "Device Attestation Certificate has been revoked",
+                );
+            }
 
-                const paiSerialNumber = pai.cert.serialNumber;
-                if (dclCertificateService.isRevoked(paiAkid, paiSerialNumber)) {
-                    throw new DeviceAttestationError(
-                        DeviceAttestationCheck.CertificateRevoked,
-                        "Product Attestation Intermediate certificate has been revoked",
-                    );
-                }
+            const paiIssuerDnHex = pai.cert.issuerDer ? Bytes.toHex(pai.cert.issuerDer).toUpperCase() : undefined;
+            if (await dclCertificateService.isRevoked(paiAkid, pai.cert.serialNumber, paiIssuerDnHex)) {
+                throw new DeviceAttestationError(
+                    DeviceAttestationCheck.CertificateRevoked,
+                    "Product Attestation Intermediate certificate has been revoked",
+                );
             }
         }
 

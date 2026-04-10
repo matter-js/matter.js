@@ -35,6 +35,8 @@ export function setupDclFetchMock(
         issuerSkid: string;
         revokedSerials: string[];
         signerCertPem?: string;
+        /** Raw DER of the issuer Name for composite revocation key matching. */
+        issuerDnDer?: Bytes;
     },
 ) {
     const paa = Paa.fromAsn1(paaCert);
@@ -76,41 +78,47 @@ export function setupDclFetchMock(
     );
 
     if (revocation) {
-        const issuerSkidWithColons = formatSkidWithColons(revocation.issuerSkid);
-        const testCrl = buildTestCrl(revocation.revokedSerials);
+        const normalizedSkid = revocation.issuerSkid.replace(/:/g, "").toUpperCase();
+        const testCrl = buildTestCrl(revocation.revokedSerials, revocation.issuerDnDer);
 
-        fetchMock.addResponse("/dcl/pki/revocation-points", {
-            PkiRevocationDistributionPoint: [
-                {
-                    vid: 0xfff1,
-                    pid: 0,
-                    isPAA: false,
-                    label: "test-revocation",
-                    crlSignerDelegator: "",
-                    crlSignerCertificate: revocation.signerCertPem ?? pemEncode(paaCert),
-                    issuerSubjectKeyID: issuerSkidWithColons,
-                    dataURL: "https://example.com/test.crl",
-                    dataFileSize: "",
-                    dataDigest: "",
-                    dataDigestType: 0,
-                    revocationType: 1,
-                    schemaVersion: 0,
-                },
-            ],
+        // Mock the by-issuer endpoint for on-demand CRL lookup
+        fetchMock.addResponse(`/dcl/pki/revocation-points/${normalizedSkid}`, {
+            pkiRevocationDistributionPointsByIssuerSubjectKeyID: {
+                issuerSubjectKeyID: normalizedSkid,
+                points: [
+                    {
+                        vid: 0xfff1,
+                        pid: 0,
+                        isPAA: false,
+                        label: "test-revocation",
+                        crlSignerDelegator: "",
+                        crlSignerCertificate: revocation.signerCertPem ?? pemEncode(paaCert),
+                        issuerSubjectKeyID: normalizedSkid,
+                        dataURL: "https://example.com/test.crl",
+                        dataFileSize: "",
+                        dataDigest: "",
+                        dataDigestType: 0,
+                        revocationType: 1,
+                        schemaVersion: 0,
+                    },
+                ],
+                schemaVersion: 0,
+            },
         });
         fetchMock.addResponse("https://example.com/test.crl", testCrl, { binary: true });
-    } else {
-        fetchMock.addResponse("/dcl/pki/revocation-points", {
-            PkiRevocationDistributionPoint: [],
-        });
     }
 }
 
 /**
  * Build a minimal DER-encoded CRL containing specified revoked serial numbers.
  * Creates a valid-enough CRL structure for the parser to extract serial numbers from.
+ *
+ * @param issuerDnDer - Optional raw DER bytes of the issuer Name. When provided, the CRL's
+ *   issuer DN will match the certificate's issuer for composite revocation key matching.
+ *   When omitted, uses an empty issuer (issuerDnDerHex will still be set but won't match
+ *   any real certificate — callers who need composite matching should provide this).
  */
-export function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
+export function buildTestCrl(revokedSerialHexes: string[], issuerDnDer?: Bytes): Uint8Array {
     const revokedEntries: Record<string, any> = {};
     for (let i = 0; i < revokedSerialHexes.length; i++) {
         revokedEntries[`entry${i}`] = {
@@ -135,9 +143,7 @@ export function buildTestCrl(revokedSerialHexes: string[]): Uint8Array {
             _bytes: Uint8Array.of(1),
         },
         signature: signatureAlgorithm,
-        issuer: {
-            cn: ["Test Issuer"],
-        },
+        issuer: issuerDnDer !== undefined ? DerCodec.decode(issuerDnDer) : { cn: ["Test Issuer"] },
         thisUpdate: {
             _tag: DerType.UtcDate,
             _bytes: Bytes.fromString("250101000000Z"),

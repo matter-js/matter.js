@@ -150,38 +150,8 @@ export default function commands(theNode: MatterNode) {
                     },
                 )
                 .command(
-                    "revocations",
-                    "List all revocation entries (issuer → revoked serial numbers)",
-                    () => {},
-                    async () => {
-                        await theNode.start();
-                        const service = await theNode.certificateService();
-
-                        if (!service.hasRevocationData) {
-                            console.log("No revocation data available. Run 'cert update' to fetch from DCL.");
-                            return;
-                        }
-
-                        const entries = service.revocationEntries;
-                        console.log(`\nFound ${entries.length} revocation entrie(s):\n`);
-
-                        for (const entry of entries) {
-                            console.log(`Issuer Key ID: ${entry.issuerKeyId}`);
-                            if (entry.revokedSerials.length === 0) {
-                                console.log("  No revoked serials");
-                            } else {
-                                console.log(`  Revoked serials (${entry.revokedSerials.length}):`);
-                                for (const serial of entry.revokedSerials) {
-                                    console.log(`    ${serial}`);
-                                }
-                            }
-                            console.log("");
-                        }
-                    },
-                )
-                .command(
                     "check-revoked <issuer-key-id> <serial-number>",
-                    "Check if a certificate is revoked",
+                    "Check if a certificate is revoked (fetches from DCL on demand)",
                     yargs => {
                         return yargs
                             .positional("issuer-key-id", {
@@ -200,12 +170,8 @@ export default function commands(theNode: MatterNode) {
                         await theNode.start();
                         const service = await theNode.certificateService();
 
-                        if (!service.hasRevocationData) {
-                            console.log("No revocation data available. Run 'cert update' to fetch from DCL.");
-                            return;
-                        }
-
-                        const revoked = service.isRevoked(issuerKeyId, serialNumber);
+                        console.log("Checking revocation status against DCL...");
+                        const revoked = await service.isRevoked(issuerKeyId, serialNumber);
                         if (revoked) {
                             console.log(
                                 `REVOKED: Certificate with serial ${serialNumber} (issuer ${issuerKeyId}) is revoked.`,

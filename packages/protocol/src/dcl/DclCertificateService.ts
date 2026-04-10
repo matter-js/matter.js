@@ -5,6 +5,7 @@
  */
 
 import {
+    AsyncCache,
     Bytes,
     Construction,
     Crypto,
@@ -16,6 +17,9 @@ import {
     EcdsaSignature,
     Environment,
     Github,
+    HashAlgorithm,
+    HashFipsAlgorithmId,
+    Hours,
     Logger,
     Pem,
     PublicKey,
@@ -28,7 +32,7 @@ import {
 } from "@matter/general";
 import { DeviceAttestationPkiRevocationDclSchema, RevocationTypeEnum } from "@matter/types";
 import { Paa, Pai } from "../certificate/kinds/AttestationCertificates.js";
-import { DclClient, MatterDclError } from "./DclClient.js";
+import { DclClient, MatterDclError, MatterDclResponseError } from "./DclClient.js";
 import { DclConfig, DclGithubConfig } from "./DclConfig.js";
 import { DclPkiRootCertificateSubjectReference } from "./DclRestApiTypes.js";
 
@@ -50,12 +54,9 @@ export class DclCertificateService {
     #closed = false;
     #options: DclCertificateService.Options;
     #fetchPromise?: Promise<void>;
-    #revocationStorage?: StorageContext;
-    // Key: normalized issuerSubjectKeyId
-    #revocationIndex = new Map<
-        string,
-        { serials: Set<string>; issuerDnDerHex?: string; fetchedAt: number; nextUpdateMs?: number }
-    >();
+
+    /** Lazy CRL revocation cache: keyed by normalized AKID, fetches on-demand from DCL */
+    #revocationCache: AsyncCache<DclCertificateService.RevocationEntry>;
 
     constructor(environment: Environment, options: DclCertificateService.Options = {}) {
         environment.root.set(DclCertificateService, this);
@@ -70,12 +71,16 @@ export class DclCertificateService {
             }),
         );
 
+        this.#revocationCache = new AsyncCache(
+            "CRL revocation",
+            (akid: string) => this.#fetchAndValidateRevocation(akid),
+            Hours(1),
+        );
+
         this.#construction = Construction(this, async () => {
             this.#storageManager = await environment.get(StorageService).open("certificates");
             this.#storage = this.#storageManager.createContext("root");
             await this.#loadIndex(this.#storage);
-            this.#revocationStorage = this.#storageManager.createContext("revocations");
-            await this.#loadRevocationIndex();
             await this.update();
 
             if (options.updateInterval !== null) {
@@ -170,20 +175,31 @@ export class DclCertificateService {
      * Check if a certificate is revoked by looking up its serial number in the revocation set
      * for the given authority key identifier.
      *
+     * Lazily fetches revocation data from DCL on first access per AKID, then caches for 1 hour.
      * Per spec Section 6.2.4.2, the revocation set is indexed by (AuthorityKeyIdentifier, IssuerDN).
-     * If `issuerDnDerHex` is provided, the lookup requires it to match the CRL's issuer DN hash.
-     * If not provided, any revocation entry matching the AKID is considered.
      *
      * Returns true if the certificate is revoked, false otherwise.
      * If revocation data is not available for the given authority, returns false.
      */
-    isRevoked(authorityKeyIdentifier: Bytes | string, serialNumber: Bytes | string, issuerDnDerHex?: string): boolean {
+    async isRevoked(
+        authorityKeyIdentifier: Bytes | string,
+        serialNumber: Bytes | string,
+        issuerDnDerHex?: string,
+    ): Promise<boolean> {
         this.construction.assert();
 
         const akid = this.#normalizeSubjectKeyId(authorityKeyIdentifier);
-        const entry = this.#revocationIndex.get(akid);
-        if (entry === undefined) {
-            return false; // No revocation data for this authority
+
+        let entry: DclCertificateService.RevocationEntry;
+        try {
+            entry = await this.#revocationCache.get(akid);
+        } catch (error) {
+            logger.info(`Failed to fetch revocation data for ${akid}:`, error);
+            return false;
+        }
+
+        if (entry.serials.size === 0) {
+            return false;
         }
 
         // If issuerDnDerHex is provided, verify it matches the CRL's issuer DN
@@ -192,7 +208,7 @@ export class DclCertificateService {
             entry.issuerDnDerHex !== undefined &&
             entry.issuerDnDerHex !== issuerDnDerHex
         ) {
-            return false; // Issuer DN mismatch — this revocation set is for a different CA
+            return false;
         }
 
         const serialHex =
@@ -201,39 +217,6 @@ export class DclCertificateService {
                 : Bytes.toHex(serialNumber).toUpperCase();
 
         return entry.serials.has(serialHex);
-    }
-
-    /**
-     * Returns true if any revocation data has been fetched and is available.
-     * Can be used to log a warning when no revocation data exists yet.
-     */
-    get hasRevocationData(): boolean {
-        return this.#revocationIndex.size > 0;
-    }
-
-    /** Returns a snapshot of all revocation entries for browsing/diagnostics. */
-    get revocationEntries(): Array<{
-        issuerKeyId: string;
-        revokedSerials: string[];
-        fetchedAt: number;
-        nextUpdateMs?: number;
-    }> {
-        this.construction.assert();
-        const result = new Array<{
-            issuerKeyId: string;
-            revokedSerials: string[];
-            fetchedAt: number;
-            nextUpdateMs?: number;
-        }>();
-        for (const [key, entry] of this.#revocationIndex) {
-            result.push({
-                issuerKeyId: key,
-                revokedSerials: Array.from(entry.serials),
-                fetchedAt: entry.fetchedAt,
-                nextUpdateMs: entry.nextUpdateMs,
-            });
-        }
-        return result;
     }
 
     /**
@@ -336,6 +319,7 @@ export class DclCertificateService {
     async close() {
         this.#closed = true;
         this.#updateTimer?.stop();
+        await this.#revocationCache.close();
         await this.#construction.close(async () => {
             await this.#fetchPromise;
             await this.#storageManager?.close();
@@ -449,11 +433,6 @@ export class DclCertificateService {
             logger.info(`Downloaded and stored ${newCerts} new certificates (total: ${this.#certificateIndex.size})`);
         } else {
             logger.info(`All certificates up to date (${this.#certificateIndex.size} total)`);
-        }
-
-        // Fetch revocation distribution points
-        if (!this.#closed) {
-            await this.#fetchRevocationData(force);
         }
     }
 
@@ -659,127 +638,65 @@ export class DclCertificateService {
     }
 
     /**
-     * Load the revocation index from storage.
-     */
-    async #loadRevocationIndex() {
-        if (!this.#revocationStorage) return;
-        const stored = await this.#revocationStorage.get<
-            Record<
-                string,
-                string[] | { serials: string[]; issuerDnDerHex?: string; fetchedAt?: number; nextUpdateMs?: number }
-            >
-        >("index", {});
-        for (const [key, value] of Object.entries(stored)) {
-            if (Array.isArray(value)) {
-                // Legacy format: plain array of serials
-                this.#revocationIndex.set(key, { serials: new Set(value), fetchedAt: 0 });
-            } else {
-                this.#revocationIndex.set(key, {
-                    serials: new Set(value.serials),
-                    issuerDnDerHex: value.issuerDnDerHex,
-                    fetchedAt: value.fetchedAt ?? 0,
-                    nextUpdateMs: value.nextUpdateMs,
-                });
-            }
-        }
-    }
-
-    /**
-     * Save the revocation index to storage.
-     */
-    async #saveRevocationIndex() {
-        if (!this.#revocationStorage || this.#closed) {
-            return;
-        }
-        const data: Record<
-            string,
-            { serials: string[]; issuerDnDerHex?: string; fetchedAt: number; nextUpdateMs?: number }
-        > = {};
-        for (const [key, entry] of this.#revocationIndex) {
-            data[key] = {
-                serials: Array.from(entry.serials),
-                issuerDnDerHex: entry.issuerDnDerHex,
-                fetchedAt: entry.fetchedAt,
-                nextUpdateMs: entry.nextUpdateMs,
-            };
-        }
-        await this.#revocationStorage.set("index", data);
-    }
-
-    /**
-     * Fetch revocation distribution points from DCL and process them.
+     * Fetch and validate revocation data for a single AKID on demand.
+     * Called by AsyncCache on cache miss. Queries DCL by issuer, downloads the CRL,
+     * validates the signer chain and CRL signature, then returns the parsed revocation entry.
      *
-     * Only production DCL is queried for revocation data. Revocation from test DCL is not
-     * meaningful — test certificates are for development only and their revocation status
-     * has no bearing on real device attestation decisions.
+     * Returns a RevocationEntry on success (cached for 1h). Throws on transient failures
+     * (network timeout, server error) so the result is NOT cached and the next call retries.
      */
-    async #fetchRevocationData(force = false) {
-        await this.#fetchRevocationFromDcl(force);
-        await this.#saveRevocationIndex();
-    }
+    async #fetchAndValidateRevocation(akid: string): Promise<DclCertificateService.RevocationEntry> {
+        const empty: DclCertificateService.RevocationEntry = { serials: new Set() };
+        const revocationTimeout = Seconds(3);
 
-    /**
-     * Fetch revocation distribution points from production DCL and process them.
-     */
-    async #fetchRevocationFromDcl(force: boolean) {
+        const config = this.#options.dclConfig ?? DclConfig.production;
+        const dclClient = new DclClient(config);
+
+        let points: DeviceAttestationPkiRevocationDclSchema[];
         try {
-            logger.debug("Fetching revocation distribution points from production DCL");
-
-            const config = this.#options.dclConfig ?? DclConfig.production;
-            const dclClient = new DclClient(config);
-            const points = await dclClient.fetchRevocationDistributionPoints(this.#options);
-
-            let updatedCount = 0;
-            for (const point of points) {
-                if (this.#closed) {
-                    return;
-                }
-
-                try {
-                    await this.#processRevocationPoint(point, force);
-                    updatedCount++;
-                } catch (error) {
-                    logger.info(`Failed to process revocation point for ${point.issuerSubjectKeyId}:`, error);
-                }
-            }
-
-            if (updatedCount > 0) {
-                logger.info(`Processed ${updatedCount} revocation distribution points`);
-            }
+            points = await dclClient.fetchRevocationDistributionPointsByIssuer(akid, {
+                timeout: revocationTimeout,
+            });
         } catch (error) {
-            logger.info("Failed to fetch revocation distribution points", error);
+            if (error instanceof MatterDclResponseError && error.response.code === 404) {
+                // No revocation data registered for this issuer — cache the empty result
+                return empty;
+            }
+            // Transient failure (timeout, network error) — throw so AsyncCache does NOT cache
+            logger.warn(`DCL revocation lookup failed for AKID ${akid} (will retry on next check):`, error);
+            throw error;
         }
+
+        // Filter for CRL type only
+        const crlPoints = points.filter(p => p.revocationType === RevocationTypeEnum.Crl);
+        if (crlPoints.length === 0) {
+            return empty;
+        }
+
+        // Use the first successfully processed CRL point (falls back to next on failure)
+        for (const point of crlPoints) {
+            try {
+                return await this.#processRevocationPoint(point, revocationTimeout);
+            } catch (error) {
+                logger.warn(
+                    `Failed to process revocation point for ${point.issuerSubjectKeyId} (will retry on next check):`,
+                    error,
+                );
+            }
+        }
+
+        // All CRL points failed — throw so it's not cached and will retry
+        throw new MatterDclError(`All CRL downloads failed for AKID ${akid}`);
     }
 
     /**
      * Process a single revocation distribution point: download the CRL, validate the signer chain
      * and CRL signature per spec Section 6.2.4.1, then extract revoked serial numbers.
      */
-    async #processRevocationPoint(point: DeviceAttestationPkiRevocationDclSchema, force: boolean) {
-        const issuerKeyId = this.#normalizeSubjectKeyId(point.issuerSubjectKeyId);
-
-        // Skip if fresh enough (unless force). Re-fetch if CRL's nextUpdate has expired
-        // or if the entry was fetched more than 7 days ago.
-        if (!force) {
-            const existing = this.#revocationIndex.get(issuerKeyId);
-            if (existing !== undefined) {
-                const now = Time.nowMs;
-                const maxAge = Days(7);
-                const expired =
-                    (existing.nextUpdateMs !== undefined && now > existing.nextUpdateMs) ||
-                    now - existing.fetchedAt > maxAge;
-                if (!expired) {
-                    return;
-                }
-            }
-        }
-
-        // Step 1: RevocationType must be CRL (1)
-        if (point.revocationType !== RevocationTypeEnum.Crl) {
-            logger.debug(`Skipping non-CRL revocation point (type=${point.revocationType})`);
-            return;
-        }
-
+    async #processRevocationPoint(
+        point: DeviceAttestationPkiRevocationDclSchema,
+        timeout: Duration,
+    ): Promise<DclCertificateService.RevocationEntry> {
         // Steps 2-5: Parse and validate CRLSignerCertificate chain
         // Per spec 6.2.4.1, the signer chain should be validated before trusting the CRL.
         // If validation fails, we still process the CRL but skip signature verification.
@@ -795,9 +712,9 @@ export class DclCertificateService {
             );
         }
 
-        // Step 6: Download the CRL from dataUrl
+        // Download the CRL from dataUrl
         const response = await fetch(point.dataUrl, {
-            signal: AbortSignal.timeout(this.#options.timeout ?? Seconds(5)),
+            signal: AbortSignal.timeout(timeout),
         });
         if (!response.ok) {
             throw new MatterDclError(`Failed to fetch CRL from ${point.dataUrl}: ${response.status}`);
@@ -813,9 +730,9 @@ export class DclCertificateService {
             }
         }
         if (point.dataDigest !== undefined && point.dataDigestType !== undefined) {
-            // dataDigestType 1 = SHA-256 (most common, per spec interoperability list)
-            if (point.dataDigestType === 1) {
-                const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes));
+            const algorithm = HashFipsAlgorithmId[point.dataDigestType] as HashAlgorithm | undefined;
+            if (algorithm !== undefined) {
+                const actualDigest = Bytes.toBase64(await this.#crypto.computeHash(crlBytes, algorithm));
                 if (actualDigest !== point.dataDigest) {
                     throw new MatterDclError(`CRL digest mismatch: expected ${point.dataDigest}, got ${actualDigest}`);
                 }
@@ -827,7 +744,7 @@ export class DclCertificateService {
         // Parse the CRL
         const crlParsed = DclCertificateService.parseCrl(crlBytes);
 
-        // Step 8: Validate CRL signature using CRLSignerCertificate public key (RFC 5280 Section 6.3)
+        // Validate CRL signature using CRLSignerCertificate public key (RFC 5280 Section 6.3)
         if (
             signerPublicKey !== undefined &&
             crlParsed.tbsDer !== undefined &&
@@ -845,13 +762,10 @@ export class DclCertificateService {
             }
         }
 
-        // Store in revocation index keyed by (AKID, issuerDN) per spec 6.2.4.2
-        this.#revocationIndex.set(issuerKeyId, {
+        return {
             serials: crlParsed.serials,
             issuerDnDerHex: crlParsed.issuerDnDerHex,
-            fetchedAt: Time.nowMs,
-            nextUpdateMs: crlParsed.nextUpdateMs,
-        });
+        };
     }
 
     /**
@@ -1137,6 +1051,12 @@ export namespace DclCertificateService {
         /** Epoch timestamp (ms) when this certificate was first fetched and added to the local trust store. */
         fetchedAt?: number;
     };
+
+    /** Cached revocation data for a single AKID. */
+    export interface RevocationEntry {
+        serials: Set<string>;
+        issuerDnDerHex?: string;
+    }
 
     /** Result of parsing a DER-encoded CRL. */
     export interface CrlParseResult {
