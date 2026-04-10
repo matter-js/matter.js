@@ -71,6 +71,11 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
 
+## 0.16.11 (2026-04-10)
+
+- @project-chip/matter.js
+    - Fix: (Pierre-Gilles) Added fallback discoveredAt to node migration in case discoveryData doesn't have one
+
 ## 0.16.10 (2026-02-22)
 
 - @matter/create
