@@ -4,7 +4,10 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { ImplementationError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
+import { DatafileRoot } from "./DatafileRoot.js";
+import type { DataNamespace } from "./DataNamespace.js";
 
 /**
  * Base class for all storage drivers. Defines the shared structural methods
@@ -12,6 +15,53 @@ import { MaybePromise } from "../util/Promises.js";
  * BlobStorageDriver (binary blobs).
  */
 export type StorageType = "kv" | "blob";
+
+/** Constructor type constraint for the {@link FilesystemLocking} mixin. */
+type BaseStorageDriverConstructor = abstract new (...args: any[]) => BaseStorageDriver;
+
+/**
+ * Mixin that adds filesystem-backed locking to any {@link BaseStorageDriver} subclass.
+ *
+ * Acquires a {@link DatafileRoot.Lock} during {@link initialize} and releases it during {@link close}.
+ * Used by both KV and blob filesystem drivers to ensure exclusive access.
+ *
+ * @example
+ * ```ts
+ * class MyKvDriver extends FilesystemLocking(StorageDriver) { ... }
+ * class MyBlobDriver extends FilesystemLocking(BlobStorageDriver) { ... }
+ * ```
+ */
+export function FilesystemLocking<T extends BaseStorageDriverConstructor>(Base: T) {
+    abstract class WithFilesystemLocking extends Base {
+        /** @internal */ _fsRoot?: DatafileRoot;
+        /** @internal */ _fsLock?: DatafileRoot.Lock;
+
+        get root(): DatafileRoot | undefined {
+            return this._fsRoot;
+        }
+
+        initFilesystem(namespace?: DataNamespace) {
+            if (namespace !== undefined) {
+                if (!(namespace instanceof DatafileRoot)) {
+                    throw new ImplementationError("Filesystem storage driver requires a DatafileRoot namespace");
+                }
+                this._fsRoot = namespace;
+            }
+        }
+
+        async acquireLock() {
+            if (this._fsRoot) {
+                this._fsLock = await this._fsRoot.lock();
+            }
+        }
+
+        async releaseLock() {
+            await this._fsLock?.close();
+            this._fsLock = undefined;
+        }
+    }
+    return WithFilesystemLocking;
+}
 
 export abstract class BaseStorageDriver {
     /**
@@ -26,7 +76,7 @@ export abstract class BaseStorageDriver {
         return (this.constructor as { id?: string }).id ?? this.constructor.name;
     }
 
-    abstract readonly initialized: boolean;
+    abstract get initialized(): boolean;
     abstract initialize(): MaybePromise<void>;
     abstract close(): MaybePromise<void>;
 

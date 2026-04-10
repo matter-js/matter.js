@@ -8,9 +8,8 @@ import {
     BaseStorageDriver,
     BlobStorageDriver,
     Bytes,
-    DatafileRoot,
     type DataNamespace,
-    ImplementationError,
+    FilesystemLocking,
     StorageError,
 } from "@matter/general";
 import { createWriteStream, existsSync, openAsBlob } from "node:fs";
@@ -24,7 +23,7 @@ import { join } from "node:path";
  * segments and key joined by `.`.  Example: contexts `["bin", "fff1", "8000"]` with key `"prod"`
  * becomes the file `bin.fff1.8000.prod` (percent-encoded).
  */
-export class FlatFileBlobStorageDriver extends BlobStorageDriver {
+export class FlatFileBlobStorageDriver extends FilesystemLocking(BlobStorageDriver) {
     static readonly id = "file";
 
     static create(namespace: DataNamespace, _descriptor: BlobStorageDriver.Descriptor): FlatFileBlobStorageDriver {
@@ -36,10 +35,8 @@ export class FlatFileBlobStorageDriver extends BlobStorageDriver {
 
     constructor(namespace: DataNamespace) {
         super();
-        if (!(namespace instanceof DatafileRoot)) {
-            throw new ImplementationError("FlatFileBlobStorageDriver requires a DatafileRoot namespace");
-        }
-        this.#path = namespace.directory.path;
+        this.initFilesystem(namespace);
+        this.#path = this.root!.directory.path;
     }
 
     get initialized() {
@@ -47,12 +44,14 @@ export class FlatFileBlobStorageDriver extends BlobStorageDriver {
     }
 
     async initialize() {
+        await this.acquireLock();
         await mkdir(this.#path, { recursive: true });
         this.#initialized = true;
     }
 
     async close() {
         this.#initialized = false;
+        await this.releaseLock();
     }
 
     async openBlob(contexts: string[], key: string): Promise<Blob> {

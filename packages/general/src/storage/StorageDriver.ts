@@ -6,7 +6,7 @@
 import type { Directory } from "../fs/Directory.js";
 import { ImplementationError, MatterError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
-import { BaseStorageDriver, type StorageType } from "./BaseStorageDriver.js";
+import { BaseStorageDriver, FilesystemLocking, type StorageType } from "./BaseStorageDriver.js";
 import { DatafileRoot } from "./DatafileRoot.js";
 import type { DataNamespace } from "./DataNamespace.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -218,35 +218,21 @@ export namespace StorageDriver {
  * {@link StorageDriver} subclass for drivers backed by the filesystem.
  *
  * Manages a {@link DatafileRoot.Lock} that is acquired during {@link initialize} and released during {@link close}.
- * Filesystem-specific drivers should extend this instead of {@link StorageDriver} directly.
+ * Filesystem-specific KV drivers should extend this instead of {@link StorageDriver} directly.
+ * Blob drivers should use `FilesystemLocking(BlobStorageDriver)` instead.
  */
-export abstract class FilesystemStorageDriver extends StorageDriver {
-    readonly #root?: DatafileRoot;
-    #lock?: DatafileRoot.Lock;
-
+export abstract class FilesystemStorageDriver extends FilesystemLocking(StorageDriver) {
     constructor(namespace?: DataNamespace) {
         super();
-        if (namespace !== undefined) {
-            if (!(namespace instanceof DatafileRoot)) {
-                throw new ImplementationError("Filesystem storage driver requires a DatafileRoot namespace");
-            }
-            this.#root = namespace;
-        }
-    }
-
-    get root(): DatafileRoot | undefined {
-        return this.#root;
+        this.initFilesystem(namespace);
     }
 
     async initialize() {
-        if (this.#root) {
-            this.#lock = await this.#root.lock();
-        }
+        await this.acquireLock();
     }
 
     async close() {
-        await this.#lock?.close();
-        this.#lock = undefined;
+        await this.releaseLock();
     }
 }
 

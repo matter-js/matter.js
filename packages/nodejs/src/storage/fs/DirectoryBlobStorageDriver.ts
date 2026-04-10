@@ -8,10 +8,9 @@ import {
     BaseStorageDriver,
     BlobStorageDriver,
     Bytes,
-    DatafileRoot,
     type DataNamespace,
     type Directory,
-    ImplementationError,
+    FilesystemLocking,
     StorageError,
 } from "@matter/general";
 
@@ -21,7 +20,7 @@ import {
  * Contexts map to nested directories; keys map to files within those directories.
  * Context segments are percent-encoded to avoid path separator conflicts.
  */
-export class DirectoryBlobStorageDriver extends BlobStorageDriver {
+export class DirectoryBlobStorageDriver extends FilesystemLocking(BlobStorageDriver) {
     static readonly id: string = "dir";
 
     static create(namespace: DataNamespace, _descriptor: BlobStorageDriver.Descriptor): DirectoryBlobStorageDriver {
@@ -33,10 +32,8 @@ export class DirectoryBlobStorageDriver extends BlobStorageDriver {
 
     constructor(namespace: DataNamespace) {
         super();
-        if (!(namespace instanceof DatafileRoot)) {
-            throw new ImplementationError("DirectoryBlobStorageDriver requires a DatafileRoot namespace");
-        }
-        this.#rootDir = namespace.directory;
+        this.initFilesystem(namespace);
+        this.#rootDir = this.root!.directory;
     }
 
     get initialized() {
@@ -44,12 +41,14 @@ export class DirectoryBlobStorageDriver extends BlobStorageDriver {
     }
 
     async initialize() {
+        await this.acquireLock();
         await this.#rootDir.mkdir();
         this.#initialized = true;
     }
 
     async close() {
         this.#initialized = false;
+        await this.releaseLock();
     }
 
     async openBlob(contexts: string[], key: string): Promise<Blob> {
