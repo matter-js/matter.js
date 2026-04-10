@@ -33,7 +33,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Fix: You can now assign bare objects composed of managed values to state properties
 
 - @matter/nodejs-shell
-    - Feature: `cert revocations` and `cert check-revoked` commands for browsing and checking certificate revocation data
+    - Feature: Added `cert check-revoked` command for checking certificate revocation data
     - Enhancement: Allow configuring if test OTA images are also accepted when devices query for updates
 
 - @matter/protocol
@@ -46,7 +46,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: (@adeepn) `DclCertificateService` and `DclOtaUpdateService` accept custom DCL endpoint configuration via options
     - Feature: Device attestation validation during commissioning per Matter spec 6.2.3.1 — certificate chain verification, attestation signature/nonce, Certification Declaration validation, and certificate revocation checks via CRL
     - Feature: Attestation findings model with error/warning/info levels and configurable policy callback for custom commissioning decisions
-    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL, validates signer chain against trusted PAAs, verifies CRL signature and integrity, tracks freshness via nextUpdate and 7-day TTL
+    - Feature: CRL revocation support in `DclCertificateService` — fetches from production DCL on demand, validates signer chain against trusted PAAs, verifies CRL signature and integrity
     - Feature: `CertificationDeclaration.parse()` for CMS/PKCS#7 signed CD extraction and signature verification
     - Enhancement: Attestation local checks (nonce, signature, VendorID, CD fields) run even without `DclCertificateService`; DCL-dependent checks (PAA trust, chain, revocation) require it
     - Enhancement: Server-side `DeviceCertification` validates DAC/PAI VendorID and ProductID against product description at startup
