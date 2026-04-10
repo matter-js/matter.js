@@ -43,7 +43,7 @@ export class SqliteBlobStorageDriver extends FilesystemBlobStorageDriver {
 
     #isInitialized = false;
 
-    #database!: DatabaseLike;
+    #database?: DatabaseLike;
     #databaseCreator?: DatabaseCreator;
     readonly #dbPath: string;
     readonly #tableName: string;
@@ -72,8 +72,8 @@ export class SqliteBlobStorageDriver extends FilesystemBlobStorageDriver {
         tableName?: string;
     }) {
         const namespaceOrPath = args?.namespaceOrPath;
-        // Pass DataNamespace for filesystem locking; string/null → no locking (e.g. :memory:)
-        super(typeof namespaceOrPath === "string" || namespaceOrPath == null ? undefined : namespaceOrPath);
+        // Only DatafileRoot namespaces get filesystem locking; string/null → no locking (e.g. :memory:)
+        super(namespaceOrPath instanceof DatafileRoot ? namespaceOrPath : undefined);
 
         this.#dbPath =
             typeof namespaceOrPath === "string"
@@ -171,7 +171,7 @@ export class SqliteBlobStorageDriver extends FilesystemBlobStorageDriver {
 
     override async close() {
         this.#isInitialized = false;
-        this.#database.close();
+        this.#database?.close();
         await super.close();
     }
 
