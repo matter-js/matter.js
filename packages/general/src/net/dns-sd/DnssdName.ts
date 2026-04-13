@@ -16,12 +16,7 @@ import type { DnssdNames } from "./DnssdNames.js";
 const logger = Logger.get("DnssdName");
 
 /**
- * Default grace factor applied to record TTLs to tolerate timing jitter.
- *
- * Mirrors the legacy MdnsClient behavior — without this, records expire slightly too early under load,
- * causing unnecessary re-queries and transient "not discovered" states.
- *
- * Configurable per {@link DnssdName.Context} so tests can disable (set to 1.0) when virtual time caps interfere.
+ * Grace factor applied to record TTLs so timing jitter doesn't cause premature expiry and spurious re-queries.
  */
 export const DEFAULT_TTL_GRACE_FACTOR = 1.05;
 
@@ -119,12 +114,11 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         this.#context.registerForExpiration(recordWithExpire);
 
-        // For PTR records, add a dependency
+        // SRV targets become dependencies so the hostname stays alive as long as any SRV references it
         if (record.recordType === DnsRecordType.SRV && !this.#dependencies?.has(key)) {
             const dependency = this.#context.get((record.value as SrvRecordValue).target);
 
-            // We use the "null observer" to mark the name as observed; we don't actually react to changes because we
-            // want to observe so long as its a dependency
+            // Null observer keeps the dependency observed without reacting to changes
             dependency.on((this.#nullObserver ??= () => undefined));
 
             (this.#dependencies ??= new Map()).set(key, dependency);
@@ -146,7 +140,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             return;
         }
 
-        // Recover the original discovery timestamp by subtracting the grace-adjusted TTL we added in installRecord
+        // expiresAt - (ttl * grace) recovers the install timestamp for the goodbye-protection check
         const graceFactor = this.#context.ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
         if (
             ifOlderThan !== undefined &&
@@ -295,7 +289,11 @@ export namespace DnssdName {
         recordType: DnsRecordType.SRV;
     }
 
-    export type Record = PointerRecord | ServiceRecord | HostRecord;
+    export interface TextRecord extends DnsRecord<string[]>, Expiration {
+        recordType: DnsRecordType.TXT;
+    }
+
+    export type Record = PointerRecord | ServiceRecord | HostRecord | TextRecord;
 
     export interface Changes {
         name: DnssdName;

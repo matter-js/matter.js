@@ -5,6 +5,7 @@
  */
 
 import { DnsRecord, DnsRecordType } from "#codec/DnsCodec.js";
+import { ImplementationError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
@@ -37,9 +38,8 @@ export class DnssdNames {
     readonly #ttlGraceFactor: number;
 
     /**
-     * IP records (A/AAAA) for hostnames that don't yet have a DnssdName.
-     * Replayed when the hostname DnssdName is later created (e.g. via SRV dependency).
-     * Periodically pruned by {@link #stagedIpExpirationTimer}; expired entries are also filtered on consumption.
+     * A/AAAA records for hostnames that don't yet have a DnssdName; replayed when the name is later created via
+     * SRV dependency.  Expired entries are pruned by a timer and filtered on consumption.
      */
     readonly #stagedIpRecords = new Map<string, { record: DnsRecord; receivedAt: Timestamp }[]>();
     readonly #stagedIpExpirationTimer: Timer;
@@ -62,7 +62,23 @@ export class DnssdNames {
         this.#solicitor = new QueryMulticaster(this);
         this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
-        this.#ttlGraceFactor = ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
+        const effectiveGraceFactor = ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
+        if (!(effectiveGraceFactor >= 1)) {
+            throw new ImplementationError(`ttlGraceFactor must be >= 1.0, got ${effectiveGraceFactor}`);
+        }
+        this.#ttlGraceFactor = effectiveGraceFactor;
+
+        this.#expiration = new Scheduler({
+            name: "expiration scheduler",
+            lifetime: this.#lifetime,
+            timeOf: a => a.expiresAt,
+            run: record => {
+                const discoveryName = this.maybeGet(record.name);
+                if (discoveryName) {
+                    discoveryName.deleteRecord(record);
+                }
+            },
+        });
 
         this.#nameContext = {
             delete: name => {
@@ -78,22 +94,7 @@ export class DnssdNames {
         };
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
 
-        this.#expiration = new Scheduler({
-            name: "expiration scheduler",
-            lifetime: this.#lifetime,
-            timeOf: a => {
-                return a.expiresAt;
-            },
-            run: record => {
-                const discoveryName = this.maybeGet(record.name);
-                if (discoveryName) {
-                    discoveryName.deleteRecord(record);
-                }
-            },
-        });
-
-        // Periodically prune staged IP records that exceeded their TTL without ever being claimed by a SRV.
-        // Per-message pruning was rejected for performance — high-volume MDNS traffic should not pay the cost.
+        // Prune staged IP records on a timer so per-message handling stays hot-path free
         this.#stagedIpExpirationTimer = Time.getPeriodicTimer(
             "Staged IP record expiration",
             Minutes(1),
@@ -180,8 +181,7 @@ export class DnssdNames {
             }
         }
 
-        // Stage A/AAAA records for unknown hostnames so they can be replayed when the hostname DnssdName is later
-        // created (e.g. by SRV dependency).  No size cap — TTL pruning bounds memory; expected hostname count is small.
+        // Stage A/AAAA records for unknown hostnames so they can be replayed when a later SRV creates the name
         for (const record of filtered) {
             if (
                 (record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA) &&
@@ -194,12 +194,20 @@ export class DnssdNames {
                     staged = [];
                     this.#stagedIpRecords.set(key, staged);
                 }
-                staged.push({ record, receivedAt: Time.nowMs });
+                // Dedup by IP value so repeated announcements don't grow the array unbounded
+                const existing = staged.findIndex(
+                    s => s.record.recordType === record.recordType && s.record.value === record.value,
+                );
+                if (existing === -1) {
+                    staged.push({ record, receivedAt: Time.nowMs });
+                } else {
+                    staged[existing] = { record, receivedAt: Time.nowMs };
+                }
             }
         }
 
-        // Emit discovered events after all records are installed so observers see complete state.
-        // Re-check isDiscovered in case a goodbye in the same message reverted the state.
+        // Emit after all records installed so observers see complete state; re-check because same-message goodbyes
+        // may have reverted discovery
         for (const name of newlyDiscovered) {
             if (name.isDiscovered) {
                 this.#discovered.emit(name);
@@ -227,7 +235,6 @@ export class DnssdNames {
             const key = qname.toLowerCase();
             this.#names.set(key, name);
 
-            // Replay any staged IP records for this hostname (A/AAAA that arrived before SRV created this name)
             const staged = this.#stagedIpRecords.get(key);
             if (staged !== undefined) {
                 this.#stagedIpRecords.delete(key);
@@ -346,9 +353,8 @@ export namespace DnssdNames {
         minTtl?: Duration;
 
         /**
-         * Multiplier applied to record TTL when computing expiry to tolerate timing jitter.
-         *
-         * Defaults to 1.05 (5% grace).  Set to 1.0 to disable (useful for tests with virtual time caps).
+         * Multiplier applied to record TTL when computing expiry to tolerate timing jitter.  Must be >= 1.0.
+         * Defaults to {@link DEFAULT_TTL_GRACE_FACTOR}.
          */
         ttlGraceFactor?: number;
     }

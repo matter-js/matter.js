@@ -188,8 +188,7 @@ export class CommissionableMdnsScanner implements Scanner {
             return;
         }
 
-        // Determine which records we are missing and solicit them explicitly.  Without this we'd have to wait for
-        // either an unsolicited announcement or the next general PTR retry to obtain the missing pieces.
+        // Solicit missing records now so we don't wait for the next PTR retry cycle
         const hasSrv = [...name.records].some(r => r.recordType === DnsRecordType.SRV);
         const recordTypes = hasSrv ? [DnsRecordType.TXT] : [DnsRecordType.SRV, DnsRecordType.TXT];
         this.#names.solicitor.solicit({ name, recordTypes });
@@ -264,8 +263,7 @@ export class CommissionableMdnsScanner implements Scanner {
                 name: this.#names.get(qname),
                 recordTypes: [DnsRecordType.PTR],
                 abort,
-                // Commissioning is short-lived; cap backoff so we keep querying frequently rather than letting
-                // intervals grow toward the default 1-hour ceiling.
+                // Cap backoff for commissioning: short-lived discovery shouldn't drift toward the 1h default
                 retries: { maximumInterval: Seconds(30) },
             }),
         );

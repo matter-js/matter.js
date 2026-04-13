@@ -78,12 +78,10 @@ export namespace DnssdSolicitor {
         abort: AbortSignal;
 
         /**
-         * Override retry configuration for this discovery.
+         * Override retry configuration for this discovery.  Defaults to the solicitor's shared schedule.
          *
-         * If not provided, the solicitor's shared schedule is used.
-         *
-         * Note: when {@link discover} coalesces with another in-flight discovery for the same name, only the first
-         * caller's configuration takes effect.
+         * When {@link DnssdSolicitor.discover} coalesces with an in-flight discovery for the same name, only the
+         * first caller's configuration takes effect.
          */
         retries?: RetrySchedule.Configuration;
     }
@@ -168,7 +166,6 @@ export class QueryMulticaster implements DnssdSolicitor {
     }
 
     async #discover(solicitation: DnssdSolicitor.Discovery, abort: Abort) {
-        // Use a per-discovery schedule when configured so callers (e.g. CommissionableMdnsScanner) can cap backoff
         const schedule = solicitation.retries
             ? new RetrySchedule(
                   this.#names.entropy,
@@ -176,9 +173,10 @@ export class QueryMulticaster implements DnssdSolicitor {
               )
             : this.#schedule;
 
-        // Fire first query immediately.  RFC 6762 §5.2 mandates a 20-120ms initial random delay for collision
-        // avoidance during synchronized startup waves; our discoveries are user/reconnect-triggered, not part of
-        // such a wave, so the delay just adds latency without value.
+        // Skip RFC 6762 §5.2's 20-120ms initial delay: that delay avoids collisions during synchronized startup
+        // waves, but our discoveries are user- or reconnect-triggered and not part of such a wave.  Skipping it
+        // trades a little coalescing (concurrent discoveries in the same tick may produce one extra packet) for
+        // sub-second time-to-first-query.
         this.solicit(solicitation);
 
         for (const nextTimeout of schedule) {
@@ -232,7 +230,7 @@ export class QueryMulticaster implements DnssdSolicitor {
 
                 answers.push(...records);
 
-                // Include records from associated names (e.g. SRV target hostnames) for known answer suppression
+                // Include associated names' records for known-answer suppression (e.g. SRV target hostnames)
                 if (associatedNames) {
                     for (const assocName of associatedNames) {
                         answers.push(...assocName.records);
@@ -240,7 +238,6 @@ export class QueryMulticaster implements DnssdSolicitor {
                 }
             }
 
-            // Defensive: skip sending if no queries collected (shouldn't happen, but avoids empty packets)
             if (queries.length === 0) {
                 continue;
             }

@@ -116,8 +116,7 @@ export async function IpServiceResolution(service: IpService, abort: AbortSignal
         }
     });
 
-    // Begin discovering SRV+TXT records.  TXT is included explicitly because some responders omit it from the
-    // additional records section; without an explicit query we'd never obtain the TXT data on a re-resolve.
+    // Query TXT explicitly because some responders omit it from the additional-records section
     workers.add(
         service.names.solicitor.discover({
             abort: localAbort,

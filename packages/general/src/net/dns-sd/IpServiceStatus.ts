@@ -125,29 +125,18 @@ export class IpServiceStatus {
                 if (returned) {
                     this.isReachable = true;
                     logger.info(this.#service.via, "Connected");
-                    this.#maybeStopResolving();
                 } else {
-                    // Connection attempt ended without establishing a session.  Mark unreachable so the next
-                    // PeerConnection call triggers MDNS resolution instead of short-circuiting on a stale
-                    // "reachable" state inherited from a known operational address.  Also explicitly attempt
-                    // to start resolving — currently a no-op because we just removed ourselves from #connecting,
-                    // but kept defensively in case the gating in #maybeStartResolving evolves.
+                    // Mark unreachable so the next connection attempt triggers MDNS resolution rather than
+                    // short-circuiting on a stale reachable state from a persisted operational address.
                     this.isReachable = false;
                     logger.debug(this.#service.via, "Connect attempt ended without session");
-                    this.#maybeStartResolving();
                 }
             },
 
             error => {
-                // In practice this rejection branch is unreachable: all current callers wrap the result via
-                // Abort.then(), which resolves (with the abort reason) rather than rejecting.  Kept defensively.
                 this.#connecting.delete(result);
-
                 logger.error(this.#service.via, "Connection error:", asError(error));
-
                 this.isReachable = false;
-
-                this.#maybeStartResolving();
             },
         );
 
