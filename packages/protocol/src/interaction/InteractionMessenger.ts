@@ -892,7 +892,7 @@ export class IncomingInteractionClientMessenger extends InteractionMessenger {
                             multipleMessageInteraction: true,
                             logContext: this.#logContextOf(report),
                         }),
-                        "Error sending success after final data report chunk",
+                        `${this.exchange.via} Error sending success after final data report chunk`,
                     );
                 } catch (e) {
                     // This error is non-fatal
