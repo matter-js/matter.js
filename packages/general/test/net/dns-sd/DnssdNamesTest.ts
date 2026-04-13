@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DnsMessageType, DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
+import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
 import { Hours, Millis, Minutes, Seconds } from "#index.js";
 import { MOCK_SERVICE_DOMAIN, MockSite, qnameOf } from "./dns-sd-helpers.js";
 
