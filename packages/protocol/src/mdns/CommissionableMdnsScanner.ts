@@ -16,6 +16,7 @@ import {
     IpService,
     MatterAggregateError,
     ObserverGroup,
+    Seconds,
     ServerAddressUdp,
     Time,
 } from "@matter/general";
@@ -257,6 +258,9 @@ export class CommissionableMdnsScanner implements Scanner {
                 name: this.#names.get(qname),
                 recordTypes: [DnsRecordType.PTR],
                 abort,
+                // Commissioning is short-lived; cap backoff so we keep querying frequently rather than letting
+                // intervals grow toward the default 1-hour ceiling.
+                retries: { maximumInterval: Seconds(30) },
             }),
         );
         await MatterAggregateError.allSettled(discoveries);

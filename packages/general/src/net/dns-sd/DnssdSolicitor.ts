@@ -8,7 +8,7 @@ import { DnsMessageType, DnsQuery, DnsRecord, DnsRecordClass, DnsRecordType } fr
 import { Logger } from "#log/Logger.js";
 import { RetrySchedule } from "#net/RetrySchedule.js";
 import { Time } from "#time/Time.js";
-import { Hours, Millis, Seconds } from "#time/TimeUnit.js";
+import { Hours, Seconds } from "#time/TimeUnit.js";
 import { Abort } from "#util/Abort.js";
 import { BasicMultiplex } from "#util/Multiplex.js";
 import { ObservableValue } from "#util/Observable.js";
@@ -76,6 +76,16 @@ export namespace DnssdSolicitor {
          * Terminates discovery.
          */
         abort: AbortSignal;
+
+        /**
+         * Override retry configuration for this discovery.
+         *
+         * If not provided, the solicitor's shared schedule is used.
+         *
+         * Note: when {@link discover} coalesces with another in-flight discovery for the same name, only the first
+         * caller's configuration takes effect.
+         */
+        retries?: RetrySchedule.Configuration;
     }
 
     /**
@@ -157,19 +167,27 @@ export class QueryMulticaster implements DnssdSolicitor {
         }
     }
 
-    async #discover(solicitation: DnssdSolicitor.Solicitation, abort: Abort) {
-        // Wait initially 20 - 120 ms per RFC 6762
-        let timeout = Millis.floor(Millis(20 + 100 * (this.#names.entropy.randomUint32 / Math.pow(2, 32))));
+    async #discover(solicitation: DnssdSolicitor.Discovery, abort: Abort) {
+        // Use a per-discovery schedule when configured so callers (e.g. CommissionableMdnsScanner) can cap backoff
+        const schedule = solicitation.retries
+            ? new RetrySchedule(
+                  this.#names.entropy,
+                  RetrySchedule.Configuration(DnssdSolicitor.DefaultRetries, solicitation.retries),
+              )
+            : this.#schedule;
 
-        for (const nextTimeout of this.#schedule) {
-            using delay = new Abort({ abort, timeout });
+        // Fire first query immediately.  RFC 6762 §5.2 mandates a 20-120ms initial random delay for collision
+        // avoidance during synchronized startup waves; our discoveries are user/reconnect-triggered, not part of
+        // such a wave, so the delay just adds latency without value.
+        this.solicit(solicitation);
+
+        for (const nextTimeout of schedule) {
+            using delay = new Abort({ abort, timeout: nextTimeout });
 
             await delay;
             if (abort.aborted) {
                 break;
             }
-
-            timeout = nextTimeout;
 
             this.solicit(solicitation);
         }
