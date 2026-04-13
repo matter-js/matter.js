@@ -108,7 +108,10 @@ export class DnssdNames {
         }
         const now = Time.nowMs;
         for (const [key, staged] of this.#stagedIpRecords) {
-            const live = staged.filter(({ record, receivedAt }) => now - receivedAt < record.ttl);
+            // Use grace-adjusted TTL so staged records survive the same lifetime they would after installRecord
+            const live = staged.filter(
+                ({ record, receivedAt }) => now - receivedAt < record.ttl * this.#ttlGraceFactor,
+            );
             if (live.length === 0) {
                 this.#stagedIpRecords.delete(key);
             } else if (live.length !== staged.length) {
@@ -240,9 +243,13 @@ export class DnssdNames {
                 this.#stagedIpRecords.delete(key);
                 const now = Time.nowMs;
                 for (const { record, receivedAt } of staged) {
-                    const remainingTtl = Millis(record.ttl - (now - receivedAt));
-                    if (remainingTtl > 0) {
-                        name.installRecord({ ...record, ttl: remainingTtl });
+                    // Survive through grace-adjusted TTL; pass remaining grace-adjusted time into installRecord,
+                    // which will multiply by the grace factor internally — slight double-grace on the remaining
+                    // portion is safer than dropping records during the grace window
+                    const age = now - receivedAt;
+                    const graceTtl = record.ttl * this.#ttlGraceFactor;
+                    if (age < graceTtl) {
+                        name.installRecord({ ...record, ttl: Millis(graceTtl - age) });
                     }
                 }
             }

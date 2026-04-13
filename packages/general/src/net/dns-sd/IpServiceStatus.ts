@@ -135,6 +135,9 @@ export class IpServiceStatus {
 
             error => {
                 this.#connecting.delete(result);
+                if (!this.#connecting.size) {
+                    this.#connectionInitiatedAt = undefined;
+                }
                 logger.error(this.#service.via, "Connection error:", asError(error));
                 this.isReachable = false;
             },
