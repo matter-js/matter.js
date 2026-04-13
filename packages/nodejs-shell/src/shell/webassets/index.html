@@ -229,7 +229,8 @@
             [TEMPERATURE]: (value, units = 'F') => { return (units === "F" ? (value / 100 * 9 / 5 + 32) : (value / 100)).toFixed(1) + '°' + units; },
             [PRESSURE]: (value, units = 'mb') => { return (value / 10000).toFixed(1) + units; },
             [HUMIDITY]: (value, units = '%') => { return (value / 100).toFixed(1) + units; },
-        }
+        };
+
         function initConsole(clear) {
             if (clear) consoleDiv.innerHTML = ''; // Clear the console
             const dummy = document.createElement('div'); // Inject invisible wide line to reserve width
@@ -238,6 +239,7 @@
             dummy.textContent = 'X'.repeat(120);
             consoleDiv.appendChild(dummy);
         }
+
         function logMessage(message, type) {
             const MAX_MESSAGES = 1000; // Maximum number of messages to keep in the console
             const fragment = document.createDocumentFragment();
@@ -258,6 +260,7 @@
             const shouldScroll = consoleDiv.scrollTop + consoleDiv.clientHeight >= consoleDiv.scrollHeight - consoleDiv.lastChild.offsetHeight - 5; // Adjusted for new content
             if (shouldScroll) consoleDiv.scrollTop = consoleDiv.scrollHeight;
         }
+
         function setupWebSocket() {
             ws = new WebSocket(wsUrl);
             initConsole(false);
@@ -363,11 +366,13 @@
                 }
             }
         }
+
         function styleContainer(nodeId, endpoint, state) {
             const element = document.getElementById(`${endpoint}-container-${nodeId}`);
             element.classList.remove("on", "off");
             element.classList.add(state === "true" ? "on" : "off");
         }
+
         function updateTile(nodeId, status) {
             let tile = document.getElementById(`tile-${nodeId}`);
             if (!tile) {
@@ -390,6 +395,7 @@
             tile.innerHTML = "";
             tile.appendChild(small);
         }
+
         matterCommand.onkeypress = (e) => {
             if (e.key === 'Enter') {
                 if (matterCommand.value === 'clear') initConsole(true);
@@ -397,12 +403,14 @@
                 matterCommand.value = '';
             }
         };
+
         pairingCode.onkeypress = (e) => {
             if (e.key === 'Enter') {
                 sendCommand(pairingCode.value ? `commission pair --pairing-code ${pairingCode.value}` : "help");
                 pairingCode.value = '';
             }
         };
+
         function scheduleReconnect() {
             const RECONNECT_DELAY = 1000; // Initial delay in ms
             const MAX_RECONNECT_DELAY = 30000; // Max delay in ms
@@ -414,6 +422,7 @@
                 setupWebSocket();
             }, delay);
         }
+
         function sendCommand(cmd, outputType = 'sent') {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(cmd + '\n');
