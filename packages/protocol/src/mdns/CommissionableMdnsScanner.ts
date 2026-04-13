@@ -278,7 +278,13 @@ export class CommissionableMdnsScanner implements Scanner {
                         const abort = new Abort({ abort: this.#scanAbort });
                         this.#speculativeTargets.set(targetKey, { abort, createdAt: Time.nowMs });
                         void this.#names.solicitor
-                            .discover({ name: target, recordTypes, abort: abort.signal })
+                            .discover({
+                                name: target,
+                                recordTypes,
+                                abort: abort.signal,
+                                // Match the main PTR discovery cap so retries stay dense within commissioning windows
+                                retries: { maximumInterval: Seconds(30) },
+                            })
                             .catch(error => {
                                 if (!(error instanceof AbortedError)) {
                                     logger.error(`Speculative discovery for ${target.qname} failed:`, error);
