@@ -6,7 +6,6 @@
 
 import { Diagnostic } from "#log/Diagnostic.js";
 import { Logger } from "#log/Logger.js";
-import { AbortedError } from "#MatterError.js";
 import { ServerAddress } from "#net/ServerAddress.js";
 import { Time } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
@@ -106,10 +105,9 @@ export class IpServiceStatus {
      * Register a new connection attempt.
      *
      * If {@link result} resolves as true the service is marked as reachable.  If {@link result} resolves as false
-     * reachability is not modified.
+     * the service is marked as unreachable so subsequent attempts trigger MDNS resolution.
      *
-     * If {@link result} throws an error other than {@link AbortedError}, the service is marked as unreachable and if
-     * the error logged.
+     * If {@link result} rejects, the service is marked as unreachable and the error is logged.
      *
      * {@link isConnecting} will be true until {@link result} resolves.
      */
@@ -126,25 +124,28 @@ export class IpServiceStatus {
 
                 if (returned) {
                     this.isReachable = true;
-
                     logger.info(this.#service.via, "Connected");
+                    this.#maybeStopResolving();
                 } else {
-                    logger.debug(this.#service.via, "Connect attempt aborted");
+                    // Connection attempt ended without establishing a session.  Mark unreachable so the next
+                    // PeerConnection call triggers MDNS resolution instead of short-circuiting on a stale
+                    // "reachable" state inherited from a known operational address.  Also explicitly attempt
+                    // to start resolving — currently a no-op because we just removed ourselves from #connecting,
+                    // but kept defensively in case the gating in #maybeStartResolving evolves.
+                    this.isReachable = false;
+                    logger.debug(this.#service.via, "Connect attempt ended without session");
+                    this.#maybeStartResolving();
                 }
-
-                this.#maybeStopResolving();
             },
 
             error => {
+                // In practice this rejection branch is unreachable: all current callers wrap the result via
+                // Abort.then(), which resolves (with the abort reason) rather than rejecting.  Kept defensively.
                 this.#connecting.delete(result);
-
-                if (!(error instanceof AbortedError)) {
-                    return;
-                }
 
                 logger.error(this.#service.via, "Connection error:", asError(error));
 
-                this.#isReachable = false;
+                this.isReachable = false;
 
                 this.#maybeStartResolving();
             },
