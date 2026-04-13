@@ -18,6 +18,9 @@ import { DEFAULT_TTL_GRACE_FACTOR, DnssdName } from "./DnssdName.js";
 import { QueryMulticaster } from "./DnssdSolicitor.js";
 import { MdnsSocket } from "./MdnsSocket.js";
 
+const STAGED_IP_RECORDS_MAX_HOSTS = 250;
+const STAGED_IP_RECORDS_MIN_HOSTS = 200;
+
 /**
  * Names collected via DNS-SD.
  *
@@ -117,6 +120,15 @@ export class DnssdNames {
                 this.#stagedIpRecords.set(key, live);
             }
         }
+        // Evict oldest-touched hostnames down to the low-water mark once the cache grows past the high-water mark
+        if (this.#stagedIpRecords.size > STAGED_IP_RECORDS_MAX_HOSTS) {
+            const keys = this.#stagedIpRecords.keys();
+            while (this.#stagedIpRecords.size > STAGED_IP_RECORDS_MIN_HOSTS) {
+                const { value, done } = keys.next();
+                if (done) break;
+                this.#stagedIpRecords.delete(value);
+            }
+        }
     }
 
     #handleMessage(message: MdnsSocket.Message) {
@@ -194,11 +206,7 @@ export class DnssdNames {
                     record = { ...record, ttl: this.#minTtl };
                 }
                 const key = record.name.toLowerCase();
-                let staged = this.#stagedIpRecords.get(key);
-                if (staged === undefined) {
-                    staged = [];
-                    this.#stagedIpRecords.set(key, staged);
-                }
+                const staged = this.#stagedIpRecords.get(key) ?? [];
                 // Dedup by IP value so repeated announcements don't grow the array unbounded
                 const existing = staged.findIndex(
                     s => s.record.recordType === record.recordType && s.record.value === record.value,
@@ -208,6 +216,9 @@ export class DnssdNames {
                 } else {
                     staged[existing] = { record, receivedAt: Time.nowMs };
                 }
+                // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
+                this.#stagedIpRecords.delete(key);
+                this.#stagedIpRecords.set(key, staged);
             }
         }
 
