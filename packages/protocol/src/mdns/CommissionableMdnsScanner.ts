@@ -171,9 +171,48 @@ export class CommissionableMdnsScanner implements Scanner {
 
     #onDiscovered(name: DnssdName) {
         const lower = name.qname.toLowerCase();
-        if (!lower.endsWith("._matterc._udp.local") && !lower.endsWith("._matterd._udp.local")) {
+        const matterc = lower === "_matterc._udp.local" || lower.endsWith("._matterc._udp.local");
+        const matterd = lower === "_matterd._udp.local" || lower.endsWith("._matterd._udp.local");
+        if (!matterc && !matterd) {
             return;
         }
+
+        // Service-type qnames (base + subtype) hold PTR records pointing at instance qnames.  Follow the targets
+        // and solicit only the record types the target is actually missing — responders usually include SRV+TXT
+        // as additional records with the PTR, in which case no follow-up query is needed.
+        // DNS-SD service-type labels start with "_"; Matter instance names are hex strings without leading "_".
+        if (lower.startsWith("_")) {
+            for (const record of name.records) {
+                if (record.recordType !== DnsRecordType.PTR) {
+                    continue;
+                }
+                const target = this.#names.get(record.value);
+                let hasSrv = false;
+                let hasTxt = false;
+                for (const r of target.records) {
+                    if (r.recordType === DnsRecordType.SRV) {
+                        hasSrv = true;
+                    } else if (r.recordType === DnsRecordType.TXT) {
+                        hasTxt = true;
+                    }
+                    if (hasSrv && hasTxt) {
+                        break;
+                    }
+                }
+                const recordTypes = new Array<DnsRecordType>();
+                if (!hasSrv) {
+                    recordTypes.push(DnsRecordType.SRV);
+                }
+                if (!hasTxt) {
+                    recordTypes.push(DnsRecordType.TXT);
+                }
+                if (recordTypes.length) {
+                    this.#names.solicitor.solicit({ name: target, recordTypes });
+                }
+            }
+            return;
+        }
+
         if (this.#cache.has(lower)) {
             return;
         }

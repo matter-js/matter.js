@@ -102,7 +102,10 @@ export class DnssdNames {
             "Staged IP record expiration",
             Minutes(1),
             this.#pruneStagedIpRecords.bind(this),
-        ).start();
+        );
+        // Mark as utility so the prune timer doesn't keep the Node event loop alive
+        this.#stagedIpExpirationTimer.utility = true;
+        this.#stagedIpExpirationTimer.start();
     }
 
     #pruneStagedIpRecords() {
@@ -261,6 +264,10 @@ export class DnssdNames {
                     if (remainingTtl > 0) {
                         name.installRecord({ ...record, ttl: Millis(remainingTtl) });
                     }
+                }
+                // Replay happens outside handleMessage's newlyDiscovered tracking, so emit directly
+                if (name.isDiscovered) {
+                    this.#discovered.emit(name);
                 }
             }
         }
