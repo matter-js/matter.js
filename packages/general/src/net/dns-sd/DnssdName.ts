@@ -77,7 +77,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
         return !!this.#recordCount;
     }
 
-    installRecord(record: DnsRecord<any>) {
+    installRecord(record: DnsRecord<any>, installedAt?: Timestamp) {
         // For TXT records, extract the standard DNS-SD k/v's
         if (record.recordType === DnsRecordType.TXT) {
             const entries = record.value;
@@ -104,10 +104,11 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             this.#recordCount++;
         }
 
-        const graceFactor = this.#context.ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
+        const at = installedAt ?? Time.nowMs;
         const recordWithExpire = {
             ...record,
-            expiresAt: Time.nowMs + Millis(Math.round(record.ttl * graceFactor)),
+            installedAt: at,
+            expiresAt: at + Millis(Math.round(record.ttl * this.#context.ttlGraceFactor)),
         } as DnssdName.Record;
 
         this.#records.set(key, recordWithExpire);
@@ -140,12 +141,7 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             return;
         }
 
-        // expiresAt - (ttl * grace) recovers the install timestamp for the goodbye-protection check
-        const graceFactor = this.#context.ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
-        if (
-            ifOlderThan !== undefined &&
-            recordWithExpire.expiresAt - Math.round(recordWithExpire.ttl * graceFactor) >= ifOlderThan
-        ) {
+        if (ifOlderThan !== undefined && recordWithExpire.installedAt >= ifOlderThan) {
             return;
         }
 
@@ -266,14 +262,13 @@ export namespace DnssdName {
         get(qname: string): DnssdName;
 
         /**
-         * Multiplier applied to TTL when computing record expiry.
-         *
-         * Defaults to {@link DEFAULT_TTL_GRACE_FACTOR} when omitted.
+         * Multiplier applied to TTL when computing record expiry.  Always provided by {@link DnssdNames}.
          */
-        ttlGraceFactor?: number;
+        ttlGraceFactor: number;
     }
 
     export interface Expiration {
+        installedAt: Timestamp;
         expiresAt: Timestamp;
     }
 

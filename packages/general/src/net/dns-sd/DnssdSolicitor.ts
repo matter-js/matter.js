@@ -80,8 +80,10 @@ export namespace DnssdSolicitor {
         /**
          * Override retry configuration for this discovery.  Defaults to the solicitor's shared schedule.
          *
-         * When {@link DnssdSolicitor.discover} coalesces with an in-flight discovery for the same name, only the
-         * first caller's configuration takes effect.
+         * When {@link DnssdSolicitor.discover} coalesces with an in-flight discovery for the same name, the first
+         * caller's solicitation fields drive the shared discovery — {@link DnssdSolicitor.Solicitation.recordTypes},
+         * {@link DnssdSolicitor.Solicitation.associatedNames}, and this retry configuration.  Later callers only
+         * contribute their own {@link abort} signal.
          */
         retries?: RetrySchedule.Configuration;
     }

@@ -9,7 +9,7 @@ import { ImplementationError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
-import { Millis, Minutes, Seconds } from "#time/TimeUnit.js";
+import { Minutes, Seconds } from "#time/TimeUnit.js";
 import { Entropy } from "#util/Entropy.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Observable, ObserverGroup } from "#util/Observable.js";
@@ -46,6 +46,9 @@ export class DnssdNames {
      */
     readonly #stagedIpRecords = new Map<string, { record: DnsRecord; receivedAt: Timestamp }[]>();
     readonly #stagedIpExpirationTimer: Timer;
+    // Points at handleMessage's newlyDiscovered list while a packet is being processed so replay-triggered
+    // discoveries join the same end-of-packet emit batch
+    #currentBatch?: DnssdName[];
 
     constructor({
         socket,
@@ -142,12 +145,19 @@ export class DnssdNames {
         // Collect newly discovered names so we can emit after all records in the message are processed.  This ensures
         // that observers see the complete record set (e.g. both SRV and TXT) rather than partial state mid-message.
         const newlyDiscovered: DnssdName[] = [];
+        this.#currentBatch = newlyDiscovered;
+
+        // Flip true when any record in this packet was accepted (filter match or dependency hit).  Staging only
+        // considers packets that also carry something we already care about, otherwise unrelated LAN A/AAAA
+        // announcements could poison the cache and attach wrong addresses to a later Matter SRV target.
+        let packetRelevant = false;
 
         /**
          * Handles a record we've decided we're interested in.
          */
         const handleRecord = (record: DnsRecord) => {
             filtered.delete(record);
+            packetRelevant = true;
             const name = this.get(record.name);
             if (record.ttl) {
                 if (record.ttl < this.#minTtl) {
@@ -200,50 +210,53 @@ export class DnssdNames {
 
         // Stage A/AAAA records for unknown hostnames so they can be replayed when a later SRV creates the name.
         // A goodbye (ttl=0) arriving before the hostname exists must drop any matching staged entry so the stale
-        // address can't be replayed later.
-        for (let record of filtered) {
-            if (
-                (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) ||
-                this.has(record.name)
-            ) {
-                continue;
-            }
-            const key = record.name.toLowerCase();
-
-            if (record.ttl === 0) {
-                const staged = this.#stagedIpRecords.get(key);
-                if (staged === undefined) {
+        // address can't be replayed later.  Only run for packets that carried at least one record we cared about.
+        if (packetRelevant) {
+            for (let record of filtered) {
+                if (
+                    (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) ||
+                    this.has(record.name)
+                ) {
                     continue;
                 }
-                const remaining = staged.filter(
-                    s => !(s.record.recordType === record.recordType && s.record.value === record.value),
-                );
-                if (remaining.length === 0) {
-                    this.#stagedIpRecords.delete(key);
-                } else {
-                    this.#stagedIpRecords.set(key, remaining);
-                }
-                continue;
-            }
+                const key = record.name.toLowerCase();
 
-            if (record.ttl < this.#minTtl) {
-                record = { ...record, ttl: this.#minTtl };
+                if (record.ttl === 0) {
+                    const staged = this.#stagedIpRecords.get(key);
+                    if (staged === undefined) {
+                        continue;
+                    }
+                    const remaining = staged.filter(
+                        s => !(s.record.recordType === record.recordType && s.record.value === record.value),
+                    );
+                    if (remaining.length === 0) {
+                        this.#stagedIpRecords.delete(key);
+                    } else {
+                        this.#stagedIpRecords.set(key, remaining);
+                    }
+                    continue;
+                }
+
+                if (record.ttl < this.#minTtl) {
+                    record = { ...record, ttl: this.#minTtl };
+                }
+                const staged = this.#stagedIpRecords.get(key) ?? [];
+                // Dedup by IP value so repeated announcements don't grow the array unbounded
+                const existing = staged.findIndex(
+                    s => s.record.recordType === record.recordType && s.record.value === record.value,
+                );
+                if (existing === -1) {
+                    staged.push({ record, receivedAt: Time.nowMs });
+                } else {
+                    staged[existing] = { record, receivedAt: Time.nowMs };
+                }
+                // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
+                this.#stagedIpRecords.delete(key);
+                this.#stagedIpRecords.set(key, staged);
             }
-            const staged = this.#stagedIpRecords.get(key) ?? [];
-            // Dedup by IP value so repeated announcements don't grow the array unbounded
-            const existing = staged.findIndex(
-                s => s.record.recordType === record.recordType && s.record.value === record.value,
-            );
-            if (existing === -1) {
-                staged.push({ record, receivedAt: Time.nowMs });
-            } else {
-                staged[existing] = { record, receivedAt: Time.nowMs };
-            }
-            // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
-            this.#stagedIpRecords.delete(key);
-            this.#stagedIpRecords.set(key, staged);
         }
 
+        this.#currentBatch = undefined;
         // Emit after all records installed so observers see complete state; re-check because same-message goodbyes
         // may have reverted discovery
         for (const name of newlyDiscovered) {
@@ -278,15 +291,18 @@ export class DnssdNames {
                 this.#stagedIpRecords.delete(key);
                 const now = Time.nowMs;
                 for (const { record, receivedAt } of staged) {
-                    // age/grace cancels installRecord's grace re-application, preserving original expiry target
-                    const remainingTtl = record.ttl - (now - receivedAt) / this.#ttlGraceFactor;
-                    if (remainingTtl > 0) {
-                        name.installRecord({ ...record, ttl: Millis(remainingTtl) });
+                    // Preserve original TTL and receivedAt so expiry math and goodbye-protection recovery both
+                    // reference the real discovery time rather than the replay moment
+                    if (now - receivedAt < record.ttl * this.#ttlGraceFactor) {
+                        name.installRecord(record, receivedAt);
                     }
                 }
-                // Replay happens outside handleMessage's newlyDiscovered tracking, so emit directly
                 if (name.isDiscovered) {
-                    this.#discovered.emit(name);
+                    if (this.#currentBatch !== undefined) {
+                        this.#currentBatch.push(name);
+                    } else {
+                        this.#discovered.emit(name);
+                    }
                 }
             }
         }

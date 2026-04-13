@@ -31,6 +31,7 @@ describe("DnssdNames", () => {
         const name = client.names.get(qname);
         expect([...name.records]).deep.equals([
             {
+                installedAt: 1735734896000,
                 expiresAt: 1735738496000,
                 flushCache: false,
                 name: qname,
@@ -45,6 +46,7 @@ describe("DnssdNames", () => {
                 },
             },
             {
+                installedAt: 1735734896000,
                 expiresAt: 1735738496000,
                 flushCache: false,
                 name: qname,
@@ -58,6 +60,7 @@ describe("DnssdNames", () => {
         const host = client.names.get(server.hostname);
         expect([...host.records]).deep.equals([
             {
+                installedAt: 1735734896000,
                 expiresAt: 1735738496000,
                 flushCache: false,
                 name: server.hostname,
@@ -67,6 +70,7 @@ describe("DnssdNames", () => {
                 value: "10.10.10.145",
             },
             {
+                installedAt: 1735734896000,
                 expiresAt: 1735738496000,
                 flushCache: false,
                 name: server.hostname,
