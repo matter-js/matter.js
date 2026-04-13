@@ -360,7 +360,7 @@ export declare namespace ModeSelect {
     /**
      * @deprecated Use {@link ModeSelect}.
      */
-    export const Cluster: typeof ModeSelect;
+    export const Cluster: ClusterType.WithCompat<typeof ModeSelect, ModeSelect>;
 
     /**
      * @deprecated Use {@link ModeSelect}.

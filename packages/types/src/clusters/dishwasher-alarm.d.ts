@@ -360,7 +360,7 @@ export declare namespace DishwasherAlarm {
     /**
      * @deprecated Use {@link DishwasherAlarm}.
      */
-    export const Cluster: typeof DishwasherAlarm;
+    export const Cluster: ClusterType.WithCompat<typeof DishwasherAlarm, DishwasherAlarm>;
 
     /**
      * @deprecated Use {@link DishwasherAlarm}.

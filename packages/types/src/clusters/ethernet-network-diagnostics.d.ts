@@ -344,7 +344,7 @@ export declare namespace EthernetNetworkDiagnostics {
     /**
      * @deprecated Use {@link EthernetNetworkDiagnostics}.
      */
-    export const Cluster: typeof EthernetNetworkDiagnostics;
+    export const Cluster: ClusterType.WithCompat<typeof EthernetNetworkDiagnostics, EthernetNetworkDiagnostics>;
 
     /**
      * @deprecated Use {@link EthernetNetworkDiagnostics}.

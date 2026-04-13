@@ -881,7 +881,7 @@ export declare namespace SmokeCoAlarm {
     /**
      * @deprecated Use {@link SmokeCoAlarm}.
      */
-    export const Cluster: typeof SmokeCoAlarm;
+    export const Cluster: ClusterType.WithCompat<typeof SmokeCoAlarm, SmokeCoAlarm>;
 
     /**
      * @deprecated Use {@link SmokeCoAlarm}.

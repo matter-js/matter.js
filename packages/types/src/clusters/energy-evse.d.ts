@@ -1689,7 +1689,7 @@ export declare namespace EnergyEvse {
     /**
      * @deprecated Use {@link EnergyEvse}.
      */
-    export const Cluster: typeof EnergyEvse;
+    export const Cluster: ClusterType.WithCompat<typeof EnergyEvse, EnergyEvse>;
 
     /**
      * @deprecated Use {@link EnergyEvse}.

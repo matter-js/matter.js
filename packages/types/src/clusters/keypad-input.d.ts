@@ -295,7 +295,7 @@ export declare namespace KeypadInput {
     /**
      * @deprecated Use {@link KeypadInput}.
      */
-    export const Cluster: typeof KeypadInput;
+    export const Cluster: ClusterType.WithCompat<typeof KeypadInput, KeypadInput>;
 
     /**
      * @deprecated Use {@link KeypadInput}.

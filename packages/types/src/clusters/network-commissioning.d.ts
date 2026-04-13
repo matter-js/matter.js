@@ -1547,7 +1547,7 @@ export declare namespace NetworkCommissioning {
     /**
      * @deprecated Use {@link NetworkCommissioning}.
      */
-    export const Cluster: typeof NetworkCommissioning;
+    export const Cluster: ClusterType.WithCompat<typeof NetworkCommissioning, NetworkCommissioning>;
 
     /**
      * @deprecated Use {@link NetworkCommissioning}.

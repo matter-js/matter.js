@@ -1302,7 +1302,7 @@ export declare namespace AccessControl {
     /**
      * @deprecated Use {@link AccessControl}.
      */
-    export const Cluster: typeof AccessControl;
+    export const Cluster: ClusterType.WithCompat<typeof AccessControl, AccessControl>;
 
     /**
      * @deprecated Use {@link AccessControl}.

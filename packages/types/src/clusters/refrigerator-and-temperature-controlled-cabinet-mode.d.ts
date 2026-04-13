@@ -301,7 +301,7 @@ export declare namespace RefrigeratorAndTemperatureControlledCabinetMode {
     /**
      * @deprecated Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.
      */
-    export const Cluster: typeof RefrigeratorAndTemperatureControlledCabinetMode;
+    export const Cluster: ClusterType.WithCompat<typeof RefrigeratorAndTemperatureControlledCabinetMode, RefrigeratorAndTemperatureControlledCabinetMode>;
 
     /**
      * @deprecated Use {@link RefrigeratorAndTemperatureControlledCabinetMode}.

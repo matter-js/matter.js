@@ -293,7 +293,7 @@ export declare namespace Descriptor {
     /**
      * @deprecated Use {@link Descriptor}.
      */
-    export const Cluster: typeof Descriptor;
+    export const Cluster: ClusterType.WithCompat<typeof Descriptor, Descriptor>;
 
     /**
      * @deprecated Use {@link Descriptor}.
