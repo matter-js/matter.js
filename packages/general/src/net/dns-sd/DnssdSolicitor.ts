@@ -206,12 +206,20 @@ export class QueryMulticaster implements DnssdSolicitor {
             for (const {
                 name: { qname: name, records },
                 recordTypes,
+                associatedNames,
             } of entries) {
                 for (const recordType of recordTypes) {
                     queries.push({ name, recordClass: DnsRecordClass.IN, recordType });
                 }
 
                 answers.push(...records);
+
+                // Include records from associated names (e.g. SRV target hostnames) for known answer suppression
+                if (associatedNames) {
+                    for (const assocName of associatedNames) {
+                        answers.push(...assocName.records);
+                    }
+                }
             }
 
             // Send the message
