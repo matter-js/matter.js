@@ -4,11 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { DnsRecord } from "#codec/DnsCodec.js";
+import { DnsRecord, DnsRecordType } from "#codec/DnsCodec.js";
 import { Duration } from "#time/Duration.js";
-import { Time } from "#time/Time.js";
+import { Time, Timer } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
-import { Seconds } from "#time/TimeUnit.js";
+import { Millis, Minutes, Seconds } from "#time/TimeUnit.js";
 import { Entropy } from "#util/Entropy.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Observable, ObserverGroup } from "#util/Observable.js";
@@ -34,6 +34,14 @@ export class DnssdNames {
     readonly #discovered = new Observable<[name: DnssdName]>();
     readonly #goodbyeProtectionWindow: Duration;
     readonly #minTtl: Duration;
+
+    /**
+     * IP records (A/AAAA) for hostnames that don't yet have a DnssdName.
+     * Replayed when the hostname DnssdName is later created (e.g. via SRV dependency).
+     * Periodically pruned by {@link #stagedIpExpirationTimer}; expired entries are also filtered on consumption.
+     */
+    readonly #stagedIpRecords = new Map<string, { record: DnsRecord; receivedAt: Timestamp }[]>();
+    readonly #stagedIpExpirationTimer: Timer;
 
     constructor({
         socket,
@@ -67,6 +75,29 @@ export class DnssdNames {
                 }
             },
         });
+
+        // Periodically prune staged IP records that exceeded their TTL without ever being claimed by a SRV.
+        // Per-message pruning was rejected for performance — high-volume MDNS traffic should not pay the cost.
+        this.#stagedIpExpirationTimer = Time.getPeriodicTimer(
+            "Staged IP record expiration",
+            Minutes(1),
+            this.#pruneStagedIpRecords.bind(this),
+        ).start();
+    }
+
+    #pruneStagedIpRecords() {
+        if (this.#stagedIpRecords.size === 0) {
+            return;
+        }
+        const now = Time.nowMs;
+        for (const [key, staged] of this.#stagedIpRecords) {
+            const live = staged.filter(({ record, receivedAt }) => now - receivedAt < record.ttl);
+            if (live.length === 0) {
+                this.#stagedIpRecords.delete(key);
+            } else if (live.length !== staged.length) {
+                this.#stagedIpRecords.set(key, live);
+            }
+        }
     }
 
     #handleMessage(message: MdnsSocket.Message) {
@@ -133,6 +164,24 @@ export class DnssdNames {
             }
         }
 
+        // Stage A/AAAA records for unknown hostnames so they can be replayed when the hostname DnssdName is later
+        // created (e.g. by SRV dependency).  No size cap — TTL pruning bounds memory; expected hostname count is small.
+        for (const record of filtered) {
+            if (
+                (record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA) &&
+                record.ttl > 0 &&
+                !this.has(record.name)
+            ) {
+                const key = record.name.toLowerCase();
+                let staged = this.#stagedIpRecords.get(key);
+                if (staged === undefined) {
+                    staged = [];
+                    this.#stagedIpRecords.set(key, staged);
+                }
+                staged.push({ record, receivedAt: Time.nowMs });
+            }
+        }
+
         // Emit discovered events after all records are installed so observers see complete state.
         // Re-check isDiscovered in case a goodbye in the same message reverted the state.
         for (const name of newlyDiscovered) {
@@ -159,7 +208,21 @@ export class DnssdNames {
         let name = this.maybeGet(qname);
         if (name === undefined) {
             name = new DnssdName(qname, this.#nameContext);
-            this.#names.set(qname.toLowerCase(), name);
+            const key = qname.toLowerCase();
+            this.#names.set(key, name);
+
+            // Replay any staged IP records for this hostname (A/AAAA that arrived before SRV created this name)
+            const staged = this.#stagedIpRecords.get(key);
+            if (staged !== undefined) {
+                this.#stagedIpRecords.delete(key);
+                const now = Time.nowMs;
+                for (const { record, receivedAt } of staged) {
+                    const remainingTtl = Millis(record.ttl - (now - receivedAt));
+                    if (remainingTtl > 0) {
+                        name.installRecord({ ...record, ttl: remainingTtl });
+                    }
+                }
+            }
         }
         return name;
     }
@@ -194,6 +257,8 @@ export class DnssdNames {
      */
     async close() {
         using _closing = this.#lifetime.closing();
+        this.#stagedIpExpirationTimer.stop();
+        this.#stagedIpRecords.clear();
         this.#observers.close();
         await this.#expiration.close();
         for (const name of this.#names.values()) {

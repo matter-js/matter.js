@@ -4,9 +4,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { DnsRecord } from "#codec/DnsCodec.js";
-import { Hours, Minutes } from "#index.js";
-import { MockSite, qnameOf } from "./dns-sd-helpers.js";
+import { DnsMessageType, DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
+import { Hours, Millis, Minutes, Seconds } from "#index.js";
+import { MOCK_SERVICE_DOMAIN, MockSite, qnameOf } from "./dns-sd-helpers.js";
 
 describe("DnssdNames", () => {
     before(() => {
@@ -262,5 +262,140 @@ describe("DnssdNames", () => {
 
         expect(client.names.has(qname2)).false;
         expect(client.names.has(server.hostname)).false;
+    });
+
+    describe("IP staging cache", () => {
+        it("stages IP records arriving before SRV and replays on name creation", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            // Use a filter that accepts service-domain records but NOT bare hostnames.
+            // This mirrors real usage where CommissionableMdnsScanner filters for _matterc._udp.local.
+            client.configureNames({
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+
+            // Send A/AAAA for the server's hostname in isolation (no SRV yet).
+            // Include a filter-passing PTR so the message is processed at all.
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: qname,
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "10.10.10.145",
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.AAAA,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: "abcd::91",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Hostname should NOT be in names yet (no SRV dependency created it,
+            // and the filter rejected the hostname records)
+            expect(client.names.has(server.hostname)).false;
+
+            // Now send SRV which creates the hostname dependency via DnssdName.installRecord
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Hostname DnssdName should now exist with the staged IP records
+            expect(client.names.has(server.hostname)).true;
+            const host = client.names.get(server.hostname);
+            const ips = [...host.records].filter(
+                r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
+            );
+            expect(ips.length).equals(2);
+        });
+
+        it("discards staged IP records after their TTL expires", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            const qname = qnameOf(1);
+
+            // Use a filter + minTtl:0 so short TTLs aren't bumped
+            client.configureNames({
+                minTtl: Millis(0),
+                filter: record =>
+                    record.name === MOCK_SERVICE_DOMAIN || record.name.endsWith(`.${MOCK_SERVICE_DOMAIN}`),
+            });
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: MOCK_SERVICE_DOMAIN,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(2),
+                        value: qname,
+                    },
+                    {
+                        name: server.hostname,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(2),
+                        value: "10.10.10.145",
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Wait longer than TTL
+            await MockTime.advance(Seconds(3));
+
+            // Now send SRV — staged IP should have been pruned
+            await server.mdns.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: qname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Hours(1),
+                        value: { port: 1234, priority: 10, weight: 1, target: server.hostname },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            const host = client.names.get(server.hostname);
+            const ips = [...host.records].filter(
+                r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
+            );
+            expect(ips.length).equals(0);
+        });
     });
 });
