@@ -8,11 +8,22 @@ import { DnsRecord, DnsRecordType, SrvRecordValue } from "#codec/DnsCodec.js";
 import { Logger } from "#log/Logger.js";
 import { Time } from "#time/Time.js";
 import type { Timestamp } from "#time/Timestamp.js";
+import { Millis } from "#time/TimeUnit.js";
 import { AsyncObserver, BasicObservable } from "#util/Observable.js";
 import { MaybePromise } from "#util/Promises.js";
 import type { DnssdNames } from "./DnssdNames.js";
 
 const logger = Logger.get("DnssdName");
+
+/**
+ * Default grace factor applied to record TTLs to tolerate timing jitter.
+ *
+ * Mirrors the legacy MdnsClient behavior — without this, records expire slightly too early under load,
+ * causing unnecessary re-queries and transient "not discovered" states.
+ *
+ * Configurable per {@link DnssdName.Context} so tests can disable (set to 1.0) when virtual time caps interfere.
+ */
+export const DEFAULT_TTL_GRACE_FACTOR = 1.05;
 
 /**
  * Manages records associated with a single DNS-SD qname.
@@ -98,7 +109,11 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             this.#recordCount++;
         }
 
-        const recordWithExpire = { ...record, expiresAt: Time.nowMs + record.ttl } as DnssdName.Record;
+        const graceFactor = this.#context.ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
+        const recordWithExpire = {
+            ...record,
+            expiresAt: Time.nowMs + Millis(Math.round(record.ttl * graceFactor)),
+        } as DnssdName.Record;
 
         this.#records.set(key, recordWithExpire);
 
@@ -131,7 +146,12 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
             return;
         }
 
-        if (ifOlderThan !== undefined && recordWithExpire.expiresAt - recordWithExpire.ttl >= ifOlderThan) {
+        // Recover the original discovery timestamp by subtracting the grace-adjusted TTL we added in installRecord
+        const graceFactor = this.#context.ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
+        if (
+            ifOlderThan !== undefined &&
+            recordWithExpire.expiresAt - Math.round(recordWithExpire.ttl * graceFactor) >= ifOlderThan
+        ) {
             return;
         }
 
@@ -250,6 +270,13 @@ export namespace DnssdName {
         registerForExpiration(record: Record): void;
         unregisterForExpiration(record: Record): void;
         get(qname: string): DnssdName;
+
+        /**
+         * Multiplier applied to TTL when computing record expiry.
+         *
+         * Defaults to {@link DEFAULT_TTL_GRACE_FACTOR} when omitted.
+         */
+        ttlGraceFactor?: number;
     }
 
     export interface Expiration {

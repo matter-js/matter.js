@@ -13,7 +13,7 @@ import { Entropy } from "#util/Entropy.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Observable, ObserverGroup } from "#util/Observable.js";
 import { Scheduler } from "#util/Scheduler.js";
-import { DnssdName } from "./DnssdName.js";
+import { DEFAULT_TTL_GRACE_FACTOR, DnssdName } from "./DnssdName.js";
 import { QueryMulticaster } from "./DnssdSolicitor.js";
 import { MdnsSocket } from "./MdnsSocket.js";
 
@@ -34,6 +34,7 @@ export class DnssdNames {
     readonly #discovered = new Observable<[name: DnssdName]>();
     readonly #goodbyeProtectionWindow: Duration;
     readonly #minTtl: Duration;
+    readonly #ttlGraceFactor: number;
 
     /**
      * IP records (A/AAAA) for hostnames that don't yet have a DnssdName.
@@ -50,6 +51,7 @@ export class DnssdNames {
         filter,
         goodbyeProtectionWindow,
         minTtl,
+        ttlGraceFactor,
     }: DnssdNames.Context) {
         this.#socket = socket;
         this.#lifetime = lifetime.join("mdns names");
@@ -60,6 +62,20 @@ export class DnssdNames {
         this.#solicitor = new QueryMulticaster(this);
         this.#goodbyeProtectionWindow = goodbyeProtectionWindow ?? DnssdNames.defaults.goodbyeProtectionWindow;
         this.#minTtl = minTtl ?? DnssdNames.defaults.minTtl;
+        this.#ttlGraceFactor = ttlGraceFactor ?? DEFAULT_TTL_GRACE_FACTOR;
+
+        this.#nameContext = {
+            delete: name => {
+                const known = this.maybeGet(name.qname);
+                if (known === name) {
+                    this.#delete(name);
+                }
+            },
+            registerForExpiration: record => this.#expiration.add(record),
+            unregisterForExpiration: record => this.#expiration.delete(record),
+            get: qname => this.get(qname),
+            ttlGraceFactor: this.#ttlGraceFactor,
+        };
         this.#observers.on(this.#socket.receipt, this.#handleMessage.bind(this));
 
         this.#expiration = new Scheduler({
@@ -300,26 +316,7 @@ export class DnssdNames {
         return this.#entropy;
     }
 
-    #nameContext: DnssdName.Context = {
-        delete: name => {
-            const known = this.maybeGet(name.qname);
-            if (known === name) {
-                this.#delete(name);
-            }
-        },
-
-        registerForExpiration: record => {
-            this.#expiration.add(record);
-        },
-
-        unregisterForExpiration: record => {
-            this.#expiration.delete(record);
-        },
-
-        get: qname => {
-            return this.get(qname);
-        },
-    };
+    #nameContext: DnssdName.Context;
 }
 
 export namespace DnssdNames {
@@ -347,6 +344,13 @@ export namespace DnssdNames {
          * Minimum TTL for PTR records.
          */
         minTtl?: Duration;
+
+        /**
+         * Multiplier applied to record TTL when computing expiry to tolerate timing jitter.
+         *
+         * Defaults to 1.05 (5% grace).  Set to 1.0 to disable (useful for tests with virtual time caps).
+         */
+        ttlGraceFactor?: number;
     }
 
     export const defaults = {

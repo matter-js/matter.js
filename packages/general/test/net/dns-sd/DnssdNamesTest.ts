@@ -264,6 +264,32 @@ describe("DnssdNames", () => {
         expect(client.names.has(server.hostname)).false;
     });
 
+    it("applies 5% TTL grace period", async () => {
+        await using site = new MockSite();
+        const { client, server } = await site.addPair();
+
+        // Opt in to grace factor — test helper disables it by default to avoid MockTime cap interference
+        client.configureNames({ ttlGraceFactor: 1.05 });
+
+        // Use TTL of 100s for easy math.  With 5% grace, effective expiry is 105s.
+        const ttl = Seconds(100);
+        const discovered = new Promise<void>(resolve => {
+            client.names.discovered.once(() => resolve());
+        });
+        await server.broadcast(1, ttl);
+        await discovered;
+
+        const qname = qnameOf(1);
+
+        // Past nominal TTL but within grace period
+        await MockTime.advance(Seconds(101));
+        expect(client.names.has(qname)).true;
+
+        // Past grace period
+        await MockTime.advance(Seconds(5));
+        expect(client.names.has(qname)).false;
+    });
+
     describe("IP staging cache", () => {
         it("stages IP records arriving before SRV and replays on name creation", async () => {
             await using site = new MockSite();

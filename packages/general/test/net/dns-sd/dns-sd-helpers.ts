@@ -70,7 +70,14 @@ export class MockHost {
     }
 
     configureNames(config?: Partial<DnssdNames.Context>) {
-        return (this.#names = new DnssdNames({ socket: this.mdns, entropy: MockCrypto(this.#index), ...config }));
+        // Disable TTL grace factor by default in tests — virtual time caps in MockTime.resolve (1 hour) interfere
+        // with the extra 5% grace.  Tests that exercise grace behavior must opt in explicitly.
+        return (this.#names = new DnssdNames({
+            socket: this.mdns,
+            entropy: MockCrypto(this.#index),
+            ttlGraceFactor: 1.0,
+            ...config,
+        }));
     }
 
     get names() {
