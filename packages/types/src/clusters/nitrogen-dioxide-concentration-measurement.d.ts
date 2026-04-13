@@ -318,7 +318,7 @@ export declare namespace NitrogenDioxideConcentrationMeasurement {
     /**
      * @deprecated Use {@link NitrogenDioxideConcentrationMeasurement}.
      */
-    export const Cluster: typeof NitrogenDioxideConcentrationMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof NitrogenDioxideConcentrationMeasurement, NitrogenDioxideConcentrationMeasurement>;
 
     /**
      * @deprecated Use {@link NitrogenDioxideConcentrationMeasurement}.

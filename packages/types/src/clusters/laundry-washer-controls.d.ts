@@ -217,7 +217,7 @@ export declare namespace LaundryWasherControls {
     /**
      * @deprecated Use {@link LaundryWasherControls}.
      */
-    export const Cluster: typeof LaundryWasherControls;
+    export const Cluster: ClusterType.WithCompat<typeof LaundryWasherControls, LaundryWasherControls>;
 
     /**
      * @deprecated Use {@link LaundryWasherControls}.

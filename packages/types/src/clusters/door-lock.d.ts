@@ -4918,7 +4918,7 @@ export declare namespace DoorLock {
     /**
      * @deprecated Use {@link DoorLock}.
      */
-    export const Cluster: typeof DoorLock;
+    export const Cluster: ClusterType.WithCompat<typeof DoorLock, DoorLock>;
 
     /**
      * @deprecated Use {@link DoorLock}.

@@ -149,7 +149,7 @@ export declare namespace UnitLocalization {
     /**
      * @deprecated Use {@link UnitLocalization}.
      */
-    export const Cluster: typeof UnitLocalization;
+    export const Cluster: ClusterType.WithCompat<typeof UnitLocalization, UnitLocalization>;
 
     /**
      * @deprecated Use {@link UnitLocalization}.

@@ -519,7 +519,7 @@ export declare namespace WaterHeaterManagement {
     /**
      * @deprecated Use {@link WaterHeaterManagement}.
      */
-    export const Cluster: typeof WaterHeaterManagement;
+    export const Cluster: ClusterType.WithCompat<typeof WaterHeaterManagement, WaterHeaterManagement>;
 
     /**
      * @deprecated Use {@link WaterHeaterManagement}.

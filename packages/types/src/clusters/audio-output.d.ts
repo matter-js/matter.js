@@ -249,7 +249,7 @@ export declare namespace AudioOutput {
     /**
      * @deprecated Use {@link AudioOutput}.
      */
-    export const Cluster: typeof AudioOutput;
+    export const Cluster: ClusterType.WithCompat<typeof AudioOutput, AudioOutput>;
 
     /**
      * @deprecated Use {@link AudioOutput}.

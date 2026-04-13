@@ -361,7 +361,7 @@ export declare namespace ThreadBorderRouterManagement {
     /**
      * @deprecated Use {@link ThreadBorderRouterManagement}.
      */
-    export const Cluster: typeof ThreadBorderRouterManagement;
+    export const Cluster: ClusterType.WithCompat<typeof ThreadBorderRouterManagement, ThreadBorderRouterManagement>;
 
     /**
      * @deprecated Use {@link ThreadBorderRouterManagement}.

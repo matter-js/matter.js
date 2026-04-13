@@ -649,7 +649,7 @@ export declare namespace ValveConfigurationAndControl {
     /**
      * @deprecated Use {@link ValveConfigurationAndControl}.
      */
-    export const Cluster: typeof ValveConfigurationAndControl;
+    export const Cluster: ClusterType.WithCompat<typeof ValveConfigurationAndControl, ValveConfigurationAndControl>;
 
     /**
      * @deprecated Use {@link ValveConfigurationAndControl}.

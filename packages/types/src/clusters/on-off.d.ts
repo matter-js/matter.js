@@ -481,7 +481,7 @@ export declare namespace OnOff {
     /**
      * @deprecated Use {@link OnOff}.
      */
-    export const Cluster: typeof OnOff;
+    export const Cluster: ClusterType.WithCompat<typeof OnOff, OnOff>;
 
     /**
      * @deprecated Use {@link OnOff}.

@@ -1267,7 +1267,7 @@ export declare namespace MediaPlayback {
     /**
      * @deprecated Use {@link MediaPlayback}.
      */
-    export const Cluster: typeof MediaPlayback;
+    export const Cluster: ClusterType.WithCompat<typeof MediaPlayback, MediaPlayback>;
 
     /**
      * @deprecated Use {@link MediaPlayback}.

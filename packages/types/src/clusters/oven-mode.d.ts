@@ -353,7 +353,7 @@ export declare namespace OvenMode {
     /**
      * @deprecated Use {@link OvenMode}.
      */
-    export const Cluster: typeof OvenMode;
+    export const Cluster: ClusterType.WithCompat<typeof OvenMode, OvenMode>;
 
     /**
      * @deprecated Use {@link OvenMode}.
