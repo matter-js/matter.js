@@ -635,4 +635,92 @@ describe("CommissionableMdnsScanner", () => {
             await clientSocket.close();
         }
     });
+
+    it("discovers device when A/AAAA arrives before SRV in separate messages", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x09) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const found: CommissionableDevice[] = [];
+            const identifier = { longDiscriminator: 3840 };
+            const discoveryPromise = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                device => found.push(device),
+                Seconds(10),
+            );
+
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+
+            // Message 1: PTR (filter-passing chaperone) + A record for hostname.  No SRV/TXT yet, so the
+            // hostname's A record is staged because no DnssdName exists for the hostname.
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: `_matterc._udp.local`,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: instanceQname,
+                    },
+                    {
+                        name: HOSTNAME,
+                        recordType: DnsRecordType.A,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: SERVER_IPv4,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device cannot be built yet — only PTR known, no SRV/TXT
+            expect(found.length).equals(0);
+
+            // Message 2: SRV + TXT for the instance.  When SRV is processed, a DnssdName for HOSTNAME is
+            // created via dependency, and the staged A record is replayed onto it.
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.TXT,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                    },
+                    {
+                        name: instanceQname,
+                        recordType: DnsRecordType.SRV,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device should now be delivered with the staged IP address
+            expect(found.length).equals(1);
+            expect(found[0].deviceIdentifier).equals(INSTANCE_ID);
+            expect(found[0].addresses.length).greaterThan(0);
+            expect(found[0].addresses.some(a => a.type === "udp" && a.ip === SERVER_IPv4)).true;
+
+            scanner.cancelCommissionableDeviceDiscovery(identifier);
+            await MockTime.resolve(discoveryPromise);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
 });
