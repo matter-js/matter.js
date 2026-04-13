@@ -61,6 +61,8 @@ interface Waiter {
  */
 const SPECULATIVE_TARGET_TTL = Hours(1);
 const SPECULATIVE_CLEANUP_INTERVAL = Minutes(30);
+// Cap discover() retry backoff so queries stay dense enough to succeed inside a commissioning window
+const COMMISSIONING_RETRY_INTERVAL = Seconds(30);
 
 export class CommissionableMdnsScanner implements Scanner {
     readonly type = ChannelType.UDP;
@@ -283,7 +285,7 @@ export class CommissionableMdnsScanner implements Scanner {
                                 recordTypes,
                                 abort: abort.signal,
                                 // Match the main PTR discovery cap so retries stay dense within commissioning windows
-                                retries: { maximumInterval: Seconds(30) },
+                                retries: { maximumInterval: COMMISSIONING_RETRY_INTERVAL },
                             })
                             .catch(error => {
                                 if (!(error instanceof AbortedError)) {
@@ -390,7 +392,7 @@ export class CommissionableMdnsScanner implements Scanner {
                 recordTypes: [DnsRecordType.PTR],
                 abort,
                 // Cap backoff for commissioning: short-lived discovery shouldn't drift toward the 1h default
-                retries: { maximumInterval: Seconds(30) },
+                retries: { maximumInterval: COMMISSIONING_RETRY_INTERVAL },
             }),
         );
         await MatterAggregateError.allSettled(discoveries);
