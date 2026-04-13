@@ -188,6 +188,12 @@ export class CommissionableMdnsScanner implements Scanner {
             return;
         }
 
+        // Determine which records we are missing and solicit them explicitly.  Without this we'd have to wait for
+        // either an unsolicited announcement or the next general PTR retry to obtain the missing pieces.
+        const hasSrv = [...name.records].some(r => r.recordType === DnsRecordType.SRV);
+        const recordTypes = hasSrv ? [DnsRecordType.TXT] : [DnsRecordType.SRV, DnsRecordType.TXT];
+        this.#names.solicitor.solicit({ name, recordTypes });
+
         // TXT not yet available — observe for updates until we can build the device or it disappears
         const pendingObserver = ({ name: changedName }: DnssdName.Changes) => {
             if (!changedName.isDiscovered) {
