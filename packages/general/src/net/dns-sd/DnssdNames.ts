@@ -9,7 +9,7 @@ import { ImplementationError } from "#MatterError.js";
 import { Duration } from "#time/Duration.js";
 import { Time, Timer } from "#time/Time.js";
 import { Timestamp } from "#time/Timestamp.js";
-import { Minutes, Seconds } from "#time/TimeUnit.js";
+import { Millis, Minutes, Seconds } from "#time/TimeUnit.js";
 import { Entropy } from "#util/Entropy.js";
 import { Lifetime } from "#util/Lifetime.js";
 import { Observable, ObserverGroup } from "#util/Observable.js";
@@ -184,12 +184,15 @@ export class DnssdNames {
         }
 
         // Stage A/AAAA records for unknown hostnames so they can be replayed when a later SRV creates the name
-        for (const record of filtered) {
+        for (let record of filtered) {
             if (
                 (record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA) &&
                 record.ttl > 0 &&
                 !this.has(record.name)
             ) {
+                if (record.ttl < this.#minTtl) {
+                    record = { ...record, ttl: this.#minTtl };
+                }
                 const key = record.name.toLowerCase();
                 let staged = this.#stagedIpRecords.get(key);
                 if (staged === undefined) {
@@ -242,8 +245,10 @@ export class DnssdNames {
                 this.#stagedIpRecords.delete(key);
                 const now = Time.nowMs;
                 for (const { record, receivedAt } of staged) {
-                    if (now - receivedAt < record.ttl * this.#ttlGraceFactor) {
-                        name.installRecord(record);
+                    // age/grace cancels installRecord's grace re-application, preserving original expiry target
+                    const remainingTtl = record.ttl - (now - receivedAt) / this.#ttlGraceFactor;
+                    if (remainingTtl > 0) {
+                        name.installRecord({ ...record, ttl: Millis(remainingTtl) });
                     }
                 }
             }
