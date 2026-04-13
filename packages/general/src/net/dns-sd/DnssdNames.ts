@@ -198,31 +198,50 @@ export class DnssdNames {
             }
         }
 
-        // Stage A/AAAA records for unknown hostnames so they can be replayed when a later SRV creates the name
+        // Stage A/AAAA records for unknown hostnames so they can be replayed when a later SRV creates the name.
+        // A goodbye (ttl=0) arriving before the hostname exists must drop any matching staged entry so the stale
+        // address can't be replayed later.
         for (let record of filtered) {
             if (
-                (record.recordType === DnsRecordType.A || record.recordType === DnsRecordType.AAAA) &&
-                record.ttl > 0 &&
-                !this.has(record.name)
+                (record.recordType !== DnsRecordType.A && record.recordType !== DnsRecordType.AAAA) ||
+                this.has(record.name)
             ) {
-                if (record.ttl < this.#minTtl) {
-                    record = { ...record, ttl: this.#minTtl };
-                }
-                const key = record.name.toLowerCase();
-                const staged = this.#stagedIpRecords.get(key) ?? [];
-                // Dedup by IP value so repeated announcements don't grow the array unbounded
-                const existing = staged.findIndex(
-                    s => s.record.recordType === record.recordType && s.record.value === record.value,
-                );
-                if (existing === -1) {
-                    staged.push({ record, receivedAt: Time.nowMs });
-                } else {
-                    staged[existing] = { record, receivedAt: Time.nowMs };
-                }
-                // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
-                this.#stagedIpRecords.delete(key);
-                this.#stagedIpRecords.set(key, staged);
+                continue;
             }
+            const key = record.name.toLowerCase();
+
+            if (record.ttl === 0) {
+                const staged = this.#stagedIpRecords.get(key);
+                if (staged === undefined) {
+                    continue;
+                }
+                const remaining = staged.filter(
+                    s => !(s.record.recordType === record.recordType && s.record.value === record.value),
+                );
+                if (remaining.length === 0) {
+                    this.#stagedIpRecords.delete(key);
+                } else {
+                    this.#stagedIpRecords.set(key, remaining);
+                }
+                continue;
+            }
+
+            if (record.ttl < this.#minTtl) {
+                record = { ...record, ttl: this.#minTtl };
+            }
+            const staged = this.#stagedIpRecords.get(key) ?? [];
+            // Dedup by IP value so repeated announcements don't grow the array unbounded
+            const existing = staged.findIndex(
+                s => s.record.recordType === record.recordType && s.record.value === record.value,
+            );
+            if (existing === -1) {
+                staged.push({ record, receivedAt: Time.nowMs });
+            } else {
+                staged[existing] = { record, receivedAt: Time.nowMs };
+            }
+            // Delete + set moves the key to the tail of the Map so prune evicts least-recently-touched first
+            this.#stagedIpRecords.delete(key);
+            this.#stagedIpRecords.set(key, staged);
         }
 
         // Emit after all records installed so observers see complete state; re-check because same-message goodbyes

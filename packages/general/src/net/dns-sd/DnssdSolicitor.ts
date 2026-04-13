@@ -100,11 +100,19 @@ export namespace DnssdSolicitor {
 /**
  * Concrete implementation of {@link DnssdSolicitor} that sends DNS-SD queries via multicast.
  */
+interface PendingSolicitation {
+    name: DnssdName;
+    recordTypes: Set<DnsRecordType>;
+    // Preserved as references (not materialized) so dynamic iterables like IpServiceResolution's SRV-target set
+    // reflect their current membership when the query is actually emitted
+    associatedNames: Set<Iterable<DnssdName>>;
+}
+
 export class QueryMulticaster implements DnssdSolicitor {
     #names: DnssdNames;
     #schedule: RetrySchedule;
     #abort = new Abort();
-    #toSolicit = new Map<DnssdName, DnssdSolicitor.Solicitation>();
+    #toSolicit = new Map<DnssdName, PendingSolicitation>();
     #discovering = new Map<DnssdName, { abort: Abort; finished: Promise<void>; waiting: Set<{}> }>();
     #namesReady = new ObservableValue();
     #workers = new BasicMultiplex();
@@ -122,18 +130,21 @@ export class QueryMulticaster implements DnssdSolicitor {
         if (this.#abort.aborted) {
             return;
         }
-        const entry = this.#toSolicit.get(solicitation.name);
+        let entry = this.#toSolicit.get(solicitation.name);
         if (entry === undefined) {
-            this.#toSolicit.set(solicitation.name, { ...solicitation });
+            entry = {
+                name: solicitation.name,
+                recordTypes: new Set(solicitation.recordTypes),
+                associatedNames: new Set(),
+            };
+            this.#toSolicit.set(solicitation.name, entry);
         } else {
-            entry.recordTypes = [...new Set([...entry.recordTypes, ...solicitation.recordTypes])];
-            if (solicitation.associatedNames) {
-                if (!entry.associatedNames) {
-                    entry.associatedNames = solicitation.associatedNames;
-                } else {
-                    entry.associatedNames = [...new Set([...entry.associatedNames, ...solicitation.associatedNames])];
-                }
+            for (const type of solicitation.recordTypes) {
+                entry.recordTypes.add(type);
             }
+        }
+        if (solicitation.associatedNames) {
+            entry.associatedNames.add(solicitation.associatedNames);
         }
         this.#namesReady.emit(true);
     }
@@ -219,20 +230,16 @@ export class QueryMulticaster implements DnssdSolicitor {
             const queries = Array<DnsQuery>();
             const answers = Array<DnsRecord>();
 
-            for (const {
-                name: { qname: name, records },
-                recordTypes,
-                associatedNames,
-            } of entries) {
+            for (const { name, recordTypes, associatedNames } of entries) {
                 for (const recordType of recordTypes) {
-                    queries.push({ name, recordClass: DnsRecordClass.IN, recordType });
+                    queries.push({ name: name.qname, recordClass: DnsRecordClass.IN, recordType });
                 }
 
-                answers.push(...records);
+                answers.push(...name.records);
 
-                // Include associated names' records for known-answer suppression (e.g. SRV target hostnames)
-                if (associatedNames) {
-                    for (const assocName of associatedNames) {
+                // Drain associated-name iterables now so dynamic sets reflect their current membership
+                for (const iterable of associatedNames) {
+                    for (const assocName of iterable) {
                         answers.push(...assocName.records);
                     }
                 }

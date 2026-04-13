@@ -186,6 +186,10 @@ export class CommissionableMdnsScanner implements Scanner {
                 if (record.recordType !== DnsRecordType.PTR) {
                     continue;
                 }
+                // Skip malformed PTRs pointing at another service-type qname; only follow pointers to instance names
+                if (record.value.startsWith("_")) {
+                    continue;
+                }
                 const target = this.#names.get(record.value);
                 let hasSrv = false;
                 let hasTxt = false;
