@@ -61,6 +61,20 @@ describe("ClusterType.Cluster.with() compat shim", () => {
         expect(selected.events).equal(PowerSource.events);
     });
 
+    it("preserves the Cluster/Complete self-reference invariant on the clone", () => {
+        const selected = PowerSource.Cluster.with(PowerSource.Feature.Battery) as unknown as {
+            Cluster: { supportedFeatures: Record<string, true> };
+            Complete: unknown;
+            supportedFeatures: Record<string, true>;
+        };
+
+        // `selected.Cluster` must point to the clone itself, not to the source namespace — otherwise the
+        // `supportedFeatures` marker is silently dropped for any caller that re-fetches `.Cluster`.
+        expect(selected.Cluster).equal(selected);
+        expect(selected.Complete).equal(selected);
+        expect(selected.Cluster.supportedFeatures).equal(selected.supportedFeatures);
+    });
+
     it("produces a fresh clone per call", () => {
         const a = PowerSource.Cluster.with(PowerSource.Feature.Battery);
         const b = PowerSource.Cluster.with(PowerSource.Feature.Battery);

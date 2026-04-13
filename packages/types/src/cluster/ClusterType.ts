@@ -176,6 +176,11 @@ function installLazyProperties(ns: object, model: ClusterModel) {
                 supportedFeatures[feature.charAt(0).toLowerCase() + feature.slice(1)] = true;
             }
             clone.supportedFeatures = Object.freeze(supportedFeatures);
+            // Preserve the `Cluster`/`Complete` self-reference invariant on the clone; prototype-chain lookup would
+            // otherwise resolve these to the source namespace and drop the `supportedFeatures` marker.  Must use
+            // defineProperty because the inherited props are non-writable (installed via lazy() with no `writable`).
+            Object.defineProperty(clone, "Cluster", { value: clone, enumerable: true, configurable: true });
+            Object.defineProperty(clone, "Complete", { value: clone, enumerable: true, configurable: true });
             return clone;
         });
     }
