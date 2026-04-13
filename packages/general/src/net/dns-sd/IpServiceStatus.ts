@@ -109,7 +109,7 @@ export class IpServiceStatus {
      *
      * If {@link result} rejects, the service is marked as unreachable and the error is logged.
      *
-     * {@link isConnecting} will be true until {@link result} resolves.
+     * {@link isConnecting} will be true until {@link result} settles (resolves or rejects).
      */
     connecting(result: PromiseLike<boolean>) {
         logger.debug(this.#service.via, "Connecting");
