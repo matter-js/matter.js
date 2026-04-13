@@ -240,6 +240,11 @@ export class QueryMulticaster implements DnssdSolicitor {
                 }
             }
 
+            // Defensive: skip sending if no queries collected (shouldn't happen, but avoids empty packets)
+            if (queries.length === 0) {
+                continue;
+            }
+
             // Send the message
             try {
                 await this.#abort.race(
