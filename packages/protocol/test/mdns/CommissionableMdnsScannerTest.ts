@@ -14,10 +14,12 @@ import {
     DnssdNames,
     MdnsSocket,
     Millis,
+    Minutes,
     MockCrypto,
     MockNetwork,
     NetworkSimulator,
     Seconds,
+    Time,
 } from "@matter/general";
 
 const SERVER_IPv4 = "10.10.10.1";
@@ -28,7 +30,7 @@ const CLIENT_IPv6 = "abcd::2";
 const CLIENT_MAC = "AA:BB:CC:DD:EE:FF";
 
 const INSTANCE_ID = "ABCD1234EFGH5678";
-const HOSTNAME = "devicehost.local";
+const HOSTNAME = "0011223344550000.local";
 const PORT = 5540;
 
 describe("CommissionableMdnsScanner", () => {
@@ -625,6 +627,104 @@ describe("CommissionableMdnsScanner", () => {
 
             // getDiscoveredCommissionableDevices should also return it now
             expect(scanner.getDiscoveredCommissionableDevices(identifier).length).equals(1);
+
+            scanner.cancelCommissionableDeviceDiscovery(identifier);
+            await MockTime.resolve(discoveryPromise);
+        } finally {
+            await scanner.close();
+            await clientNames.close();
+            await serverSocket.close();
+            await clientSocket.close();
+        }
+    });
+
+    it("PTR-follow solicits SRV/TXT when PTR arrives without additional records", async () => {
+        const simulator = new NetworkSimulator();
+        const serverNetwork = new MockNetwork(simulator, SERVER_MAC, [SERVER_IPv4, SERVER_IPv6]);
+        const clientNetwork = new MockNetwork(simulator, CLIENT_MAC, [CLIENT_IPv4, CLIENT_IPv6]);
+
+        const serverSocket = await MdnsSocket.create(serverNetwork);
+        const clientSocket = await MdnsSocket.create(clientNetwork);
+        const clientNames = new DnssdNames({ socket: clientSocket, entropy: MockCrypto(0x0a) });
+        const scanner = new CommissionableMdnsScanner(clientNames);
+
+        try {
+            const found: CommissionableDevice[] = [];
+            const identifier = { longDiscriminator: 3840 };
+            const discoveryPromise = scanner.findCommissionableDevicesContinuously(
+                identifier,
+                device => found.push(device),
+                Seconds(30),
+            );
+
+            const instanceQname = `${INSTANCE_ID}._matterc._udp.local`;
+
+            // Responder answers SRV/TXT queries for the instance
+            serverSocket.receipt.on(async message => {
+                if (
+                    message.queries.find(
+                        q =>
+                            q.name === instanceQname &&
+                            (q.recordType === DnsRecordType.SRV || q.recordType === DnsRecordType.TXT),
+                    )
+                ) {
+                    await serverSocket.send({
+                        messageType: DnsMessageType.Response,
+                        answers: [
+                            {
+                                name: instanceQname,
+                                recordType: DnsRecordType.SRV,
+                                recordClass: DnsRecordClass.IN,
+                                ttl: Seconds(120),
+                                value: { priority: 0, weight: 0, port: PORT, target: HOSTNAME },
+                            },
+                            {
+                                name: instanceQname,
+                                recordType: DnsRecordType.TXT,
+                                recordClass: DnsRecordClass.IN,
+                                ttl: Seconds(120),
+                                value: [`D=3840`, `CM=1`, `VP=4996+22`],
+                            },
+                            {
+                                name: HOSTNAME,
+                                recordType: DnsRecordType.A,
+                                recordClass: DnsRecordClass.IN,
+                                ttl: Seconds(120),
+                                value: SERVER_IPv4,
+                            },
+                        ],
+                        additionalRecords: [],
+                    });
+                }
+            });
+
+            // Bare PTR only — no SRV/TXT as additional records.  PTR-follow should detect
+            // missing SRV+TXT and start a speculative discover() for the target.
+            await serverSocket.send({
+                messageType: DnsMessageType.Response,
+                answers: [
+                    {
+                        name: `_matterc._udp.local`,
+                        recordType: DnsRecordType.PTR,
+                        recordClass: DnsRecordClass.IN,
+                        ttl: Seconds(120),
+                        value: instanceQname,
+                    },
+                ],
+                additionalRecords: [],
+            });
+            await MockTime.advance(10);
+
+            // Device cannot be built yet — only PTR, no SRV/TXT
+            expect(found.length).equals(0);
+
+            // Let the speculative discover's solicit fire and the response propagate
+            await MockTime.resolve(Time.sleep("wait for speculative discover", Minutes(1)));
+
+            expect(found.length).equals(1);
+            expect(found[0].deviceIdentifier).equals(INSTANCE_ID);
+            expect(found[0].D).equals(3840);
+            expect(found[0].addresses.length).greaterThan(0);
 
             scanner.cancelCommissionableDeviceDiscovery(identifier);
             await MockTime.resolve(discoveryPromise);

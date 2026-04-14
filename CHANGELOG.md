@@ -25,6 +25,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands and arbitrary JS values
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
+    - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to answer to MDNS queries we increase the discovery time for commissioning targets to 3 minutes (was 1 minute before)
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
     - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state

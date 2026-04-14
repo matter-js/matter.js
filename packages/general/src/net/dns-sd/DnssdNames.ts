@@ -138,6 +138,23 @@ export class DnssdNames {
     }
 
     #handleMessage(message: MdnsSocket.Message) {
+        let newlyDiscovered: DnssdName[] | undefined;
+
+        try {
+            newlyDiscovered = this.#processMessage(message);
+        } finally {
+            this.#currentBatch = undefined;
+        }
+
+        // Same-message goodbyes may have reverted discovery
+        for (const name of newlyDiscovered ?? []) {
+            if (name.isDiscovered) {
+                this.#discovered.emit(name);
+            }
+        }
+    }
+
+    #processMessage(message: MdnsSocket.Message): DnssdName[] {
         const records = [...message.answers, ...message.additionalRecords];
         const filtered = new Set(records);
         let goodbyesBefore: undefined | Timestamp;
@@ -208,9 +225,8 @@ export class DnssdNames {
             }
         }
 
-        // Stage A/AAAA records for unknown hostnames so they can be replayed when a later SRV creates the name.
-        // A goodbye (ttl=0) arriving before the hostname exists must drop any matching staged entry so the stale
-        // address can't be replayed later.  Only run for packets that carried at least one record we cared about.
+        // Stage A/AAAA for unknown hostnames — replayed when a later SRV creates the name.
+        // packetRelevant gate prevents unrelated LAN traffic from poisoning the cache.
         if (packetRelevant) {
             for (let record of filtered) {
                 if (
@@ -241,7 +257,6 @@ export class DnssdNames {
                     record = { ...record, ttl: this.#minTtl };
                 }
                 const staged = this.#stagedIpRecords.get(key) ?? [];
-                // Dedup by IP value so repeated announcements don't grow the array unbounded
                 const existing = staged.findIndex(
                     s => s.record.recordType === record.recordType && s.record.value === record.value,
                 );
@@ -256,14 +271,7 @@ export class DnssdNames {
             }
         }
 
-        this.#currentBatch = undefined;
-        // Emit after all records installed so observers see complete state; re-check because same-message goodbyes
-        // may have reverted discovery
-        for (const name of newlyDiscovered) {
-            if (name.isDiscovered) {
-                this.#discovered.emit(name);
-            }
-        }
+        return newlyDiscovered;
     }
 
     /**

@@ -6,6 +6,8 @@
 
 import { DnsMessageType, type DnsRecord, DnsRecordClass, DnsRecordType } from "#codec/DnsCodec.js";
 import { Hours, Millis, Minutes, Seconds } from "#index.js";
+import { Time } from "#time/Time.js";
+import { Abort } from "#util/Abort.js";
 import { MOCK_SERVICE_DOMAIN, MockSite, qnameOf } from "./dns-sd-helpers.js";
 
 describe("DnssdNames", () => {
@@ -426,6 +428,103 @@ describe("DnssdNames", () => {
                 r => r.recordType === DnsRecordType.A || r.recordType === DnsRecordType.AAAA,
             );
             expect(ips.length).equals(0);
+        });
+    });
+
+    describe("coalesced discovery", () => {
+        it("merges concurrent discovers for the same name into one query stream", async () => {
+            await using site = new MockSite();
+            const { client, server } = await site.addPair();
+
+            server.publish();
+
+            const name = client.names.get(qnameOf(1));
+            const solicitor = client.names.solicitor;
+
+            const abort1 = new Abort();
+            const abort2 = new Abort();
+
+            // Count queries received by the server
+            let queryCount = 0;
+            server.mdns.receipt.on(message => {
+                if (message.queries.length > 0) {
+                    queryCount++;
+                }
+            });
+
+            // Start two concurrent discovers for the same name
+            const d1 = solicitor.discover({
+                name,
+                recordTypes: [DnsRecordType.SRV],
+                abort: abort1,
+            });
+            const d2 = solicitor.discover({
+                name,
+                recordTypes: [DnsRecordType.SRV],
+                abort: abort2,
+            });
+
+            // Let two retry cycles fire
+            await MockTime.resolve(Time.sleep("wait for queries", Seconds(3)));
+
+            // Only one query stream should be active — queries should not be doubled
+            // Abort first caller — second should keep the loop alive
+            abort1();
+            queryCount = 0;
+            await MockTime.resolve(Time.sleep("wait after first abort", Seconds(3)));
+            expect(queryCount).greaterThan(0);
+
+            // Abort second caller — loop should stop
+            abort2();
+            queryCount = 0;
+            await MockTime.resolve(Time.sleep("wait after both aborted", Seconds(3)));
+            expect(queryCount).equals(0);
+
+            await Promise.allSettled([d1, d2]);
+        });
+
+        it("first caller's retry config drives the shared discovery loop", async () => {
+            await using site = new MockSite();
+            const { client } = await site.addPair();
+
+            const name = client.names.get(qnameOf(1));
+            const solicitor = client.names.solicitor;
+
+            const abort1 = new Abort();
+            const abort2 = new Abort();
+
+            let queryCount = 0;
+            client.mdns.receipt.on(message => {
+                if (message.queries.length > 0) {
+                    queryCount++;
+                }
+            });
+
+            // First caller uses a tight retry cap
+            const d1 = solicitor.discover({
+                name,
+                recordTypes: [DnsRecordType.SRV],
+                abort: abort1,
+                retries: { maximumInterval: Seconds(2) },
+            });
+
+            // Second caller joins with different retries — should NOT override
+            const d2 = solicitor.discover({
+                name,
+                recordTypes: [DnsRecordType.SRV],
+                abort: abort2,
+                retries: { maximumInterval: Seconds(30) },
+            });
+
+            // Over 10s with 2s cap: expect ~5+ retries (1s, 2s, 2s, 2s, 2s)
+            // With 30s cap it would only be ~3 (1s, 2s, 4s) so a high count proves first caller's config won
+            queryCount = 0;
+            await MockTime.resolve(Time.sleep("measure retry density", Seconds(10)));
+            expect(queryCount).greaterThanOrEqual(4);
+
+            abort1();
+            abort2();
+            await Promise.allSettled([d1, d2]);
         });
     });
 });

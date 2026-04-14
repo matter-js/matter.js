@@ -61,6 +61,7 @@ interface Waiter {
  */
 const SPECULATIVE_TARGET_TTL = Hours(1);
 const SPECULATIVE_CLEANUP_INTERVAL = Minutes(30);
+const SPECULATIVE_TARGET_MAX = 50;
 // Cap discover() retry backoff so queries stay dense enough to succeed inside a commissioning window
 const COMMISSIONING_RETRY_INTERVAL = Seconds(30);
 
@@ -167,17 +168,7 @@ export class CommissionableMdnsScanner implements Scanner {
         const seen = new Set<string>();
         const result: CommissionableDevice[] = [];
 
-        // Deliver cached matches that have resolved addresses
-        for (const cached of this.#cache.values()) {
-            const device = refreshAddresses(cached);
-            if (matchesIdentifier(device, identifier) && device.addresses.length > 0) {
-                seen.add(device.deviceIdentifier);
-                result.push(device);
-                callback(device);
-            }
-        }
-
-        // Create an internal cancel promise that cancelCommissionableDeviceDiscovery can trigger
+        // Must exist before delivering cached matches so the callback can cancel synchronously
         let cancelResolve!: () => void;
         const internalCancel = new Promise<void>(resolve => (cancelResolve = resolve));
 
@@ -195,17 +186,48 @@ export class CommissionableMdnsScanner implements Scanner {
         };
         this.#waiters.add(waiter);
 
+        // Callback may trigger an async cancel chain that must settle before we start discovery
+        let callbackInvoked = false;
+        for (const cached of this.#cache.values()) {
+            const device = refreshAddresses(cached);
+            if (matchesIdentifier(device, identifier) && device.addresses.length > 0) {
+                seen.add(device.deviceIdentifier);
+                result.push(device);
+                callbackInvoked = true;
+                callback(device);
+            }
+        }
+
         const sleepTimer = timeout !== undefined ? Time.sleep("commissionable scanner timeout", timeout) : undefined;
         const signals: Promise<unknown>[] = [internalCancel];
         if (sleepTimer) signals.push(sleepTimer);
         if (cancelSignal) signals.push(cancelSignal);
 
-        // Start continuous query retransmission (RFC 6762 schedule)
+        if (callbackInvoked) {
+            // Macrotask boundary flushes all microtask-based cancel chains before we decide to start discovery
+            const proceed = Symbol();
+            const settle = Time.sleep("cancel settlement", 0).then(() => proceed);
+            const winner = await Promise.race([
+                ...signals.map(s =>
+                    s.then(
+                        () => undefined,
+                        () => undefined,
+                    ),
+                ),
+                settle,
+            ]);
+            if (winner !== proceed) {
+                sleepTimer?.cancel();
+                this.#waiters.delete(waiter);
+                return result;
+            }
+        }
+
         const queryAbort = new Abort();
         const discoveries = this.#startDiscovery(identifier, queryAbort);
 
         try {
-            await Promise.race(signals);
+            await Promise.race([...signals, discoveries]);
             sleepTimer?.cancel();
         } finally {
             queryAbort();
@@ -237,11 +259,8 @@ export class CommissionableMdnsScanner implements Scanner {
         if (!matterc && !matterd) {
             return;
         }
-
-        // Service-type qnames (base + subtype) hold PTR records pointing at instance qnames.  Follow the targets
-        // and solicit only the record types the target is actually missing — responders usually include SRV+TXT
-        // as additional records with the PTR, in which case no follow-up query is needed.
-        // DNS-SD service-type labels start with "_"; Matter instance names are hex strings without leading "_".
+        // Service-type PTRs point at instance qnames — follow targets and solicit only missing record types.
+        // Responders usually include SRV+TXT as additional records, so no follow-up is needed in the common case.
         if (lower.startsWith("_")) {
             for (const record of name.records) {
                 if (record.recordType !== DnsRecordType.PTR) {
@@ -275,7 +294,10 @@ export class CommissionableMdnsScanner implements Scanner {
                     // Drive a full discover() per target so a lost SRV/TXT response triggers retry on the normal
                     // backoff; solicitor coalesces additional callers for the same name.
                     const targetKey = record.value.toLowerCase();
-                    if (!this.#speculativeTargets.has(targetKey)) {
+                    if (
+                        !this.#speculativeTargets.has(targetKey) &&
+                        this.#speculativeTargets.size < SPECULATIVE_TARGET_MAX
+                    ) {
                         target.on(this.#speculativeObserver);
                         const abort = new Abort({ abort: this.#scanAbort });
                         this.#speculativeTargets.set(targetKey, { abort, createdAt: Time.nowMs });
@@ -288,6 +310,8 @@ export class CommissionableMdnsScanner implements Scanner {
                                 retries: { maximumInterval: COMMISSIONING_RETRY_INTERVAL },
                             })
                             .catch(error => {
+                                this.#speculativeTargets.delete(targetKey);
+                                target.off(this.#speculativeObserver);
                                 if (!(error instanceof AbortedError)) {
                                     logger.error(`Speculative discovery for ${target.qname} failed:`, error);
                                 }
@@ -298,8 +322,6 @@ export class CommissionableMdnsScanner implements Scanner {
             return;
         }
 
-        // Instance name — if this name was tracked speculatively by a PTR-follow, drop the tracking and abort
-        // the target-specific discover() since the real records have arrived
         this.#clearSpeculativeTarget(lower, name);
 
         if (this.#cache.has(lower)) {
@@ -361,6 +383,20 @@ export class CommissionableMdnsScanner implements Scanner {
         // A/AAAA records may arrive after the initial SRV/TXT discovery;
         // defer notification until addresses become available.
         if (!this.#deliverDeviceIfResolved(cached)) {
+            // SRV target hostname may have lost its A/AAAA records (TTL expired) while the instance
+            // SRV/TXT was still valid.  Solicit address records for all SRV target hostnames so we
+            // don't wait for the next unsolicited broadcast to deliver the device.
+            for (const record of name.records) {
+                if (record.recordType !== DnsRecordType.SRV) {
+                    continue;
+                }
+                const hostname = this.#names.get(record.value.target);
+                this.#names.solicitor.solicit({
+                    name: hostname,
+                    recordTypes: [DnsRecordType.A, DnsRecordType.AAAA],
+                });
+            }
+
             const onAddresses = () => {
                 if (this.#deliverDeviceIfResolved(cached)) {
                     this.#observers.off(ipService.changed, onAddresses);

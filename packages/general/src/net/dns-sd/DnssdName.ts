@@ -115,11 +115,10 @@ export class DnssdName extends BasicObservable<[changes: DnssdName.Changes], May
 
         this.#context.registerForExpiration(recordWithExpire);
 
-        // SRV targets become dependencies so the hostname stays alive as long as any SRV references it
+        // Keep hostname alive as long as any SRV references it
         if (record.recordType === DnsRecordType.SRV && !this.#dependencies?.has(key)) {
             const dependency = this.#context.get((record.value as SrvRecordValue).target);
 
-            // Null observer keeps the dependency observed without reacting to changes
             dependency.on((this.#nullObserver ??= () => undefined));
 
             (this.#dependencies ??= new Map()).set(key, dependency);

@@ -239,7 +239,6 @@ export class QueryMulticaster implements DnssdSolicitor {
 
                 answers.push(...name.records);
 
-                // Drain associated-name iterables now so dynamic sets reflect their current membership
                 for (const iterable of associatedNames) {
                     for (const assocName of iterable) {
                         answers.push(...assocName.records);
