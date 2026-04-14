@@ -111,17 +111,22 @@ export class PythonTest extends BaseTest {
             await this.#runPythonTest(subject, step, args);
         } catch (e) {
             testError = e;
-            throw e;
-        } finally {
-            try {
-                await monitor?.stop();
-            } catch (e) {
-                if (testError !== undefined) {
-                    console.warn("Failed to stop restart flag monitor after test failure:", e);
-                } else {
-                    throw e;
-                }
+        }
+
+        // Stop monitor outside try/finally to avoid unsafe-finally lint violation.
+        // If both test and monitor fail, the test error takes priority.
+        try {
+            await monitor?.stop();
+        } catch (e) {
+            if (testError === undefined) {
+                testError = e;
+            } else {
+                console.warn("Failed to stop restart flag monitor after test failure:", e);
             }
+        }
+
+        if (testError !== undefined) {
+            throw testError;
         }
     }
 
