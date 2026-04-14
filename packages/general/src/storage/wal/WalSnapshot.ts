@@ -7,9 +7,7 @@
 import type { Directory } from "../../fs/Directory.js";
 import { Gzip } from "../../util/Gzip.js";
 import { type SupportedStorageTypes, fromJson, toJson } from "../StringifyTools.js";
-import type { WalCommitId } from "./WalCommit.js";
-
-type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
+import type { StoreData, WalCommitId } from "./WalCommit.js";
 
 /**
  * An immutable snapshot of WAL storage state at a specific point in history.
