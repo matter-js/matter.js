@@ -17,6 +17,7 @@ import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import {
     type StoreData,
+    type WalCommit,
     type WalCommitId,
     compareCommitIds,
     compressedSegmentFilename,
@@ -60,6 +61,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
     readonly #options: WalStorageDriver.Options;
     #cache?: StoreData;
     #cacheLoading?: Promise<StoreData>;
+    #pendingOps?: WalCommit[];
     #abort = new Abort();
     #workers = new BasicMultiplex();
     #initialized = false;
@@ -91,6 +93,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
         this.#abort = new Abort();
         this.#workers = new BasicMultiplex();
         this.#cache = undefined;
+        this.#pendingOps = undefined;
         this.#lastCommitId = undefined;
         this.#lastCommitTs = undefined;
         this.#lastSnapshotCommitId = undefined;
@@ -261,9 +264,10 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
 
             if (this.#cache !== undefined) {
                 applyCommit(this.#cache, { ts, ops });
+            } else if (this.#cacheLoading !== undefined) {
+                // Load in-flight — buffer so #doLoadCache can reconcile after replay
+                (this.#pendingOps ??= []).push({ ts, ops });
             }
-            // Safe to clear: WAL is fsync'd before this callback, so any in-flight #doLoadCache
-            // will replay from disk including this commit
             this.#cacheLoading = undefined;
         });
     }
@@ -353,6 +357,15 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
             logger.debug(`Replayed ${replayCount} WAL commits`);
         } else if (afterCommitId) {
             this.#lastCommitId = afterCommitId;
+        }
+
+        // Reconcile commits that arrived during the load (idempotent if already replayed)
+        const pending = this.#pendingOps;
+        if (pending !== undefined) {
+            this.#pendingOps = undefined;
+            for (const commit of pending) {
+                applyCommit(store, commit);
+            }
         }
 
         this.#cache = store;
