@@ -5,7 +5,7 @@
  */
 
 import { readFile, unlink } from "node:fs/promises";
-import { Subject } from "../device/subject.js";
+import type { Subject } from "../device/subject.js";
 
 /**
  * Monitors a host-side file that is bind-mounted into the Docker container.  When the CHIP Python test framework calls
@@ -55,11 +55,9 @@ export class RestartFlagMonitor {
             }
 
             if (content) {
-                try {
-                    await this.#handle(content);
-                } catch (e) {
-                    console.error(`Restart flag "${content}" handler failed:`, e);
-                }
+                // Only delete flag file after successful handling — deletion signals the Python test to
+                // continue, so we must not delete if the restart/reset actually failed
+                await this.#handle(content);
                 try {
                     await unlink(this.#hostPath);
                 } catch (e: unknown) {
