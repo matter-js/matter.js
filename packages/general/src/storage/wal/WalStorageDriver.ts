@@ -264,7 +264,7 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
 
             if (this.#cache !== undefined) {
                 applyCommit(this.#cache, { ts, ops });
-            } else if (this.#cacheLoading !== undefined) {
+            } else if (this.#cacheLoading !== undefined || this.#pendingOps !== undefined) {
                 // Load in-flight — buffer so #doLoadCache can reconcile after replay
                 (this.#pendingOps ??= []).push({ ts, ops });
             }
