@@ -83,8 +83,7 @@ export class RestartFlagMonitor {
                 break;
 
             default:
-                console.warn(`Unknown restart flag content: "${content}"`);
-                break;
+                throw new Error(`Unknown restart flag content: "${content}"`);
         }
     }
 }

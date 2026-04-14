@@ -106,10 +106,22 @@ export class PythonTest extends BaseTest {
             monitor.start();
         }
 
+        let testError: unknown;
         try {
             await this.#runPythonTest(subject, step, args);
+        } catch (e) {
+            testError = e;
+            throw e;
         } finally {
-            await monitor?.stop();
+            try {
+                await monitor?.stop();
+            } catch (e) {
+                if (testError !== undefined) {
+                    console.warn("Failed to stop restart flag monitor after test failure:", e);
+                } else {
+                    throw e;
+                }
+            }
         }
     }
 
