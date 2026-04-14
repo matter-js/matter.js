@@ -185,7 +185,7 @@ export declare namespace MeterIdentification {
     /**
      * @deprecated Use {@link MeterIdentification}.
      */
-    export const Cluster: typeof MeterIdentification;
+    export const Cluster: ClusterType.WithCompat<typeof MeterIdentification, MeterIdentification>;
 
     /**
      * @deprecated Use {@link MeterIdentification}.

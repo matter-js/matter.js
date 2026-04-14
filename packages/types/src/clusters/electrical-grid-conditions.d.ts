@@ -319,7 +319,7 @@ export declare namespace ElectricalGridConditions {
     /**
      * @deprecated Use {@link ElectricalGridConditions}.
      */
-    export const Cluster: typeof ElectricalGridConditions;
+    export const Cluster: ClusterType.WithCompat<typeof ElectricalGridConditions, ElectricalGridConditions>;
 
     /**
      * @deprecated Use {@link ElectricalGridConditions}.

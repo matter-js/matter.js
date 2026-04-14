@@ -622,7 +622,7 @@ export declare namespace WebRtcTransportProvider {
     /**
      * @deprecated Use {@link WebRtcTransportProvider}.
      */
-    export const Cluster: typeof WebRtcTransportProvider;
+    export const Cluster: ClusterType.WithCompat<typeof WebRtcTransportProvider, WebRtcTransportProvider>;
 
     /**
      * @deprecated Use {@link WebRtcTransportProvider}.

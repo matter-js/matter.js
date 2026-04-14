@@ -843,7 +843,7 @@ export declare namespace ZoneManagement {
     /**
      * @deprecated Use {@link ZoneManagement}.
      */
-    export const Cluster: typeof ZoneManagement;
+    export const Cluster: ClusterType.WithCompat<typeof ZoneManagement, ZoneManagement>;
 
     /**
      * @deprecated Use {@link ZoneManagement}.

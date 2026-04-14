@@ -2199,7 +2199,7 @@ export declare namespace CameraAvStreamManagement {
     /**
      * @deprecated Use {@link CameraAvStreamManagement}.
      */
-    export const Cluster: typeof CameraAvStreamManagement;
+    export const Cluster: ClusterType.WithCompat<typeof CameraAvStreamManagement, CameraAvStreamManagement>;
 
     /**
      * @deprecated Use {@link CameraAvStreamManagement}.

@@ -1010,7 +1010,7 @@ export declare namespace ClosureControl {
     /**
      * @deprecated Use {@link ClosureControl}.
      */
-    export const Cluster: typeof ClosureControl;
+    export const Cluster: ClusterType.WithCompat<typeof ClosureControl, ClosureControl>;
 
     /**
      * @deprecated Use {@link ClosureControl}.

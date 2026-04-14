@@ -1073,7 +1073,7 @@ export declare namespace ClosureDimension {
     /**
      * @deprecated Use {@link ClosureDimension}.
      */
-    export const Cluster: typeof ClosureDimension;
+    export const Cluster: ClusterType.WithCompat<typeof ClosureDimension, ClosureDimension>;
 
     /**
      * @deprecated Use {@link ClosureDimension}.

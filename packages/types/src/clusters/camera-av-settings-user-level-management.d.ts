@@ -709,7 +709,7 @@ export declare namespace CameraAvSettingsUserLevelManagement {
     /**
      * @deprecated Use {@link CameraAvSettingsUserLevelManagement}.
      */
-    export const Cluster: typeof CameraAvSettingsUserLevelManagement;
+    export const Cluster: ClusterType.WithCompat<typeof CameraAvSettingsUserLevelManagement, CameraAvSettingsUserLevelManagement>;
 
     /**
      * @deprecated Use {@link CameraAvSettingsUserLevelManagement}.

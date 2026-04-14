@@ -1391,7 +1391,7 @@ export declare namespace PushAvStreamTransport {
     /**
      * @deprecated Use {@link PushAvStreamTransport}.
      */
-    export const Cluster: typeof PushAvStreamTransport;
+    export const Cluster: ClusterType.WithCompat<typeof PushAvStreamTransport, PushAvStreamTransport>;
 
     /**
      * @deprecated Use {@link PushAvStreamTransport}.

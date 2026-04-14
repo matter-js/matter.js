@@ -459,7 +459,7 @@ export declare namespace CommodityPrice {
     /**
      * @deprecated Use {@link CommodityPrice}.
      */
-    export const Cluster: typeof CommodityPrice;
+    export const Cluster: ClusterType.WithCompat<typeof CommodityPrice, CommodityPrice>;
 
     /**
      * @deprecated Use {@link CommodityPrice}.
