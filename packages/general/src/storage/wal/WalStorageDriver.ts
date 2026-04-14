@@ -16,6 +16,7 @@ import { type CloneableStorage, FilesystemStorageDriver, StorageDriver, StorageE
 import type { SupportedStorageTypes } from "../StringifyTools.js";
 import { WalCleaner } from "./WalCleaner.js";
 import {
+    type StoreData,
     type WalCommitId,
     compareCommitIds,
     compressedSegmentFilename,
@@ -29,13 +30,11 @@ import { WalWriter } from "./WalWriter.js";
 
 const logger = Logger.get("WalStorageDriver");
 
-type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
-
 /**
  * Transactional storage backend using a write-ahead log (WAL).
  *
- * Data is loaded from the snapshot + WAL on first read and cached until a write invalidates the cache.  This keeps
- * memory free during steady-state operation when only writes occur.
+ * Data is loaded from the snapshot + WAL on first read and cached.  Writes update the cache incrementally so
+ * subsequent reads avoid a full reload.
  */
 export class WalStorageDriver extends FilesystemStorageDriver implements CloneableStorage {
     static readonly id = "wal";
@@ -256,10 +255,15 @@ export class WalStorageDriver extends FilesystemStorageDriver implements Cloneab
 
     override async begin(): Promise<WalTransaction> {
         this.#assertInitialized();
-        return new WalTransaction(this, this.#writer!, (id, ts) => {
+        return new WalTransaction(this, this.#writer!, (id, ts, ops) => {
             this.#lastCommitId = id;
             this.#lastCommitTs = ts;
-            this.#cache = undefined;
+
+            if (this.#cache !== undefined) {
+                applyCommit(this.#cache, { ts, ops });
+            }
+            // Safe to clear: WAL is fsync'd before this callback, so any in-flight #doLoadCache
+            // will replay from disk including this commit
             this.#cacheLoading = undefined;
         });
     }

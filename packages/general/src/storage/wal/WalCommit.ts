@@ -6,6 +6,8 @@
 
 import { type SupportedStorageTypes, fromJson, toJson } from "../StringifyTools.js";
 
+export type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
+
 /**
  * A single operation within a WAL commit.
  */
