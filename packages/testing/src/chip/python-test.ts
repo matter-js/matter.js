@@ -8,7 +8,7 @@ import colors from "ansi-colors";
 import { basename, join } from "node:path";
 import { Subject } from "../device/subject.js";
 import { BaseTest } from "../device/test.js";
-import { Container } from "../docker/container.js";
+import type { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
 import { TestFileDescriptor } from "../test-descriptor.js";
 import { parseStep } from "./chip-test-common.js";

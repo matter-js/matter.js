@@ -55,7 +55,11 @@ export class RestartFlagMonitor {
             }
 
             if (content) {
-                await this.#handle(content);
+                try {
+                    await this.#handle(content);
+                } catch (e) {
+                    console.error(`Restart flag "${content}" handler failed:`, e);
+                }
                 try {
                     await unlink(this.#hostPath);
                 } catch (e: unknown) {
