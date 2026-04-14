@@ -5,7 +5,6 @@
  */
 
 import {
-    Bytes,
     InternalError,
     MemoryStorageDriver,
     Storage,
@@ -60,21 +59,6 @@ export class StorageBackendAsyncJsonFile extends Storage {
             throw new InternalError("Storage not initialized.");
         }
         return this.store.get(contexts, key);
-    }
-
-    async openBlob(contexts: string[], key: string): Promise<Blob> {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        return this.store.openBlob(contexts, key);
-    }
-
-    async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>) {
-        if (this.store === undefined) {
-            throw new InternalError("Storage not initialized.");
-        }
-        await this.store.writeBlobFromStream(contexts, key, stream);
-        await this.commit();
     }
 
     set(contexts: string[], key: string, value: SupportedStorageTypes): Promise<void>;

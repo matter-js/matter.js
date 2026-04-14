@@ -757,7 +757,7 @@ export declare namespace IcdManagement {
     /**
      * @deprecated Use {@link IcdManagement}.
      */
-    export const Cluster: typeof IcdManagement;
+    export const Cluster: ClusterType.WithCompat<typeof IcdManagement, IcdManagement>;
 
     /**
      * @deprecated Use {@link IcdManagement}.

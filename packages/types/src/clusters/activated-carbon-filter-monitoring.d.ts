@@ -228,7 +228,7 @@ export declare namespace ActivatedCarbonFilterMonitoring {
     /**
      * @deprecated Use {@link ActivatedCarbonFilterMonitoring}.
      */
-    export const Cluster: typeof ActivatedCarbonFilterMonitoring;
+    export const Cluster: ClusterType.WithCompat<typeof ActivatedCarbonFilterMonitoring, ActivatedCarbonFilterMonitoring>;
 
     /**
      * @deprecated Use {@link ActivatedCarbonFilterMonitoring}.

@@ -4,8 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./DirectoryBlobStorageDriver.js";
 export * from "./FileStorageDriver.js";
+export * from "./FlatFileBlobStorageDriver.js";
 export * from "./JsonFileStorageDriver.js";
+export * from "./WalBlobStorageDriver.js";
 import { FileStorageDriver } from "./FileStorageDriver.js";
 import { JsonFileStorageDriver } from "./JsonFileStorageDriver.js";
 

@@ -560,7 +560,7 @@ export declare namespace OccupancySensing {
     /**
      * @deprecated Use {@link OccupancySensing}.
      */
-    export const Cluster: typeof OccupancySensing;
+    export const Cluster: ClusterType.WithCompat<typeof OccupancySensing, OccupancySensing>;
 
     /**
      * @deprecated Use {@link OccupancySensing}.

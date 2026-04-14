@@ -563,7 +563,7 @@ export declare namespace BooleanStateConfiguration {
     /**
      * @deprecated Use {@link BooleanStateConfiguration}.
      */
-    export const Cluster: typeof BooleanStateConfiguration;
+    export const Cluster: ClusterType.WithCompat<typeof BooleanStateConfiguration, BooleanStateConfiguration>;
 
     /**
      * @deprecated Use {@link BooleanStateConfiguration}.

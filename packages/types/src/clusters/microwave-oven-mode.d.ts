@@ -279,7 +279,7 @@ export declare namespace MicrowaveOvenMode {
     /**
      * @deprecated Use {@link MicrowaveOvenMode}.
      */
-    export const Cluster: typeof MicrowaveOvenMode;
+    export const Cluster: ClusterType.WithCompat<typeof MicrowaveOvenMode, MicrowaveOvenMode>;
 
     /**
      * @deprecated Use {@link MicrowaveOvenMode}.

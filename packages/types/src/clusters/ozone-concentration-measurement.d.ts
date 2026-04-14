@@ -316,7 +316,7 @@ export declare namespace OzoneConcentrationMeasurement {
     /**
      * @deprecated Use {@link OzoneConcentrationMeasurement}.
      */
-    export const Cluster: typeof OzoneConcentrationMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof OzoneConcentrationMeasurement, OzoneConcentrationMeasurement>;
 
     /**
      * @deprecated Use {@link OzoneConcentrationMeasurement}.

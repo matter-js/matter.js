@@ -921,14 +921,17 @@ export class MessageExchange {
             this.#closeCause = cause;
         }
 
-        this.#retransmissionTimer?.stop();
-        this.#sentMessageAckSuccess?.(undefined);
+        try {
+            this.#retransmissionTimer?.stop();
+            this.#receivedMessageAckTimer.stop();
+            this.#sentMessageAckSuccess?.(undefined);
 
-        this.#closeTimer?.stop();
-        this.#timedInteractionTimer?.stop();
-        this.#messagesQueue.close(this.#closeCause);
-
-        await this.#closed.emit(true);
+            this.#closeTimer?.stop();
+            this.#timedInteractionTimer?.stop();
+            this.#messagesQueue.close(this.#closeCause);
+        } finally {
+            await this.#closed.emit(true);
+        }
     }
 
     get via() {

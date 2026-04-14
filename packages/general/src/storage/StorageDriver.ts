@@ -3,10 +3,10 @@
  * Copyright 2022-2026 Matter.js Authors
  * SPDX-License-Identifier: Apache-2.0
  */
-import { Bytes } from "#util/Bytes.js";
 import type { Directory } from "../fs/Directory.js";
 import { ImplementationError, MatterError } from "../MatterError.js";
 import { MaybePromise } from "../util/Promises.js";
+import { BaseStorageDriver, type StorageType } from "./BaseStorageDriver.js";
 import { DatafileRoot } from "./DatafileRoot.js";
 import type { DataNamespace } from "./DataNamespace.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -20,22 +20,13 @@ export class StorageLockError extends StorageError {}
 /**
  * Matter.js uses this key/value API to manage persistent state.
  */
-export abstract class StorageDriver {
-    get id(): string {
-        return (this.constructor as { id?: string }).id ?? this.constructor.name;
-    }
+export abstract class StorageDriver extends BaseStorageDriver {
+    override readonly type = "kv" as const;
 
-    abstract readonly initialized: boolean;
-    abstract initialize(): MaybePromise<void>;
-    abstract close(): MaybePromise<void>;
     abstract get(contexts: string[], key: string): MaybePromise<SupportedStorageTypes | undefined>;
     abstract set(contexts: string[], values: Record<string, SupportedStorageTypes>): MaybePromise<void>;
     abstract set(contexts: string[], key: string, value: SupportedStorageTypes): MaybePromise<void>;
-    abstract delete(contexts: string[], key: string): MaybePromise<void>;
-    abstract keys(contexts: string[]): MaybePromise<string[]>;
     abstract values(contexts: string[]): MaybePromise<Record<string, SupportedStorageTypes>>;
-    abstract contexts(contexts: string[]): MaybePromise<string[]>;
-    abstract clearAll(contexts: string[]): MaybePromise<void>;
     /** @deprecated Use {@link clearAll} instead. */
     clear(_completely?: boolean): MaybePromise<void> {
         throw new StorageError("clear() is deprecated; use clearAll() instead");
@@ -54,9 +45,6 @@ export abstract class StorageDriver {
         return value !== undefined;
     }
 
-    abstract openBlob(contexts: string[], key: string): MaybePromise<Blob>;
-    abstract writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): MaybePromise<void>;
-
     begin(): MaybePromise<StorageDriver.Transaction> {
         return new StorageDriver.Transaction(this);
     }
@@ -67,7 +55,7 @@ export namespace StorageDriver {
      * Filenames that live in the storage root directory but are not data values.  Storage drivers that enumerate files
      * to discover keys (e.g. {@link FilesystemStorageDriver}) must ignore these on read and reject them on write.
      */
-    export const RESERVED_FILENAMES = new Set(["driver.json", "matter.lock", "matter.pid"]);
+    export const RESERVED_FILENAMES = BaseStorageDriver.RESERVED_FILENAMES;
 
     /**
      * Serializable descriptor stored as `driver.json` inside the storage directory.  The `kind` field identifies the
@@ -76,6 +64,7 @@ export namespace StorageDriver {
      */
     export interface Descriptor {
         kind: string;
+        type?: StorageType;
     }
 
     /**
@@ -222,26 +211,15 @@ export namespace StorageDriver {
         override clear(_completely?: boolean): MaybePromise<void> {
             throw new StorageError("clear() is deprecated; use clearAll() instead");
         }
-
-        override openBlob(contexts: string[], key: string): MaybePromise<Blob> {
-            return this.storage.openBlob(contexts, key);
-        }
-
-        override writeBlobFromStream(
-            contexts: string[],
-            key: string,
-            stream: ReadableStream<Bytes>,
-        ): MaybePromise<void> {
-            return this.storage.writeBlobFromStream(contexts, key, stream);
-        }
     }
 }
 
 /**
  * {@link StorageDriver} subclass for drivers backed by the filesystem.
  *
- * Manages a {@link DatafileRoot.Lock} that is acquired during {@link initialize} and released during {@link close}.
- * Filesystem-specific drivers should extend this instead of {@link StorageDriver} directly.
+ * Manages a {@link DatafileRoot.Lock} that is acquired during {@link initialize} and released during
+ * {@link close}.  Filesystem-specific KV drivers should extend this instead of {@link StorageDriver}
+ * directly.  Blob drivers should extend {@link FilesystemBlobStorageDriver} instead.
  */
 export abstract class FilesystemStorageDriver extends StorageDriver {
     readonly #root?: DatafileRoot;
@@ -262,6 +240,9 @@ export abstract class FilesystemStorageDriver extends StorageDriver {
     }
 
     async initialize() {
+        if (this.#lock) {
+            throw new ImplementationError("Filesystem storage driver is already initialized");
+        }
         if (this.#root) {
             this.#lock = await this.#root.lock();
         }

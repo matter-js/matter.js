@@ -1135,7 +1135,7 @@ export declare namespace ElectricalPowerMeasurement {
     /**
      * @deprecated Use {@link ElectricalPowerMeasurement}.
      */
-    export const Cluster: typeof ElectricalPowerMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof ElectricalPowerMeasurement, ElectricalPowerMeasurement>;
 
     /**
      * @deprecated Use {@link ElectricalPowerMeasurement}.

@@ -316,7 +316,7 @@ export declare namespace Pm10ConcentrationMeasurement {
     /**
      * @deprecated Use {@link Pm10ConcentrationMeasurement}.
      */
-    export const Cluster: typeof Pm10ConcentrationMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof Pm10ConcentrationMeasurement, Pm10ConcentrationMeasurement>;
 
     /**
      * @deprecated Use {@link Pm10ConcentrationMeasurement}.

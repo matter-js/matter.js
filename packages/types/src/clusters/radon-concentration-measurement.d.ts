@@ -316,7 +316,7 @@ export declare namespace RadonConcentrationMeasurement {
     /**
      * @deprecated Use {@link RadonConcentrationMeasurement}.
      */
-    export const Cluster: typeof RadonConcentrationMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof RadonConcentrationMeasurement, RadonConcentrationMeasurement>;
 
     /**
      * @deprecated Use {@link RadonConcentrationMeasurement}.

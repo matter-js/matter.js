@@ -401,7 +401,7 @@ export declare namespace RvcRunMode {
     /**
      * @deprecated Use {@link RvcRunMode}.
      */
-    export const Cluster: typeof RvcRunMode;
+    export const Cluster: ClusterType.WithCompat<typeof RvcRunMode, RvcRunMode>;
 
     /**
      * @deprecated Use {@link RvcRunMode}.

@@ -339,7 +339,7 @@ export declare namespace EnergyPreference {
     /**
      * @deprecated Use {@link EnergyPreference}.
      */
-    export const Cluster: typeof EnergyPreference;
+    export const Cluster: ClusterType.WithCompat<typeof EnergyPreference, EnergyPreference>;
 
     /**
      * @deprecated Use {@link EnergyPreference}.

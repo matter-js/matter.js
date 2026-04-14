@@ -256,7 +256,7 @@ export declare namespace PressureMeasurement {
     /**
      * @deprecated Use {@link PressureMeasurement}.
      */
-    export const Cluster: typeof PressureMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof PressureMeasurement, PressureMeasurement>;
 
     /**
      * @deprecated Use {@link PressureMeasurement}.

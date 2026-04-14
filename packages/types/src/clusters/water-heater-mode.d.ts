@@ -320,7 +320,7 @@ export declare namespace WaterHeaterMode {
     /**
      * @deprecated Use {@link WaterHeaterMode}.
      */
-    export const Cluster: typeof WaterHeaterMode;
+    export const Cluster: ClusterType.WithCompat<typeof WaterHeaterMode, WaterHeaterMode>;
 
     /**
      * @deprecated Use {@link WaterHeaterMode}.

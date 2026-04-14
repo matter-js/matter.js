@@ -50,5 +50,54 @@ describe("Abort", () => {
             const result = await Abort.race(undefined, Promise.resolve("ok"));
             expect(result).equals("ok");
         });
+
+        it("suppresses rejection of abandoned promise when signal is already aborted", async () => {
+            const abort = new Abort();
+            abort.abort();
+
+            // Simulate the crash scenario: a promise that will reject AFTER race returns
+            let reject!: (reason: Error) => void;
+            const willReject = new Promise<string>((_resolve, _reject) => (reject = _reject));
+
+            const result = await Abort.race(abort, willReject);
+            expect(result).undefined;
+
+            // Reject the abandoned promise — without the fix this would be an unhandled rejection
+            reject(new Error("exchange teardown"));
+
+            // Give microtasks a chance to process the rejection
+            await new Promise<void>(resolve => setTimeout(resolve, 10));
+        });
+
+        it("suppresses rejection of already-rejected promise when signal is already aborted", async () => {
+            const abort = new Abort();
+            abort.abort();
+
+            const alreadyRejected = Promise.reject(new Error("already failed"));
+
+            const result = await Abort.race(abort, alreadyRejected);
+            expect(result).undefined;
+
+            // Give microtasks a chance to process
+            await new Promise<void>(resolve => setTimeout(resolve, 10));
+        });
+    });
+
+    describe("Abort.attempt", () => {
+        it("throws AbortedError when signal is already aborted", async () => {
+            const abort = new Abort();
+            abort.abort();
+
+            let reject!: (reason: Error) => void;
+            const willReject = new Promise<string>((_resolve, _reject) => (reject = _reject));
+
+            // attempt should throw because signal is aborted
+            await expect(Abort.attempt(abort, willReject)).rejectedWith("Operation aborted");
+
+            // Reject the abandoned promise — must not cause unhandled rejection
+            reject(new Error("exchange teardown"));
+
+            await new Promise<void>(resolve => setTimeout(resolve, 10));
+        });
     });
 });

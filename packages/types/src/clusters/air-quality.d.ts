@@ -161,7 +161,7 @@ export declare namespace AirQuality {
     /**
      * @deprecated Use {@link AirQuality}.
      */
-    export const Cluster: typeof AirQuality;
+    export const Cluster: ClusterType.WithCompat<typeof AirQuality, AirQuality>;
 
     /**
      * @deprecated Use {@link AirQuality}.

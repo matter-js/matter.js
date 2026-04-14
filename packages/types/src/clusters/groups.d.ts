@@ -422,7 +422,7 @@ export declare namespace Groups {
     /**
      * @deprecated Use {@link Groups}.
      */
-    export const Cluster: typeof Groups;
+    export const Cluster: ClusterType.WithCompat<typeof Groups, Groups>;
 
     /**
      * @deprecated Use {@link Groups}.

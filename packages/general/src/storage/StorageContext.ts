@@ -4,7 +4,6 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes } from "#util/Bytes.js";
 import { MaybePromise } from "../util/Promises.js";
 import { StorageDriver, StorageError } from "./StorageDriver.js";
 import { SupportedStorageTypes } from "./StringifyTools.js";
@@ -104,19 +103,5 @@ export class StorageContext implements StorageContextFactory {
     /** Clears all keys in this context and all created sub-contexts. */
     clearAll() {
         return this.storage.clearAll(this.thisContexts);
-    }
-
-    openBlob(key: string) {
-        return this.storage.openBlob(this.thisContexts, key);
-    }
-
-    writeBlobFromStream(key: string, stream: ReadableStream<Bytes>) {
-        if (!key) {
-            throw new StorageError("Storage keys can not be empty");
-        }
-        if (key.includes(".")) {
-            throw new StorageError("Storage keys must not contain dots");
-        }
-        return this.storage.writeBlobFromStream(this.thisContexts, key, stream);
     }
 }

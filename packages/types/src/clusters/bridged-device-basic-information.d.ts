@@ -618,7 +618,7 @@ export declare namespace BridgedDeviceBasicInformation {
     /**
      * @deprecated Use {@link BridgedDeviceBasicInformation}.
      */
-    export const Cluster: typeof BridgedDeviceBasicInformation;
+    export const Cluster: ClusterType.WithCompat<typeof BridgedDeviceBasicInformation, BridgedDeviceBasicInformation>;
 
     /**
      * @deprecated Use {@link BridgedDeviceBasicInformation}.

@@ -748,7 +748,7 @@ export declare namespace FanControl {
     /**
      * @deprecated Use {@link FanControl}.
      */
-    export const Cluster: typeof FanControl;
+    export const Cluster: ClusterType.WithCompat<typeof FanControl, FanControl>;
 
     /**
      * @deprecated Use {@link FanControl}.

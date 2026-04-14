@@ -1044,7 +1044,7 @@ export declare namespace Channel {
     /**
      * @deprecated Use {@link Channel}.
      */
-    export const Cluster: typeof Channel;
+    export const Cluster: ClusterType.WithCompat<typeof Channel, Channel>;
 
     /**
      * @deprecated Use {@link Channel}.

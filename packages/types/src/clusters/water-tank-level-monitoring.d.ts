@@ -228,7 +228,7 @@ export declare namespace WaterTankLevelMonitoring {
     /**
      * @deprecated Use {@link WaterTankLevelMonitoring}.
      */
-    export const Cluster: typeof WaterTankLevelMonitoring;
+    export const Cluster: ClusterType.WithCompat<typeof WaterTankLevelMonitoring, WaterTankLevelMonitoring>;
 
     /**
      * @deprecated Use {@link WaterTankLevelMonitoring}.

@@ -473,7 +473,7 @@ export declare namespace GroupKeyManagement {
     /**
      * @deprecated Use {@link GroupKeyManagement}.
      */
-    export const Cluster: typeof GroupKeyManagement;
+    export const Cluster: ClusterType.WithCompat<typeof GroupKeyManagement, GroupKeyManagement>;
 
     /**
      * @deprecated Use {@link GroupKeyManagement}.

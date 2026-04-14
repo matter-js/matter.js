@@ -1016,7 +1016,7 @@ export declare namespace ServiceArea {
     /**
      * @deprecated Use {@link ServiceArea}.
      */
-    export const Cluster: typeof ServiceArea;
+    export const Cluster: ClusterType.WithCompat<typeof ServiceArea, ServiceArea>;
 
     /**
      * @deprecated Use {@link ServiceArea}.

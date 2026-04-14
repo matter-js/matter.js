@@ -286,7 +286,7 @@ export declare namespace RefrigeratorAlarm {
     /**
      * @deprecated Use {@link RefrigeratorAlarm}.
      */
-    export const Cluster: typeof RefrigeratorAlarm;
+    export const Cluster: ClusterType.WithCompat<typeof RefrigeratorAlarm, RefrigeratorAlarm>;
 
     /**
      * @deprecated Use {@link RefrigeratorAlarm}.

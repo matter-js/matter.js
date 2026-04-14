@@ -571,7 +571,7 @@ export declare namespace WiFiNetworkDiagnostics {
     /**
      * @deprecated Use {@link WiFiNetworkDiagnostics}.
      */
-    export const Cluster: typeof WiFiNetworkDiagnostics;
+    export const Cluster: ClusterType.WithCompat<typeof WiFiNetworkDiagnostics, WiFiNetworkDiagnostics>;
 
     /**
      * @deprecated Use {@link WiFiNetworkDiagnostics}.

@@ -1253,7 +1253,7 @@ export declare namespace TimeSynchronization {
     /**
      * @deprecated Use {@link TimeSynchronization}.
      */
-    export const Cluster: typeof TimeSynchronization;
+    export const Cluster: ClusterType.WithCompat<typeof TimeSynchronization, TimeSynchronization>;
 
     /**
      * @deprecated Use {@link TimeSynchronization}.

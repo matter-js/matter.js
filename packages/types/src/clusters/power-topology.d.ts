@@ -181,7 +181,7 @@ export declare namespace PowerTopology {
     /**
      * @deprecated Use {@link PowerTopology}.
      */
-    export const Cluster: typeof PowerTopology;
+    export const Cluster: ClusterType.WithCompat<typeof PowerTopology, PowerTopology>;
 
     /**
      * @deprecated Use {@link PowerTopology}.

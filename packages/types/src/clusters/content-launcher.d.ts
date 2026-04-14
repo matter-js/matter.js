@@ -842,7 +842,7 @@ export declare namespace ContentLauncher {
     /**
      * @deprecated Use {@link ContentLauncher}.
      */
-    export const Cluster: typeof ContentLauncher;
+    export const Cluster: ClusterType.WithCompat<typeof ContentLauncher, ContentLauncher>;
 
     /**
      * @deprecated Use {@link ContentLauncher}.

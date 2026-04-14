@@ -502,7 +502,7 @@ export declare namespace AdministratorCommissioning {
     /**
      * @deprecated Use {@link AdministratorCommissioning}.
      */
-    export const Cluster: typeof AdministratorCommissioning;
+    export const Cluster: ClusterType.WithCompat<typeof AdministratorCommissioning, AdministratorCommissioning>;
 
     /**
      * @deprecated Use {@link AdministratorCommissioning}.

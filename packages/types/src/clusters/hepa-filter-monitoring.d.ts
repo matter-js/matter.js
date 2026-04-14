@@ -228,7 +228,7 @@ export declare namespace HepaFilterMonitoring {
     /**
      * @deprecated Use {@link HepaFilterMonitoring}.
      */
-    export const Cluster: typeof HepaFilterMonitoring;
+    export const Cluster: ClusterType.WithCompat<typeof HepaFilterMonitoring, HepaFilterMonitoring>;
 
     /**
      * @deprecated Use {@link HepaFilterMonitoring}.

@@ -719,7 +719,7 @@ export declare namespace LevelControl {
     /**
      * @deprecated Use {@link LevelControl}.
      */
-    export const Cluster: typeof LevelControl;
+    export const Cluster: ClusterType.WithCompat<typeof LevelControl, LevelControl>;
 
     /**
      * @deprecated Use {@link LevelControl}.

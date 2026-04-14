@@ -743,7 +743,7 @@ export declare namespace Switch {
     /**
      * @deprecated Use {@link Switch}.
      */
-    export const Cluster: typeof Switch;
+    export const Cluster: ClusterType.WithCompat<typeof Switch, Switch>;
 
     /**
      * @deprecated Use {@link Switch}.

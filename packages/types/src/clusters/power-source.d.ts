@@ -1741,7 +1741,7 @@ export declare namespace PowerSource {
     /**
      * @deprecated Use {@link PowerSource}.
      */
-    export const Cluster: typeof PowerSource;
+    export const Cluster: ClusterType.WithCompat<typeof PowerSource, PowerSource>;
 
     /**
      * @deprecated Use {@link PowerSource}.

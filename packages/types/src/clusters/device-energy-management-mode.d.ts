@@ -334,7 +334,7 @@ export declare namespace DeviceEnergyManagementMode {
     /**
      * @deprecated Use {@link DeviceEnergyManagementMode}.
      */
-    export const Cluster: typeof DeviceEnergyManagementMode;
+    export const Cluster: ClusterType.WithCompat<typeof DeviceEnergyManagementMode, DeviceEnergyManagementMode>;
 
     /**
      * @deprecated Use {@link DeviceEnergyManagementMode}.

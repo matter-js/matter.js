@@ -50,7 +50,7 @@ describe("ClientNode", () => {
         await MockTime.resolve(
             expect(
                 controller.peers.commission({ passcode: 12341234, discriminator: 1234, timeout: Seconds(1) }),
-            ).rejectedWith("No device could be commissioned"),
+            ).rejectedWith("No commissionable device was discovered"),
         );
     });
 
@@ -954,6 +954,55 @@ describe("ClientNode", () => {
             expect(remainingAddress.type === "udp" && remainingAddress.ip).equals(
                 originalAddresses[0].type === "udp" && originalAddresses[0].ip,
             );
+        });
+    });
+
+    describe("peer address allocation", () => {
+        it("skips the controller's own node ID", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const fabric = controller.env.get(FabricAuthority).fabrics[0];
+            const controllerNodeId = fabric.nodeId;
+
+            // The commissioned device already got a node ID, so nextNodeId has advanced.
+            // Reset it to the controller's own node ID to force a collision
+            await controller.act(agent => {
+                agent.get(ControllerBehavior).state.nextNodeId = controllerNodeId;
+            });
+
+            const address = await MockTime.resolve(
+                controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabric.fabricIndex)),
+            );
+
+            // Allocation must skip the controller's own node ID and also the commissioned device's
+            expect(address.fabricIndex).equals(fabric.fabricIndex);
+            expect(address.nodeId).not.equals(controllerNodeId);
+            const peerNodeId = controller.peers.get("peer1")!.state.commissioning.peerAddress!.nodeId;
+            expect(address.nodeId).not.equals(peerNodeId);
+        });
+
+        it("skips a previously allocated node ID", async () => {
+            await using site = new MockSite();
+            const { controller } = await site.addCommissionedPair();
+
+            const fabric = controller.env.get(FabricAuthority).fabrics[0];
+
+            const address1 = await MockTime.resolve(
+                controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabric.fabricIndex)),
+            );
+
+            const address2 = await MockTime.resolve(
+                controller.act(agent => agent.get(ControllerBehavior).allocatePeerAddress(fabric.fabricIndex)),
+            );
+
+            // Successive allocations must produce distinct node IDs
+            expect(address1.fabricIndex).equals(fabric.fabricIndex);
+            expect(address2.fabricIndex).equals(fabric.fabricIndex);
+            expect(address1.nodeId).not.equals(address2.nodeId);
+            // And neither should be the controller's own node ID
+            expect(address1.nodeId).not.equals(fabric.nodeId);
+            expect(address2.nodeId).not.equals(fabric.nodeId);
         });
     });
 });

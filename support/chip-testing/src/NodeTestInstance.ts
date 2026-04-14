@@ -99,9 +99,13 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
 
         try {
             if (!this.storage) {
-                // Use StorageService driver selection (respects MATTER_STORAGE_DRIVER)
+                // Use StorageService driver selection (respects MATTER_STORAGE_DRIVER), then clone to get a raw driver.
+                // StorageService wraps drivers in a StorageDriverHandle that can't re-initialize after close.  Cloning
+                // gives us a raw MemoryStorageDriver that restore() also produces, so all paths behave consistently.
                 const manager = await this.#env.get(StorageService).open(this.id);
-                this.storage = manager.driver;
+                CloneableStorage.assert(manager.driver);
+                this.storage = await manager.driver.clone();
+                await manager.close();
             }
             // Install MockStorageService so restore() can swap storage via this.storage
             new MockStorageService(this.#env, () => this.storage!);
@@ -181,17 +185,7 @@ export abstract class NodeTestInstance extends DeviceTestInstance implements Sub
     override async backchannel(command: BackchannelCommand) {
         switch (command.name) {
             case "reboot":
-                // Clone storage before close because close releases the StorageDriverHandle which closes
-                // the underlying driver.  StorageDriverHandle.initialize() is a no-op so the driver can't
-                // be re-initialized after close.  Cloning gives us a fresh initialized driver with the
-                // same data.
-                if (this.storage && CloneableStorage.is(this.storage)) {
-                    const data = await this.storage.clone();
-                    await this.close();
-                    this.storage = data;
-                } else {
-                    await this.close();
-                }
+                await this.close();
                 await this.initialize();
 
                 // Some tests (BINFO_2_2 at least) are unhappy if events persist

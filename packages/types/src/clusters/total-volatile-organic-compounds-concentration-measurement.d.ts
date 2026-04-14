@@ -320,7 +320,7 @@ export declare namespace TotalVolatileOrganicCompoundsConcentrationMeasurement {
     /**
      * @deprecated Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.
      */
-    export const Cluster: typeof TotalVolatileOrganicCompoundsConcentrationMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof TotalVolatileOrganicCompoundsConcentrationMeasurement, TotalVolatileOrganicCompoundsConcentrationMeasurement>;
 
     /**
      * @deprecated Use {@link TotalVolatileOrganicCompoundsConcentrationMeasurement}.

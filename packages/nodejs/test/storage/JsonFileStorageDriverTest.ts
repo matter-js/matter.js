@@ -5,7 +5,7 @@
  */
 
 import { JsonFileStorageDriver } from "#storage/index.js";
-import { Bytes } from "@matter/general";
+
 import * as assert from "node:assert";
 import { readFile, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -147,46 +147,6 @@ describe("Storage in JSON File", () => {
                 message: "Key must not be empty.",
             },
         );
-    });
-
-    it("writeBlob and readBlob success", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
-        const data = new Uint8Array([21, 22, 23]);
-        const stream = new ReadableStream<Bytes>({
-            start(controller) {
-                controller.enqueue(data);
-                controller.close();
-            },
-        });
-
-        await storage.writeBlobFromStream(["context"], "blobkey", stream);
-
-        const blob = storage.openBlob(["context"], "blobkey");
-        const reader = blob.stream().getReader();
-        const chunks: Bytes[] = [];
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-        }
-        assert.deepEqual(chunks[0], data);
-    });
-
-    it("blobSize returns correct size", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
-        const data = new Uint8Array([31, 32]);
-        storage.set(["context"], "blobkey", data);
-
-        const blob = storage.openBlob(["context"], "blobkey");
-        assert.equal(blob.size, 2);
-    });
-
-    it("readBlob returns empty stream for missing key", async () => {
-        const storage = await createJsonFileStorage(TEST_STORAGE_LOCATION);
-        const blob = storage.openBlob(["context"], "missingkey");
-        const reader = blob.stream().getReader();
-        const { done } = await reader.read();
-        assert.equal(done, true);
     });
 
     after(async () => {

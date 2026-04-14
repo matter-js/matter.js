@@ -316,7 +316,7 @@ export declare namespace FormaldehydeConcentrationMeasurement {
     /**
      * @deprecated Use {@link FormaldehydeConcentrationMeasurement}.
      */
-    export const Cluster: typeof FormaldehydeConcentrationMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof FormaldehydeConcentrationMeasurement, FormaldehydeConcentrationMeasurement>;
 
     /**
      * @deprecated Use {@link FormaldehydeConcentrationMeasurement}.

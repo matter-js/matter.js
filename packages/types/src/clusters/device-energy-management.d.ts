@@ -1910,7 +1910,7 @@ export declare namespace DeviceEnergyManagement {
     /**
      * @deprecated Use {@link DeviceEnergyManagement}.
      */
-    export const Cluster: typeof DeviceEnergyManagement;
+    export const Cluster: ClusterType.WithCompat<typeof DeviceEnergyManagement, DeviceEnergyManagement>;
 
     /**
      * @deprecated Use {@link DeviceEnergyManagement}.

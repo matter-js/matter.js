@@ -877,7 +877,7 @@ export declare namespace ScenesManagement {
     /**
      * @deprecated Use {@link ScenesManagement}.
      */
-    export const Cluster: typeof ScenesManagement;
+    export const Cluster: ClusterType.WithCompat<typeof ScenesManagement, ScenesManagement>;
 
     /**
      * @deprecated Use {@link ScenesManagement}.

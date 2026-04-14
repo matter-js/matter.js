@@ -62,6 +62,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Enhancement: Add Product-Info API to VendorInfoService to expose DCL information for a given VendorId and ProductId
     - Enhancement: Probes discovered addresses and potentially updates session addresses when they change even when we have a valid working session
     - Enhancement: Optimizes operational connection logic during commissioning when multiple IPs are discovered
+    - Enhancement: Uses a minimum of 60 seconds for thread/wifi network scan or connect timeouts even if devices announce lower values
     - Adjustment: No longer ignore too long incoming Matter messages but still log a warning
     - Fix: Ensure the incoming order of attribute changes is preserved when processing them even though no one should rely on any order
     - Fix: Better handle errors when the BLE connection is disconnected during a write action
@@ -76,6 +77,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @project-chip/matter.js
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
+
+## 0.16.11 (2026-04-10)
+
+- @project-chip/matter.js
+    - Fix: (Pierre-Gilles) Added fallback discoveredAt to node migration in case discoveryData doesn't have one
 
 ## 0.16.10 (2026-02-22)
 

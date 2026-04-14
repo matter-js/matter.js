@@ -308,7 +308,7 @@ export declare namespace DishwasherMode {
     /**
      * @deprecated Use {@link DishwasherMode}.
      */
-    export const Cluster: typeof DishwasherMode;
+    export const Cluster: ClusterType.WithCompat<typeof DishwasherMode, DishwasherMode>;
 
     /**
      * @deprecated Use {@link DishwasherMode}.

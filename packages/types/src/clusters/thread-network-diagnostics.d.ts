@@ -1722,7 +1722,7 @@ export declare namespace ThreadNetworkDiagnostics {
     /**
      * @deprecated Use {@link ThreadNetworkDiagnostics}.
      */
-    export const Cluster: typeof ThreadNetworkDiagnostics;
+    export const Cluster: ClusterType.WithCompat<typeof ThreadNetworkDiagnostics, ThreadNetworkDiagnostics>;
 
     /**
      * @deprecated Use {@link ThreadNetworkDiagnostics}.

@@ -1156,7 +1156,7 @@ export declare namespace WindowCovering {
     /**
      * @deprecated Use {@link WindowCovering}.
      */
-    export const Cluster: typeof WindowCovering;
+    export const Cluster: ClusterType.WithCompat<typeof WindowCovering, WindowCovering>;
 
     /**
      * @deprecated Use {@link WindowCovering}.

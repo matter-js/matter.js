@@ -298,7 +298,7 @@ export declare namespace SoftwareDiagnostics {
     /**
      * @deprecated Use {@link SoftwareDiagnostics}.
      */
-    export const Cluster: typeof SoftwareDiagnostics;
+    export const Cluster: ClusterType.WithCompat<typeof SoftwareDiagnostics, SoftwareDiagnostics>;
 
     /**
      * @deprecated Use {@link SoftwareDiagnostics}.

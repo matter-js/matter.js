@@ -342,7 +342,7 @@ export declare namespace EnergyEvseMode {
     /**
      * @deprecated Use {@link EnergyEvseMode}.
      */
-    export const Cluster: typeof EnergyEvseMode;
+    export const Cluster: ClusterType.WithCompat<typeof EnergyEvseMode, EnergyEvseMode>;
 
     /**
      * @deprecated Use {@link EnergyEvseMode}.

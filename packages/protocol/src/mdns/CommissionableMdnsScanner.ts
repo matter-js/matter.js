@@ -36,6 +36,7 @@ interface CachedDevice {
     ipService: IpService;
     name: DnssdName;
     observer: (changes: DnssdName.Changes) => void;
+    onAddresses?: () => void;
 }
 
 interface Waiter {
@@ -104,10 +105,10 @@ export class CommissionableMdnsScanner implements Scanner {
         const seen = new Set<string>();
         const result: CommissionableDevice[] = [];
 
-        // Deliver cached matches immediately
+        // Deliver cached matches that have resolved addresses
         for (const cached of this.#cache.values()) {
             const device = refreshAddresses(cached);
-            if (matchesIdentifier(device, identifier)) {
+            if (matchesIdentifier(device, identifier) && device.addresses.length > 0) {
                 seen.add(device.deviceIdentifier);
                 result.push(device);
                 callback(device);
@@ -156,7 +157,7 @@ export class CommissionableMdnsScanner implements Scanner {
     getDiscoveredCommissionableDevices(identifier: CommissionableDeviceIdentifiers): CommissionableDevice[] {
         return [...this.#cache.values()]
             .map(cached => refreshAddresses(cached))
-            .filter(device => matchesIdentifier(device, identifier));
+            .filter(device => matchesIdentifier(device, identifier) && device.addresses.length > 0);
     }
 
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers) {
@@ -209,6 +210,10 @@ export class CommissionableMdnsScanner implements Scanner {
                 if (cached) {
                     this.#cache.delete(lower);
                     this.#observers.off(name, cached.observer);
+                    if (cached.onAddresses) {
+                        this.#observers.off(ipService.changed, cached.onAddresses);
+                        cached.onAddresses = undefined;
+                    }
                     void cached.ipService.close();
                 }
             }
@@ -218,9 +223,30 @@ export class CommissionableMdnsScanner implements Scanner {
         this.#cache.set(lower, cached);
         this.#observers.on(name, observer);
 
-        for (const waiter of this.#waiters) {
-            waiter.notify(refreshAddresses(cached));
+        // Only notify waiters once the device has resolved IP addresses.
+        // A/AAAA records may arrive after the initial SRV/TXT discovery;
+        // defer notification until addresses become available.
+        if (!this.#deliverDeviceIfResolved(cached)) {
+            const onAddresses = () => {
+                if (this.#deliverDeviceIfResolved(cached)) {
+                    this.#observers.off(ipService.changed, onAddresses);
+                    cached.onAddresses = undefined;
+                }
+            };
+            cached.onAddresses = onAddresses;
+            this.#observers.on(ipService.changed, onAddresses);
         }
+    }
+
+    #deliverDeviceIfResolved(cached: CachedDevice): boolean {
+        const device = refreshAddresses(cached);
+        if (device.addresses.length === 0) {
+            return false;
+        }
+        for (const waiter of this.#waiters) {
+            waiter.notify(device);
+        }
+        return true;
     }
 
     async #startDiscovery(identifier: CommissionableDeviceIdentifiers, abort: Abort) {

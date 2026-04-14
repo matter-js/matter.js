@@ -8,7 +8,7 @@ import { FileStorageDriver } from "#storage/fs/FileStorageDriver.js";
 import { SqliteStorageDriver } from "#storage/sqlite/SqliteStorageDriver.js";
 import { SqliteStorageDriverError } from "#storage/sqlite/SqliteStorageDriverError.js";
 import { supportsSqlite } from "#util/runtimeChecks.js";
-import { Bytes, StorageDriver, StorageError } from "@matter/general";
+import { StorageDriver, StorageError } from "@matter/general";
 import * as assert from "node:assert";
 import { mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -283,49 +283,6 @@ describe("StorageDrivers", () => {
                         return true;
                     },
                 );
-            });
-
-            it("writeBlob and readBlob success", async () => {
-                const data = new Uint8Array([5, 6, 7, 8]);
-                const stream = new ReadableStream<Bytes>({
-                    start(controller) {
-                        controller.enqueue(data);
-                        controller.close();
-                    },
-                });
-
-                await storage.writeBlobFromStream(CONTEXTx1, "blobkey", stream);
-
-                const blob = await storage.openBlob(CONTEXTx1, "blobkey");
-                const reader = blob.stream().getReader();
-                const chunks: Bytes[] = [];
-                while (true) {
-                    const { value, done } = await reader.read();
-                    if (done) break;
-                    chunks.push(value);
-                }
-                assert.deepEqual(chunks[0], data);
-            });
-
-            it("blobSize returns correct size", async () => {
-                const data = new Uint8Array([9, 10, 11]);
-                const stream = new ReadableStream<Bytes>({
-                    start(controller) {
-                        controller.enqueue(data);
-                        controller.close();
-                    },
-                });
-                await storage.writeBlobFromStream(CONTEXTx2, "blobkey", stream);
-
-                const blob = await storage.openBlob(CONTEXTx2, "blobkey");
-                assert.equal(blob.size, 3);
-            });
-
-            it("readBlob returns empty stream for missing key", async () => {
-                const blob = await storage.openBlob(CONTEXTx1, "missingkey");
-                const reader = blob.stream().getReader();
-                const { done } = await reader.read();
-                assert.equal(done, true);
             });
         });
     }

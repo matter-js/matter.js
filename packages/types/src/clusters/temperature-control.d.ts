@@ -306,7 +306,7 @@ export declare namespace TemperatureControl {
     /**
      * @deprecated Use {@link TemperatureControl}.
      */
-    export const Cluster: typeof TemperatureControl;
+    export const Cluster: ClusterType.WithCompat<typeof TemperatureControl, TemperatureControl>;
 
     /**
      * @deprecated Use {@link TemperatureControl}.
