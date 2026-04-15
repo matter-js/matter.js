@@ -206,7 +206,7 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 peripheral.removeListener("disconnect", reTryHandler);
 
                 if (error) {
-                    logger.error(
+                    logger.info(
                         `Peripheral ${peripheralAddress} disconnected while trying to connect, try again`,
                         error,
                     );
@@ -228,12 +228,14 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                 }
                 if (error) {
                     clearConnectionGuard();
+                    this.#connectionsInProgress.delete(peripheralAddress);
                     peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(new BleError(`Error while connecting to peripheral ${peripheralAddress}`, error));
                     return;
                 }
                 if (this.#onMatterMessageListener === undefined) {
                     clearConnectionGuard();
+                    this.#connectionsInProgress.delete(peripheralAddress);
                     peripheral.removeListener("disconnect", reTryHandler);
                     rejectOnce(new InternalError(`Network Interface was not added to the system yet or was cleared.`));
                     return;
