@@ -4,11 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration, MatterError } from "@matter/general";
+import { Bytes, Channel, ChannelType, ConnectionlessTransport, Duration } from "@matter/general";
 import { Scanner } from "../common/Scanner.js";
+import { PeerCommunicationError } from "../peer/PeerCommunicationError.js";
 import { MatterBle } from "./BleConsts.js";
 
-export class BleError extends MatterError {}
+export class BleError extends PeerCommunicationError {}
 
 /** Thrown when a BLE write or subscribe operation fails because the peripheral disconnected. */
 export class BleDisconnectedError extends BleError {}

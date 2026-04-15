@@ -70,8 +70,8 @@ export namespace MRP {
     }: ResponseTimeInputs): Duration {
         switch (channelType) {
             case "tcp":
-                // TCP uses 30s timeout according to chip sdk implementation, so do the same
-                return Millis(Seconds(30) + PEER_RESPONSE_TIME_BUFFER);
+                // 30s base from chip sdk, but honor larger expectedProcessingTime for long-running commands
+                return Millis(Math.max(Seconds(30), expectedProcessingTime) + PEER_RESPONSE_TIME_BUFFER);
 
             case "udp":
                 // UDP normally uses MRP, if not we have Group communication, which normally have no responses
@@ -87,8 +87,8 @@ export namespace MRP {
                 );
 
             case "ble":
-                // chip sdk uses BTP_ACK_TIMEOUT_MS which is wrong in my eyes, so we use static 30s as like TCP here
-                return Millis(Seconds(30) + PEER_RESPONSE_TIME_BUFFER);
+                // 30s base like TCP, but honor larger expectedProcessingTime (e.g. connectNetwork during commissioning)
+                return Millis(Math.max(Seconds(30), expectedProcessingTime) + PEER_RESPONSE_TIME_BUFFER);
 
             default:
                 throw new MatterFlowError(
