@@ -209,12 +209,15 @@ export namespace CommissioningConnection {
         /**
          * Commissioning candidates to attempt PASE with.
          *
-         * Callers should supply candidates that all reach the same physical device — typically produced by
-         * splitting a single device's address list into one candidate per address.  The stagger delay
-         * applies globally across the array (slot 0 fires immediately, slot N fires at N × staggerDelay),
-         * which is the desired behaviour for multiple addresses of one device but would serialise
-         * attempts to genuinely distinct devices.  Distinct-device fan-out belongs at a higher layer
-         * (e.g. {@link ParallelPaseDiscovery}).
+         * {@link CommissioningConnectionPool} merges entries by `deviceIdentifier` and expands each device's
+         * address list into independent `(device, address)` attempts.  The stagger delay applies globally
+         * across those generated attempts (slot 0 fires immediately, slot N fires at N × staggerDelay) —
+         * the intent is to serialise addresses of one physical device so the CHIP responder isn't hit with
+         * concurrent PBKDFParamRequests it cannot handle.
+         *
+         * Callers that discover genuinely distinct devices should coordinate fan-out at a higher layer
+         * (e.g. {@link ParallelPaseDiscovery}); passing multiple distinct devices here will serialise them
+         * by the same stagger, which is usually not what you want for a multi-device race.
          */
         devices: CommissionableDevice[];
 

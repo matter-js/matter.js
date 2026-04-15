@@ -24,10 +24,8 @@ const logger = Logger.get("ParallelPaseDiscovery");
  * Delay between PASE attempts to DIFFERENT discovered devices.  Kept short because cross-device attempts do
  * not share a responder state — this stagger only avoids a burst of simultaneous mDNS-triggered PASE starts
  * when many devices respond at once.  Per-address stagger for a single device lives in CommissioningConnection.
- *
- * @internal Exported for tests only — production callers have no reason to reference this.
  */
-export const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
+const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
 
 /**
  * Base class for discovery flows that run parallel PASE establishments with a first-to-win race gate.

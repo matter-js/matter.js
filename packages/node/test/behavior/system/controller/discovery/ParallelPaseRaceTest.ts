@@ -4,9 +4,11 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CROSS_DEVICE_STAGGER_DELAY } from "#behavior/system/controller/discovery/ParallelPaseDiscovery.js";
-import { Abort, CanceledError, MatterAggregateError, Millis } from "@matter/general";
+import { Abort, CanceledError, MatterAggregateError, Millis, Seconds } from "@matter/general";
 import { PeerCommunicationError } from "@matter/protocol";
+
+// Mirror of the module-private constant in ParallelPaseDiscovery.ts — keep in sync.
+const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
 
 /**
  * Tests the promise race pattern used by {@link ParallelPaseDiscovery.registerAttempt} and
@@ -349,8 +351,7 @@ describe("ParallelPaseDiscovery race pattern", () => {
 describe("ParallelPaseDiscovery stagger pattern", () => {
     beforeEach(() => MockTime.init());
 
-    // Amount to advance in MockTime to cross one stagger slot.  Uses the real production constant so the
-    // test stays aligned if the value is tuned.  +50ms buffer covers microtask settling.
+    // One stagger slot + 50ms buffer for microtask settling.
     const SLOT_ADVANCE_MS = CROSS_DEVICE_STAGGER_DELAY + 50;
 
     /**
