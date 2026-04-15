@@ -230,7 +230,9 @@ export class NobleBleCentralInterface implements ConnectionlessTransport {
                     clearConnectionGuard();
                     this.#connectionsInProgress.delete(peripheralAddress);
                     peripheral.removeListener("disconnect", reTryHandler);
-                    rejectOnce(new BleError(`Error while connecting to peripheral ${peripheralAddress}`, error));
+                    rejectOnce(
+                        new BleError(`Error while connecting to peripheral ${peripheralAddress}`, { cause: error }),
+                    );
                     return;
                 }
                 if (this.#onMatterMessageListener === undefined) {

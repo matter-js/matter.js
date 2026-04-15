@@ -68,6 +68,16 @@ describe("MRP", () => {
 
                 expect(timeout).to.equal(Seconds(65));
             });
+
+            it("falls back to the default expectedProcessingTime when omitted", () => {
+                const timeout = MRP.maxPeerResponseTimeOf({
+                    localSessionParameters,
+                    channelType: ChannelType.TCP,
+                    isPeerActive: true,
+                });
+
+                expect(timeout).to.equal(Seconds(35));
+            });
         });
     });
 });
