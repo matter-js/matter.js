@@ -2210,7 +2210,7 @@ export declare namespace ColorControl {
     /**
      * @deprecated Use {@link ColorControl}.
      */
-    export const Cluster: typeof ColorControl;
+    export const Cluster: ClusterType.WithCompat<typeof ColorControl, ColorControl>;
 
     /**
      * @deprecated Use {@link ColorControl}.

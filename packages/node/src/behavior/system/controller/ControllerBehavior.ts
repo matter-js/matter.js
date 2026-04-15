@@ -81,14 +81,14 @@ export class ControllerBehavior extends Behavior {
         }
 
         // Ensure the fabric authority is fully initialized
-        await this.env.load(FabricAuthority);
+        const authority = await this.env.load(FabricAuthority);
 
         // "Automatic" controller mode - disable commissioning if node is not otherwise configured as a commissionable
         // device
         const commissioning = this.agent.get(CommissioningServer);
         if (commissioning.state.enabled === undefined) {
             const totalFabrics = this.env.get(FabricManager).length;
-            const controlledFabrics = this.env.get(FabricAuthority).fabrics.length;
+            const controlledFabrics = authority.fabrics.length;
             if (controlledFabrics === totalFabrics) {
                 commissioning.state.enabled = false;
             }
@@ -100,11 +100,19 @@ export class ControllerBehavior extends Behavior {
         }
         this.reactTo(node.lifecycle.goingOffline, this.#nodeGoingOffline);
 
-        // Mark addresses in use (or not) based on known peers
+        // Mark addresses in use (or not) based on known peers and the controller's own addresses
         const identity = this.env.get(IdentityService);
         const peers = this.env.get(PeerSet);
         this.reactTo(peers.added, peer => identity.reservePeerAddress(peer.address));
         this.reactTo(peers.deleted, peer => identity.releasePeerAddress(peer.address));
+
+        // Reserve the controller's own node ID in each fabric to prevent assigning it to a peer
+        for (const fabric of authority.fabrics) {
+            identity.reservePeerAddress(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: fabric.nodeId }));
+        }
+        this.reactTo(authority.fabricAdded, fabric =>
+            identity.reservePeerAddress(PeerAddress({ fabricIndex: fabric.fabricIndex, nodeId: fabric.nodeId })),
+        );
     }
 
     /**

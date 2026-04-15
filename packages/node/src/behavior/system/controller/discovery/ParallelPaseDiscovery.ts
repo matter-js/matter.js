@@ -4,12 +4,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { CanceledError, causedBy, Diagnostic, Logger, MatterAggregateError } from "@matter/general";
+import {
+    Abort,
+    CanceledError,
+    causedBy,
+    Diagnostic,
+    Logger,
+    MatterAggregateError,
+    Millis,
+    Seconds,
+} from "@matter/general";
 import { CommissioningError, PeerCommunicationError } from "@matter/protocol";
 import { Discovery } from "./Discovery.js";
 import { DiscoveryAggregateError, DiscoveryError } from "./DiscoveryError.js";
 
 const logger = Logger.get("ParallelPaseDiscovery");
+
+/** Delay between consecutive PASE attempt starts. */
+const PASE_STAGGER_DELAY = Seconds(5);
 
 /**
  * Base class for discovery flows that run parallel PASE establishments with a first-to-win race gate.
@@ -18,6 +30,10 @@ const logger = Logger.get("ParallelPaseDiscovery");
  * {@link registerAttempt}, providing:
  *  - a {@code factory} that creates the PASE attempt and accepts the {@code winOnPase} gate callback,
  *  - an {@code extractWinner} to pull the result value from the settled promise.
+ *
+ * Attempts are staggered: the first starts immediately, each subsequent one waits an additional
+ * {@link PASE_STAGGER_DELAY}.  When {@code winOnPase} is called, the internal abort signal fires,
+ * which cancels any pending stagger sleeps so that no further attempts are started.
  */
 export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #paseWon = false;
@@ -28,6 +44,8 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     #winnerError?: unknown;
     #extractWinner?: (result: unknown) => W | undefined;
     #attemptErrors = new Array<Error>();
+    #attemptCount = 0;
+    #startedCount = 0;
 
     protected get abortSignal() {
         return this.#abort.signal;
@@ -40,7 +58,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
     /** Label used in the aggregate error when awaiting candidate cleanup. */
     protected abstract get cleanupLabel(): string;
 
-    /** Error message used when no winner was established. */
+    /** Error message prefix used when no winner was established. */
     protected abstract get failureMessage(): string;
 
     /**
@@ -63,7 +81,9 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         let isWinner = false;
 
         const winOnPase = () => {
-            if (this.#paseWon) return false;
+            if (this.#paseWon) {
+                return false;
+            }
             this.#paseWon = true;
             isWinner = true;
             this.stop();
@@ -74,7 +94,23 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
             return true;
         };
 
-        attempt = Promise.resolve(factory(winOnPase))
+        const attemptIndex = this.#attemptCount++;
+        const stagger = Millis(attemptIndex * PASE_STAGGER_DELAY);
+
+        const startFactory = () => {
+            this.#startedCount++;
+            return factory(winOnPase);
+        };
+
+        attempt = (
+            stagger > 0
+                ? Abort.sleep("PASE stagger", this.#abort.signal, stagger).then(() => {
+                      if (!this.#abort.signal.aborted) {
+                          return startFactory();
+                      }
+                  })
+                : Promise.resolve(startFactory())
+        )
             .catch(error => {
                 if (isWinner) {
                     // Winner's error is meaningful — capture it for onComplete to rethrow
@@ -127,7 +163,15 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         }
 
         if (this.#winner === undefined) {
-            const message = `${this} failed: ${this.failureMessage}`;
+            let detail: string;
+            if (this.#attemptCount === 0) {
+                detail = "No commissionable device was discovered";
+            } else if (this.#attemptErrors.length > 0) {
+                detail = `${this.failureMessage} (${this.#attemptErrors.length} of ${this.#startedCount} started attempt(s) failed, ${this.#attemptCount} discovered)`;
+            } else {
+                detail = `${this.failureMessage} (${this.#startedCount} attempt(s) started of ${this.#attemptCount} discovered, all canceled or timed out)`;
+            }
+            const message = `${this} failed: ${detail}`;
             if (this.#attemptErrors.length > 0) {
                 throw new DiscoveryAggregateError(this.#attemptErrors, message);
             }

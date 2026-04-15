@@ -26,6 +26,7 @@ import {
     Advertiser,
     Ble,
     BleAdvertiser,
+    ClientSubscriptions,
     DeviceAdvertiser,
     DeviceCommissioner,
     ExchangeManager,
@@ -68,6 +69,7 @@ export class ServerNetworkRuntime extends NetworkRuntime {
     #ipv6UdpTransport?: UdpTransport;
     #observers = new ObserverGroup(this);
     #groupNetworking?: ServerGroupNetworking;
+    #subscriptionsDrained?: Promise<void>;
 
     constructor(owner: ServerNode) {
         super(owner);
@@ -373,10 +375,13 @@ export class ServerNetworkRuntime extends NetworkRuntime {
 
         env.get(PeerSet).exchanges = exchanges;
 
-        // Prevent new connections when aborted
+        // Prevent new activity when aborted — block both server interactions and client subscription data reports
         this.abortSignal.addEventListener(
             "abort",
-            () => this.owner.env.maybeGet(InteractionServer)?.blockNewActivity(),
+            () => {
+                this.owner.env.maybeGet(InteractionServer)?.blockNewActivity();
+                this.#subscriptionsDrained = this.owner.env.maybeGet(ClientSubscriptions)?.blockNewActivity();
+            },
             { once: true },
         );
 
@@ -387,6 +392,12 @@ export class ServerNetworkRuntime extends NetworkRuntime {
         this.#observers.close();
 
         const { env } = this.owner;
+
+        // Wait for any in-flight subscription data report processing to complete before tearing down resources
+        if (this.#subscriptionsDrained) {
+            using _lifetime = this.construction.join("subscription reads");
+            await this.#subscriptionsDrained;
+        }
 
         {
             using _lifetime = this.construction.join("commissioner");

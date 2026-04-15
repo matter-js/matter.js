@@ -254,11 +254,37 @@ export class ClientInteraction<
             return false;
         }
 
+        logger.info("Probe", Mark.OUTBOUND, messenger.exchange.via);
+
         try {
             await messenger.sendReadRequest(Read({ fabricFilter: false }), { abort });
             for await (const _report of messenger.readDataReports({ abort }));
+            logger.info(
+                "Probe",
+                Mark.INBOUND,
+                messenger.exchange.via,
+                messenger.exchange.diagnostics,
+                Diagnostic.weak("(success)"),
+            );
             return true;
         } catch {
+            if (abort.aborted) {
+                logger.debug(
+                    "Probe",
+                    Mark.INBOUND,
+                    messenger.exchange.via,
+                    messenger.exchange.diagnostics,
+                    Diagnostic.weak("(aborted)"),
+                );
+            } else {
+                logger.info(
+                    "Probe",
+                    Mark.INBOUND,
+                    messenger.exchange.via,
+                    messenger.exchange.diagnostics,
+                    Diagnostic.weak("(failed)"),
+                );
+            }
             return false;
         } finally {
             await messenger.close();
@@ -959,30 +985,38 @@ export class ClientInteraction<
         session: InteractionSession | undefined,
         extraAbort?: AbortSignal,
     ) {
-        using lifetime = this.#lifetime.join(what);
-
-        if (this.#abort.aborted) {
-            throw new ImplementationError(
-                `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
-            );
-        }
-
-        const abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+        // Ownership of lifetime transfers to the returned context; do not use `using` here as
+        // that would dispose prematurely when #begin returns, creating a zombie in the spans Set
+        const lifetime = this.#lifetime.join(what);
 
         // Large Message Quality commands require TCP transport
         const requiredTransport = "largeMessage" in request && request.largeMessage ? ChannelType.TCP : undefined;
 
+        let abort: Abort;
         let messenger: InteractionClientMessenger;
         try {
-            messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
-                network: request.network ?? this.#network,
-                abort,
-                connectionTimeout: session?.connectionTimeout,
-                addressOverride: request.addressOverride,
-                requiredTransport,
-            });
+            if (this.#abort.aborted) {
+                throw new ImplementationError(
+                    `Cannot ${what} ${this.#address ?? "uncommissioned node"} because interactable is closed`,
+                );
+            }
+
+            abort = new Abort({ abort: [session?.abort, this.#abort, extraAbort] });
+
+            try {
+                messenger = await InteractionClientMessenger.create(this.#exchangeProvider, {
+                    network: request.network ?? this.#network,
+                    abort,
+                    connectionTimeout: session?.connectionTimeout,
+                    addressOverride: request.addressOverride,
+                    requiredTransport,
+                });
+            } catch (e) {
+                abort[Symbol.dispose]();
+                throw e;
+            }
         } catch (e) {
-            abort[Symbol.dispose]();
+            lifetime[Symbol.dispose]();
             throw e;
         }
 

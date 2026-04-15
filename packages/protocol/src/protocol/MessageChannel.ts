@@ -177,16 +177,18 @@ export class MessageChannel implements Channel<Message> {
         const wasAlreadyClosed = this.closed;
         this.closed = true;
 
-        // TCP connections are shared across sessions on the same peer (N:1 per CHIP SDK pattern).
-        // Only close the underlying TCP channel if no other sessions reference it. For non-TCP
-        // channels (UDP, BLE) always close since they are ephemeral per-session.
-        if (this.#channel.type === ChannelType.TCP) {
-            // TCP channel lifecycle is managed by ExchangeManager.#closeTcpChannelIfLastSession
-            // which checks after session removal whether any sessions still reference the connection.
-        } else {
-            await this.#channel.close();
+        // Detach address observer before closing
+        if (this.#channelAddressObserver && this.#isIpNetworkChannel) {
+            (this.#channel as IpNetworkChannel<Bytes>).networkAddressChanged.off(this.#channelAddressObserver);
+            this.#channelAddressObserver = undefined;
         }
 
+        // TCP connections are 1:1 with sessions — lifecycle managed by ExchangeManager
+        // (session eviction on disconnect, channel close on session close). UDP/BLE
+        // channels are ephemeral per-session and closed directly here.
+        if (this.#channel.type !== ChannelType.TCP) {
+            await this.#channel.close();
+        }
         if (!wasAlreadyClosed) {
             await this.#onClose?.();
         }

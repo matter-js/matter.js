@@ -1470,7 +1470,7 @@ export declare namespace ContentControl {
     /**
      * @deprecated Use {@link ContentControl}.
      */
-    export const Cluster: typeof ContentControl;
+    export const Cluster: ClusterType.WithCompat<typeof ContentControl, ContentControl>;
 
     /**
      * @deprecated Use {@link ContentControl}.

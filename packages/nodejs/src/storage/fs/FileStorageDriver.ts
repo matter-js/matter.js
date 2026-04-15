@@ -16,6 +16,7 @@ import {
     SupportedStorageTypes,
     toJson,
     type DataNamespace,
+    type LegacyBlobSource,
 } from "@matter/general";
 import { openAsBlob } from "node:fs";
 import { mkdir, open, readdir, readFile, rename, rm } from "node:fs/promises";
@@ -35,7 +36,7 @@ interface ContextIndex {
     keys?: Set<string>;
 }
 
-export class FileStorageDriver extends FilesystemStorageDriver {
+export class FileStorageDriver extends FilesystemStorageDriver implements LegacyBlobSource {
     static readonly id = "file";
 
     static async create(namespace: DataNamespace, _descriptor: StorageDriver.Descriptor) {
@@ -198,17 +199,27 @@ export class FileStorageDriver extends FilesystemStorageDriver {
         }
     }
 
+    /**
+     * Read a blob from the flat file format.  Retained for legacy migration support — the
+     * {@link StorageMigration} cross-type kv→blob strategy duck-types this method to extract
+     * blobs from old FileStorageDriver data.
+     *
+     * @deprecated Only used for migration from legacy flat-file blob format.
+     */
     async openBlob(contexts: string[], key: string): Promise<Blob> {
         const fileName = this.filePath(this.buildStorageKey(contexts, key));
-        await this.#finishAllWrites(fileName);
         if (await this.has(contexts, key)) {
             return await openAsBlob(fileName);
-        } else {
-            return new Blob();
         }
+        return new Blob();
     }
 
-    writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>) {
+    /**
+     * Write blob data in the flat file format.  Retained for legacy migration support.
+     *
+     * @deprecated Only used for migration from legacy flat-file blob format.
+     */
+    async writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
         return this.#writeFile(contexts, key, stream);
     }
 
@@ -271,7 +282,6 @@ export class FileStorageDriver extends FilesystemStorageDriver {
                     const { value: chunk, done } = await reader.read();
                     if (chunk) {
                         if (!writer.write(chunk)) {
-                            // Backpressure: wait for the buffer to drain.
                             await new Promise<void>(resolve => writer.once("drain", resolve));
                         }
                     }
@@ -288,7 +298,7 @@ export class FileStorageDriver extends FilesystemStorageDriver {
         } finally {
             if (isStream && reader) {
                 if (valueOrStream.locked) {
-                    reader.releaseLock(); // release the reader lock
+                    reader.releaseLock();
                 }
                 await valueOrStream.cancel();
             }

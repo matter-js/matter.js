@@ -1021,7 +1021,7 @@ export declare namespace GeneralCommissioning {
     /**
      * @deprecated Use {@link GeneralCommissioning}.
      */
-    export const Cluster: typeof GeneralCommissioning;
+    export const Cluster: ClusterType.WithCompat<typeof GeneralCommissioning, GeneralCommissioning>;
 
     /**
      * @deprecated Use {@link GeneralCommissioning}.

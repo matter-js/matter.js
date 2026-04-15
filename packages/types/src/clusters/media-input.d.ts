@@ -269,7 +269,7 @@ export declare namespace MediaInput {
     /**
      * @deprecated Use {@link MediaInput}.
      */
-    export const Cluster: typeof MediaInput;
+    export const Cluster: ClusterType.WithCompat<typeof MediaInput, MediaInput>;
 
     /**
      * @deprecated Use {@link MediaInput}.

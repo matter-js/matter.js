@@ -3308,7 +3308,7 @@ export declare namespace Thermostat {
     /**
      * @deprecated Use {@link Thermostat}.
      */
-    export const Cluster: typeof Thermostat;
+    export const Cluster: ClusterType.WithCompat<typeof Thermostat, Thermostat>;
 
     /**
      * @deprecated Use {@link Thermostat}.

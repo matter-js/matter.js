@@ -103,25 +103,48 @@ export class ClientCacheBuffer {
             return;
         }
 
-        const tx = await this.#storageDriver.begin();
+        await using tx = await this.#storageDriver.begin();
+
+        // Flush each cache individually so one broken cache doesn't crash the batch
+        const flushedKeys = new Array<{ cache: DatasourceCache; keys: Set<string> }>();
+
+        for (const cache of snapshot) {
+            try {
+                const keys = await cache.flush(tx);
+                if (keys) {
+                    flushedKeys.push({ cache, keys });
+                }
+            } catch (e) {
+                if (cache.erased) {
+                    logger.debug("Dropping erased cache from flush buffer");
+                } else {
+                    // Transient error; re-add for retry on next cycle
+                    this.#dirty.add(cache);
+                    logger.warn("Cache flush failed, will retry:", e);
+                }
+            }
+        }
+
+        if (!flushedKeys.length) {
+            return;
+        }
 
         try {
-            for (const cache of snapshot) {
-                await cache.flush(tx);
-            }
             await tx.commit();
         } catch (e) {
-            tx[Symbol.dispose]();
-
-            // Restore caches that failed to flush so they are retried
-            for (const cache of snapshot) {
-                this.#dirty.add(cache);
+            // Transaction commit failed; restore dirty keys so data is not silently lost.
+            // Skip erased caches — erase semantics win over retry.
+            for (const { cache, keys } of flushedKeys) {
+                if (!cache.erased) {
+                    cache.restoreDirtyKeys(keys);
+                    this.#dirty.add(cache);
+                }
             }
 
             throw e;
         }
 
-        logger.debug("Flushed", snapshot.length, "dirty caches");
+        logger.debug("Flushed", flushedKeys.length, "dirty caches");
     }
 
     #start() {
@@ -135,8 +158,12 @@ export class ClientCacheBuffer {
                 break;
             }
 
-            // Run the actual flush through the mutex so it serializes with explicit flush calls
-            await this.#mutex.produce(() => this.#doFlush());
+            try {
+                // Run the actual flush through the mutex so it serializes with explicit flush calls
+                await this.#mutex.produce(() => this.#doFlush());
+            } catch (e) {
+                logger.error("Periodic cache flush failed:", e);
+            }
         }
     }
 }

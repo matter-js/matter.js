@@ -4,25 +4,22 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import type { Bytes } from "#util/Bytes.js";
 import type { MaybePromise } from "#util/Promises.js";
 import { StorageTransaction } from "../StorageTransaction.js";
 import type { SupportedStorageTypes } from "../StringifyTools.js";
-import type { WalCommit, WalCommitId, WalOp } from "./WalCommit.js";
+import type { StoreData, WalCommit, WalCommitId, WalOp } from "./WalCommit.js";
 import type { WalStorageDriver } from "./WalStorageDriver.js";
 import type { WalWriter } from "./WalWriter.js";
 
-type StoreData = Record<string, Record<string, SupportedStorageTypes>>;
-
 /**
- * Callback to notify the owning storage of a new commit ID and timestamp.
+ * Callback to notify the owning storage of a new commit ID, timestamp, and committed operations.
  */
-export type WalCommitNotify = (id: WalCommitId, ts: number) => void;
+export type WalCommitNotify = (id: WalCommitId, ts: number, ops: WalOp[]) => void;
 
 /**
  * A transaction that buffers WAL operations and writes them atomically on commit.
  *
- * Owns the write path: serializes ops to the WAL writer and notifies the storage to invalidate its cache.
+ * Owns the write path: serializes ops to the WAL writer and notifies the storage to update its cache.
  */
 export class WalTransaction extends StorageTransaction {
     readonly #ops: WalOp[] = [];
@@ -181,19 +178,12 @@ export class WalTransaction extends StorageTransaction {
         return applyBuffered(baseContexts as string[]);
     }
 
-    override openBlob(contexts: string[], key: string): MaybePromise<Blob> {
-        return this.storage.openBlob(contexts, key);
-    }
-
-    override writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): MaybePromise<void> {
-        return this.storage.writeBlobFromStream(contexts, key, stream);
-    }
-
     override async commit(): Promise<void> {
         this.assertActive();
         if (this.#ops.length > 0) {
-            const { id, ts } = await this.#writer.write(this.#ops);
-            this.#onCommit(id, ts);
+            const ops = [...this.#ops];
+            const { id, ts } = await this.#writer.write(ops);
+            this.#onCommit(id, ts, ops);
         }
         super.commit();
     }

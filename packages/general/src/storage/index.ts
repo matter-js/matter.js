@@ -4,9 +4,12 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+export * from "./BaseStorageDriver.js";
+export * from "./BlobStorageDriver.js";
 export * from "./BytesStreamReader.js";
 export * from "./DatafileRoot.js";
 export * from "./DataNamespace.js";
+export * from "./MemoryBlobStorageDriver.js";
 export * from "./MemoryStorageDriver.js";
 export * from "./MockStorageService.js";
 export * from "./StorageContext.js";

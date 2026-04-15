@@ -121,11 +121,7 @@ export class Peer {
                 this.#descriptor.operationalAddress = networkAddress;
             };
 
-            // Remove session when destroyed
-            session.closing.on(() => {
-                this.#sessions.delete(session);
-            });
-
+            // Ensure the operational address is always set to the most recent IP
             if (!session.isClosed) {
                 const channel = session.channel.transportChannel;
                 if (isIpNetworkChannel(channel)) {
@@ -144,6 +140,15 @@ export class Peer {
                     }
                 }
             }
+
+            // Remove session and detach listener when destroyed
+            session.closing.on(() => {
+                this.#sessions.delete(session);
+                const channel = session.channel.transportChannel;
+                if (isIpNetworkChannel(channel)) {
+                    channel.networkAddressChanged.off(updateNetworkAddress);
+                }
+            });
 
             // Ensure session parameters reflect those most recently reported by peer
             this.#descriptor.sessionParameters = session.parameters;
@@ -326,7 +331,11 @@ export class Peer {
         if (this.#connecting) {
             using _disconnecting = this.#lifetime.join("disconnecting");
             this.#connecting.abort();
-            await this.#connecting.done;
+            try {
+                await this.#connecting.done;
+            } catch (error) {
+                AbortedError.accept(error);
+            }
         }
 
         // TODO - need to shutdown exchanges and sessions here too so you can cleanly take down a single peer, but

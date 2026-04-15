@@ -5,15 +5,25 @@
  */
 
 import colors from "ansi-colors";
+import { basename, join } from "node:path";
 import { Subject } from "../device/subject.js";
 import { BaseTest } from "../device/test.js";
+import type { Container } from "../docker/container.js";
 import { Terminal } from "../docker/terminal.js";
 import { TestFileDescriptor } from "../test-descriptor.js";
 import { parseStep } from "./chip-test-common.js";
 import { Constants, ContainerPaths } from "./config.js";
 import { PicsSource } from "./pics/source.js";
+import { RestartFlagMonitor } from "./restart-flag-monitor.js";
 
 export class PythonTest extends BaseTest {
+    #restartFlagHostDir?: string;
+
+    constructor(descriptor: TestFileDescriptor, container: Container, restartFlagHostDir?: string) {
+        super(descriptor, container);
+        this.#restartFlagHostDir = restartFlagHostDir;
+    }
+
     /**
      * Python commissioning logic is cleverly hidden in:
      *
@@ -89,6 +99,38 @@ export class PythonTest extends BaseTest {
     }
 
     async invoke(subject: Subject, step: (title: string) => void, args: string[]) {
+        let monitor: RestartFlagMonitor | undefined;
+        if (this.#restartFlagHostDir) {
+            const hostFlagPath = join(this.#restartFlagHostDir, basename(Constants.RestartFlagFile));
+            monitor = new RestartFlagMonitor(hostFlagPath, subject);
+            monitor.start();
+        }
+
+        let testError: unknown;
+        try {
+            await this.#runPythonTest(subject, step, args);
+        } catch (e) {
+            testError = e;
+        }
+
+        // Stop monitor outside try/finally to avoid unsafe-finally lint violation.
+        // If both test and monitor fail, the test error takes priority.
+        try {
+            await monitor?.stop();
+        } catch (e) {
+            if (testError === undefined) {
+                testError = e;
+            } else {
+                console.warn("Failed to stop restart flag monitor after test failure:", e);
+            }
+        }
+
+        if (testError !== undefined) {
+            throw testError;
+        }
+    }
+
+    async #runPythonTest(subject: Subject, step: (title: string) => void, args: string[]) {
         const terminal = await this.container.exec(await createCommand(this.descriptor, subject, args), Terminal.Line, {
             cwd: "/tmp",
         });

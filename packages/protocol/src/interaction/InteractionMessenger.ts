@@ -123,7 +123,7 @@ class InteractionMessenger {
             throw new InternalError("An interaction can only have one end message");
         }
         this.#endMessagePromise = promise
-            .catch(error => logger.info(errorMessage, Diagnostic.errorMessage(error)))
+            .catch(error => logger.info(this.exchange.via, errorMessage, Diagnostic.errorMessage(error)))
             .finally(() => (this.#endMessagePromise = undefined));
     }
 

@@ -138,7 +138,7 @@ const schema = OtaSoftwareUpdateRequestorBehavior.schema.extend(
  *     sending "bootReason" event after the update!
  *
  * * {@link validateUpdateFile}: This method in default implementation reads the received OTA file and validates header and
- *     checksums and basic details. Override this method and use this.downloadLocation for access if any custom
+ *     checksums and basic details. Override this method and use this.getDownloadLocation() for access if any custom
  *     validations are needed
  */
 export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestorBehavior {
@@ -174,15 +174,16 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         this.reactTo(node.lifecycle.commissioned, this.#scheduleInitialQuery);
     }
 
-    get downloadLocation(): PersistedFileDesignator {
+    async getDownloadLocation(): Promise<PersistedFileDesignator> {
         if (this.internal.downloadLocation === undefined) {
             // Initialize storage for downloading the update files if not already provided
             if (this.state.downloadLocation === undefined) {
                 const nodeStore = this.env.get(ServerNodeStore);
+                const blobDriver = await nodeStore.bdxStore();
                 const { productId, vendorId } = this.#basicInformationState();
                 this.internal.downloadLocation = new PersistedFileDesignator(
                     `ota-${vendorId}-${productId}`,
-                    nodeStore.bdxStore,
+                    blobDriver,
                 );
             } else {
                 this.internal.downloadLocation = this.state.downloadLocation;
@@ -537,7 +538,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
 
     /** Perform an actual update query */
     async #performUpdateQuery() {
-        const downloadLocation = this.downloadLocation;
+        const downloadLocation = await this.getDownloadLocation();
         if (await downloadLocation.exists()) {
             let otaHeader: OtaImageHeader | undefined;
             try {
@@ -866,7 +867,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
             }
             this.#resetStateToIdle(OtaSoftwareUpdateRequestor.ChangeReason.Failure);
             try {
-                await this.downloadLocation.delete();
+                await (await this.getDownloadLocation()).delete();
             } catch (error) {
                 MatterError.accept(error);
                 logger.warn(`OTA download failed and deleting partial file also failed:`, error);
@@ -906,7 +907,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 // Set up the OTA client, timeouts are already BDX defaults
                 const bdx = BdxClient.asReceiver(messenger, {
                     transferFileDesignator: fileDesignator, // We need to use the original designator here for transfer
-                    fileDesignator: this.downloadLocation, // But we store in a different location
+                    fileDesignator: await this.getDownloadLocation(), // But we store in a different location
                     preferredDriverModes: [Flow.DriverMode.ReceiverDrive],
                     maxBlockSize:
                         messenger.channel.type === "tcp" ? OTA_BDX_MAX_BLOCK_SIZE_TCP : OTA_BDX_MAX_BLOCK_SIZE_NON_TCP,
@@ -982,7 +983,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
                 },
             });
 
-            await this.downloadLocation.writeFromStream(progressStream);
+            await (await this.getDownloadLocation()).writeFromStream(progressStream);
 
             logger.info(`OTA download finished after ${bytesReceived} bytes`);
         } catch (error) {
@@ -1047,7 +1048,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
         // Done and also verified, we are done
         this.state.updateStateProgress = 100;
 
-        return this.downloadLocation;
+        return await this.getDownloadLocation();
     }
 
     /**
@@ -1060,7 +1061,7 @@ export class OtaSoftwareUpdateRequestorServer extends OtaSoftwareUpdateRequestor
     protected async validateUpdateFile(newSoftwareVersion?: number) {
         let totalSize: number | undefined;
         try {
-            const blob = await this.downloadLocation.openBlob();
+            const blob = await (await this.getDownloadLocation()).openBlob();
             totalSize = blob.size;
 
             const crypto = this.env.get(Crypto);

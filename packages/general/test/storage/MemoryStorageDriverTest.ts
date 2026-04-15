@@ -6,7 +6,6 @@
 
 import { MemoryStorageDriver } from "#storage/MemoryStorageDriver.js";
 import { StorageError } from "#storage/StorageDriver.js";
-import { Bytes } from "#util/Bytes.js";
 
 function createMemoryStorage() {
     return MemoryStorageDriver.create();
@@ -172,51 +171,5 @@ describe("MemoryStorageDriver", () => {
     it("Throws error when key is empty on get", async () => {
         const storage = createMemoryStorage();
         expect(() => storage.get(CONTEXTx2, "")).throws(StorageError, "Key must not be empty.");
-    });
-
-    it("writeBlob and readBlob success", async () => {
-        const storage = createMemoryStorage();
-        const data = new Uint8Array([1, 2, 3, 4]);
-        const stream = new ReadableStream<Bytes>({
-            start(controller) {
-                controller.enqueue(data);
-                controller.close();
-            },
-        });
-
-        await storage.writeBlobFromStream(CONTEXTx1, "blobkey", stream);
-
-        const blob = storage.openBlob(CONTEXTx1, "blobkey");
-        const reader = blob.stream().getReader();
-        const chunks: Bytes[] = [];
-        while (true) {
-            const { value, done } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-        }
-        expect(chunks[0]).deep.equal(data);
-    });
-
-    it("blobSize returns correct size", async () => {
-        const storage = createMemoryStorage();
-        const data = new Uint8Array([10, 20, 30]);
-        storage.set(CONTEXTx2, "blobkey", data);
-
-        const blob = storage.openBlob(CONTEXTx2, "blobkey");
-        expect(blob.size).equal(3);
-    });
-
-    it("readBlob returns empty stream for missing key", async () => {
-        const storage = createMemoryStorage();
-        const blob = storage.openBlob(CONTEXTx1, "missingkey");
-        const reader = blob.stream().getReader();
-        const { done } = await reader.read();
-        expect(done).equal(true);
-    });
-
-    it("blobSize throws error for non-Uint8Array value", async () => {
-        const storage = createMemoryStorage();
-        storage.set(CONTEXTx1, "notblob", "stringvalue");
-        expect(() => storage.openBlob(CONTEXTx1, "notblob")).throws(StorageError);
     });
 });
