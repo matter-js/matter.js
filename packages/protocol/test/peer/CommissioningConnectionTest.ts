@@ -38,6 +38,7 @@ describe("CommissioningConnection", () => {
         const { discoveryData } = await CommissioningConnection({
             devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
             timeout: Seconds(2),
+            staggerDelay: 0,
             establishSession: async (address, discoveryData) => {
                 attempts.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
                 if (discoveryData.deviceIdentifier === "a") {
@@ -57,6 +58,7 @@ describe("CommissioningConnection", () => {
         const { discoveryData } = await CommissioningConnection({
             devices: [device("a", [udp("fd00::1"), udp("fd00::3")]), device("b", [udp("fd00::2")])],
             timeout: Seconds(2),
+            staggerDelay: 0,
             establishSession: async (address, discoveryData) => {
                 const ip = (address as ServerAddressUdp).ip;
                 attempts.push(`${discoveryData.deviceIdentifier}:${ip}`);
@@ -77,6 +79,7 @@ describe("CommissioningConnection", () => {
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
                 timeout: Seconds(2),
+                staggerDelay: 0,
                 establishSession: async () => {
                     throw new UnexpectedDataError("invalid credentials");
                 },
@@ -93,6 +96,7 @@ describe("CommissioningConnection", () => {
         const p = CommissioningConnection({
             devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
             timeout: Seconds(2),
+            staggerDelay: 0,
             establishSession: async (address, _device) => {
                 const ip = (address as ServerAddressUdp).ip;
                 if (ip === "fd00::1") {
@@ -127,6 +131,7 @@ describe("CommissioningConnection", () => {
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1")])],
                 timeout: Millis(50),
+                staggerDelay: 0,
                 establishSession: async () => {
                     // Delay much longer than the timeout so the abort fires before we return.
                     await new Promise<void>(resolve => setTimeout(resolve, 1000));
@@ -148,6 +153,7 @@ describe("CommissioningConnection", () => {
         const p = CommissioningConnection({
             devices: [device("a", [udp("fd00::1")])],
             timeout: Millis(500),
+            staggerDelay: 0,
             externalAbort: ac.signal,
             establishSession: async (_address, _discoveryData, signal) => {
                 // Wait for the abort signal — reject with the signal's reason so we can verify
@@ -177,6 +183,7 @@ describe("CommissioningConnection", () => {
         const loserPromise = CommissioningConnection({
             devices: [device("loser", [udp("fd00::1")])],
             timeout: Millis(500),
+            staggerDelay: 0,
             externalAbort: ac.signal,
             establishSession: async (_address, _discoveryData, signal) => {
                 await new Promise<void>((_resolve, reject) => {
@@ -201,6 +208,7 @@ describe("CommissioningConnection", () => {
         const { discoveryData } = await CommissioningConnection({
             devices: [device("a", [udp("fd00::1"), udp("fd00::2"), udp("192.168.1.1")])],
             timeout: Seconds(2),
+            staggerDelay: 0,
             establishSession: async (address, discoveryData) => {
                 const ip = (address as ServerAddressUdp).ip;
                 attempts.push(`${discoveryData.deviceIdentifier}:${ip}`);
@@ -223,6 +231,7 @@ describe("CommissioningConnection", () => {
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1"), udp("fd00::2")])],
                 timeout: Seconds(2),
+                staggerDelay: 0,
                 establishSession: async address => {
                     const ip = (address as ServerAddressUdp).ip;
                     throw new AddressUnreachableError(`send EHOSTUNREACH ${ip}:5540`);
@@ -238,6 +247,7 @@ describe("CommissioningConnection", () => {
             CommissioningConnection({
                 devices: [device("a", [udp("fd00::1")])],
                 timeout: Millis(50),
+                staggerDelay: 0,
                 establishSession: async (_address, _discoveryData, signal) => {
                     receivedSignal = signal;
                     // Simulate abort-aware establishment that respects the signal
@@ -258,5 +268,183 @@ describe("CommissioningConnection", () => {
         ).rejectedWith(PairRetransmissionLimitReachedError);
         expect(receivedSignal).not.undefined;
         expect(receivedSignal!.aborted).equals(true);
+    });
+
+    describe("per-address stagger", () => {
+        beforeEach(() => MockTime.reset());
+
+        /** Creates a deferred promise for deterministic sequencing inside establishSession mocks. */
+        function deferred<T = void>() {
+            let resolve!: (value: T) => void;
+            let reject!: (reason?: unknown) => void;
+            const promise = new Promise<T>((res, rej) => {
+                resolve = res;
+                reject = rej;
+            });
+            return { promise, resolve, reject };
+        }
+
+        it("first candidate fires immediately, subsequent candidates wait staggerDelay each", async () => {
+            const order = new Array<string>();
+            const gate = deferred<void>();
+
+            const p = CommissioningConnection({
+                devices: [device("a", [udp("fd00::1"), udp("fd00::2"), udp("fd00::3")])],
+                timeout: Seconds(60),
+                staggerDelay: Seconds(5),
+                establishSession: async (address, _discoveryData, signal) => {
+                    order.push((address as ServerAddressUdp).ip);
+                    // Wait until the test releases us, or the signal aborts.
+                    await new Promise<void>((resolve, reject) => {
+                        gate.promise.then(resolve);
+                        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                    });
+                    if ((address as ServerAddressUdp).ip === "fd00::1") {
+                        return {} as any;
+                    }
+                    throw new NoResponseTimeoutError("losing");
+                },
+            });
+
+            // Slot 0 fires synchronously; yield to let establishSession register.
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1"]);
+
+            // +5s → slot 1 fires; slot 2 still pending.
+            await MockTime.advance(5000);
+            await MockTime.yield3();
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1", "fd00::2"]);
+
+            // +5s more → slot 2 fires.
+            await MockTime.advance(5000);
+            await MockTime.yield3();
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1", "fd00::2", "fd00::3"]);
+
+            // Release slot 0 so it wins; other slots get aborted via reject.
+            gate.resolve();
+            const result = await p;
+            expect(result.discoveryData.deviceIdentifier).equals("a");
+        });
+
+        it("cancels pending stagger when a winner is established", async () => {
+            const order = new Array<string>();
+            const winnerGate = deferred<void>();
+
+            const p = CommissioningConnection({
+                devices: [device("a", [udp("fd00::1"), udp("fd00::2"), udp("fd00::3")])],
+                timeout: Seconds(60),
+                staggerDelay: Seconds(5),
+                establishSession: async (address, _discoveryData, signal) => {
+                    order.push((address as ServerAddressUdp).ip);
+                    if ((address as ServerAddressUdp).ip === "fd00::1") {
+                        await winnerGate.promise;
+                        return {} as any;
+                    }
+                    // Should never be reached — slots 1 and 2 are still in their stagger sleep when the
+                    // winner resolves, so their factory must never run.
+                    await new Promise<void>((_resolve, reject) =>
+                        signal.addEventListener("abort", () => reject(signal.reason), { once: true }),
+                    );
+                    throw new NoResponseTimeoutError("should not run");
+                },
+            });
+
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1"]);
+
+            // Before slot 1's stagger elapses, the winner resolves.  The abort signal cancels the
+            // pending Abort.sleep, and the startSession guard skips establishSession for slots 1 and 2.
+            winnerGate.resolve();
+            const result = await p;
+            expect(result.discoveryData.deviceIdentifier).equals("a");
+
+            // Advance past where slots 1 and 2 would have fired — confirm they never did.
+            await MockTime.advance(15000);
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1"]);
+        });
+
+        it("stagger slot is global across the devices array (distinct-device fan-out belongs elsewhere)", async () => {
+            // Documents the API contract: CommissioningConnection treats its devices array as a flat list
+            // of candidates and staggers them by position (slot 0 at t=0, slot 1 at t=staggerDelay, ...).
+            // This is correct for addresses of ONE logical device but intentionally serialises attempts
+            // across distinct devices — the assumption is callers split a single device's addresses into
+            // per-address candidates.  Distinct-device fan-out belongs at a higher layer.
+            const order = new Array<string>();
+            const gate = deferred<void>();
+
+            const p = CommissioningConnection({
+                devices: [device("a", [udp("fd00::1")]), device("b", [udp("fd00::2")])],
+                timeout: Seconds(60),
+                staggerDelay: Seconds(5),
+                establishSession: async (address, discoveryData, signal) => {
+                    order.push(`${discoveryData.deviceIdentifier}:${(address as ServerAddressUdp).ip}`);
+                    await new Promise<void>((resolve, reject) => {
+                        gate.promise.then(resolve);
+                        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                    });
+                    return discoveryData.deviceIdentifier === "a" ? ({} as any) : Promise.reject(new Error());
+                },
+            });
+
+            // Slot 0 (device a) fires immediately.
+            await MockTime.yield3();
+            expect(order).deep.equals(["a:fd00::1"]);
+
+            // Before the stagger elapses, slot 1 (device b) has NOT fired — confirms the global stagger
+            // applies across distinct devices.
+            await MockTime.advance(4900);
+            await MockTime.yield3();
+            expect(order).deep.equals(["a:fd00::1"]);
+
+            // After the stagger elapses, slot 1 fires.
+            await MockTime.advance(200);
+            await MockTime.yield3();
+            await MockTime.yield3();
+            expect(order).deep.equals(["a:fd00::1", "b:fd00::2"]);
+
+            gate.resolve();
+            const result = await p;
+            expect(result.discoveryData.deviceIdentifier).equals("a");
+        });
+
+        it("uses production default stagger when staggerDelay is not provided", async () => {
+            // Default is Seconds(5) — verify by observing slot 1 only fires after ≥5s of mock time.
+            const order = new Array<string>();
+            const gate = deferred<void>();
+
+            const p = CommissioningConnection({
+                devices: [device("a", [udp("fd00::1"), udp("fd00::2")])],
+                timeout: Seconds(60),
+                // no staggerDelay — should default to 5s
+                establishSession: async (address, _discoveryData, signal) => {
+                    order.push((address as ServerAddressUdp).ip);
+                    await new Promise<void>((resolve, reject) => {
+                        gate.promise.then(resolve);
+                        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+                    });
+                    return (address as ServerAddressUdp).ip === "fd00::1" ? ({} as any) : Promise.reject(new Error());
+                },
+            });
+
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1"]);
+
+            // 4.9s — should still only be slot 0.
+            await MockTime.advance(4900);
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1"]);
+
+            // +200ms → past 5s → slot 1 fires.
+            await MockTime.advance(200);
+            await MockTime.yield3();
+            await MockTime.yield3();
+            expect(order).deep.equals(["fd00::1", "fd00::2"]);
+
+            gate.resolve();
+            await p;
+        });
     });
 });
