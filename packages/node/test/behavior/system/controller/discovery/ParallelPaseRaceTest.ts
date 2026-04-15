@@ -7,6 +7,9 @@
 import { Abort, CanceledError, MatterAggregateError, Millis, Seconds } from "@matter/general";
 import { PeerCommunicationError } from "@matter/protocol";
 
+// Mirror of the module-private constant in ParallelPaseDiscovery.ts — keep in sync.
+const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
+
 /**
  * Tests the promise race pattern used by {@link ParallelPaseDiscovery.registerAttempt} and
  * {@link ParallelPaseDiscovery.onComplete}.
@@ -348,7 +351,8 @@ describe("ParallelPaseDiscovery race pattern", () => {
 describe("ParallelPaseDiscovery stagger pattern", () => {
     beforeEach(() => MockTime.init());
 
-    const PASE_STAGGER_DELAY = Seconds(5);
+    // One stagger slot + 50ms buffer for microtask settling.
+    const SLOT_ADVANCE_MS = CROSS_DEVICE_STAGGER_DELAY + 50;
 
     /**
      * Stagger-aware version of the race harness.  Mirrors the production code's use of
@@ -387,7 +391,7 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
             };
 
             const attemptIndex = attemptCount++;
-            const stagger = Millis(attemptIndex * PASE_STAGGER_DELAY);
+            const stagger = Millis(attemptIndex * CROSS_DEVICE_STAGGER_DELAY);
 
             const startFactory = () => {
                 startedCount++;
@@ -469,7 +473,7 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
         return { promise, resolve, reject };
     }
 
-    it("first attempt starts immediately, second after 5s delay", async () => {
+    it("first attempt starts immediately, second after one stagger slot", async () => {
         const harness = createStaggerHarness<string>();
 
         const gate1 = deferred();
@@ -498,9 +502,9 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
         expect(harness.factoryCallOrder).deep.equals([0]);
         expect(harness.startedCount).equals(1);
 
-        // Advance time past the 5s stagger. advance() fires the timer callback inline,
+        // Advance time past the stagger slot.  advance() fires the timer callback inline,
         // then we need yields for the promise chain (Abort.race -> finally -> then).
-        await MockTime.advance(5100);
+        await MockTime.advance(SLOT_ADVANCE_MS);
         await MockTime.yield3();
         await MockTime.yield3();
         await MockTime.yield3();
@@ -516,7 +520,7 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
         expect(result).equals("winner");
     });
 
-    it("three attempts start with correct 5s stagger intervals", async () => {
+    it("three attempts fire at correct stagger intervals", async () => {
         const harness = createStaggerHarness<string>();
 
         const gates = [deferred(), deferred(), deferred()];
@@ -536,15 +540,15 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
         await MockTime.yield3();
         expect(harness.factoryCallOrder).deep.equals([0]);
 
-        // Advance 5s — second attempt fires
-        await MockTime.advance(5100);
+        // One slot later — second attempt fires
+        await MockTime.advance(SLOT_ADVANCE_MS);
         await MockTime.yield3();
         await MockTime.yield3();
         await MockTime.yield3();
         expect(harness.factoryCallOrder).deep.equals([0, 1]);
 
-        // Advance another 5s — third attempt fires
-        await MockTime.advance(5000);
+        // Another slot later — third attempt fires
+        await MockTime.advance(SLOT_ADVANCE_MS);
         await MockTime.yield3();
         await MockTime.yield3();
         await MockTime.yield3();
@@ -573,7 +577,7 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
             result => result,
         );
 
-        // Second attempt (5s stagger)
+        // Second attempt (staggered)
         harness.registerAttempt(
             async () => {
                 return "should-not-run";
@@ -584,15 +588,15 @@ describe("ParallelPaseDiscovery stagger pattern", () => {
         await MockTime.yield3();
         expect(harness.factoryCallOrder).deep.equals([0]);
 
-        // Winner wins before the 5s stagger elapses
+        // Winner wins before the stagger elapses
         winnerGate.resolve();
         await MockTime.yield3();
         expect(harness.isStopped()).equals(true);
 
         // The abort signal resolves the stagger sleep, and the stagger guard sees
-        // abort.signal.aborted so the factory is skipped.  Advance time and yield to
+        // abort.signal.aborted so the factory is skipped.  Advance well past the slot and yield to
         // let the promise chain settle.
-        await MockTime.resolve(MockTime.advance(6000));
+        await MockTime.resolve(MockTime.advance(SLOT_ADVANCE_MS + 1000));
         expect(harness.factoryCallOrder).deep.equals([0]);
         expect(harness.startedCount).equals(1);
 

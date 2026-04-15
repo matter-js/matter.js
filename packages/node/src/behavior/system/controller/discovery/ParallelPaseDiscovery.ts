@@ -20,8 +20,12 @@ import { DiscoveryAggregateError, DiscoveryError } from "./DiscoveryError.js";
 
 const logger = Logger.get("ParallelPaseDiscovery");
 
-/** Delay between consecutive PASE attempt starts. */
-const PASE_STAGGER_DELAY = Seconds(5);
+/**
+ * Delay between PASE attempts to DIFFERENT discovered devices.  Kept short because cross-device attempts do
+ * not share a responder state — this stagger only avoids a burst of simultaneous mDNS-triggered PASE starts
+ * when many devices respond at once.  Per-address stagger for a single device lives in CommissioningConnection.
+ */
+const CROSS_DEVICE_STAGGER_DELAY = Seconds(1);
 
 /**
  * Base class for discovery flows that run parallel PASE establishments with a first-to-win race gate.
@@ -32,7 +36,7 @@ const PASE_STAGGER_DELAY = Seconds(5);
  *  - an {@code extractWinner} to pull the result value from the settled promise.
  *
  * Attempts are staggered: the first starts immediately, each subsequent one waits an additional
- * {@link PASE_STAGGER_DELAY}.  When {@code winOnPase} is called, the internal abort signal fires,
+ * {@link CROSS_DEVICE_STAGGER_DELAY}.  When {@code winOnPase} is called, the internal abort signal fires,
  * which cancels any pending stagger sleeps so that no further attempts are started.
  */
 export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
@@ -95,7 +99,7 @@ export abstract class ParallelPaseDiscovery<W> extends Discovery<W> {
         };
 
         const attemptIndex = this.#attemptCount++;
-        const stagger = Millis(attemptIndex * PASE_STAGGER_DELAY);
+        const stagger = Millis(attemptIndex * CROSS_DEVICE_STAGGER_DELAY);
 
         const startFactory = () => {
             this.#startedCount++;
