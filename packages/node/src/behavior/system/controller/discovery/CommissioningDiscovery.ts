@@ -7,7 +7,7 @@
 import { CommissioningClient } from "#behavior/system/commissioning/CommissioningClient.js";
 import type { ClientNode } from "#node/ClientNode.js";
 import type { ServerNode } from "#node/ServerNode.js";
-import { ChannelType, Seconds } from "@matter/general";
+import { ChannelType, Minutes } from "@matter/general";
 import { Discovery } from "./Discovery.js";
 import { ParallelPaseDiscovery } from "./ParallelPaseDiscovery.js";
 
@@ -28,9 +28,11 @@ export class CommissioningDiscovery extends ParallelPaseDiscovery<ClientNode> {
             options = { ...options, longDiscriminator: discriminator };
         }
 
-        // Default discovery timeout is 60 seconds to provide a predictable upper bound when callers do not specify one.
+        // Default discovery timeout matches the spec minimum commissioning window (3 minutes).
+        // Devices that need factory reset, BLE→WiFi transition, or Thread joining can take 2+ minutes
+        // before they start mDNS advertising.
         if (options.timeout === undefined) {
-            options = { ...options, timeout: Seconds(60) };
+            options = { ...options, timeout: Minutes(3) };
         }
 
         // Map discoveryCapabilities to a scannerFilter so BLE scanners are included when requested.

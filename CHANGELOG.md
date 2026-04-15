@@ -26,6 +26,7 @@ The main work (all changes without a GitHub username in brackets in the below li
     - Feature: DoorLockServer is fully implemented except for Aliro features
     - Feature: New Supervision() factory allows for fine-grained control of validation for state, commands and arbitrary JS values
     - Enhancement: Re-establish subscriptions in parallel per peer on device/bridge startup
+    - Adjustment: Because we saw devices in the wild that needed up to 2 minutes to respond to mDNS queries, we increased the discovery time for commissioning targets to 3 minutes (previously 1 minute)
     - Fix: Ensures to report all attribute changes later that happened during an initial subscription seeding when dataVersion filtering was used
     - Fix: Only exports atomic-commands in Thermostat cluster server when relevant features are supported
     - Fix: Properly cancels subscriptions that were canceled by the peer but were still in resubmission state
@@ -78,6 +79,11 @@ The main work (all changes without a GitHub username in brackets in the below li
 - @project-chip/matter.js
     - Enhancement: `CommissioningController.commissionNode()` now uses the parallel PASE commissioning path for pre-discovered devices; WiFi/Thread/regulatory credentials and abort signal are fully propagated
     - Adjustment: The "Waiting for device discovery" node state is now bound to the availability of IP announcements from MDNS
+
+## 0.16.11 (2026-04-10)
+
+- @project-chip/matter.js
+    - Fix: (Pierre-Gilles) Added fallback discoveredAt to node migration in case discoveryData doesn't have one
 
 ## 0.16.10 (2026-02-22)
 

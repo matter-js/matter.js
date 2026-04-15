@@ -5,6 +5,9 @@
  */
 
 import { ansi } from "@matter/tools";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { BackchannelCommand } from "../device/backchannel.js";
 import { Subject } from "../device/subject.js";
 import { Test } from "../device/test.js";
@@ -48,6 +51,7 @@ const Values = {
     pullBeforeTesting: true,
     commandPipe: undefined as ContainerCommandPipe | undefined,
     localControllerPort: undefined as number | undefined,
+    restartFlagHostDir: undefined as string | undefined,
 };
 
 /**
@@ -119,6 +123,10 @@ export const State = {
 
     get localControllerPort() {
         return Values.localControllerPort;
+    },
+
+    get restartFlagHostDir() {
+        return Values.restartFlagHostDir;
     },
 
     get isInitialized() {
@@ -414,6 +422,11 @@ async function configureContainer() {
     const mdnsVolume = Volume(docker, Constants.mdnsVolumeName);
     await mdnsVolume.open();
 
+    // Host-side temp directory bind-mounted into the container so the Python test framework's restart flag
+    // file is directly visible to our monitor without docker exec polling
+    const restartFlagHostDir = await mkdtemp(join(tmpdir(), "matter-restart-"));
+    Values.restartFlagHostDir = restartFlagHostDir;
+
     const composition = docker.compose("matter.js", {
         image: Constants.imageName,
         platform,
@@ -437,6 +450,10 @@ async function configureContainer() {
     Values.mainContainer = await composition.add({
         name: "chip",
         recreate: true,
+        binds: {
+            [mdnsVolume.name]: "/run/dbus",
+            [restartFlagHostDir]: Constants.RestartFlagDir,
+        },
     });
 
     State.onClose(async () => {
@@ -447,6 +464,13 @@ async function configureContainer() {
         }
 
         Values.mainContainer = undefined;
+
+        try {
+            await rm(restartFlagHostDir, { recursive: true, force: true });
+        } catch (e) {
+            console.warn("Error cleaning up restart flag directory:", e);
+        }
+        Values.restartFlagHostDir = undefined;
     });
 }
 
@@ -599,7 +623,7 @@ function createTest(descriptor: TestDescriptor) {
             return new YamlTest(descriptor as TestFileDescriptor, State.container, Values.localControllerPort);
 
         case "py":
-            return new PythonTest(descriptor as TestFileDescriptor, State.container);
+            return new PythonTest(descriptor as TestFileDescriptor, State.container, Values.restartFlagHostDir);
 
         default:
             throw new Error(`Cannot implement CHIP test ${descriptor.name} of kind ${descriptor.kind}`);

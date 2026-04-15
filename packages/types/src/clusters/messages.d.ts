@@ -656,7 +656,7 @@ export declare namespace Messages {
     /**
      * @deprecated Use {@link Messages}.
      */
-    export const Cluster: typeof Messages;
+    export const Cluster: ClusterType.WithCompat<typeof Messages, Messages>;
 
     /**
      * @deprecated Use {@link Messages}.

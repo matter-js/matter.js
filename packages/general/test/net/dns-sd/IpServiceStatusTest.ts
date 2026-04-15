@@ -54,4 +54,27 @@ describe("IpServiceStatus", () => {
         expectAddresses(service.addresses);
         expectKvs(service);
     });
+
+    it("marks unreachable when connecting() resolves with false", async () => {
+        await using site = new MockSite();
+        const { client } = await site.addPair();
+
+        const service = client.addService();
+        service.status.isReachable = true;
+
+        // Simulate a failed connection: the result promise resolves with false (no sessions established).
+        // PeerConnection emits this when overallAbort fires without a successful session.
+        const abort = new Abort();
+        service.status.connecting(abort.then(() => false));
+
+        expect(service.status.isReachable).true;
+
+        abort();
+        // Allow the abort.then() chain and connecting()'s .then() handler to settle
+        await MockTime.resolve(Time.sleep("settle abort", Minutes(1)));
+
+        // After the failed connection result, isReachable should be false so the next attempt triggers MDNS
+        // resolution rather than short-circuiting on the stale "reachable" state.
+        expect(service.status.isReachable).false;
+    });
 });

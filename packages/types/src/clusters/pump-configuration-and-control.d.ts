@@ -1237,7 +1237,7 @@ export declare namespace PumpConfigurationAndControl {
     /**
      * @deprecated Use {@link PumpConfigurationAndControl}.
      */
-    export const Cluster: typeof PumpConfigurationAndControl;
+    export const Cluster: ClusterType.WithCompat<typeof PumpConfigurationAndControl, PumpConfigurationAndControl>;
 
     /**
      * @deprecated Use {@link PumpConfigurationAndControl}.

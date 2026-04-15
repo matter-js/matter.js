@@ -5,7 +5,6 @@
  */
 
 import {
-    type Bytes,
     type DataNamespace,
     FilesystemStorageDriver,
     fromJson,
@@ -119,14 +118,6 @@ export class JsonFileStorageDriver extends FilesystemStorageDriver {
 
     override clearAll(contexts: string[]): void {
         this.#store.clearAll(contexts);
-    }
-
-    override openBlob(contexts: string[], key: string): Blob {
-        return this.#store.openBlob(contexts, key);
-    }
-
-    override writeBlobFromStream(contexts: string[], key: string, stream: ReadableStream<Bytes>): Promise<void> {
-        return this.#store.writeBlobFromStream(contexts, key, stream);
     }
 
     async #commit() {

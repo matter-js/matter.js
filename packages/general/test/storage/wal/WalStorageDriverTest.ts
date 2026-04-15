@@ -675,32 +675,4 @@ describe("WalStorageDriver", () => {
             await storage.close();
         });
     });
-
-    describe("blobs", () => {
-        it("writes and reads a blob", async () => {
-            const storage = await createStorage();
-
-            const data = new Uint8Array([1, 2, 3, 4, 5]);
-            const stream = new ReadableStream<Uint8Array>({
-                start(controller) {
-                    controller.enqueue(data);
-                    controller.close();
-                },
-            });
-            await storage.writeBlobFromStream(["ctx"], "blob-key", stream);
-
-            const blob = await storage.openBlob(["ctx"], "blob-key");
-            const bytes = new Uint8Array(await blob.arrayBuffer());
-            expect(bytes).deep.equal(data);
-
-            await storage.close();
-        });
-
-        it("returns empty blob for nonexistent key", async () => {
-            const storage = await createStorage();
-            const blob = await storage.openBlob(["ctx"], "missing");
-            expect(blob.size).equal(0);
-            await storage.close();
-        });
-    });
 });

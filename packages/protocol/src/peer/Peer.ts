@@ -314,7 +314,11 @@ export class Peer {
         if (this.#connecting) {
             using _disconnecting = this.#lifetime.join("disconnecting");
             this.#connecting.abort();
-            await this.#connecting.done;
+            try {
+                await this.#connecting.done;
+            } catch (error) {
+                AbortedError.accept(error);
+            }
         }
 
         // TODO - need to shutdown exchanges and sessions here too so you can cleanly take down a single peer, but

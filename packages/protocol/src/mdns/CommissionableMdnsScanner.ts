@@ -6,6 +6,7 @@
 
 import {
     Abort,
+    AbortedError,
     ChannelType,
     Diagnostic,
     DnsRecord,
@@ -13,11 +14,17 @@ import {
     DnssdName,
     DnssdNames,
     Duration,
+    Hours,
     IpService,
+    Logger,
     MatterAggregateError,
+    Minutes,
     ObserverGroup,
+    Seconds,
     ServerAddressUdp,
     Time,
+    Timer,
+    Timestamp,
 } from "@matter/general";
 import { VendorId } from "@matter/types";
 import { CommissionableDevice, CommissionableDeviceIdentifiers, DiscoveryData, Scanner } from "../common/Scanner.js";
@@ -31,11 +38,14 @@ import {
     getVendorQname,
 } from "./MdnsConsts.js";
 
+const logger = Logger.get("CommissionableMdnsScanner");
+
 interface CachedDevice {
     device: CommissionableDevice;
     ipService: IpService;
     name: DnssdName;
     observer: (changes: DnssdName.Changes) => void;
+    onAddresses?: () => void;
 }
 
 interface Waiter {
@@ -49,6 +59,12 @@ interface Waiter {
  *
  * Replaces the legacy MdnsClient for commissionable device scanning.
  */
+const SPECULATIVE_TARGET_TTL = Hours(1);
+const SPECULATIVE_CLEANUP_INTERVAL = Minutes(30);
+const SPECULATIVE_TARGET_MAX = 50;
+// Cap discover() retry backoff so queries stay dense enough to succeed inside a commissioning window
+const COMMISSIONING_RETRY_INTERVAL = Seconds(30);
+
 export class CommissionableMdnsScanner implements Scanner {
     readonly type = ChannelType.UDP;
     readonly #names: DnssdNames;
@@ -56,6 +72,13 @@ export class CommissionableMdnsScanner implements Scanner {
     readonly #observers = new ObserverGroup();
     readonly #cache = new Map<string, CachedDevice>();
     readonly #waiters = new Set<Waiter>();
+
+    // Targets materialized by PTR-follow that never received SRV/TXT.  Each target gets a child abort driving
+    // its own SRV/TXT discover() loop and a null observer keeping the name alive until we decide to drop it.
+    readonly #speculativeTargets = new Map<string, { abort: Abort; createdAt: Timestamp }>();
+    readonly #speculativeObserver = () => undefined;
+    readonly #speculativeCleanupTimer: Timer;
+    readonly #scanAbort = new Abort();
 
     constructor(names: DnssdNames) {
         this.#names = names;
@@ -72,6 +95,14 @@ export class CommissionableMdnsScanner implements Scanner {
 
         names.filters.add(this.#filter);
         this.#observers.on(names.discovered, this.#onDiscovered.bind(this));
+
+        this.#speculativeCleanupTimer = Time.getPeriodicTimer(
+            "Speculative PTR target cleanup",
+            SPECULATIVE_CLEANUP_INTERVAL,
+            this.#pruneSpeculativeTargets.bind(this),
+        );
+        this.#speculativeCleanupTimer.utility = true;
+        this.#speculativeCleanupTimer.start();
     }
 
     async close() {
@@ -80,6 +111,14 @@ export class CommissionableMdnsScanner implements Scanner {
             waiter.cancel();
         }
 
+        this.#speculativeCleanupTimer.stop();
+        this.#scanAbort();
+        for (const qname of this.#speculativeTargets.keys()) {
+            // maybeGet avoids resurrecting a DnssdName that already auto-deleted when records expired
+            this.#names.maybeGet(qname)?.off(this.#speculativeObserver);
+        }
+        this.#speculativeTargets.clear();
+
         this.#names.filters.delete(this.#filter);
         this.#observers.close();
         await MatterAggregateError.allSettled(
@@ -87,6 +126,31 @@ export class CommissionableMdnsScanner implements Scanner {
             "Error closing cached IpServices",
         );
         this.#cache.clear();
+    }
+
+    #pruneSpeculativeTargets() {
+        if (this.#speculativeTargets.size === 0) {
+            return;
+        }
+        const cutoff = Time.nowMs - SPECULATIVE_TARGET_TTL;
+        for (const [qname, { abort, createdAt }] of this.#speculativeTargets) {
+            if (createdAt > cutoff) {
+                continue;
+            }
+            this.#speculativeTargets.delete(qname);
+            abort();
+            this.#names.maybeGet(qname)?.off(this.#speculativeObserver);
+        }
+    }
+
+    #clearSpeculativeTarget(qname: string, name: DnssdName) {
+        const tracking = this.#speculativeTargets.get(qname);
+        if (tracking === undefined) {
+            return;
+        }
+        this.#speculativeTargets.delete(qname);
+        tracking.abort();
+        name.off(this.#speculativeObserver);
     }
 
     async findCommissionableDevicesContinuously(
@@ -104,17 +168,7 @@ export class CommissionableMdnsScanner implements Scanner {
         const seen = new Set<string>();
         const result: CommissionableDevice[] = [];
 
-        // Deliver cached matches immediately
-        for (const cached of this.#cache.values()) {
-            const device = refreshAddresses(cached);
-            if (matchesIdentifier(device, identifier)) {
-                seen.add(device.deviceIdentifier);
-                result.push(device);
-                callback(device);
-            }
-        }
-
-        // Create an internal cancel promise that cancelCommissionableDeviceDiscovery can trigger
+        // Must exist before delivering cached matches so the callback can cancel synchronously
         let cancelResolve!: () => void;
         const internalCancel = new Promise<void>(resolve => (cancelResolve = resolve));
 
@@ -132,17 +186,48 @@ export class CommissionableMdnsScanner implements Scanner {
         };
         this.#waiters.add(waiter);
 
+        // Callback may trigger an async cancel chain that must settle before we start discovery
+        let callbackInvoked = false;
+        for (const cached of this.#cache.values()) {
+            const device = refreshAddresses(cached);
+            if (matchesIdentifier(device, identifier) && device.addresses.length > 0) {
+                seen.add(device.deviceIdentifier);
+                result.push(device);
+                callbackInvoked = true;
+                callback(device);
+            }
+        }
+
         const sleepTimer = timeout !== undefined ? Time.sleep("commissionable scanner timeout", timeout) : undefined;
         const signals: Promise<unknown>[] = [internalCancel];
         if (sleepTimer) signals.push(sleepTimer);
         if (cancelSignal) signals.push(cancelSignal);
 
-        // Start continuous query retransmission (RFC 6762 schedule)
+        if (callbackInvoked) {
+            // Macrotask boundary flushes all microtask-based cancel chains before we decide to start discovery
+            const proceed = Symbol();
+            const settle = Time.sleep("cancel settlement", 0).then(() => proceed);
+            const winner = await Promise.race([
+                ...signals.map(s =>
+                    s.then(
+                        () => undefined,
+                        () => undefined,
+                    ),
+                ),
+                settle,
+            ]);
+            if (winner !== proceed) {
+                sleepTimer?.cancel();
+                this.#waiters.delete(waiter);
+                return result;
+            }
+        }
+
         const queryAbort = new Abort();
         const discoveries = this.#startDiscovery(identifier, queryAbort);
 
         try {
-            await Promise.race(signals);
+            await Promise.race([...signals, discoveries]);
             sleepTimer?.cancel();
         } finally {
             queryAbort();
@@ -156,7 +241,7 @@ export class CommissionableMdnsScanner implements Scanner {
     getDiscoveredCommissionableDevices(identifier: CommissionableDeviceIdentifiers): CommissionableDevice[] {
         return [...this.#cache.values()]
             .map(cached => refreshAddresses(cached))
-            .filter(device => matchesIdentifier(device, identifier));
+            .filter(device => matchesIdentifier(device, identifier) && device.addresses.length > 0);
     }
 
     cancelCommissionableDeviceDiscovery(identifier: CommissionableDeviceIdentifiers) {
@@ -169,9 +254,76 @@ export class CommissionableMdnsScanner implements Scanner {
 
     #onDiscovered(name: DnssdName) {
         const lower = name.qname.toLowerCase();
-        if (!lower.endsWith("._matterc._udp.local") && !lower.endsWith("._matterd._udp.local")) {
+        const matterc = lower === "_matterc._udp.local" || lower.endsWith("._matterc._udp.local");
+        const matterd = lower === "_matterd._udp.local" || lower.endsWith("._matterd._udp.local");
+        if (!matterc && !matterd) {
             return;
         }
+        // Service-type PTRs point at instance qnames — follow targets and solicit only missing record types.
+        // Responders usually include SRV+TXT as additional records, so no follow-up is needed in the common case.
+        if (lower.startsWith("_")) {
+            for (const record of name.records) {
+                if (record.recordType !== DnsRecordType.PTR) {
+                    continue;
+                }
+                // Skip malformed PTRs pointing at another service-type qname; only follow pointers to instance names
+                if (record.value.startsWith("_")) {
+                    continue;
+                }
+                const target = this.#names.get(record.value);
+                let hasSrv = false;
+                let hasTxt = false;
+                for (const r of target.records) {
+                    if (r.recordType === DnsRecordType.SRV) {
+                        hasSrv = true;
+                    } else if (r.recordType === DnsRecordType.TXT) {
+                        hasTxt = true;
+                    }
+                    if (hasSrv && hasTxt) {
+                        break;
+                    }
+                }
+                const recordTypes = new Array<DnsRecordType>();
+                if (!hasSrv) {
+                    recordTypes.push(DnsRecordType.SRV);
+                }
+                if (!hasTxt) {
+                    recordTypes.push(DnsRecordType.TXT);
+                }
+                if (recordTypes.length) {
+                    // Drive a full discover() per target so a lost SRV/TXT response triggers retry on the normal
+                    // backoff; solicitor coalesces additional callers for the same name.
+                    const targetKey = record.value.toLowerCase();
+                    if (
+                        !this.#speculativeTargets.has(targetKey) &&
+                        this.#speculativeTargets.size < SPECULATIVE_TARGET_MAX
+                    ) {
+                        target.on(this.#speculativeObserver);
+                        const abort = new Abort({ abort: this.#scanAbort });
+                        this.#speculativeTargets.set(targetKey, { abort, createdAt: Time.nowMs });
+                        void this.#names.solicitor
+                            .discover({
+                                name: target,
+                                recordTypes,
+                                abort: abort.signal,
+                                // Match the main PTR discovery cap so retries stay dense within commissioning windows
+                                retries: { maximumInterval: COMMISSIONING_RETRY_INTERVAL },
+                            })
+                            .catch(error => {
+                                this.#speculativeTargets.delete(targetKey);
+                                target.off(this.#speculativeObserver);
+                                if (!(error instanceof AbortedError)) {
+                                    logger.error(`Speculative discovery for ${target.qname} failed:`, error);
+                                }
+                            });
+                    }
+                }
+            }
+            return;
+        }
+
+        this.#clearSpeculativeTarget(lower, name);
+
         if (this.#cache.has(lower)) {
             return;
         }
@@ -185,6 +337,11 @@ export class CommissionableMdnsScanner implements Scanner {
             this.#cacheDevice(lower, device, ipService, name);
             return;
         }
+
+        // Solicit missing records now so we don't wait for the next PTR retry cycle
+        const hasSrv = [...name.records].some(r => r.recordType === DnsRecordType.SRV);
+        const recordTypes = hasSrv ? [DnsRecordType.TXT] : [DnsRecordType.SRV, DnsRecordType.TXT];
+        this.#names.solicitor.solicit({ name, recordTypes });
 
         // TXT not yet available — observe for updates until we can build the device or it disappears
         const pendingObserver = ({ name: changedName }: DnssdName.Changes) => {
@@ -209,6 +366,10 @@ export class CommissionableMdnsScanner implements Scanner {
                 if (cached) {
                     this.#cache.delete(lower);
                     this.#observers.off(name, cached.observer);
+                    if (cached.onAddresses) {
+                        this.#observers.off(ipService.changed, cached.onAddresses);
+                        cached.onAddresses = undefined;
+                    }
                     void cached.ipService.close();
                 }
             }
@@ -218,9 +379,44 @@ export class CommissionableMdnsScanner implements Scanner {
         this.#cache.set(lower, cached);
         this.#observers.on(name, observer);
 
-        for (const waiter of this.#waiters) {
-            waiter.notify(refreshAddresses(cached));
+        // Only notify waiters once the device has resolved IP addresses.
+        // A/AAAA records may arrive after the initial SRV/TXT discovery;
+        // defer notification until addresses become available.
+        if (!this.#deliverDeviceIfResolved(cached)) {
+            // SRV target hostname may have lost its A/AAAA records (TTL expired) while the instance
+            // SRV/TXT was still valid.  Solicit address records for all SRV target hostnames so we
+            // don't wait for the next unsolicited broadcast to deliver the device.
+            for (const record of name.records) {
+                if (record.recordType !== DnsRecordType.SRV) {
+                    continue;
+                }
+                const hostname = this.#names.get(record.value.target);
+                this.#names.solicitor.solicit({
+                    name: hostname,
+                    recordTypes: [DnsRecordType.A, DnsRecordType.AAAA],
+                });
+            }
+
+            const onAddresses = () => {
+                if (this.#deliverDeviceIfResolved(cached)) {
+                    this.#observers.off(ipService.changed, onAddresses);
+                    cached.onAddresses = undefined;
+                }
+            };
+            cached.onAddresses = onAddresses;
+            this.#observers.on(ipService.changed, onAddresses);
         }
+    }
+
+    #deliverDeviceIfResolved(cached: CachedDevice): boolean {
+        const device = refreshAddresses(cached);
+        if (device.addresses.length === 0) {
+            return false;
+        }
+        for (const waiter of this.#waiters) {
+            waiter.notify(device);
+        }
+        return true;
     }
 
     async #startDiscovery(identifier: CommissionableDeviceIdentifiers, abort: Abort) {
@@ -231,6 +427,8 @@ export class CommissionableMdnsScanner implements Scanner {
                 name: this.#names.get(qname),
                 recordTypes: [DnsRecordType.PTR],
                 abort,
+                // Cap backoff for commissioning: short-lived discovery shouldn't drift toward the 1h default
+                retries: { maximumInterval: COMMISSIONING_RETRY_INTERVAL },
             }),
         );
         await MatterAggregateError.allSettled(discoveries);

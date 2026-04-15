@@ -779,7 +779,7 @@ export class MatterController {
         const migratedPeers = new Set<string>();
 
         const newClientStores = serverStore.clientStores;
-        for (const { address: peerAddress, discoveryData, deviceData, operationalAddress } of peers) {
+        for (const { address: peerAddress, discoveryData, operationalAddress } of peers) {
             logger.debug(`Migrating data for commissioned node ${peerAddress.toString()}`);
             const clientNode = server.peers.get(peerAddress);
             if (clientNode !== undefined) {
@@ -832,7 +832,7 @@ export class MatterController {
             const commissioning = RemoteDescriptor.toLongForm({
                 // Fallback discoveredAt in case discoveryData doesn't have one
                 discoveredAt: Time.nowMs,
-                ...(discoveryData ? deviceData : {}),
+                ...discoveryData,
                 addresses: operationalAddress ? [operationalAddress] : [],
             });
             logger.debug(

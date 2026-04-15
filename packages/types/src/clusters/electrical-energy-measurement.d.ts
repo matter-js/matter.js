@@ -720,7 +720,7 @@ export declare namespace ElectricalEnergyMeasurement {
     /**
      * @deprecated Use {@link ElectricalEnergyMeasurement}.
      */
-    export const Cluster: typeof ElectricalEnergyMeasurement;
+    export const Cluster: ClusterType.WithCompat<typeof ElectricalEnergyMeasurement, ElectricalEnergyMeasurement>;
 
     /**
      * @deprecated Use {@link ElectricalEnergyMeasurement}.

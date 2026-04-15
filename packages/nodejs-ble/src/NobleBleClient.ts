@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Bytes, Diagnostic, Logger } from "@matter/general";
+import { Bytes, Diagnostic, Instant, Logger, Time } from "@matter/general";
 import { require } from "@matter/nodejs-ble/require";
 import { MatterBle } from "@matter/protocol";
 import type { Noble, Peripheral } from "@stoprocent/noble";
@@ -148,21 +148,32 @@ export class NobleBleClient {
         this.#closing = true;
         logger.debug("Stopping Noble");
 
-        // This is a hack because it can else happen that stop is hanging because it needs response data when the HCI
-        // based driver is used. Also Check for Win32 is not 100% correct, but likely good enough for now.
-        // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
-        try {
-            if (platform !== "win32" && platform !== "darwin") {
-                noble.startScanning();
+        if (this.nobleState === "poweredOn") {
+            // noble.stop() hangs when BLE isn't powered on (https://github.com/stoprocent/noble/issues/30).
+            // Only attempt the full stop sequence when BLE is actually available.
+            try {
+                // Workaround: start scanning first so stop gets the HCI response it needs (Linux HCI driver).
+                // TODO Remove when https://github.com/stoprocent/noble/issues/30 got fixed
+                if (platform !== "win32" && platform !== "darwin") {
+                    noble.startScanning();
+                }
+            } catch (error) {
+                logger.info("Error starting scan during close, proceeding to stop:", error);
             }
-        } catch (error) {
-            logger.info("Error starting scan during close, proceeding to stop:", error);
-        }
 
-        try {
-            noble.stop();
-        } catch (error) {
-            logger.info("Error stopping Noble:", error);
+            try {
+                noble.stop();
+            } catch (error) {
+                logger.info("Error stopping Noble:", error);
+            }
+
+            // Defer listener removal so noble.stop() can finish its internal event roundtrip
+            Time.getTimer("noble-cleanup", Instant, () => noble.removeAllListeners()).start();
+        } else {
+            logger.debug(`Skipping noble.stop() because state is "${this.nobleState}"`);
+
+            // No stop needed — remove listeners immediately to release the event loop
+            noble.removeAllListeners();
         }
     }
 
