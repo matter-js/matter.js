@@ -68,7 +68,7 @@ export declare namespace Groups {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
          */
-        nameSupport: NameSupportAttribute;
+        nameSupport: NameSupport;
     }
 
     /**
@@ -85,7 +85,7 @@ export declare namespace Groups {
          *
          * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
          */
-        nameSupport: NameSupportAttribute;
+        nameSupport: NameSupport;
     }
 
     /**
@@ -171,14 +171,14 @@ export declare namespace Groups {
     }
 
     /**
-     * This attribute provides legacy, read-only access to whether the Group Names feature is supported. The most
-     * significant bit, bit 7 (GroupNames), shall be equal to bit 0 of the FeatureMap attribute (GN Feature). All other
-     * bits shall be 0.
-     *
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.6.1
+     * @see {@link MatterSpecification.v142.Cluster} § 1.3.5.1
      */
-    export declare class NameSupportAttribute {
-        constructor(values?: Partial<NameSupportAttribute> | number);
+    export declare class NameSupport {
+        constructor(values?: Partial<NameSupport> | number);
+
+        /**
+         * The ability to store a name for a group.
+         */
         groupNames?: boolean;
     };
 
@@ -390,18 +390,6 @@ export declare namespace Groups {
          * @see {@link MatterSpecification.v142.Cluster} § 1.3.7.6.2
          */
         groupName: string;
-    };
-
-    /**
-     * @see {@link MatterSpecification.v142.Cluster} § 1.3.5.1
-     */
-    export declare class NameSupport {
-        constructor(values?: Partial<NameSupport> | number);
-
-        /**
-         * The ability to store a name for a group.
-         */
-        groupNames?: boolean;
     };
 
     /**

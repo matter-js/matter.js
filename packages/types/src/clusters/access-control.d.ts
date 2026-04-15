@@ -43,7 +43,7 @@ export declare namespace AccessControl {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 2;
+    export const revision: 3;
 
     /**
      * Canonical metadata for the AccessControl cluster.
@@ -171,6 +171,13 @@ export declare namespace AccessControl {
     }
 
     /**
+     * {@link AccessControl} supports these elements if it supports feature "Auxiliary".
+     */
+    export interface AuxiliaryAttributes {
+        auxiliaryAcl: AccessControlEntry[];
+    }
+
+    /**
      * Attributes that may appear in {@link AccessControl}.
      *
      * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
@@ -279,6 +286,8 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.6.9
          */
         arl: AccessRestrictionEntry[];
+
+        auxiliaryAcl: AccessControlEntry[];
     }
 
     /**
@@ -367,6 +376,13 @@ export declare namespace AccessControl {
     }
 
     /**
+     * {@link AccessControl} supports these elements if it supports feature "Auxiliary".
+     */
+    export interface AuxiliaryEvents {
+        auxiliaryAccessUpdated: AuxiliaryAccessUpdatedEvent;
+    }
+
+    /**
      * Events that may appear in {@link AccessControl}.
      *
      * Some properties may be optional if device support is not mandatory. Device support may also be affected by a
@@ -410,6 +426,8 @@ export declare namespace AccessControl {
          * @see {@link MatterSpecification.v142.Core} § 9.10.9.3
          */
         fabricRestrictionReviewUpdate: FabricRestrictionReviewUpdateEvent;
+
+        auxiliaryAccessUpdated: AuxiliaryAccessUpdatedEvent;
     }
 
     export type Components = [
@@ -421,10 +439,12 @@ export declare namespace AccessControl {
             attributes: ManagedDeviceAttributes,
             commands: ManagedDeviceCommands,
             events: ManagedDeviceEvents
-        }
+        },
+
+        { flags: { auxiliary: true }, attributes: AuxiliaryAttributes, events: AuxiliaryEvents }
     ];
 
-    export type Features = "Extension" | "ManagedDevice";
+    export type Features = "Extension" | "ManagedDevice" | "Auxiliary";
 
     /**
      * These are optional features supported by AccessControlCluster.
@@ -514,7 +534,17 @@ export declare namespace AccessControl {
          *
          * @see {@link MatterSpecification.v142.Core} § 9.10.4.2
          */
-        ManagedDevice = "ManagedDevice"
+        ManagedDevice = "ManagedDevice",
+
+        /**
+         * Auxiliary (AUX)
+         *
+         * This feature indicates that there may be entries in the AuxiliaryACL attribute which indicate synthesized ACL
+         * entries. For example, when this feature is supported, the configuration of groups via the Groupcast cluster
+         * may lead, under some circumstances, to some access being granted automatically to some subjects by virtue of
+         * group membership.
+         */
+        Auxiliary = "Auxiliary"
     }
 
     /**
@@ -664,6 +694,7 @@ export declare namespace AccessControl {
         targets: AccessControlTarget[] | null;
 
         fabricIndex: FabricIndex;
+        auxiliaryType?: AccessControlAuxiliaryType;
     };
 
     /**
@@ -1130,6 +1161,19 @@ export declare namespace AccessControl {
         fabricIndex: FabricIndex;
     };
 
+    export declare class AuxiliaryAccessUpdatedEvent {
+        constructor(values?: Partial<AuxiliaryAccessUpdatedEvent>);
+
+        /**
+         * The AdminNodeID field SHALL contain the NodeID of the Administrator that caused the action which led to
+         * changes to the AuxiliaryACL. If no information is available, such as when a change is internally initiated,
+         * this field SHALL be null.
+         */
+        adminNodeId: NodeId | null;
+
+        fabricIndex: FabricIndex;
+    };
+
     /**
      * @see {@link MatterSpecification.v142.Core} § 9.10.5.1
      */
@@ -1278,6 +1322,18 @@ export declare namespace AccessControl {
          */
         id: number | null;
     };
+
+    export enum AccessControlAuxiliaryType {
+        /**
+         * This ACL entry exists because of some system reason and is likely non-revocable.
+         */
+        System = 0,
+
+        /**
+         * Synthesized via Groupcast Cluster administrator-configured group membership.
+         */
+        Groupcast = 1
+    }
 
     /**
      * Attribute metadata objects keyed by name.

@@ -35,7 +35,7 @@ export declare namespace BasicInformation {
     /**
      * The cluster revision assigned by {@link MatterSpecification.v142.Cluster}.
      */
-    export const revision: 5;
+    export const revision: 6;
 
     /**
      * Canonical metadata for the BasicInformation cluster.
@@ -741,6 +741,32 @@ export declare namespace BasicInformation {
          * @see {@link MatterSpecification.v142.Core} § 11.1.4.4.2
          */
         subscriptionsPerFabric: number;
+
+        /**
+         * This field shall indicate the actual maximum number of concurrent Invoke interactions that can be processed
+         * simultaneously by the node before possibly returning a BUSY status code.
+         */
+        simultaneousInvocationsSupported?: number;
+
+        /**
+         * This field shall indicate the actual minimum number of concurrent Write interactions that can be processed
+         * simultaneously by the node before possibly returning a BUSY status code.
+         */
+        simultaneousWritesSupported?: number;
+
+        /**
+         * This field shall indicate the actual maximum number of read paths (i.e. the sum of lengths of the lists of
+         * AttributePathIB and EventPathIB in the action) which a node guarantees being able to process in any Read
+         * Request Action.
+         */
+        readPathsSupported?: number;
+
+        /**
+         * This field shall indicate the actual maximum number of subscription paths (i.e. the sum of lengths of the
+         * lists of AttributePathIB and EventPathIB in the action) which a node guarantees being able to process in any
+         * Subscribe Request Action.
+         */
+        subscribePathsSupported?: number;
     };
 
     /**

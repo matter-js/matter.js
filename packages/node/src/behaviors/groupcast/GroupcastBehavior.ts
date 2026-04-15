@@ -8,8 +8,6 @@
 
 import { Groupcast } from "@matter/types/clusters/groupcast";
 import { ClusterBehavior } from "../../behavior/cluster/ClusterBehavior.js";
-import { GroupcastInterface } from "./GroupcastInterface.js";
-import { ClusterType } from "@matter/types";
 import { Identity } from "@matter/general";
 
 /**
@@ -18,9 +16,7 @@ import { Identity } from "@matter/general";
  * Groupcast.Cluster requires you to enable one or more optional features. You can do so using
  * {@link GroupcastBehavior.with}.
  */
-export const GroupcastBehaviorConstructor = ClusterBehavior
-    .withInterface<GroupcastInterface>()
-    .for(ClusterType(Groupcast.Base));
+export const GroupcastBehaviorConstructor = ClusterBehavior.for(Groupcast);
 
 export interface GroupcastBehaviorConstructor extends Identity<typeof GroupcastBehaviorConstructor> {}
 export const GroupcastBehavior: GroupcastBehaviorConstructor = GroupcastBehaviorConstructor;
