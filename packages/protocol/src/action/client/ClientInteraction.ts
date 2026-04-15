@@ -254,6 +254,15 @@ export class ClientInteraction<
             return false;
         }
 
+        // TCP has 1:1 session-connection binding plus OS keep-alive — if the messenger creation
+        // succeeded, the session and its TCP connection are alive. No need for an empty Read probe.
+        if (messenger.exchange.channel.type === ChannelType.TCP) {
+            logger.debug("Probe", Mark.OUTBOUND, messenger.exchange.via, Diagnostic.weak("(TCP — skipped)"));
+            await messenger.close();
+            abort[Symbol.dispose]();
+            return true;
+        }
+
         logger.info("Probe", Mark.OUTBOUND, messenger.exchange.via);
 
         try {

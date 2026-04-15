@@ -5,6 +5,7 @@
  */
 
 import {
+    ChannelType,
     Diagnostic,
     Duration,
     isIpNetworkChannel,
@@ -98,6 +99,12 @@ export class PeerAddressMonitor {
 
         const channel = session.channel.transportChannel;
         if (!isIpNetworkChannel(channel)) {
+            return;
+        }
+
+        // TCP has 1:1 session-connection binding plus OS keep-alive — connection drops evict
+        // the session directly, so probing the address is unnecessary.
+        if (channel.type === ChannelType.TCP) {
             return;
         }
 
